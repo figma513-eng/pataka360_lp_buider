@@ -1,0 +1,6 @@
+{
+  "name": "Lynk Builder",
+  "description": "No-code mobile landing page and link-in-bio visual builder with live preview and HTML export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

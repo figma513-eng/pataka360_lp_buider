@@ -1,0 +1,1190 @@
+# LYNK BUILDER
+# MASTER PROMPT FINAL
+## COMPLETE REMEDIATION, IMPLEMENTATION, TESTING & DELIVERY
+### ONE-SHOT EXECUTION — F-01 THROUGH F-28
+### FINAL TARGET: FULLY IMPLEMENTED — WEB PREVIEW READY — LOCAL MAC READY
+
+PROJECT: LYNK BUILDER
+
+EXECUTION MODE: ONE CONTINUOUS IMPLEMENTATION
+
+SCOPE: ALL APPROVED AUDIT FINDINGS F-01 THROUGH F-28
+
+DELIVERY TARGET:
+1. Complete and corrected source code.
+2. Running application in AI Studio Web Preview.
+3. Ready-to-run local development package for Mac.
+4. Complete testing and final audit report.
+
+---
+
+# 1. PRIMARY DIRECTIVE — COMPLETE EVERYTHING
+
+Anda bertindak sebagai Senior Full-Stack Engineer, Application Security Engineer, Database Engineer, DevOps Engineer, QA Engineer, dan Technical Auditor yang bertanggung jawab menyelesaikan seluruh rekomendasi audit Lynk Builder.
+
+Ini adalah perintah implementasi penuh, bukan perintah untuk membuat analisis, rekomendasi, atau rencana saja.
+
+Anda harus benar-benar mengerjakan perubahan pada source code proyek Lynk Builder yang sedang aktif.
+
+Laksanakan seluruh pekerjaan dalam satu rangkaian eksekusi sampai selesai:
+
+AUDIT → VERIFY EXISTING CODE → DESIGN VALIDATION → IMPLEMENTATION → DATABASE MIGRATION → TESTING → FIXING → RETESTING → WEB PREVIEW VERIFICATION → LOCAL READINESS → FINAL AUDIT → DELIVERY.
+
+JANGAN:
+- Berhenti setelah membuat analisis.
+- Hanya memberikan daftar rekomendasi.
+- Hanya membuat contoh kode.
+- Berhenti setelah menyelesaikan P0-A.
+- Meminta persetujuan ChatGPT di antara fase.
+- Membuat Completion Gate antara P0-A, P0-B, P0-C, dan P1.
+- Menyatakan FINISH hanya karena kode berhasil ditulis.
+- Mengabaikan pengujian yang gagal.
+- Mengklaim hasil pengujian yang tidak benar-benar dijalankan.
+
+Semua pekerjaan dalam ruang lingkup ini sudah mendapat persetujuan desain.
+
+AI Studio harus menyelesaikan seluruh fase secara berurutan tanpa menunggu review ChatGPT di tengah pekerjaan.
+
+ChatGPT akan melakukan independent review setelah seluruh pekerjaan dan deliverables selesai.
+
+Satu-satunya completion gate adalah final completion setelah seluruh ruang lingkup dikerjakan dan diverifikasi.
+
+---
+
+# 2. KONDISI PROYEK SAAT INI — WAJIB DIPERHATIKAN
+
+Sebelumnya Anda telah melaporkan implementasi Batch P0-A: Access Control Core.
+
+Laporan tersebut menyebut delapan file yang telah dimodifikasi:
+
+1. server.ts
+2. src/db/repository.ts
+3. src/db/index.ts
+4. src/db/schema.ts
+5. src/db/schema.sql
+6. src/utils/accessControl.ts
+7. src/components/AccessSettingsModal.tsx
+8. src/App.tsx
+
+Laporan P0-A menyebut perubahan berikut:
+
+- Super Admin bootstrap dan registrasi atomik.
+- Default role menjadi viewer.
+- Access policies lama diperbaiki.
+- Autentikasi dan authorization endpoint diperketat.
+- Project ownership dan unitScope diperiksa server.
+- Validasi ID save dan publish.
+- Draft preview dilindungi.
+- Fallback proyek pertama yang berpotensi membocorkan data dihapus.
+- Build dan TypeScript dilaporkan berhasil.
+- Pengujian HTTP dilaporkan 12/12 berhasil.
+- Regression test dilaporkan berhasil.
+- Data store yang diuji memiliki 1 user, 2 proyek, dan 15 event analitik.
+
+Namun, laporan yang sama menyebut dua pengujian belum dilakukan secara langsung:
+
+A. PostgreSQL runtime belum diuji pada instance PostgreSQL aktif.
+
+B. Interaksi UI browser end-to-end belum diuji melalui browser nyata.
+
+Karena itu, jangan menganggap laporan tersebut sebagai bukti final.
+
+## ATURAN TERHADAP P0-A
+
+1. Periksa source code aktual terlebih dahulu.
+2. Verifikasi seluruh perubahan P0-A.
+3. Pertahankan perubahan yang sudah benar.
+4. Jangan mengulang implementasi yang sama jika sudah benar.
+5. Perbaiki kekurangan atau implementasi yang tidak sesuai baseline.
+6. Lengkapi pengujian yang belum dilakukan jika lingkungan memungkinkan.
+7. Jangan menghapus hasil kerja sebelumnya tanpa alasan teknis yang jelas.
+8. Jangan menggunakan tombol Restore atau mengembalikan proyek ke checkpoint lama yang menghapus perubahan P0-A.
+
+Pastikan proyek aktif tetap menjadi sumber implementasi utama.
+
+Jika source code ternyata berbeda dari laporan P0-A, prioritaskan kondisi source code aktual dan dokumentasikan perbedaannya.
+
+---
+
+# 3. BASELINE KEPUTUSAN P0-A YANG DIKUNCI
+
+Keputusan berikut tidak boleh diubah tanpa alasan teknis yang kuat dan dokumentasi.
+
+## A. Super Admin dan registrasi
+
+- Hanya satu akun pertama yang boleh menjadi Super Admin melalui bootstrap.
+- Bootstrap harus atomik dan aman terhadap request bersamaan.
+- Pendaftar publik berikutnya mendapatkan role viewer.
+- Registrasi publik tidak boleh menghasilkan Super Admin atau Admin otomatis.
+- Payload browser tidak boleh menentukan role, owner, permission, atau scope.
+- Role hanya dapat diubah melalui mekanisme administrasi yang sah.
+
+Default policy:
+
+allUsersSuperAdmin = false
+
+autoGrantSuperAdminOnJoin = false
+
+defaultRole = 'viewer'
+
+## B. Migrasi data lama
+
+- Pertahankan Super Admin pertama yang sudah ada.
+- Jangan menghapus user.
+- Jangan menghapus proyek.
+- Jangan menghapus event analitik.
+- Pertahankan data bisnis.
+- Perbarui access policies secara non-destruktif.
+- Migrasi harus idempotent.
+- Backup wajib dibuat sebelum perubahan.
+- Jika terdapat lebih dari satu Super Admin, jangan menurunkan atau menghapus akun secara otomatis. Laporkan anomali.
+
+## C. Authentication dan authorization
+
+requireAuthForBuilder = false hanya boleh mengizinkan akses editor kanvas lokal sesuai kebijakan.
+
+Pengaturan tersebut tidak boleh membuka endpoint privat server.
+
+Semua endpoint administratif dan privat tetap wajib login dan memeriksa permission.
+
+User null tidak boleh dianggap memiliki akses penuh.
+
+## D. Project ownership dan unitScope
+
+- ownerUserId ditentukan server.
+- Payload browser tidak boleh mengganti owner.
+- Pembuatan proyek wajib memiliki permission projects.
+- User hanya dapat mengakses proyek sesuai scope.
+- unitScope = [] berarti tidak memiliki akses ke unit usaha mana pun.
+- Proyek di luar scope harus ditolak dengan HTTP 403.
+- Tidak boleh ada fallback diam-diam ke proyek pertama.
+
+## E. Save dan publish
+
+Wajib memvalidasi:
+
+body.record.id === req.params.id
+
+Validasi harus dilakukan sebelum database dimodifikasi.
+
+Permission, ownership, dan scope diperiksa terhadap proyek yang sama dengan ID yang akan diubah.
+
+## F. Draft preview
+
+Draft preview wajib memerlukan autentikasi dan hak akses terhadap proyek.
+
+Halaman published tetap dapat diakses publik sesuai konfigurasi publikasi.
+
+---
+
+# 4. SELURUH TEMUAN AUDIT F-01 SAMPAI F-28
+
+Selesaikan seluruh temuan berikut. Jangan menghilangkan temuan dari ruang lingkup.
+
+## CRITICAL
+
+### F-01 — Super Admin Bootstrap
+
+- Bootstrap Super Admin hanya sekali.
+- Gunakan mekanisme atomik.
+- Cegah concurrent registration menghasilkan beberapa Super Admin.
+- Registrasi berikutnya menggunakan viewer.
+- Tolak privilege escalation melalui payload.
+- Jangan mempercayai role dari browser.
+
+### F-02 — Draft Preview Authorization
+
+- Amankan GET /p/:slug?preview=1.
+- Draft tidak boleh diakses anonim.
+- Wajib login.
+- Wajib memeriksa permission, ownership, dan unitScope.
+- Jangan mengandalkan query parameter sebagai otorisasi.
+- Jika memakai signed preview token, wajib memiliki expiry dan scope yang ketat.
+
+### F-26 — Project ID Mismatch
+
+Perbaiki:
+
+/api/projects/:id/save
+
+/api/projects/:id/publish
+
+- Validasi ID URL dan body.
+- Tolak ketidakcocokan sebelum mutasi database.
+- Periksa permission dan ownership terhadap proyek yang benar.
+- Uji save dan publish secara terpisah.
+
+### F-27 — Authentication Middleware Bypass
+
+- Perbaiki seluruh middleware.
+- requireAuthForBuilder tidak boleh melewati autentikasi endpoint privat.
+- User null tidak boleh mendapatkan akses.
+- Permission harus selalu diperiksa.
+- Inventarisasi seluruh route.
+- Pastikan tidak ada jalur alternatif yang melewati middleware.
+
+## HIGH
+
+### F-03 — SSRF Protection
+
+Perbaiki semua fitur server-side fetch URL, khususnya:
+
+- /api/resolve-video
+- Webhook fetch.
+- URL resolver.
+- Fitur lain yang mengambil URL eksternal.
+
+Wajib:
+- Validasi protokol.
+- Tolak localhost.
+- Tolak loopback.
+- Tolak private IPv4.
+- Tolak private, reserved, dan link-local IPv6.
+- Tolak cloud metadata endpoint.
+- Lakukan DNS resolution dan validasi hasil IP.
+- Cegah DNS rebinding.
+- Validasi setiap redirect.
+- Batasi jumlah redirect.
+- Jangan mengikuti redirect menuju private/reserved IP.
+- Batasi timeout dan ukuran response.
+- Validasi content type.
+- Hindari request internal yang tidak diizinkan.
+
+Uji:
+- 127.0.0.1.
+- localhost.
+- Private IPv4.
+- IPv6 loopback.
+- IPv6 private dan link-local.
+- Cloud metadata IP.
+- Redirect ke private IP.
+- Redirect chain.
+- DNS rebinding.
+- Skema URL berbahaya.
+
+Fitur URL yang sah harus tetap berfungsi.
+
+### F-04 — Session Security
+
+- Hindari bearer session token di LocalStorage.
+- Utamakan HttpOnly Secure Cookie.
+- Atur SameSite dengan benar.
+- Aktifkan Secure pada HTTPS.
+- Terapkan CSRF protection sesuai arsitektur.
+- Tetapkan expiry.
+- Logout mencabut session.
+- Session revoked tidak boleh digunakan kembali.
+- Perubahan role, permission, status user, dan unitScope harus berlaku pada authorization berikutnya.
+- Hindari sesi lama mempertahankan akses yang sudah dicabut.
+
+### F-05 — IndexedDB User Isolation
+
+- Pisahkan workspace berdasarkan user.
+- Isolasi akun anonim dan akun terautentikasi.
+- Cegah kebocoran cache lintas akun.
+- Logout tidak boleh meninggalkan workspace user sebelumnya sebagai workspace aktif.
+- Migrasikan IndexedDB lama secara aman.
+- Jangan menghapus data lama sebelum migrasi diverifikasi.
+
+### F-06 — Revision Control
+
+- Tambahkan revision/version pada proyek.
+- Update mengirim baseRevision.
+- Backend membandingkan revision sebelum menulis.
+- Konflik menghasilkan HTTP 409.
+- Jangan melakukan silent overwrite.
+- Sediakan alur pemulihan konflik yang jelas.
+
+Uji dua user mengedit proyek yang sama.
+
+### F-07 — Server Autosave
+
+- Implementasikan autosave server.
+- Gunakan debounce.
+- Gunakan retry dengan backoff.
+- Buat antrean perubahan yang belum tersinkron.
+- Pertahankan perubahan offline.
+- Sinkronkan kembali ketika koneksi pulih.
+- Tampilkan status local saved, pending, syncing, server saved, conflict, dan failed.
+- Jangan mengklaim tersimpan jika server belum mengonfirmasi.
+
+### F-08 — IndexedDB Error Handling
+
+- Jangan menelan error baca/tulis.
+- Kembalikan status penyimpanan yang jelas.
+- Tampilkan error kepada pengguna.
+- Jangan mengganti workspace dengan data kosong secara diam-diam.
+- Jangan menghapus data yang masih bisa dipulihkan.
+
+### F-09 — Database Fail-Closed
+
+- Production harus fail-closed jika PostgreSQL diwajibkan tetapi tidak tersedia.
+- Jangan diam-diam berpindah ke JSON.
+- JSON fallback hanya melalui konfigurasi development/local yang eksplisit.
+- Health check harus mencerminkan keadaan database sebenarnya.
+- Pisahkan liveness dan readiness jika diperlukan.
+- Jangan menerima operasi tulis pada storage yang tidak aman.
+
+### F-10 — Atomic JSON Persistence
+
+- Gunakan temporary file dan atomic rename.
+- Tangani error penulisan.
+- Jangan menganggap data tersimpan jika disk write gagal.
+- Jangan memperbarui in-memory state seolah penulisan berhasil.
+- Lindungi dari partial write.
+- Sediakan recovery yang dapat diverifikasi.
+
+### F-12 — Authentication Rate Limiting
+
+Terapkan pada:
+- Login.
+- Register.
+- Password recovery jika tersedia.
+- Endpoint autentikasi sensitif lainnya.
+
+Gunakan pembatasan yang efektif tanpa menciptakan permanent lockout yang mudah disalahgunakan.
+
+Jangan membocorkan keberadaan akun melalui pesan error.
+
+### F-25 — Corrupt Database Protection
+
+- Bedakan ENOENT, parse error, dan I/O error.
+- Jangan menganggap database korup sebagai database kosong.
+- Jangan menimpa file database lama.
+- Pertahankan file korup untuk investigasi/recovery.
+- Hentikan operasi tulis yang berisiko merusak data.
+- Sediakan diagnosis yang jelas.
+
+## MEDIUM
+
+### F-11 — SESSION_SECRET
+
+- Production wajib memiliki secret yang valid.
+- Hilangkan fallback tidak aman.
+- Startup harus gagal dengan pesan jelas jika secret wajib tidak tersedia.
+- Jangan mencetak secret ke log.
+- Dokumentasikan pembuatan dan rotasi secret.
+- Pertahankan strategi migrasi session yang benar.
+
+### F-13 — Consistent Database Backup
+
+- Gunakan snapshot konsisten.
+- PostgreSQL backup harus menggunakan mekanisme snapshot yang benar.
+- Jangan menggabungkan query yang tidak konsisten.
+- Sertakan metadata.
+- Verifikasi hasil backup.
+- Lindungi dari akses anonim.
+
+### F-14 — Complete Backup and Restore
+
+Backup harus mencakup:
+- Projects.
+- Application data.
+- Media.
+- Relevant settings.
+- Schema/version.
+- Manifest.
+- Checksums.
+
+Jangan menyertakan password plaintext, session token aktif, atau secret yang tidak diperlukan.
+
+Restore harus mendukung:
+- Format validation.
+- Checksum validation.
+- Schema validation.
+- Staged restore.
+- Preview sebelum restore.
+- Konfirmasi overwrite.
+- Backup sebelum restore.
+- Recovery ketika restore gagal.
+
+Uji restore pada environment terisolasi.
+
+### F-15 — Media Storage
+
+- Evaluasi media inline data URL.
+- Kurangi pembengkakan JSON payload.
+- Pertimbangkan penyimpanan media terpisah.
+- Validasi MIME dan ukuran.
+- Cegah path traversal.
+- Pertahankan referensi media lama.
+- Migrasikan secara bertahap.
+- Jangan menghapus media lama sebelum verifikasi berhasil.
+
+### F-16 — PostgreSQL TLS
+
+- Validasi sertifikat TLS pada production.
+- Jangan gunakan rejectUnauthorized=false sebagai default production.
+- Dokumentasikan CA jika diperlukan.
+- Pisahkan konfigurasi development dan production.
+- Uji sertifikat valid dan tidak valid.
+
+### F-17 — Database Schema and Migration
+
+- Satukan sumber schema yang otoritatif.
+- Hilangkan konflik definisi SQL dan TypeScript.
+- Buat migration runner.
+- Berikan versi migration.
+- Catat migration yang sudah dijalankan.
+- Sediakan recovery procedure.
+- Jangan melakukan perubahan destruktif.
+
+### F-18 — Runtime Compatibility
+
+- Pastikan script start benar-benar kompatibel dengan Node.js yang didukung.
+- Perbaiki node server.ts jika masih tidak kompatibel.
+- Pisahkan dev, build, dan production start.
+- Uji clean startup.
+- Dokumentasikan runtime version.
+
+### F-19 — Package Manager Consistency
+
+- Tentukan satu package manager resmi.
+- Selaraskan README, scripts, dan lockfile.
+- Hindari konflik dependency tree.
+- Pastikan clean install berhasil.
+- Dokumentasikan instalasi.
+
+### F-20 — Automated Testing
+
+Buat test suite untuk:
+- Unit.
+- Integration.
+- API.
+- Authentication.
+- Authorization.
+- Persistence.
+- Backup/restore.
+- Security.
+- Concurrency.
+- Regression.
+
+Sediakan satu perintah resmi untuk menjalankan seluruh test.
+
+### F-21 — Server Network Binding
+
+- Default local development menggunakan 127.0.0.1.
+- Production binding dikonfigurasi secara eksplisit.
+- Dokumentasikan host dan port.
+- Jangan menghalangi deployment sah.
+
+### F-22 — HTML/CSS/URL Sanitization
+
+- Gunakan allowlist.
+- Validasi URL.
+- Tolak javascript: dan skema berbahaya.
+- Cegah XSS.
+- Cegah event handler HTML berbahaya.
+- Periksa CSS injection.
+- Validasi iframe/embed.
+- Sanitasi import.
+- Terapkan validasi server-side.
+- Pertahankan tampilan desain yang sah.
+
+### F-23 — Gemini Integration Review
+
+- Verifikasi apakah Gemini benar-benar digunakan.
+- Jika digunakan, amankan API key di server.
+- Jangan mengekspos API key di browser.
+- Jika tidak digunakan, dokumentasikan.
+- Hapus dependency hanya jika terbukti tidak dibutuhkan.
+- Jangan menghapus fitur yang belum diperiksa.
+
+### F-24 — Code Maintainability
+
+Evaluasi file besar:
+- RightInspector.
+- Modals.
+- htmlExporter.
+- MobileCanvas.
+
+Lakukan refactor bertahap:
+- Pisahkan tanggung jawab.
+- Kurangi duplikasi.
+- Hindari circular dependency.
+- Pertahankan public interface.
+- Jangan melakukan rewrite besar tanpa alasan.
+- Jalankan regression test.
+
+### F-28 — Express Async Error Handling
+
+- Pastikan semua async route memiliki error propagation yang benar.
+- Gunakan wrapper atau mekanisme sesuai versi Express.
+- Buat centralized error handler.
+- Tangani unhandled rejection.
+- Jangan bocorkan stack trace sensitif.
+- Gunakan request/correlation ID.
+- Bedakan operational dan programming errors.
+- Cegah request menggantung.
+- Cegah double response.
+
+---
+
+# 5. ADDITIONAL SECURITY REQUIREMENTS
+
+Selain F-01 sampai F-28, implementasikan hal berikut.
+
+## A. Complete API Security Inventory
+
+Inventarisasi setiap endpoint:
+- Method.
+- Route.
+- Public/private.
+- Authentication.
+- Permission.
+- Ownership.
+- Unit scope.
+- Data yang dapat dibaca/diubah.
+
+Tidak boleh ada endpoint privat yang terlewat.
+
+## B. Session and Permission Consistency
+
+Uji perubahan ketika session masih aktif:
+- User dinonaktifkan.
+- Role diturunkan.
+- Permission dicabut.
+- UnitScope berubah.
+
+Authorization berikutnya harus mengikuti kondisi terbaru.
+
+## C. Transaction and Rollback
+
+- Gunakan transaction untuk operasi yang membutuhkan atomicity.
+- Pastikan perubahan berhasil atau gagal secara konsisten.
+- Siapkan recovery.
+- Jangan meninggalkan data setengah termigrasi.
+- Verifikasi setelah perubahan.
+
+## D. Concurrency
+
+Uji request bersamaan pada:
+- Register.
+- Save.
+- Update.
+- Publish.
+- Backup.
+- Restore.
+
+Cegah race condition, data overwrite, dan corruption.
+
+## E. Negative Security Testing
+
+Uji:
+- Anonymous access.
+- Privilege escalation.
+- Owner manipulation.
+- Scope manipulation.
+- Project ID manipulation.
+- Revoked session.
+- SSRF.
+- XSS.
+- Malicious import.
+- Unauthorized backup/restore.
+
+## F. Restart Verification
+
+Setelah implementasi:
+- Restart aplikasi.
+- Pastikan konfigurasi aman.
+- Pastikan database benar.
+- Pastikan user dapat login.
+- Pastikan proyek tetap tersedia.
+- Pastikan autosave tidak kehilangan data.
+- Pastikan tidak terjadi bootstrap ulang.
+- Pastikan migration tidak merusak data.
+
+---
+
+# 6. DATA INTEGRITY AND MIGRATION PROTECTION
+
+Sebelum perubahan database:
+
+1. Identifikasi storage aktif.
+2. Buat backup.
+3. Verifikasi backup.
+4. Catat jumlah user.
+5. Catat Super Admin.
+6. Catat jumlah proyek.
+7. Catat jumlah event analitik.
+8. Catat konfigurasi penting.
+9. Catat schema version.
+
+Setelah migrasi, bandingkan:
+- Users.
+- Super Admin.
+- Projects.
+- Analytics events.
+- Access policies.
+- Ownership.
+- Unit scope.
+- Media references.
+- Schema.
+
+Semua migration harus non-destruktif, idempotent, dan memiliki recovery procedure.
+
+Jangan reset database.
+
+Jangan menghapus data lama.
+
+Jangan menggunakan database produksi untuk pengujian lokal.
+
+Jika terjadi perbedaan data yang tidak dapat dijelaskan, jangan menimpa data.
+
+---
+
+# 7. AI STUDIO WEB PREVIEW REQUIREMENTS
+
+Hasil akhir harus dapat dijalankan dan diuji melalui Web Preview AI Studio sejauh didukung oleh lingkungan tersebut.
+
+Pastikan:
+1. Halaman utama dapat dibuka.
+2. Navigasi berfungsi.
+3. Dashboard berfungsi.
+4. Editor kanvas dapat digunakan.
+5. Login dan logout berfungsi.
+6. Access settings berfungsi.
+7. Project listing berfungsi.
+8. Create project berfungsi.
+9. Save dan autosave berfungsi.
+10. Publish berfungsi.
+11. Preview berfungsi.
+12. Media dapat ditampilkan.
+13. Permission dan unitScope ditegakkan.
+14. Frontend terhubung ke backend.
+15. Tidak ada halaman kosong karena runtime error.
+16. Tidak ada JavaScript error kritis.
+17. Tidak ada fitur yang hanya berupa tampilan tanpa backend yang berfungsi.
+
+Periksa konfigurasi proxy, port, backend binding, dan environment variable yang dibutuhkan oleh Web Preview.
+
+Jangan mengklaim aplikasi berjalan hanya karena Vite build berhasil.
+
+Jika ada fitur yang tidak didukung lingkungan AI Studio, jelaskan batasannya dan sediakan cara pengujian lokal.
+
+Jangan menonaktifkan authentication atau security hanya agar Web Preview terlihat berfungsi.
+
+---
+
+# 8. LOCAL DEVELOPMENT READINESS — MAC
+
+Siapkan source code agar dapat dijalankan secara mandiri pada komputer Mac pengguna.
+
+## A. Environment
+
+Tentukan dan dokumentasikan:
+- Node.js version.
+- Package manager resmi.
+- Dependency.
+- Database.
+- Environment variables.
+- Port.
+- Startup configuration.
+
+Sediakan .env.example.
+
+Jangan menyertakan API key, password, session token, atau secret asli.
+
+Pisahkan development dan production configuration.
+
+## B. Installation
+
+Buat instruksi instalasi dari awal:
+1. Persiapan runtime.
+2. Instalasi dependency.
+3. Konfigurasi environment.
+4. Setup database development.
+5. Migration.
+6. Build.
+7. Start aplikasi.
+
+## C. Local Runtime
+
+Pastikan:
+- Backend dapat dijalankan.
+- Frontend dapat diakses.
+- Database terhubung.
+- Port dan host sesuai.
+- Aplikasi dapat dijalankan ulang setelah restart.
+- Script development dan production berfungsi.
+
+## D. Database
+
+- Dokumentasikan database lokal yang diperlukan.
+- Sediakan prosedur setup.
+- Sediakan migration.
+- Sediakan seed data development jika diperlukan.
+- Jangan memakai database produksi untuk testing.
+- Jangan mengubah data pengguna yang sudah ada.
+
+## E. Local Browser Testing
+
+Siapkan pengujian melalui browser lokal:
+- Login.
+- Logout.
+- Dashboard.
+- Editor.
+- Create project.
+- Save.
+- Autosave.
+- Publish.
+- Preview.
+- Access settings.
+- User permissions.
+- Unit scope.
+- Media.
+- Backup.
+- Restore.
+- Error handling.
+
+---
+
+# 9. CLEAN INSTALL VERIFICATION
+
+Jangan hanya mengandalkan environment AI Studio yang sudah memiliki dependency atau konfigurasi sebelumnya.
+
+Gunakan salinan source code final untuk clean installation verification.
+
+Lakukan:
+1. Instalasi dependency dari awal.
+2. Konfigurasi berdasarkan .env.example.
+3. Setup database development.
+4. Jalankan migration.
+5. Jalankan build.
+6. Jalankan backend.
+7. Jalankan frontend.
+8. Buka browser lokal.
+9. Jalankan fitur utama.
+10. Jalankan regression tests.
+
+Pastikan tidak ada file, dependency, credential, atau konfigurasi tersembunyi yang hanya tersedia di environment AI Studio.
+
+Jika AI Studio tidak memiliki akses ke Mac pengguna, jangan mengklaim local runtime sudah PASS.
+
+Sebagai gantinya, serahkan paket lokal lengkap dan panduan yang dapat langsung dijalankan pengguna.
+
+---
+
+# 10. PERFORMANCE REQUIREMENTS
+
+Lynk Builder harus tetap ringan, cepat, dan responsif.
+
+Evaluasi:
+- Startup time.
+- Frontend bundle size.
+- API response time.
+- Database query behavior.
+- Autosave latency.
+- Large project loading.
+- Media handling.
+- Memory usage.
+- Concurrent request handling.
+- Backup/restore duration.
+
+Buat baseline dan target yang terukur berdasarkan kondisi aktual.
+
+Laporkan:
+- Metode pengujian.
+- Environment.
+- Nilai aktual.
+- Bottleneck.
+- Hasil optimasi.
+
+Jangan mengarang angka performa.
+
+Jangan mengorbankan keamanan demi performa.
+
+---
+
+# 11. IMPLEMENTATION EXECUTION ORDER
+
+Kerjakan seluruh fase berikut secara berurutan.
+
+## PHASE 1 — VERIFY EXISTING P0-A
+
+- Audit source P0-A.
+- Verifikasi bootstrap.
+- Verifikasi access policy.
+- Verifikasi authentication.
+- Verifikasi authorization.
+- Verifikasi ownership.
+- Verifikasi unitScope.
+- Verifikasi save/publish ID.
+- Verifikasi draft preview.
+- Verifikasi migrasi.
+- Lengkapi PostgreSQL dan browser test jika tersedia.
+
+## PHASE 2 — SECURITY HARDENING
+
+- F-03 SSRF.
+- F-04 Session.
+- F-11 SESSION_SECRET.
+- F-12 Rate limiting.
+- F-22 Sanitization.
+- API security inventory.
+- Negative security testing.
+
+## PHASE 3 — PERSISTENCE AND CONCURRENCY
+
+- F-05 IndexedDB isolation.
+- F-06 Revision control.
+- F-07 Autosave.
+- F-08 IndexedDB errors.
+- F-09 Database fail-closed.
+- F-10 Atomic JSON.
+- F-25 Corrupt database protection.
+
+## PHASE 4 — BACKUP, MEDIA, AND DATABASE
+
+- F-13 Consistent backup.
+- F-14 Backup/restore.
+- F-15 Media storage.
+- F-16 PostgreSQL TLS.
+- F-17 Schema and migration.
+
+## PHASE 5 — RUNTIME AND MAINTAINABILITY
+
+- F-18 Runtime.
+- F-19 Package manager.
+- F-21 Network binding.
+- F-23 Gemini review.
+- F-24 Code maintainability.
+- F-28 Async error handling.
+
+## PHASE 6 — AUTOMATED TESTING
+
+- F-20 Test suite.
+- Security.
+- Concurrency.
+- Persistence.
+- Backup/restore.
+- Regression.
+- Restart.
+- Browser UI.
+- PostgreSQL.
+- Performance.
+
+## PHASE 7 — WEB PREVIEW AND LOCAL READINESS
+
+- AI Studio Web Preview.
+- Frontend/backend integration.
+- Clean install verification.
+- Local Mac setup.
+- Local runtime guide.
+- Browser test guide.
+- Final source package.
+
+## PHASE 8 — FINAL AUDIT AND DELIVERY
+
+- Review F-01 through F-28.
+- Review seluruh API.
+- Review data integrity.
+- Review source diff.
+- Review runtime.
+- Review security.
+- Review performance.
+- Review build.
+- Review migration.
+- Produce final reports.
+
+Jangan berhenti di antara fase untuk menunggu ChatGPT.
+
+---
+
+# 12. AUTOMATED TESTING AND FIXING LOOP
+
+Jalankan seluruh pemeriksaan yang relevan:
+
+1. Clean dependency install.
+2. TypeScript check.
+3. Lint.
+4. Frontend build.
+5. Backend build/start.
+6. Unit tests.
+7. Integration tests.
+8. API tests.
+9. Authentication tests.
+10. Authorization tests.
+11. SSRF tests.
+12. XSS/sanitization tests.
+13. Concurrency tests.
+14. Persistence tests.
+15. Backup/restore tests.
+16. Regression tests.
+17. Browser UI tests.
+18. PostgreSQL tests.
+19. Restart tests.
+20. Performance tests.
+
+Jika ditemukan kegagalan:
+
+A. Cari root cause.
+
+B. Perbaiki kode.
+
+C. Jalankan ulang test terkait.
+
+D. Jalankan regression test yang terdampak.
+
+E. Ulangi sampai berhasil atau ditemukan blocker nyata.
+
+Dilarang:
+- Menghapus test gagal.
+- Menonaktifkan assertion.
+- Melemahkan security validation.
+- Memalsukan hasil.
+- Mengklaim NOT RUN sebagai PASS.
+- Mengklaim PostgreSQL berhasil jika hanya diuji di local-json.
+- Mengklaim UI E2E berhasil hanya berdasarkan TypeScript build.
+- Mengklaim local Mac berhasil tanpa pengujian di Mac.
+
+---
+
+# 13. ENVIRONMENT AND BLOCKER HANDLING
+
+Jika PostgreSQL, browser automation, layanan eksternal, atau komputer lokal tidak tersedia:
+
+1. Identifikasi kendala secara spesifik.
+2. Jangan mengganti pengujian dengan mock lalu mengklaim PASS.
+3. Jalankan pengujian alternatif yang memberikan bukti terbatas.
+4. Lanjutkan pekerjaan independen yang tidak terhalang.
+5. Dokumentasikan pekerjaan yang belum terverifikasi.
+6. Berikan instruksi untuk menyelesaikan pengujian yang tertunda.
+
+Satu kendala eksternal tidak boleh menghentikan seluruh pekerjaan yang masih dapat dilanjutkan.
+
+Namun, jangan mengklaim FULL PASS jika pengujian wajib belum dilakukan.
+
+Jika batas kemampuan AI Studio menghalangi satu rangkaian eksekusi dalam satu respons, lanjutkan pekerjaan secara berurutan pada proyek dan konteks yang sama. Jangan mengulang perubahan, jangan menghilangkan progres, dan jangan menganggap satu fase sebagai hasil akhir.
+
+---
+
+# 14. FINAL DELIVERABLES
+
+Setelah seluruh pekerjaan selesai, serahkan semua hasil berikut.
+
+## A. COMPLETE SOURCE CODE
+
+- Source frontend.
+- Source backend.
+- Seluruh file perubahan.
+- Database schema.
+- Migration.
+- Test suite.
+- Configuration.
+- Startup scripts.
+
+Semua perubahan harus benar-benar diterapkan pada proyek aktif.
+
+## B. COMPLETE CHANGE REPORT
+
+- Daftar file yang berubah.
+- Perubahan per file.
+- Dependency yang ditambahkan/dihapus.
+- Perubahan database.
+- Migration details.
+- Configuration changes.
+
+## C. AUDIT REMEDIATION MATRIX
+
+Buat tabel F-01 sampai F-28 dengan:
+- Deskripsi temuan.
+- Perbaikan.
+- File yang diubah.
+- Bukti test.
+- Status PASS/FAIL/BLOCKED/NOT RUN.
+
+## D. SECURITY REPORT
+
+- API inventory.
+- Authentication.
+- Authorization.
+- Ownership.
+- Unit scope.
+- Session security.
+- SSRF.
+- Sanitization.
+- Rate limiting.
+- Remaining risks.
+
+## E. DATA INTEGRITY REPORT
+
+Bandingkan sebelum dan sesudah:
+- Users.
+- Super Admin.
+- Projects.
+- Analytics events.
+- Access policies.
+- Ownership.
+- Unit scope.
+- Media.
+- Schema.
+- Migration.
+
+## F. TESTING REPORT
+
+Cantumkan:
+- Command yang dijalankan.
+- Hasil aktual.
+- Jumlah test.
+- PASS.
+- FAIL.
+- NOT RUN.
+- BLOCKED.
+- Bukti error yang relevan.
+
+## G. PERFORMANCE REPORT
+
+Cantumkan metode, environment, hasil aktual, dan bottleneck.
+
+## H. AI STUDIO WEB PREVIEW REPORT
+
+Laporkan:
+- Preview berhasil dibuka atau tidak.
+- Halaman yang diuji.
+- Fitur yang diuji.
+- Error yang ditemukan.
+- Status frontend/backend.
+- Keterbatasan environment.
+
+## I. LOCAL MAC DEVELOPMENT PACKAGE
+
+Sediakan:
+- Source code lengkap.
+- package manifest.
+- Lockfile resmi.
+- .env.example.
+- Database schema.
+- Migration.
+- README instalasi.
+- README pengujian.
+- Backup/restore guide.
+- Startup scripts.
+- Build scripts.
+
+Jangan menyertakan credential atau secret asli.
+
+## J. LOCAL MAC TESTING GUIDE
+
+Berikan instruksi langkah demi langkah:
+- Persiapan Mac.
+- Instalasi runtime.
+- Instalasi dependency.
+- Setup environment.
+- Setup database.
+- Migration.
+- Start backend.
+- Start frontend.
+- Browser URL.
+- Login awal yang aman.
+- Testing fitur.
+- Backup dan restore.
+
+Jangan mencantumkan credential palsu seolah-olah credential asli.
+
+## K. FINAL SOURCE DIFF
+
+Sediakan ringkasan diff dan seluruh file hasil perubahan agar dapat diperiksa secara independen.
+
+---
+
+# 15. FINAL ACCEPTANCE CRITERIA
+
+Gunakan status akhir berikut.
+
+## FULL REMEDIATION PASS
+
+Hanya jika:
+- F-01 sampai F-28 telah ditangani.
+- Tidak ada Critical atau High finding yang belum terselesaikan.
+- Seluruh acceptance tests yang diwajibkan dan dapat dijalankan berhasil.
+- PostgreSQL telah diuji pada environment yang sesuai.
+- UI browser telah diuji secara interaktif.
+- Data integrity terverifikasi.
+- Backup dan restore teruji.
+- Build dan runtime berhasil.
+- AI Studio Web Preview berhasil diuji.
+- Local Mac clean installation telah diuji, jika environment Mac tersedia.
+- Tidak ada regresi kritis.
+- Final audit selesai.
+
+## FULL REMEDIATION PARTIAL
+
+Jika sebagian implementasi selesai tetapi masih ada test atau pekerjaan yang belum lengkap.
+
+## FULL REMEDIATION FAIL
+
+Jika terdapat implementasi atau regresi yang gagal dan belum diperbaiki.
+
+## FULL REMEDIATION BLOCKED
+
+Jika pekerjaan utama benar-benar tidak dapat dilanjutkan karena keterbatasan akses atau environment.
+
+Jangan menyebut FULL REMEDIATION PASS hanya karena build berhasil.
+
+Bedakan secara jelas:
+- Code complete.
+- Build verified.
+- Web Preview verified.
+- PostgreSQL verified.
+- Local Mac verified.
+
+Satu status tidak otomatis membuktikan status lainnya.
+
+---
+
+# 16. FINAL SAFETY AND STOP CONDITION
+
+Setelah seluruh pekerjaan selesai:
+
+- Jangan mengerjakan fitur baru di luar audit.
+- Jangan melakukan deployment produksi.
+- Jangan mengubah database produksi.
+- Jangan menghapus backup.
+- Jangan mereset database.
+- Jangan menghapus data pengguna.
+- Jangan mengubah keputusan desain yang sudah disetujui tanpa alasan dan dokumentasi.
+- Jangan melanjutkan scope tambahan.
+
+Serahkan seluruh hasil untuk independent review ChatGPT.
+
+Tidak ada intermediate completion gate.
+
+Satu-satunya completion gate adalah final delivery setelah seluruh pekerjaan selesai.
+
+---
+
+# FINAL DIRECTIVE
+
+KERJAKAN SELURUH REKOMENDASI AUDIT LYNK BUILDER.
+
+VERIFIKASI P0-A YANG SUDAH ADA.
+
+PERTAHANKAN PERUBAHAN YANG SUDAH BENAR.
+
+PERBAIKI KEKURANGANNYA.
+
+SELESAIKAN SELURUH TEMUAN F-01 SAMPAI F-28.
+
+LENGKAPI SELURUH TESTING DAN SECURITY HARDENING.
+
+PASTIKAN APLIKASI DAPAT DIUJI MELALUI AI STUDIO WEB PREVIEW.
+
+SIAPKAN SOURCE CODE LENGKAP UNTUK PENGUJIAN LOKAL DI MAC.
+
+JANGAN BERHENTI SETELAH P0-A.
+
+JANGAN MENUNGGU REVIEW CHATGPT DI ANTARA FASE.
+
+IMPLEMENT → MIGRATE → TEST → FIX → RETEST → WEB PREVIEW → LOCAL READINESS → FINAL AUDIT → DELIVER.
+
+TARGET AKHIR:
+
+LYNK BUILDER — FULL REMEDIATION COMPLETE.
+
+SATU MASTER PROMPT.
+SATU RANGKAIAN IMPLEMENTASI.
+SELURUH REKOMENDASI SELESAI.
+WEB PREVIEW READY.
+LOCAL MAC READY.
+FINISH.
