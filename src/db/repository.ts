@@ -85,7 +85,11 @@ export interface StoredProjectEntry {
   ownerUserId?: string | null;
 }
 
+export const LOCAL_JSON_SCHEMA_VERSION = 1;
+
 export interface JsonStoreData {
+  schemaVersion?: number;
+  dbEngine?: 'local-json';
   users: StoredUserRecord[];
   sessions: StoredSessionRecord[];
   projects: Record<string, StoredProjectEntry>;
@@ -1985,7 +1989,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
     const store = await loadJsonStore();
     const now = Date.now();
     return {
-      engine: 'local-json',
+      engine: state.engine,
       connected: false,
       ready: state.ready,
       degraded: state.degraded,
@@ -2009,7 +2013,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
     };
   } catch (err) {
     return {
-      engine: 'local-json',
+      engine: state.engine,
       connected: false,
       ready: false,
       degraded: true,

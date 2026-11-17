@@ -1,4 +1,4 @@
--- Lynk Builder — Skema PostgreSQL Lengkap (v3)
+-- Lynk Builder — Skema PostgreSQL Lengkap (v004)
 -- Sinkron 100% dengan src/db/schema.ts & src/db/migrations.ts
 -- PostgreSQL 14+
 
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
 
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -66,7 +67,7 @@ CREATE TABLE IF NOT EXISTS analytics_events (
   source_label TEXT NOT NULL DEFAULT 'Organik',
   cta_label TEXT,
   wa_phone TEXT,
-  order_value INTEGER,
+  order_value BIGINT,
   utm_source TEXT,
   utm_medium TEXT,
   utm_campaign TEXT,
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS api_settings (
   id TEXT PRIMARY KEY,
   public_api_enabled BOOLEAN NOT NULL DEFAULT TRUE,
   require_auth_for_builder BOOLEAN NOT NULL DEFAULT TRUE,
+  demo_login_enabled BOOLEAN,
   webhook_url TEXT NOT NULL DEFAULT '',
   webhook_events_json JSONB NOT NULL DEFAULT '["wa_click","form_submit","project_publish"]'::jsonb,
   cors_origins TEXT NOT NULL DEFAULT '*',

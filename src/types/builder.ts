@@ -673,6 +673,7 @@ export type WebhookEventName =
 export interface ApiSettingsConfig {
   publicApiEnabled: boolean;
   requireAuthForBuilder: boolean;
+  demoLoginEnabled?: boolean;
   webhookUrl: string;
   webhookEvents: WebhookEventName[];
   corsOrigins: string;
@@ -681,6 +682,33 @@ export interface ApiSettingsConfig {
   waDefaultCountryCode: string;
   autoPublishOnSave: boolean;
   updatedAt: number;
+}
+
+export interface DemoAccountDirectoryEntry {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  password: string;
+  role: AccessRole;
+  isActive: boolean;
+  unitScope: 'all' | string[];
+  permissions: FeaturePermissionsMap;
+}
+
+export interface DemoDirectoryRoleEntry {
+  role: AccessRole;
+  label: string;
+  shortLabel: string;
+  description: string;
+  defaultPermissions: FeaturePermissionsMap;
+  account: DemoAccountDirectoryEntry | null;
+}
+
+export interface DemoDirectoryResponse {
+  demoEnabled: boolean;
+  projectCount: number;
+  roles: DemoDirectoryRoleEntry[];
 }
 
 export interface WebhookLogRecord {
@@ -743,10 +771,17 @@ export interface MediaAssetMeta {
   createdAt: number;
 }
 
+export type BackupRestoreMode = 'full' | 'project';
+
 export interface RestorePreviewSummary {
   valid: boolean;
+  sourceType?: 'json' | 'zip';
+  appVersion?: string;
+  databaseMode?: 'local-json' | 'postgresql';
   schemaVersion: number;
   checksumValid: boolean;
+  manifestValid?: boolean;
+  fileCount?: number;
   errors: string[];
   warnings: string[];
   existingCounts: {
@@ -754,12 +789,14 @@ export interface RestorePreviewSummary {
     projects: number;
     analyticsEvents: number;
     media: number;
+    webhookLogs?: number;
   };
   incomingCounts: {
     users: number;
     projects: number;
     analyticsEvents: number;
     media: number;
+    webhookLogs?: number;
   };
   projectChanges: Array<{
     id: string;

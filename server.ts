@@ -63,6 +63,8 @@ import {
   exportCompleteBackupBundle,
   previewBackupRestore,
 } from './src/db/backupService.ts';
+import { buildFullProjectBackupZip } from './src/server/fullExportService.ts';
+import { applyZipRestore, previewZipRestore } from './src/server/zipRestoreService.ts';
 import {
   isSafeMediaFilename,
   readMediaFileSafe,
@@ -80,7 +82,16 @@ import { apiRateLimiter, authRateLimiter } from './src/server/rateLimiter.ts';
 import { resolveClientIp } from './src/server/proxyIp.ts';
 import { publicPageCache } from './src/server/publicPageCache.ts';
 import { CollabHub } from './src/server/collabHub.ts';
-import { bootstrapManagedCloudRunDefaults, validateStartupSecrets } from './src/server/secrets.ts';
+import {
+  bootstrapManagedCloudRunDefaults,
+  isProductionMode,
+  validateStartupSecrets,
+} from './src/server/secrets.ts';
+import {
+  DEMO_ROLE_PROFILES,
+  ROLE_ACCESS_ORDER,
+  resolveDemoEmailByAlias,
+} from './src/utils/demoAccounts.ts';
 import {
   SsrfBlockedError,
   assertSafeExternalUrl,
@@ -261,6 +272,20 @@ function isTrustedProxyRuntime(): boolean {
   );
 }
 
+function resolveConfiguredAppOrigin(): string | undefined {
+  const raw = process.env.APP_URL?.trim();
+  if (!raw || raw === 'MY_APP_URL') return undefined;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.origin;
+    }
+  } catch {
+    // ignore invalid APP_URL
+  }
+  return undefined;
+}
+
 function getClientIp(req: Request): string {
   return resolveClientIp(req, { trustedProxy: isTrustedProxyRuntime() });
 }
@@ -280,7 +305,24 @@ function matchesIfNoneMatch(headerValue: string | string[] | undefined, etag: st
 function isRequestHttps(req: Request): boolean {
   if (req.secure) return true;
   const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
-  return proto === 'https';
+  if (proto === 'https') return true;
+  const ssl = String(req.headers['x-forwarded-ssl'] || '').trim().toLowerCase();
+  if (ssl === 'on') return true;
+  const forwarded = String(req.headers.forwarded || '').toLowerCase();
+  if (/proto=https\b/.test(forwarded)) return true;
+
+  if (isTrustedProxyRuntime()) {
+    const appOrigin = resolveConfiguredAppOrigin();
+    const originHeader = String(req.headers.origin || '').trim();
+    const refererHeader = String(req.headers.referer || '').trim();
+    if (
+      appOrigin?.startsWith('https://') &&
+      (originHeader.startsWith('https://') || refererHeader.startsWith('https://'))
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function buildCookieSecurityFlags(req: Request): string[] {
@@ -373,13 +415,22 @@ function csrfProtectionMiddleware(
   const forwardedHost = isTrustedProxyRuntime()
     ? normalizeHostHeader(String(req.headers['x-forwarded-host'] || '').split(',')[0])
     : '';
+  const appOrigin = resolveConfiguredAppOrigin();
+  const appHost = appOrigin ? normalizeHostHeader(new URL(appOrigin).host) : '';
   const originHeader = req.headers.origin;
   if (typeof originHeader === 'string' && originHeader.trim()) {
     try {
       const originHost = normalizeHostHeader(new URL(originHeader).host);
       const matchesHost = Boolean(reqHost && originHost === reqHost);
       const matchesForwarded = Boolean(forwardedHost && originHost === forwardedHost);
-      if ((reqHost || forwardedHost) && originHost && !matchesHost && !matchesForwarded) {
+      const matchesAppUrl = Boolean(appHost && originHost === appHost);
+      if (
+        (reqHost || forwardedHost || appHost) &&
+        originHost &&
+        !matchesHost &&
+        !matchesForwarded &&
+        !matchesAppUrl
+      ) {
         res.status(403).json({
           error: 'Origin tidak cocok dengan host server (CSRF).',
           code: 'CSRF_ORIGIN_MISMATCH',
@@ -582,6 +633,7 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         dbEngine: diag.engine,
         dbConnected: diag.connected,
         sslVerifyMode: diag.sslVerifyMode,
+        appUrl: resolveConfiguredAppOrigin(),
         lastError: diag.lastError,
       });
     })
@@ -601,12 +653,254 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           ? toPublicAuthUser(req.authUser)
           : null;
 
+      let demoModeAvailable = false;
+      let demoAccountsSeeded = false;
+      let roleSummary: Record<AccessRole, number> | undefined;
+
+      if (!isProductionMode()) {
+        demoModeAvailable = true;
+        const [allUsers, superDemo] = await Promise.all([
+          listUsers(),
+          getUserByEmail(DEMO_ROLE_PROFILES.super_admin.email),
+        ]);
+        demoAccountsSeeded = Boolean(superDemo);
+        roleSummary = {
+          super_admin: allUsers.filter((u) => u.isActive && u.role === 'super_admin').length,
+          admin: allUsers.filter((u) => u.isActive && u.role === 'admin').length,
+          editor: allUsers.filter((u) => u.isActive && u.role === 'editor').length,
+          viewer: allUsers.filter((u) => u.isActive && u.role === 'viewer').length,
+        };
+      }
+
       res.json({
         authenticated: Boolean(user),
         user,
         needsSetup: totalUsers === 0,
         requireAuthForBuilder: api.requireAuthForBuilder,
         csrfToken,
+        demoModeAvailable,
+        demoAccountsSeeded,
+        roleSummary,
+      });
+    })
+  );
+
+  app.post(
+    '/api/auth/bootstrap-super-admin',
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const clientIp = getClientIp(req);
+      const limitCheck = authRateLimiter.consume(
+        `bootstrap:${clientIp}`,
+        getAuthMaxAttempts(),
+        15 * 60_000
+      );
+      if (!limitCheck.allowed) {
+        res.setHeader('Retry-After', String(limitCheck.retryAfterSeconds));
+        return res.status(429).json({
+          error: 'Terlalu banyak percobaan aktivasi Super Admin. Coba lagi beberapa menit lagi.',
+          code: 'RATE_LIMITED',
+        });
+      }
+
+      if ((await countUsers()) > 0) {
+        return res.status(409).json({
+          error: 'Aktivasi awal selesai. Akun Super Admin sudah terdaftar di server ini.',
+          code: 'SETUP_ALREADY_COMPLETED',
+        });
+      }
+
+      const body = (req.body || {}) as {
+        name?: string;
+        email?: string;
+        password?: string;
+      };
+      const name = String(body.name || '').trim();
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+
+      if (!name || name.length < 2) {
+        return res.status(400).json({ error: 'Nama lengkap minimal 2 karakter.' });
+      }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Format email tidak valid.' });
+      }
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'Kata sandi minimal 6 karakter.' });
+      }
+
+      const regResult = await registerUserAtomically({ name, email, password });
+      if (!regResult.ok || !regResult.isFirstUser) {
+        return res.status(409).json({
+          error: 'Aktivasi awal sudah diselesaikan oleh admin lain.',
+          code: 'SETUP_ALREADY_COMPLETED',
+        });
+      }
+
+      const newUser = regResult.user;
+      const access = await getAccessSettings();
+      const cleanedMembers = access.members.filter(
+        (m) =>
+          m.id !== newUser.id &&
+          m.email.toLowerCase() !== newUser.email &&
+          m.id !== 'owner-super-admin'
+      );
+      await saveAccessSettings({
+        ...access,
+        allUsersSuperAdmin: false,
+        autoGrantSuperAdminOnJoin: false,
+        defaultRole: access.defaultRole === 'editor' ? 'editor' : 'viewer',
+        activeMemberId: newUser.id,
+        members: [
+          {
+            id: newUser.id,
+            name: newUser.name,
+            email: newUser.email,
+            role: newUser.role,
+            isActive: newUser.isActive,
+            unitScope: newUser.unitScope,
+            permissions: newUser.permissions,
+            createdAt: newUser.createdAt,
+          },
+          ...cleanedMembers,
+        ],
+      });
+
+      const { rawToken, expiresAt } = await createSession({
+        userId: newUser.id,
+        userAgent: String(req.headers['user-agent'] || ''),
+        ipAddress: clientIp === 'unknown' ? '' : clientIp,
+      });
+      setSessionCookie(req, res, rawToken, expiresAt);
+      const csrfToken = ensureCsrfCookie(req, res);
+
+      return res.status(201).json({
+        ok: true,
+        user: toPublicAuthUser(newUser),
+        csrfToken,
+        ...(isProductionMode() ? {} : { sessionToken: rawToken }),
+      });
+    })
+  );
+
+  app.post(
+    '/api/auth/seed-demo-roles',
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      if (isProductionMode()) {
+        return res.status(403).json({
+          error: 'Akun demo sandbox dinonaktifkan pada mode production.',
+          code: 'FORBIDDEN',
+        });
+      }
+
+      const clientIp = getClientIp(req);
+      const limitCheck = authRateLimiter.consume(
+        `seed_demo:${clientIp}`,
+        Math.max(10, getAuthMaxAttempts()),
+        15 * 60_000
+      );
+      if (!limitCheck.allowed) {
+        res.setHeader('Retry-After', String(limitCheck.retryAfterSeconds));
+        return res.status(429).json({
+          error: 'Terlalu banyak permintaan inisialisasi akun demo. Coba lagi sebentar.',
+          code: 'RATE_LIMITED',
+        });
+      }
+
+      const totalBefore = await countUsers();
+      const isSuperAdminCaller = Boolean(
+        req.authUser && req.authUser.isActive && req.authUser.role === 'super_admin'
+      );
+
+      if (totalBefore > 0 && !isSuperAdminCaller) {
+        return res.status(409).json({
+          error:
+            'Server sudah memiliki akun terdaftar. Masuk sebagai Super Admin untuk menambahkan preset akun demo.',
+          code: 'SETUP_ALREADY_COMPLETED',
+        });
+      }
+
+      let createdCount = 0;
+      const createdUsers: StoredUserRecord[] = [];
+      const now = Date.now();
+
+      for (const role of ROLE_ACCESS_ORDER) {
+        const profile = DEMO_ROLE_PROFILES[role];
+        const existing = await getUserByEmail(profile.email);
+        if (existing) continue;
+
+        if ((await countUsers()) === 0) {
+          const firstReg = await registerUserAtomically({
+            name: profile.name,
+            email: profile.email,
+            password: profile.demoPassword,
+          });
+          if (firstReg.ok) {
+            createdUsers.push(firstReg.user);
+            createdCount += 1;
+            continue;
+          }
+        }
+
+        const created: StoredUserRecord = {
+          id: `usr_demo_${role}`,
+          name: profile.name,
+          email: profile.email,
+          passwordHash: hashPassword(profile.demoPassword),
+          role: profile.role,
+          isActive: true,
+          unitScope: 'all',
+          permissions:
+            profile.role === 'super_admin'
+              ? { ...FULL_PERMISSIONS }
+              : getPresetPermissionsForRole(profile.role),
+          createdAt: now,
+          updatedAt: now,
+        };
+        await upsertUser(created);
+        createdUsers.push(created);
+        createdCount += 1;
+      }
+
+      if (createdUsers.length > 0) {
+        const access = await getAccessSettings();
+        const existingEmails = new Set(access.members.map((m) => m.email.toLowerCase()));
+        const existingIds = new Set(access.members.map((m) => m.id));
+        const additions = createdUsers
+          .filter((u) => !existingEmails.has(u.email.toLowerCase()) && !existingIds.has(u.id))
+          .map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            isActive: u.isActive,
+            unitScope: u.unitScope,
+            permissions: u.permissions,
+            createdAt: u.createdAt,
+          }));
+        if (additions.length > 0) {
+          const updatedAccess = await saveAccessSettings({
+            ...access,
+            allUsersSuperAdmin: false,
+            autoGrantSuperAdminOnJoin: false,
+            defaultRole: access.defaultRole === 'editor' ? 'editor' : 'viewer',
+            activeMemberId: access.activeMemberId || createdUsers[0].id,
+            members: [
+              ...access.members.filter(
+                (m) => m.id !== 'owner-super-admin' || createdUsers.some((u) => u.id === 'owner-super-admin')
+              ),
+              ...additions,
+            ],
+          });
+          collabHub.updateConnectedUsers(await listUsers());
+          collabHub.broadcastAccessUpdated();
+          void updatedAccess;
+        }
+      }
+
+      return res.status(201).json({
+        ok: true,
+        createdCount,
+        totalDemoRoles: ROLE_ACCESS_ORDER.length,
       });
     })
   );
@@ -696,6 +990,7 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         ok: true,
         user: toPublicAuthUser(newUser),
         csrfToken,
+        ...(isProductionMode() ? {} : { sessionToken: rawToken }),
       });
     })
   );
@@ -703,8 +998,13 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
   app.post(
     '/api/auth/login',
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      const body = (req.body || {}) as { email?: string; password?: string };
-      const email = String(body.email || '').trim().toLowerCase();
+      const body = (req.body || {}) as { email?: string; username?: string; password?: string };
+      const rawIdentifier = String(body.email || body.username || '').trim().toLowerCase();
+      const mappedDemoEmail =
+        rawIdentifier && !rawIdentifier.includes('@') && !isProductionMode()
+          ? resolveDemoEmailByAlias(rawIdentifier)
+          : null;
+      const email = mappedDemoEmail || rawIdentifier;
       const password = String(body.password || '');
       const clientIp = getClientIp(req);
 
@@ -764,6 +1064,7 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         ok: true,
         user: toPublicAuthUser(user),
         csrfToken,
+        ...(isProductionMode() ? {} : { sessionToken: rawToken }),
       });
     })
   );
@@ -1738,6 +2039,63 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
       const body = (req.body || {}) as { bundle?: unknown; confirmOverwrite?: boolean };
       const result = await applyBackupRestore({
         bundle: body.bundle,
+        confirmOverwrite: Boolean(body.confirmOverwrite),
+        actorUserId: req.authUser!.id,
+      });
+      publicPageCache.clear();
+      collabHub.updateConnectedUsers(await listUsers());
+      collabHub.broadcastAccessUpdated();
+      return res.json(result);
+    })
+  );
+
+  app.get(
+    '/api/backup/export-zip',
+    requireAuthenticatedAccess('access_control'),
+    asyncHandler(async (_req, res) => {
+      const { filename, buffer } = await buildFullProjectBackupZip();
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.status(200).send(buffer);
+    })
+  );
+
+  app.post(
+    '/api/backup/restore/zip/preview',
+    requireAuthenticatedAccess('access_control'),
+    asyncHandler(async (req, res) => {
+      const body = (req.body || {}) as { zipBase64?: unknown };
+      const b64 = typeof body.zipBase64 === 'string' ? body.zipBase64.trim() : '';
+      if (!b64) {
+        return res.status(400).json({ error: 'Payload zipBase64 wajib diisi.' });
+      }
+      const zipBuffer = Buffer.from(b64, 'base64');
+      const preview = await previewZipRestore(zipBuffer);
+      return res.json({ ok: preview.summary.valid, summary: preview.summary });
+    })
+  );
+
+  app.post(
+    '/api/backup/restore/zip/apply',
+    requireAuthenticatedAccess('access_control'),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const body = (req.body || {}) as {
+        zipBase64?: unknown;
+        mode?: unknown;
+        selectedProjectIds?: unknown;
+        confirmOverwrite?: unknown;
+      };
+      const b64 = typeof body.zipBase64 === 'string' ? body.zipBase64.trim() : '';
+      if (!b64) {
+        return res.status(400).json({ error: 'Payload zipBase64 wajib diisi.' });
+      }
+      const zipBuffer = Buffer.from(b64, 'base64');
+      const result = await applyZipRestore({
+        zipBuffer,
+        mode: body.mode === 'project' ? 'project' : 'full',
+        selectedProjectIds: Array.isArray(body.selectedProjectIds)
+          ? body.selectedProjectIds.filter((x): x is string => typeof x === 'string')
+          : undefined,
         confirmOverwrite: Boolean(body.confirmOverwrite),
         actorUserId: req.authUser!.id,
       });

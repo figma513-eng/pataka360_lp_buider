@@ -2,12 +2,32 @@ import fs from 'node:fs';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import * as schema from './schema.ts';
-import { runPostgresMigrations } from './migrations.ts';
+import {
+  CURRENT_SCHEMA_VERSION,
+  MigrationIntegrityError,
+  getPostgresMigrationStatus,
+  runPostgresMigrations,
+  runPostgresMigrationsDetailed,
+} from './migrations.ts';
 import { cleanEnvSecret, isProductionMode } from '../server/secrets.ts';
 
 const { Pool } = pg;
 
+export {
+  CURRENT_SCHEMA_VERSION,
+  MigrationIntegrityError,
+  getPostgresMigrationStatus,
+  runPostgresMigrationsDetailed,
+};
+
 export type SslVerifyMode = 'strict' | 'custom-ca' | 'insecure-dev-override' | 'disabled';
+
+export function resolveRequestedDbEngine(): 'postgresql' | 'local-json' | 'auto' {
+  const raw = process.env.DB_ENGINE?.trim().toLowerCase();
+  if (raw === 'postgresql' || raw === 'postgres' || raw === 'pg') return 'postgresql';
+  if (raw === 'local-json' || raw === 'json' || raw === 'local') return 'local-json';
+  return 'auto';
+}
 
 export interface PostgresState {
   engine: 'postgresql' | 'local-json';
@@ -21,6 +41,7 @@ export interface PostgresState {
   sslVerifyMode: SslVerifyMode;
   lastError?: string;
   appliedMigrations: string[];
+  activeSchemaVersion?: string;
   pool: pg.Pool | null;
   db: NodePgDatabase<typeof schema> | null;
 }
@@ -157,8 +178,12 @@ export function isLocalJsonFallbackAllowed(pgConfigured: boolean): boolean {
   const explicitRequirePg = process.env.REQUIRE_POSTGRES?.trim().toLowerCase() === 'true';
   if (explicitRequirePg) return false;
 
+  const requestedEngine = resolveRequestedDbEngine();
+  if (requestedEngine === 'postgresql') {
+    return process.env.ALLOW_LOCAL_JSON_FALLBACK?.trim().toLowerCase() === 'true';
+  }
+
   if (isProductionMode()) {
-    // In production, if Postgres is configured or fallback not explicitly opted in, fail closed!
     if (pgConfigured) {
       return process.env.ALLOW_LOCAL_JSON_FALLBACK?.trim().toLowerCase() === 'true';
     }
@@ -177,11 +202,34 @@ export async function getDbState(): Promise<PostgresState> {
   if (initPromise) return initPromise;
 
   initPromise = (async (): Promise<PostgresState> => {
+    const requestedEngine = resolveRequestedDbEngine();
     const params = resolvePgConnectionParams();
+
+    if (requestedEngine === 'local-json') {
+      const explicitRequirePg = process.env.REQUIRE_POSTGRES?.trim().toLowerCase() === 'true';
+      const state: PostgresState = {
+        engine: 'local-json',
+        connected: false,
+        ready: !explicitRequirePg,
+        degraded: explicitRequirePg,
+        configured: params.configured,
+        ssl: false,
+        sslVerifyMode: 'disabled',
+        lastError: explicitRequirePg
+          ? 'Konflik konfigurasi: DB_ENGINE=local-json tidak dapat digunakan ketika REQUIRE_POSTGRES=true.'
+          : undefined,
+        appliedMigrations: [],
+        pool: null,
+        db: null,
+      };
+      cachedState = state;
+      return state;
+    }
+
     if (!params.configured) {
       const jsonAllowed = isLocalJsonFallbackAllowed(false);
-      cachedState = {
-        engine: 'local-json',
+      const state: PostgresState = {
+        engine: jsonAllowed ? 'local-json' : 'postgresql',
         connected: false,
         ready: jsonAllowed,
         degraded: !jsonAllowed,
@@ -190,12 +238,13 @@ export async function getDbState(): Promise<PostgresState> {
         sslVerifyMode: 'disabled',
         lastError: jsonAllowed
           ? undefined
-          : 'PostgreSQL wajib dikonfigurasi pada mode production (set DATABASE_URL/PGHOST atau ALLOW_LOCAL_JSON_STORAGE=true).',
+          : 'PostgreSQL wajib dikonfigurasi (set DATABASE_URL/PGHOST atau nonaktifkan DB_ENGINE=postgresql / REQUIRE_POSTGRES=true).',
         appliedMigrations: [],
         pool: null,
         db: null,
       };
-      return cachedState;
+      cachedState = state;
+      return state;
     }
 
     const pool = new Pool({
@@ -215,9 +264,10 @@ export async function getDbState(): Promise<PostgresState> {
     });
 
     try {
-      const appliedMigrations = await ensurePostgresSchema(pool);
+      const migrationReport = await runPostgresMigrationsDetailed(pool);
+      const appliedMigrations = migrationReport.appliedVersions;
       const db = drizzle(pool, { schema });
-      cachedState = {
+      const state: PostgresState = {
         engine: 'postgresql',
         connected: true,
         ready: true,
@@ -228,13 +278,15 @@ export async function getDbState(): Promise<PostgresState> {
         ssl: params.ssl,
         sslVerifyMode: params.sslVerifyMode,
         appliedMigrations,
+        activeSchemaVersion: migrationReport.currentVersion ?? undefined,
         pool,
         db,
       };
+      cachedState = state;
       console.log(
-        `[DB] Terhubung ke PostgreSQL (${params.host || 'DSN'}/${params.database || 'default'}, TLS=${params.sslVerifyMode}, migrations=${appliedMigrations.join(',')})`
+        `[DB] Terhubung ke PostgreSQL (${params.host || 'DSN'}/${params.database || 'default'}, TLS=${params.sslVerifyMode}, schema=${migrationReport.currentVersion || '004'})`
       );
-      return cachedState;
+      return state;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gagal terhubung ke PostgreSQL';
       await pool.end().catch(() => {});
@@ -244,8 +296,8 @@ export async function getDbState(): Promise<PostgresState> {
       } else {
         console.error(`[DB][FAIL-CLOSED] PostgreSQL gagal terhubung & fallback dinonaktifkan: ${msg}`);
       }
-      cachedState = {
-        engine: 'local-json',
+      const state: PostgresState = {
+        engine: allowFallback ? 'local-json' : 'postgresql',
         connected: false,
         ready: allowFallback,
         degraded: !allowFallback,
@@ -259,7 +311,8 @@ export async function getDbState(): Promise<PostgresState> {
         pool: null,
         db: null,
       };
-      return cachedState;
+      cachedState = state;
+      return state;
     }
   })();
 

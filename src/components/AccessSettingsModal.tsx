@@ -22,13 +22,17 @@ import {
   FEATURE_META,
   FULL_FEATURE_PERMISSIONS,
   ROLE_META,
+  fetchAccessSettings,
   getPresetPermissionsForRole,
 } from '../utils/accessControl';
-import { createMemberWithPasswordOnServer } from '../utils/authClient';
+import { createMemberWithPasswordOnServer, seedDemoRolesOnServer } from '../utils/authClient';
+import { DEMO_ROLE_PROFILES, ROLE_ACCESS_ORDER } from '../utils/demoAccounts';
 
 interface AccessSettingsModalProps {
   settings: AccessSettingsConfig;
   projects: ProjectRecord[];
+  demoModeAvailable?: boolean;
+  onDemoSeeded?: () => Promise<void> | void;
   onSaveSettings: (
     nextSettings: AccessSettingsConfig
   ) => Promise<{ ok: boolean; settings: AccessSettingsConfig; error?: string }>;
@@ -39,6 +43,8 @@ interface AccessSettingsModalProps {
 export function AccessSettingsModal({
   settings,
   projects,
+  demoModeAvailable = false,
+  onDemoSeeded,
   onSaveSettings,
   onSettingsSynced,
   onClose,
@@ -140,6 +146,38 @@ export function AccessSettingsModal({
       text: `${cleanName} berhasil dibuat (${ROLE_META[effectiveRole].shortLabel}, ${
         requestedScope === 'all' ? 'akses Semua Unit Usaha' : 'pilih unit usaha di panel kanan'
       }) dan sudah bisa langsung login.`,
+    });
+  };
+
+  const hasMissingDemoPreset = useMemo(() => {
+    if (!demoModeAvailable) return false;
+    const existingEmails = new Set(draft.members.map((m) => m.email.toLowerCase()));
+    return ROLE_ACCESS_ORDER.some((r) => !existingEmails.has(DEMO_ROLE_PROFILES[r].email));
+  }, [demoModeAvailable, draft.members]);
+
+  const handleSeedDemoPreset = async () => {
+    setSaving(true);
+    setFeedback(null);
+    const res = await seedDemoRolesOnServer();
+    if (!res.ok) {
+      setSaving(false);
+      setFeedback({
+        type: 'err',
+        text: res.error || 'Gagal menyiapkan akun demo 4 role.',
+      });
+      return;
+    }
+    const synced = await fetchAccessSettings();
+    setSaving(false);
+    setDraft(synced);
+    onSettingsSynced?.(synced);
+    await onDemoSeeded?.();
+    setFeedback({
+      type: 'ok',
+      text:
+        (res.createdCount ?? 0) > 0
+          ? `${res.createdCount} akun preset demo (Super Admin, Admin, Editor, Viewer) berhasil ditambahkan.`
+          : 'Seluruh preset 4 role demo sudah aktif di server.',
     });
   };
 
@@ -385,10 +423,23 @@ export function AccessSettingsModal({
 
           {/* Add Account Card */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-            <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-emerald-600" />
-              Tambah Akun Tim / Pengelola
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                Tambah Akun Tim / Pengelola
+              </h3>
+              {demoModeAvailable && hasMissingDemoPreset && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleSeedDemoPreset()}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-200 bg-[#EFF7F4] hover:bg-emerald-100/70 disabled:opacity-60 text-emerald-800 text-[11px] font-semibold cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Tambah Preset 4 Role Demo</span>
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
               <div className="sm:col-span-3">

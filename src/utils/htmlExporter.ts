@@ -483,7 +483,7 @@ ${bodyBlocks}
   <section id="lynk-subpage-cart" class="page-pad" style="display: none; padding-bottom: 100px;"></section>${waAddonHtml}${bottomNavbarHtml}${bottomNavbarSheetsHtml ? '\n' + bottomNavbarSheetsHtml : ''}
   <div id="lynk-cart-bar" style="display: none; position: fixed; left: 0; right: 0; bottom: ${
       showBottomNavbar ? `${navReservedHeight + 2}px` : '0'
-    }; z-index: 9000; background: #FFFFFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);">
+    }; z-index: 9650; background: #FFFFFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.14);">
     <div class="page-pad" style="padding-top: 10px; padding-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
       <div style="min-width: 0;">
         <div id="lynk-cart-bar-count" style="font-size: 11px; font-weight: 600; color: #64748B;">0 item di keranjang</div>
@@ -492,7 +492,7 @@ ${bodyBlocks}
       <button type="button" id="lynk-open-cart-btn" style="padding: 9px 16px; border: 0; border-radius: 12px; background: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0;">Lihat Keranjang</button>
     </div>
   </div>
-  <div id="lynk-fnb-float-bar" style="display: none; position: fixed; left: 0; right: 0; z-index: 9050; justify-content: center; padding: 0 14px; pointer-events: none; box-sizing: border-box;">
+  <div id="lynk-fnb-float-bar" style="display: none; position: fixed; left: 0; right: 0; z-index: 9660; justify-content: center; padding: 0 14px; pointer-events: none; box-sizing: border-box;">
     <button type="button" id="lynk-fnb-float-btn" style="width: 100%; max-width: 400px; pointer-events: auto; border: 0; border-radius: 9999px; background: #EA580C; color: #FFFFFF; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; font-family: inherit; box-shadow: 0 10px 26px rgba(15, 23, 42, 0.22);">
       <span style="display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left;">
         <span style="width: 32px; height: 32px; border-radius: 9999px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -775,13 +775,17 @@ ${bodyBlocks}
         var pauseBtn = wrap.querySelector('[data-vid-pause]');
         var accent = wrap.getAttribute('data-vid-accent') || '#2563EB';
         var activePlay = playing && !paused;
-        playBtn.disabled = activePlay;
-        playBtn.style.background = activePlay ? '#0F172A' : accent;
-        playBtn.style.opacity = activePlay ? '0.8' : '1';
-        playBtn.style.cursor = activePlay ? 'default' : 'pointer';
-        pauseBtn.disabled = !activePlay;
-        pauseBtn.style.opacity = activePlay ? '1' : '0.45';
-        pauseBtn.style.cursor = activePlay ? 'pointer' : 'not-allowed';
+        if (playBtn) {
+          playBtn.disabled = activePlay;
+          playBtn.style.background = activePlay ? '#0F172A' : accent;
+          playBtn.style.opacity = activePlay ? '0.8' : '1';
+          playBtn.style.cursor = activePlay ? 'default' : 'pointer';
+        }
+        if (pauseBtn) {
+          pauseBtn.disabled = !activePlay;
+          pauseBtn.style.opacity = activePlay ? '1' : '0.45';
+          pauseBtn.style.cursor = activePlay ? 'pointer' : 'not-allowed';
+        }
       }
       function resetPlayer(wrap) {
         clearPlayerTimers(wrap);
@@ -791,8 +795,10 @@ ${bodyBlocks}
         wrap._vidPlayedOnce = false;
         wrap._vidRevealed = false;
         var stage = wrap.querySelector('[data-vid-stage]');
-        stage.innerHTML = '';
-        stage.appendChild(makeCover(wrap));
+        if (stage) {
+          stage.innerHTML = '';
+          stage.appendChild(makeCover(wrap));
+        }
         setButtonStates(wrap, false, false);
       }
       function startOrResume(wrap, isAuto) {
@@ -802,6 +808,7 @@ ${bodyBlocks}
         var direct = wrap._resolvedDirect || wrap.getAttribute('data-vid-direct') || '';
         var vol = Number(wrap.getAttribute('data-vid-volume') || 75);
         var stage = wrap.querySelector('[data-vid-stage]');
+        if (!stage) return;
         wrap._vidAutoMode = Boolean(isAuto);
         wrap._vidPlaying = true;
         wrap._vidPaused = false;
@@ -962,26 +969,32 @@ ${bodyBlocks}
         var pauseBtn = wrap.querySelector('[data-vid-pause]');
         var muteBtn = wrap.querySelector('[data-vid-mute]');
         var slider = wrap.querySelector('[data-vid-vol]');
-        playBtn.addEventListener('click', function () {
-          startOrResume(wrap, false);
-        });
-        pauseBtn.addEventListener('click', function () {
-          if (!wrap._vidMounted || wrap._vidPaused) return;
-          clearPlayerTimers(wrap);
-          wrap._vidPaused = true;
-          wrap._vidPlaying = false;
-          var hasDirect = Boolean(wrap._resolvedDirect || wrap.getAttribute('data-vid-direct'));
-          if (!hasDirect && (platform === 'facebook' || platform === 'instagram')) {
-            wrap._vidMounted = false;
-            var st = wrap.querySelector('[data-vid-stage]');
-            st.innerHTML = '';
-            st.appendChild(makeCover(wrap));
-          } else {
-            sendCmd(wrap, 'pause');
-          }
-          showCover(wrap);
-          setButtonStates(wrap, false, true);
-        });
+        if (playBtn) {
+          playBtn.addEventListener('click', function () {
+            startOrResume(wrap, false);
+          });
+        }
+        if (pauseBtn) {
+          pauseBtn.addEventListener('click', function () {
+            if (!wrap._vidMounted || wrap._vidPaused) return;
+            clearPlayerTimers(wrap);
+            wrap._vidPaused = true;
+            wrap._vidPlaying = false;
+            var hasDirect = Boolean(wrap._resolvedDirect || wrap.getAttribute('data-vid-direct'));
+            if (!hasDirect && (platform === 'facebook' || platform === 'instagram')) {
+              wrap._vidMounted = false;
+              var st = wrap.querySelector('[data-vid-stage]');
+              if (st) {
+                st.innerHTML = '';
+                st.appendChild(makeCover(wrap));
+              }
+            } else {
+              sendCmd(wrap, 'pause');
+            }
+            showCover(wrap);
+            setButtonStates(wrap, false, true);
+          });
+        }
         if (muteBtn) {
           muteBtn.addEventListener('click', function () {
             var vol = Number(wrap.getAttribute('data-vid-volume') || 75);
@@ -1077,7 +1090,9 @@ ${bodyBlocks}
           }
         });
       });
+    })();
 
+    (function () {
       document.querySelectorAll('[data-maps-photo-open]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.stopPropagation();
@@ -1150,11 +1165,11 @@ ${bodyBlocks}
           if (!document.querySelector('[data-bottom-sheet].is-open')) {
             document.body.style.overflow = '';
           }
+          if (typeof window.__lynkSyncCart === 'function') window.__lynkSyncCart();
         }
-        sheet.addEventListener('click', closeSheet);
-        if (panel) {
-          panel.addEventListener('click', function (ev) { ev.stopPropagation(); });
-        }
+        sheet.addEventListener('click', function (ev) {
+          if (ev.target === sheet) closeSheet();
+        });
         if (closeBtn) {
           closeBtn.addEventListener('click', closeSheet);
         }
@@ -1164,6 +1179,7 @@ ${bodyBlocks}
           openSheet.classList.remove('is-open');
         });
         document.body.style.overflow = '';
+        if (typeof window.__lynkSyncCart === 'function') window.__lynkSyncCart();
       }
       document.querySelectorAll('[data-sheet-open]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -1176,6 +1192,7 @@ ${bodyBlocks}
           if (!wasOpen) {
             sheet.classList.add('is-open');
             document.body.style.overflow = 'hidden';
+            if (typeof window.__lynkSyncCart === 'function') window.__lynkSyncCart();
           }
         });
       });
@@ -1549,6 +1566,7 @@ ${bodyBlocks}
               el.textContent = String(qtyMap[key] || 0);
             });
 
+            var sheetOpen = Boolean(document.querySelector('[data-bottom-sheet].is-open'));
             var floatCfg = storeData.fnbFloatConfig;
             var useFnbCapsule = Boolean(fnbFloatBar && floatCfg && totals.count > 0 && activeRoute.type !== 'cart');
             if (fnbFloatBar) {
@@ -1557,7 +1575,7 @@ ${bodyBlocks}
               } else {
                 var pos = floatCfg.position || 'bottom-floating';
                 var off = Math.max(0, Math.min(120, Number(floatCfg.offsetY || 16)));
-                var navH = Number(storeData.navReservedHeight || 0);
+                var navH = sheetOpen ? 0 : Number(storeData.navReservedHeight || 0);
                 var isTop = pos === 'top-floating';
                 var isDocked = pos === 'bottom-docked';
                 var isLeft = pos === 'bottom-left';
@@ -1590,18 +1608,22 @@ ${bodyBlocks}
             var totals = getCartTotals();
             var useFnbCapsule = syncFnbUi(totals);
             var showBar = !useFnbCapsule && totals.count > 0 && activeRoute.type !== 'cart';
+            var sheetOpen = Boolean(document.querySelector('[data-bottom-sheet].is-open'));
+            var rawNavH = Number(storeData.navReservedHeight || 0);
+            var effNavH = sheetOpen ? 0 : rawNavH;
             if (cartBar) {
               cartBar.style.display = showBar ? 'block' : 'none';
+              cartBar.style.bottom = (effNavH > 0 ? (effNavH + 2) : 0) + 'px';
               if (cartBarCount) cartBarCount.textContent = totals.count + ' item di keranjang';
               if (cartBarTotal) cartBarTotal.textContent = totals.sum > 0 ? formatRp(totals.sum) : 'Siap pesan via WA';
             }
             var hasAnyFloat = (showBar || useFnbCapsule);
-            var navH = Number(storeData.navReservedHeight || 0);
-            var basePad = navH > 0 ? (navH + 36) : 24;
+            var basePad = rawNavH > 0 ? (rawNavH + 36) : 24;
             document.body.style.paddingBottom = (hasAnyFloat ? basePad + 72 : basePad) + 'px';
             var waFloatBtn = document.getElementById('lynk-wa-addon-btn');
-            if (waFloatBtn) waFloatBtn.style.bottom = (navH > 0 ? (navH + (hasAnyFloat ? 82 : 16)) : (hasAnyFloat ? 82 : 18)) + 'px';
+            if (waFloatBtn) waFloatBtn.style.bottom = (rawNavH > 0 ? (rawNavH + (hasAnyFloat ? 82 : 16)) : (hasAnyFloat ? 82 : 18)) + 'px';
           }
+          window.__lynkSyncCart = syncCartBar;
           function addCartItem(blockId, item, variant, qty) {
             var cfg = catalogs[blockId];
             var v = variant || '';
@@ -1716,10 +1738,10 @@ ${bodyBlocks}
                   '<div style="padding-top:8px; display:flex; flex-direction:column; gap:8px;">' +
                     (cfg.cartEnabled
                       ? '<button type="button" id="lynk-det-add" style="width:100%; padding:11px 16px; border:0; border-radius:12px; background:' + esc(theme.accentColor) + '; color:#FFFFFF; font-size:13px; font-weight:700; cursor:pointer;">Tambah ke Keranjang</button>' +
-                        '<a id="lynk-det-wa" href="#" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:11px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:13px; font-weight:700; text-align:center; text-decoration:none;">Pesan Langsung via WhatsApp</a>'
+                        '<a id="lynk-det-wa" href="#" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:11px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; text-align:center; text-decoration:none;">Pesan Langsung via WhatsApp</a>'
                       : '') +
                     (hasCustomUrl
-                      ? '<a href="' + esc(safeItemUrl) + '" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:10px 16px; border-radius:12px; border:1px solid ' + esc(theme.borderColor) + '; color:' + esc(theme.textColor) + '; font-size:12px; font-weight:600; text-align:center; text-decoration:none;">' + esc(cfg.cartEnabled ? 'Kunjungi Tautan Produk' : (item.ctaLabel || 'Buka Tautan')) + '</a>'
+                      ? '<a href="' + esc(safeItemUrl) + '" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:10px 16px; border-radius:12px; border:1px solid ' + esc(theme.borderColor) + '; color:' + esc(theme.textColor) + '; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; text-align:center; text-decoration:none;">' + esc(cfg.cartEnabled ? 'Kunjungi Tautan Produk' : (item.ctaLabel || 'Buka Tautan')) + '</a>'
                       : '') +
                   '</div>' +
                 '</div>' +
@@ -1741,7 +1763,8 @@ ${bodyBlocks}
             }
             syncDirectWa();
 
-            detailView.querySelector('[data-nav-home]').addEventListener('click', goHome);
+            var detHome = detailView.querySelector('[data-nav-home]');
+            if (detHome) detHome.addEventListener('click', goHome);
             var navCart = detailView.querySelector('[data-nav-cart]');
             if (navCart) navCart.addEventListener('click', openCart);
 
@@ -1962,12 +1985,12 @@ ${bodyBlocks}
 
             var storeGroups = getStoreGroups();
             var waSectionHtml = storeGroups.length <= 1
-              ? '<a id="lynk-cart-wa-btn" href="#" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:12px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:13px; font-weight:700; text-align:center; text-decoration:none;">Kirim Pesanan via WhatsApp</a>'
+              ? '<a id="lynk-cart-wa-btn" href="#" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:12px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; text-align:center; text-decoration:none;">Kirim Pesanan via WhatsApp</a>'
               : '<div style="display:flex; flex-direction:column; gap:8px; padding-top:4px;">' +
                   '<div style="font-size:11px; font-weight:600; color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; padding:8px 10px; line-height:1.4;">Keranjang berisi produk dari ' + storeGroups.length + ' nomor WhatsApp berbeda. Kirim pesanan per toko di bawah ini:</div>' +
                   storeGroups.map(function (grp, gi) {
                     var cnt = grp.entries.reduce(function (s, e) { return s + e.qty; }, 0);
-                    return '<a data-cart-wa-grp="' + gi + '" href="#" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:10px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:12px; font-weight:700; text-align:center; text-decoration:none;">Kirim ke ' + esc(grp.storeName) + ' (' + cnt + ' item)</a>';
+                    return '<a data-cart-wa-grp="' + gi + '" href="#" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:10px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; text-align:center; text-decoration:none;">Kirim ke ' + esc(grp.storeName) + ' (' + cnt + ' item)</a>';
                   }).join('') +
                 '</div>';
 
@@ -2124,13 +2147,14 @@ ${bodyBlocks}
               cartView.style.display = 'none';
               detailView.style.display = 'block';
               renderDetailPage(route.blockId, route.itemId);
-              if (pushHash) location.hash = '#produk-' + encodeURIComponent(route.blockId) + '--' + encodeURIComponent(route.itemId);
+              var targetDetHash = '#produk-' + encodeURIComponent(route.blockId) + '--' + encodeURIComponent(route.itemId);
+              if (pushHash && location.hash !== targetDetHash) location.hash = targetDetHash;
             } else if (route.type === 'cart') {
               mainView.style.display = 'none';
               detailView.style.display = 'none';
               cartView.style.display = 'block';
               renderCartPage();
-              if (pushHash) location.hash = '#keranjang';
+              if (pushHash && location.hash !== '#keranjang') location.hash = '#keranjang';
             } else {
               detailView.style.display = 'none';
               cartView.style.display = 'none';
@@ -2138,7 +2162,9 @@ ${bodyBlocks}
               if (pushHash && location.hash) history.replaceState(null, '', location.pathname + location.search);
             }
             syncCartBar();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (typeof window.scrollTo === 'function') {
+              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+            }
           }
           function goHome() {
             applyView({ type: 'home', blockId: '', itemId: '' }, true);
@@ -2150,6 +2176,7 @@ ${bodyBlocks}
           function syncFromHash() {
             var h = location.hash || '';
             if (h === '#keranjang') {
+              if (activeRoute.type === 'cart') return;
               applyView({ type: 'cart', blockId: '', itemId: '' }, false);
             } else if (h.indexOf('#produk-') === 0) {
               var raw = h.slice('#produk-'.length);
@@ -2157,88 +2184,111 @@ ${bodyBlocks}
               if (sep > 0) {
                 var bId = decodeURIComponent(raw.slice(0, sep));
                 var iId = decodeURIComponent(raw.slice(sep + 2));
+                if (activeRoute.type === 'detail' && activeRoute.blockId === bId && activeRoute.itemId === iId) return;
                 if (findItem(bId, iId)) {
                   applyView({ type: 'detail', blockId: bId, itemId: iId }, false);
                   return;
                 }
               }
+              if (activeRoute.type === 'home') return;
               applyView({ type: 'home', blockId: '', itemId: '' }, false);
             } else {
+              if (activeRoute.type === 'home') return;
               applyView({ type: 'home', blockId: '', itemId: '' }, false);
             }
           }
 
-          document.querySelectorAll('[data-quick-add]').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              var parts = (btn.getAttribute('data-quick-add') || '').split('::');
-              if (parts.length !== 2) return;
-              var found = findItem(parts[0], parts[1]);
-              if (!found) return;
-              var vars = parseVars(found.item.variants);
-              addCartItem(parts[0], found.item, vars.length ? vars[0] : '', 1);
-            });
-          });
+          function parsePairAttr(raw) {
+            if (!raw) return null;
+            var sep = raw.indexOf('::');
+            if (sep <= 0) return null;
+            var bId = raw.slice(0, sep);
+            var iId = raw.slice(sep + 2);
+            if (!bId || !iId) return null;
+            return [bId, iId];
+          }
 
-          document.querySelectorAll('[data-open-detail]').forEach(function (card) {
-            card.addEventListener('click', function (e) {
-              if (e.target && e.target.closest && e.target.closest('[data-quick-add]')) return;
-              var parts = (card.getAttribute('data-open-detail') || '').split('::');
-              if (parts.length !== 2) return;
-              applyView({ type: 'detail', blockId: parts[0], itemId: parts[1] }, true);
-            });
-            card.addEventListener('keydown', function (e) {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                var parts = (card.getAttribute('data-open-detail') || '').split('::');
-                if (parts.length !== 2) return;
-                applyView({ type: 'detail', blockId: parts[0], itemId: parts[1] }, true);
-              }
-            });
-          });
+          document.addEventListener('click', function (e) {
+            var target = e.target;
+            if (!target || !target.closest) return;
 
-          document.querySelectorAll('[data-fnb-add]').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
+            var quickBtn = target.closest('[data-quick-add]');
+            if (quickBtn) {
               e.preventDefault();
               e.stopPropagation();
-              var parts = (btn.getAttribute('data-fnb-add') || '').split('::');
-              if (parts.length !== 2) return;
-              var found = findItem(parts[0], parts[1]);
-              if (!found) return;
-              addCartItem(parts[0], found.item, '', 1);
-            });
-          });
-          document.querySelectorAll('[data-fnb-inc]').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
+              var qParts = parsePairAttr(quickBtn.getAttribute('data-quick-add'));
+              if (!qParts) return;
+              var qFound = findItem(qParts[0], qParts[1]);
+              if (!qFound) return;
+              var qVars = parseVars(qFound.item.variants);
+              addCartItem(qParts[0], qFound.item, qVars.length ? qVars[0] : '', 1);
+              return;
+            }
+
+            var fnbAddBtn = target.closest('[data-fnb-add]');
+            if (fnbAddBtn) {
               e.preventDefault();
               e.stopPropagation();
-              var parts = (btn.getAttribute('data-fnb-inc') || '').split('::');
-              if (parts.length !== 2) return;
-              var targetKey = parts[0] + '::' + parts[1] + '::';
-              var foundCart = null;
+              var faParts = parsePairAttr(fnbAddBtn.getAttribute('data-fnb-add'));
+              if (!faParts) return;
+              var faFound = findItem(faParts[0], faParts[1]);
+              if (!faFound) return;
+              addCartItem(faParts[0], faFound.item, '', 1);
+              return;
+            }
+
+            var fnbIncBtn = target.closest('[data-fnb-inc]');
+            if (fnbIncBtn) {
+              e.preventDefault();
+              e.stopPropagation();
+              var fiParts = parsePairAttr(fnbIncBtn.getAttribute('data-fnb-inc'));
+              if (!fiParts) return;
+              var targetIncKey = fiParts[0] + '::' + fiParts[1] + '::';
+              var foundIncCart = null;
               for (var i = 0; i < cart.length; i++) {
-                if (cart[i].key === targetKey) { foundCart = cart[i]; break; }
+                if (cart[i].key === targetIncKey) { foundIncCart = cart[i]; break; }
               }
-              if (foundCart) {
-                foundCart.qty += 1;
+              if (foundIncCart) {
+                foundIncCart.qty += 1;
                 syncCartBar();
               } else {
-                var found = findItem(parts[0], parts[1]);
-                if (found) addCartItem(parts[0], found.item, '', 1);
+                var fiFound = findItem(fiParts[0], fiParts[1]);
+                if (fiFound) addCartItem(fiParts[0], fiFound.item, '', 1);
               }
-            });
-          });
-          document.querySelectorAll('[data-fnb-dec]').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
+              return;
+            }
+
+            var fnbDecBtn = target.closest('[data-fnb-dec]');
+            if (fnbDecBtn) {
               e.preventDefault();
               e.stopPropagation();
-              var parts = (btn.getAttribute('data-fnb-dec') || '').split('::');
-              if (parts.length !== 2) return;
-              var targetKey = parts[0] + '::' + parts[1] + '::';
-              cart = cart.map(function (c) { return c.key === targetKey ? Object.assign({}, c, { qty: c.qty - 1 }) : c; }).filter(function (c) { return c.qty > 0; });
+              var fdParts = parsePairAttr(fnbDecBtn.getAttribute('data-fnb-dec'));
+              if (!fdParts) return;
+              var targetDecKey = fdParts[0] + '::' + fdParts[1] + '::';
+              cart = cart.map(function (c) { return c.key === targetDecKey ? Object.assign({}, c, { qty: c.qty - 1 }) : c; }).filter(function (c) { return c.qty > 0; });
               syncCartBar();
-            });
+              return;
+            }
+
+            var detailCard = target.closest('[data-open-detail]');
+            if (detailCard) {
+              var dParts = parsePairAttr(detailCard.getAttribute('data-open-detail'));
+              if (!dParts) return;
+              applyView({ type: 'detail', blockId: dParts[0], itemId: dParts[1] }, true);
+            }
+          });
+
+          document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var target = e.target;
+            if (!target || !target.closest) return;
+            if (target.closest('button, a, input, textarea, select')) return;
+            var detailCard = target.closest('[data-open-detail]');
+            if (!detailCard) return;
+            var dParts = parsePairAttr(detailCard.getAttribute('data-open-detail'));
+            if (!dParts) return;
+            e.preventDefault();
+            applyView({ type: 'detail', blockId: dParts[0], itemId: dParts[1] }, true);
           });
 
           document.querySelectorAll('[data-fnb-catalog]').forEach(function (fnbBox) {

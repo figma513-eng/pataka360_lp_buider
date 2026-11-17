@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
@@ -36,7 +37,10 @@ export const usersTable = pgTable(
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
     lastLoginAt: bigint('last_login_at', { mode: 'number' }),
   },
-  (table) => [index('idx_users_email').on(table.email)]
+  (table) => [
+    index('idx_users_email').on(table.email),
+    index('idx_users_email_lower').on(sql`lower(${table.email})`),
+  ]
 );
 
 export const sessionsTable = pgTable(
@@ -96,7 +100,7 @@ export const analyticsEventsTable = pgTable(
     sourceLabel: text('source_label').notNull().default('Organik'),
     ctaLabel: text('cta_label'),
     waPhone: text('wa_phone'),
-    orderValue: integer('order_value'),
+    orderValue: bigint('order_value', { mode: 'number' }),
     utmSource: text('utm_source'),
     utmMedium: text('utm_medium'),
     utmCampaign: text('utm_campaign'),
@@ -107,8 +111,8 @@ export const analyticsEventsTable = pgTable(
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => [
-    index('idx_analytics_project_created').on(table.projectId, table.createdAt),
-    index('idx_analytics_created').on(table.createdAt),
+    index('idx_analytics_project_created').on(table.projectId, table.createdAt.desc()),
+    index('idx_analytics_created').on(table.createdAt.desc()),
   ]
 );
 
@@ -125,6 +129,7 @@ export const apiSettingsTable = pgTable('api_settings', {
   id: text('id').primaryKey(),
   publicApiEnabled: boolean('public_api_enabled').notNull().default(true),
   requireAuthForBuilder: boolean('require_auth_for_builder').notNull().default(true),
+  demoLoginEnabled: boolean('demo_login_enabled'),
   webhookUrl: text('webhook_url').notNull().default(''),
   webhookEventsJson: jsonb('webhook_events_json')
     .$type<WebhookEventName[]>()
@@ -150,7 +155,7 @@ export const webhookLogsTable = pgTable(
     errorMessage: text('error_message'),
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
-  (table) => [index('idx_webhook_logs_created').on(table.createdAt)]
+  (table) => [index('idx_webhook_logs_created').on(table.createdAt.desc())]
 );
 
 export const mediaAssetsTable = pgTable(

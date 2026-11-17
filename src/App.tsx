@@ -16,6 +16,7 @@ import {
   ProjectsModal,
 } from './components/Modals';
 import {
+  AccessRole,
   AccessSettingsConfig,
   AdvanceOptions,
   AuthUser,
@@ -212,6 +213,14 @@ export default function App() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [requireAuthForBuilder, setRequireAuthForBuilder] = useState(true);
   const [forceLoginView, setForceLoginView] = useState(false);
+  const [authMeta, setAuthMeta] = useState<{
+    demoModeAvailable: boolean;
+    demoAccountsSeeded: boolean;
+    roleSummary?: Record<AccessRole, number>;
+  }>({
+    demoModeAvailable: false,
+    demoAccountsSeeded: false,
+  });
 
   const [workspace, setWorkspace] = useState<WorkspaceBundle>(() => getInitialWorkspaceSync());
   const isHydratedRef = useRef(false);
@@ -356,6 +365,18 @@ export default function App() {
     }
   }, []);
 
+  const refreshAuthMeta = useCallback(async () => {
+    const me = await fetchAuthMe();
+    setNeedsSetup(me.needsSetup);
+    setRequireAuthForBuilder(me.requireAuthForBuilder);
+    setAuthMeta({
+      demoModeAvailable: Boolean(me.demoModeAvailable),
+      demoAccountsSeeded: Boolean(me.demoAccountsSeeded),
+      roleSummary: me.roleSummary,
+    });
+    return me;
+  }, []);
+
   useEffect(() => {
     clearStoredAuthToken();
     let cancelled = false;
@@ -365,6 +386,11 @@ export default function App() {
       setAuthUser(me.user);
       setNeedsSetup(me.needsSetup);
       setRequireAuthForBuilder(me.requireAuthForBuilder);
+      setAuthMeta({
+        demoModeAvailable: Boolean(me.demoModeAvailable),
+        demoAccountsSeeded: Boolean(me.demoAccountsSeeded),
+        roleSummary: me.roleSummary,
+      });
       setAuthLoading(false);
 
       if (me.authenticated || !me.requireAuthForBuilder) {
@@ -400,7 +426,7 @@ export default function App() {
     setForceLoginView(false);
     setPendingCreatedIds([]);
     setConflictState(null);
-    await hydrateWorkspaceAndSettings(user);
+    await Promise.all([hydrateWorkspaceAndSettings(user), refreshAuthMeta()]);
     showSaveToast('ok', `Selamat datang, ${user.name}.`);
   };
 
@@ -427,9 +453,7 @@ export default function App() {
     setShowDashboard(false);
     setShowDomainAds(false);
     setShowProjects(false);
-    const me = await fetchAuthMe();
-    setNeedsSetup(me.needsSetup);
-    setRequireAuthForBuilder(me.requireAuthForBuilder);
+    const me = await refreshAuthMeta();
     if (!me.requireAuthForBuilder) {
       setForceLoginView(true);
     }
@@ -1623,6 +1647,12 @@ export default function App() {
     return (
       <LoginPage
         needsSetup={needsSetup}
+        demoModeAvailable={authMeta.demoModeAvailable}
+        demoAccountsSeeded={authMeta.demoAccountsSeeded}
+        roleSummary={authMeta.roleSummary}
+        onDemoSeeded={async () => {
+          await refreshAuthMeta();
+        }}
         onSuccess={(user) => void handleAuthSuccess(user)}
       />
     );
@@ -1858,6 +1888,10 @@ export default function App() {
         <AccessSettingsModal
           settings={accessSettings}
           projects={workspace.projects}
+          demoModeAvailable={authMeta.demoModeAvailable}
+          onDemoSeeded={async () => {
+            await refreshAuthMeta();
+          }}
           onSaveSettings={handleSaveAccessSettings}
           onSettingsSynced={(next) => setAccessSettings(next)}
           onClose={() => setShowAccessSettings(false)}

@@ -12,6 +12,7 @@ import type {
 
 const LEGACY_AUTH_TOKEN_KEY = 'lynk_auth_token';
 let cachedCsrfToken: string | null = null;
+let inMemorySessionToken: string | null = null;
 
 /**
  * Purges any legacy session token left in localStorage from pre-hardening versions.
@@ -60,6 +61,10 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
   const headers = new Headers(init.headers || {});
   const method = (init.method || 'GET').toUpperCase();
 
+  if (inMemorySessionToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${inMemorySessionToken}`);
+  }
+
   if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
     if (!headers.has('X-Lynk-Requested-With')) {
       headers.set('X-Lynk-Requested-With', 'fetch');
@@ -83,6 +88,9 @@ export interface AuthMeResponse {
   needsSetup: boolean;
   requireAuthForBuilder: boolean;
   csrfToken?: string;
+  demoModeAvailable?: boolean;
+  demoAccountsSeeded?: boolean;
+  roleSummary?: Record<AccessRole, number>;
 }
 
 export async function fetchAuthMe(): Promise<AuthMeResponse> {
@@ -101,6 +109,9 @@ export async function fetchAuthMe(): Promise<AuthMeResponse> {
     if (typeof data.csrfToken === 'string' && data.csrfToken) {
       cachedCsrfToken = data.csrfToken;
     }
+    if (!data.authenticated) {
+      inMemorySessionToken = null;
+    }
     return data;
   } catch {
     return {
@@ -112,11 +123,43 @@ export async function fetchAuthMe(): Promise<AuthMeResponse> {
   }
 }
 
+export async function seedDemoRolesOnServer(): Promise<{
+  ok: boolean;
+  createdCount?: number;
+  error?: string;
+  code?: string;
+}> {
+  try {
+    const res = await authFetch('/api/auth/seed-demo-roles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      createdCount?: number;
+      error?: string;
+      code?: string;
+    };
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error: data.error || 'Gagal menyiapkan akun demo 4 role.',
+        code: data.code,
+      };
+    }
+    return { ok: true, createdCount: data.createdCount ?? 0 };
+  } catch {
+    return { ok: false, error: 'Tidak dapat terhubung ke server.' };
+  }
+}
+
 export async function loginUser(
   email: string,
   password: string
 ): Promise<{ ok: boolean; user?: AuthUser; error?: string }> {
   clearStoredAuthToken();
+  inMemorySessionToken = null;
   try {
     const res = await authFetch('/api/auth/login', {
       method: 'POST',
@@ -127,6 +170,7 @@ export async function loginUser(
       ok?: boolean;
       user?: AuthUser;
       csrfToken?: string;
+      sessionToken?: string;
       error?: string;
     };
     if (typeof data.csrfToken === 'string' && data.csrfToken) {
@@ -135,10 +179,19 @@ export async function loginUser(
     if (!res.ok || !data.user) {
       return { ok: false, error: data.error || 'Gagal masuk. Periksa email & sandi.' };
     }
-    const verifyRes = await authFetch('/api/auth/me').catch(() => null);
+    const verifyRes = await fetch('/api/auth/me', { credentials: 'include' }).catch(() => null);
     if (verifyRes && verifyRes.ok) {
       const verifyData = (await verifyRes.json().catch(() => null)) as AuthMeResponse | null;
       if (verifyData && !verifyData.authenticated) {
+        if (typeof data.sessionToken === 'string' && data.sessionToken) {
+          inMemorySessionToken = data.sessionToken;
+          const bearerCheck = await authFetch('/api/auth/me').catch(() => null);
+          const bearerData = (await bearerCheck?.json().catch(() => null)) as AuthMeResponse | null;
+          if (bearerData?.authenticated) {
+            return { ok: true, user: data.user };
+          }
+          inMemorySessionToken = null;
+        }
         return {
           ok: false,
           error:
@@ -158,6 +211,7 @@ export async function registerUser(
   password: string
 ): Promise<{ ok: boolean; user?: AuthUser; error?: string }> {
   clearStoredAuthToken();
+  inMemorySessionToken = null;
   try {
     const res = await authFetch('/api/auth/register', {
       method: 'POST',
@@ -168,6 +222,7 @@ export async function registerUser(
       ok?: boolean;
       user?: AuthUser;
       csrfToken?: string;
+      sessionToken?: string;
       error?: string;
     };
     if (typeof data.csrfToken === 'string' && data.csrfToken) {
@@ -176,10 +231,19 @@ export async function registerUser(
     if (!res.ok || !data.user) {
       return { ok: false, error: data.error || 'Gagal mendaftar akun.' };
     }
-    const verifyRes = await authFetch('/api/auth/me').catch(() => null);
+    const verifyRes = await fetch('/api/auth/me', { credentials: 'include' }).catch(() => null);
     if (verifyRes && verifyRes.ok) {
       const verifyData = (await verifyRes.json().catch(() => null)) as AuthMeResponse | null;
       if (verifyData && !verifyData.authenticated) {
+        if (typeof data.sessionToken === 'string' && data.sessionToken) {
+          inMemorySessionToken = data.sessionToken;
+          const bearerCheck = await authFetch('/api/auth/me').catch(() => null);
+          const bearerData = (await bearerCheck?.json().catch(() => null)) as AuthMeResponse | null;
+          if (bearerData?.authenticated) {
+            return { ok: true, user: data.user };
+          }
+          inMemorySessionToken = null;
+        }
         return {
           ok: false,
           error:
@@ -199,6 +263,7 @@ export async function logoutUser(): Promise<void> {
   } catch {
     // Abaikan error offline
   }
+  inMemorySessionToken = null;
   clearStoredAuthToken();
 }
 

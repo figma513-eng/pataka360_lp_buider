@@ -59,14 +59,19 @@ export function DomainAndAdsModal({
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [capiReady, setCapiReady] = useState<boolean | null>(null);
+  const [serverAppUrl, setServerAppUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     fetch('/api/health')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (active && data && typeof data.capiConfigured === 'boolean') {
+        if (!active || !data) return;
+        if (typeof data.capiConfigured === 'boolean') {
           setCapiReady(data.capiConfigured);
+        }
+        if (typeof data.appUrl === 'string' && data.appUrl) {
+          setServerAppUrl(data.appUrl);
         }
       })
       .catch(() => {
@@ -82,7 +87,14 @@ export function DomainAndAdsModal({
   const [utmCampaign, setUtmCampaign] = useState('promo-utama');
   const [utmContent, setUtmContent] = useState('video-1');
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.domain';
+  const isVirtualAiStudioHost =
+    typeof window !== 'undefined' && window.location.hostname.endsWith('.ai.studio');
+  const origin =
+    isVirtualAiStudioHost && serverAppUrl
+      ? serverAppUrl
+      : typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://app.domain';
   const urls = useMemo(() => buildLiveUrls(pub, origin), [pub, origin]);
   const cleanSlug = sanitizeSlug(pub.slug, 'unit-usaha');
   const cleanDomain = normalizeCustomDomain(pub.customDomain);
@@ -293,9 +305,16 @@ export function DomainAndAdsModal({
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="text-[11px] font-medium text-slate-500">Tautan Live Bawaan</div>
-                    <div className="text-xs font-mono text-slate-800 truncate">{urls.internalUrl}</div>
+                    <a
+                      href={`${urls.internalUrl}?preview=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate"
+                    >
+                      {urls.internalUrl}
+                    </a>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
@@ -311,7 +330,11 @@ export function DomainAndAdsModal({
                       <span>{copiedKey === 'live_url' ? 'Tersalin' : 'Salin'}</span>
                     </button>
                     <a
-                      href={`${urls.internalPath}?preview=1`}
+                      href={
+                        isVirtualAiStudioHost && serverAppUrl
+                          ? `${urls.internalUrl}?preview=1`
+                          : `${urls.internalPath}?preview=1`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
@@ -321,6 +344,11 @@ export function DomainAndAdsModal({
                     </a>
                   </div>
                 </div>
+                {isVirtualAiStudioHost && (
+                  <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                    Domain virtual <span className="font-mono font-semibold">lynk-builder.ai.studio</span> hanya label contoh di editor. Gunakan URL publik aktif di atas (<span className="font-mono">{urls.internalUrl}</span>) saat membagikan atau mengetes di tab baru.
+                  </div>
+                )}
               </div>
 
               {/* Domain Kustom */}

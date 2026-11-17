@@ -140,53 +140,258 @@ export const POSTGRES_MIGRATIONS: MigrationDefinition[] = [
       `CREATE INDEX IF NOT EXISTS idx_media_filename ON media_assets (filename);`,
     ],
   },
+  {
+    version: '004',
+    name: 'analytics_bigint_and_case_insensitive_email',
+    statements: [
+      `ALTER TABLE analytics_events ALTER COLUMN order_value TYPE BIGINT;`,
+      `CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));`,
+      `ALTER TABLE api_settings ADD COLUMN IF NOT EXISTS demo_login_enabled BOOLEAN;`,
+    ],
+  },
 ];
 
-function checksumStatements(statements: string[]): string {
+export const CURRENT_SCHEMA_VERSION =
+  POSTGRES_MIGRATIONS[POSTGRES_MIGRATIONS.length - 1]?.version ?? '000';
+
+export interface PgQueryResult<T = Record<string, unknown>> {
+  rows: T[];
+  rowCount?: number | null;
+}
+
+export interface PgClientLike {
+  query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<PgQueryResult<T>>;
+  release(): void;
+}
+
+export interface PgPoolLike {
+  connect(): Promise<PgClientLike>;
+}
+
+export interface AppliedMigrationRow {
+  version: string;
+  name: string;
+  checksum: string;
+  applied_at: string | number;
+}
+
+export interface MigrationTamperIssue {
+  version: string;
+  appliedName: string;
+  expectedName: string;
+  appliedChecksum: string;
+  expectedChecksum: string;
+  reason: 'CHECKSUM_MISMATCH' | 'NAME_MISMATCH';
+}
+
+export interface MigrationStatusReport {
+  currentVersion: string | null;
+  latestAvailableVersion: string;
+  upToDate: boolean;
+  appliedMigrations: Array<{
+    version: string;
+    name: string;
+    checksum: string;
+    appliedAt: number;
+  }>;
+  pendingVersions: string[];
+  tamperedMigrations: MigrationTamperIssue[];
+  unknownAppliedVersions: string[];
+}
+
+export interface MigrationRunResult {
+  currentVersion: string | null;
+  latestAvailableVersion: string;
+  appliedVersions: string[];
+  newlyAppliedVersions: string[];
+  status: MigrationStatusReport;
+}
+
+export class MigrationIntegrityError extends Error {
+  public readonly code: 'MIGRATION_CHECKSUM_MISMATCH' | 'UNKNOWN_APPLIED_MIGRATION';
+  public readonly issues: MigrationTamperIssue[];
+  public readonly unknownVersions: string[];
+
+  constructor(
+    code: 'MIGRATION_CHECKSUM_MISMATCH' | 'UNKNOWN_APPLIED_MIGRATION',
+    message: string,
+    issues: MigrationTamperIssue[] = [],
+    unknownVersions: string[] = []
+  ) {
+    super(message);
+    this.name = 'MigrationIntegrityError';
+    this.code = code;
+    this.issues = issues;
+    this.unknownVersions = unknownVersions;
+  }
+}
+
+export function computeMigrationChecksum(statements: string[]): string {
   return crypto.createHash('sha256').update(statements.join('\n')).digest('hex').slice(0, 16);
 }
 
-export async function runPostgresMigrations(pool: pg.Pool): Promise<string[]> {
+const MIGRATION_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    version TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    checksum TEXT NOT NULL,
+    applied_at BIGINT NOT NULL
+  );
+`;
+
+const MIGRATION_LOCK_KEY = 94827164;
+
+function buildMigrationStatus(appliedRows: AppliedMigrationRow[]): MigrationStatusReport {
+  const byVersion = new Map(POSTGRES_MIGRATIONS.map((m) => [m.version, m]));
+  const appliedMigrations: MigrationStatusReport['appliedMigrations'] = [];
+  const appliedSet = new Set<string>();
+  const tamperedMigrations: MigrationTamperIssue[] = [];
+  const unknownAppliedVersions: string[] = [];
+
+  for (const row of appliedRows) {
+    const version = String(row.version);
+    const appliedName = String(row.name || '');
+    const appliedChecksum = String(row.checksum || '');
+    const appliedAt = Number(row.applied_at || 0);
+    appliedSet.add(version);
+    appliedMigrations.push({ version, name: appliedName, checksum: appliedChecksum, appliedAt });
+
+    const def = byVersion.get(version);
+    if (!def) {
+      unknownAppliedVersions.push(version);
+      continue;
+    }
+
+    const expectedChecksum = computeMigrationChecksum(def.statements);
+    if (appliedName !== def.name) {
+      tamperedMigrations.push({
+        version,
+        appliedName,
+        expectedName: def.name,
+        appliedChecksum,
+        expectedChecksum,
+        reason: 'NAME_MISMATCH',
+      });
+    } else if (appliedChecksum !== expectedChecksum) {
+      tamperedMigrations.push({
+        version,
+        appliedName,
+        expectedName: def.name,
+        appliedChecksum,
+        expectedChecksum,
+        reason: 'CHECKSUM_MISMATCH',
+      });
+    }
+  }
+
+  const pendingVersions = POSTGRES_MIGRATIONS.filter((m) => !appliedSet.has(m.version)).map(
+    (m) => m.version
+  );
+
+  const sortedApplied = appliedMigrations.map((m) => m.version).sort();
+  const currentVersion = sortedApplied.length > 0 ? sortedApplied[sortedApplied.length - 1] : null;
+  const upToDate =
+    pendingVersions.length === 0 &&
+    tamperedMigrations.length === 0 &&
+    unknownAppliedVersions.length === 0;
+
+  return {
+    currentVersion,
+    latestAvailableVersion: CURRENT_SCHEMA_VERSION,
+    upToDate,
+    appliedMigrations,
+    pendingVersions,
+    tamperedMigrations,
+    unknownAppliedVersions,
+  };
+}
+
+export async function getPostgresMigrationStatus(pool: PgPoolLike): Promise<MigrationStatusReport> {
   const client = await pool.connect();
   try {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
-        version TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        checksum TEXT NOT NULL,
-        applied_at BIGINT NOT NULL
-      );
-    `);
-
-    const appliedRows = await client.query<{ version: string }>(
-      'SELECT version FROM schema_migrations ORDER BY version ASC'
+    await client.query(MIGRATION_TABLE_DDL);
+    const appliedRes = await client.query<AppliedMigrationRow>(
+      'SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version ASC'
     );
-    const appliedSet = new Set(appliedRows.rows.map((r) => r.version));
+    return buildMigrationStatus(appliedRes.rows);
+  } finally {
+    client.release();
+  }
+}
 
-    for (const mig of POSTGRES_MIGRATIONS) {
-      if (appliedSet.has(mig.version)) continue;
+export async function runPostgresMigrationsDetailed(
+  pool: PgPoolLike | pg.Pool
+): Promise<MigrationRunResult> {
+  const client = await (pool as PgPoolLike).connect();
+  try {
+    await client.query(MIGRATION_TABLE_DDL);
+    await client.query('BEGIN');
+    try {
+      await client.query(`SELECT pg_advisory_xact_lock(${MIGRATION_LOCK_KEY})`);
+      const appliedRes = await client.query<AppliedMigrationRow>(
+        'SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version ASC'
+      );
+      const initialStatus = buildMigrationStatus(appliedRes.rows);
 
-      await client.query('BEGIN');
-      try {
+      if (initialStatus.unknownAppliedVersions.length > 0) {
+        throw new MigrationIntegrityError(
+          'UNKNOWN_APPLIED_MIGRATION',
+          `Database PostgreSQL memuat versi migrasi tidak dikenal: ${initialStatus.unknownAppliedVersions.join(', ')}`,
+          initialStatus.tamperedMigrations,
+          initialStatus.unknownAppliedVersions
+        );
+      }
+
+      if (initialStatus.tamperedMigrations.length > 0) {
+        const first = initialStatus.tamperedMigrations[0];
+        throw new MigrationIntegrityError(
+          'MIGRATION_CHECKSUM_MISMATCH',
+          `Integritas migrasi ${first.version} (${first.expectedName}) gagal: ${first.reason}. Perubahan diam-diam pada migrasi lama ditolak.`,
+          initialStatus.tamperedMigrations,
+          initialStatus.unknownAppliedVersions
+        );
+      }
+
+      const appliedSet = new Set(initialStatus.appliedMigrations.map((m) => m.version));
+      const newlyAppliedVersions: string[] = [];
+
+      for (const mig of POSTGRES_MIGRATIONS) {
+        if (appliedSet.has(mig.version)) continue;
         for (const stmt of mig.statements) {
           await client.query(stmt);
         }
         await client.query(
           `INSERT INTO schema_migrations (version, name, checksum, applied_at)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (version) DO NOTHING`,
-          [mig.version, mig.name, checksumStatements(mig.statements), Date.now()]
+           VALUES ($1, $2, $3, $4)`,
+          [mig.version, mig.name, computeMigrationChecksum(mig.statements), Date.now()]
         );
-        await client.query('COMMIT');
         appliedSet.add(mig.version);
-      } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
+        newlyAppliedVersions.push(mig.version);
       }
-    }
 
-    return Array.from(appliedSet).sort();
+      const finalRes = await client.query<AppliedMigrationRow>(
+        'SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version ASC'
+      );
+      const finalStatus = buildMigrationStatus(finalRes.rows);
+      await client.query('COMMIT');
+
+      return {
+        currentVersion: finalStatus.currentVersion,
+        latestAvailableVersion: CURRENT_SCHEMA_VERSION,
+        appliedVersions: Array.from(appliedSet).sort(),
+        newlyAppliedVersions,
+        status: finalStatus,
+      };
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    }
   } finally {
     client.release();
   }
+}
+
+export async function runPostgresMigrations(pool: PgPoolLike | pg.Pool): Promise<string[]> {
+  const result = await runPostgresMigrationsDetailed(pool);
+  return result.appliedVersions;
 }

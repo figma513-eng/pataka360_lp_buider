@@ -587,25 +587,30 @@ ${indent}</div>`;
           const quickBtnAttr = `data-quick-add="${escapeHtml(block.id)}::${escapeHtml(item.id)}"`;
 
           if (layout === 'grid') {
-            const inner = `
+            const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
+            const mediaAndText = `
 ${indent}    ${badgeHtml ? `<div style="position:absolute; top:8px; left:8px; z-index:2;">${badgeHtml}</div>` : ''}
 ${indent}    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; ${ratioCss('1/1')} object-fit: ${fit}; display: block;" />
-${indent}    <div style="padding: 10px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
-${indent}      <div>
-${indent}        <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">${escapeHtml(item.title)}</div>
-${indent}        <div style="font-size: 11px; opacity: 0.75;">${meta}</div>
-${indent}      </div>
-${indent}      ${cartEnabled ? `<button type="button" ${quickBtnAttr} style="width:100%; padding:${cartBtn.gridPadding}; border:0; border-radius:${cartBtn.gridRadius}px; background:${theme.accentColor}; color:#FFFFFF; font-size:${cartBtn.gridFontSize}px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:${cartBtn.gridGap}px; cursor:pointer;">${gridCartSvg}<span>+ Keranjang</span></button>` : ''}
+${indent}    <div style="padding: 10px 10px ${cartEnabled ? '8px' : '10px'} 10px;">
+${indent}      <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">${escapeHtml(item.title)}</div>
+${indent}      <div style="font-size: 11px; opacity: 0.75;">${meta}</div>
 ${indent}    </div>`;
-            const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
+            const quickBtnHtml = cartEnabled
+              ? `\n${indent}    <div style="padding: 0 10px 10px 10px; margin-top: auto;"><button type="button" ${quickBtnAttr} style="width:100%; padding:${cartBtn.gridPadding}; border:0; border-radius:${cartBtn.gridRadius}px; background:${theme.accentColor}; color:#FFFFFF; font-size:${cartBtn.gridFontSize}px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:${cartBtn.gridGap}px; cursor:pointer;">${gridCartSvg}<span>+ Keranjang</span></button></div>`
+              : '';
             if (detailEnabled) {
-              return `${indent}  <div ${detailAttr} style="${cardBase} position: relative; display: flex; flex-direction: column; cursor: pointer;">${inner}\n${indent}  </div>`;
+              return `${indent}  <div ${detailAttr} style="${cardBase} position: relative; display: flex; flex-direction: column; cursor: pointer;">${mediaAndText}${quickBtnHtml}\n${indent}  </div>`;
             }
-            return `${indent}  <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="${cardBase} position: relative; display: flex; flex-direction: column;">${inner}\n${indent}  </a>`;
+            return `${indent}  <div style="${cardBase} position: relative; display: flex; flex-direction: column;">\n${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="display: flex; flex-direction: column; flex: 1; text-decoration: none; color: inherit;">${mediaAndText}\n${indent}    </a>${quickBtnHtml}\n${indent}  </div>`;
           }
 
           if (layout === 'large-image') {
-            const inner = `
+            const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
+            const quickBtnHtml = cartEnabled
+              ? `<button type="button" ${quickBtnAttr} aria-label="Tambah ke keranjang" style="width:${cartBtn.iconBoxSize}px; height:${cartBtn.iconBoxSize}px; border:0; border-radius:${cartBtn.iconBoxRadius}px; background:${theme.accentColor}; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;">${iconCartSvg}</button>`
+              : '';
+            if (detailEnabled) {
+              const inner = `
 ${indent}    ${badgeHtml ? `<div style="position:absolute; top:10px; left:10px; z-index:2;">${badgeHtml}</div>` : ''}
 ${indent}    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; ${ratioCss('16/10')} object-fit: ${fit}; display: block;" />
 ${indent}    <div style="padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -615,14 +620,27 @@ ${indent}        <div style="font-size: 12px; opacity: 0.75; margin-top: 2px;">$
 ${indent}      </div>
 ${indent}      <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
 ${indent}        <span style="font-size: 12px; font-weight: 600; color: ${theme.accentColor}; white-space: nowrap;">${escapeHtml(item.ctaLabel)}</span>
-${indent}        ${cartEnabled ? `<button type="button" ${quickBtnAttr} aria-label="Tambah ke keranjang" style="width:${cartBtn.iconBoxSize}px; height:${cartBtn.iconBoxSize}px; border:0; border-radius:${cartBtn.iconBoxRadius}px; background:${theme.accentColor}; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;">${iconCartSvg}</button>` : ''}
+${indent}        ${quickBtnHtml}
 ${indent}      </div>
 ${indent}    </div>`;
-            const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
-            if (detailEnabled) {
               return `${indent}  <div ${detailAttr} style="${cardBase} position: relative; display: block; cursor: pointer;">${inner}\n${indent}  </div>`;
             }
-            return `${indent}  <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="${cardBase} position: relative; display: block;">${inner}\n${indent}  </a>`;
+            return `${indent}  <div style="${cardBase} position: relative; display: block;">
+${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="display: block; position: relative; text-decoration: none; color: inherit;">
+${indent}      ${badgeHtml ? `<div style="position:absolute; top:10px; left:10px; z-index:2;">${badgeHtml}</div>` : ''}
+${indent}      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; ${ratioCss('16/10')} object-fit: ${fit}; display: block;" />
+${indent}    </a>
+${indent}    <div style="padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+${indent}      <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-decoration: none; color: inherit;">
+${indent}        <div style="min-width: 0;">
+${indent}          <div style="font-size: 14px; font-weight: 700;">${escapeHtml(item.title)}</div>
+${indent}          <div style="font-size: 12px; opacity: 0.75; margin-top: 2px;">${meta}</div>
+${indent}        </div>
+${indent}        <span style="font-size: 12px; font-weight: 600; color: ${theme.accentColor}; white-space: nowrap;">${escapeHtml(item.ctaLabel)}</span>
+${indent}      </a>
+${indent}      ${quickBtnHtml}
+${indent}    </div>
+${indent}  </div>`;
           }
 
           if (layout === 'compact') {
@@ -653,20 +671,22 @@ ${indent}  </div>`;
           const defaultThumbSize = ratio && ratio !== 'auto'
             ? `width: 64px; ${ratioCss()}`
             : 'width: 56px; height: 56px;';
-          const defaultInner = `
+          const defaultBody = `
 ${indent}    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="${defaultThumbSize} border-radius: 10px; object-fit: ${fit}; flex-shrink: 0;" />
 ${indent}    <div style="flex: 1; min-width: 0;">
 ${indent}      ${badgeHtml ? `<div style="margin-bottom: 3px;">${badgeHtml}</div>` : ''}
 ${indent}      <div style="font-size: 13px; font-weight: 700;">${escapeHtml(item.title)}</div>
 ${indent}      <div style="font-size: 11px; opacity: 0.72; margin-top: 2px;">${escapeHtml(item.subtitle)}</div>
 ${indent}      <div style="font-size: 12px; font-weight: 600; color: ${theme.accentColor}; margin-top: 4px;">${meta}</div>
-${indent}    </div>
-${indent}    ${cartEnabled ? `<button type="button" ${quickBtnAttr} aria-label="Tambah ke keranjang" style="width:${cartBtn.iconBoxSize}px; height:${cartBtn.iconBoxSize}px; border:0; border-radius:${cartBtn.iconBoxRadius}px; background:${theme.accentColor}; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;">${iconCartSvg}</button>` : ''}`;
+${indent}    </div>`;
+          const defaultQuickBtn = cartEnabled
+            ? `\n${indent}    <button type="button" ${quickBtnAttr} aria-label="Tambah ke keranjang" style="width:${cartBtn.iconBoxSize}px; height:${cartBtn.iconBoxSize}px; border:0; border-radius:${cartBtn.iconBoxRadius}px; background:${theme.accentColor}; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;">${iconCartSvg}</button>`
+            : '';
           const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
           if (detailEnabled) {
-            return `${indent}  <div ${detailAttr} style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer;">${defaultInner}\n${indent}  </div>`;
+            return `${indent}  <div ${detailAttr} style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer;">${defaultBody}${defaultQuickBtn}\n${indent}  </div>`;
           }
-          return `${indent}  <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px;">${defaultInner}\n${indent}  </a>`;
+          return `${indent}  <div style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px;">\n${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;">${defaultBody}\n${indent}    </a>${defaultQuickBtn}\n${indent}  </div>`;
         })
         .join('\n');
 
