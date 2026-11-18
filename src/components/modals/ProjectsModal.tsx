@@ -41,7 +41,8 @@ export function ProjectsModal({
   onOpenDashboard,
   onBackupAll,
   onOpenImport,
-  onClose,
+  onClose = () => {},
+  asPage = false,
 }: {
   projects: ProjectRecord[];
   activeProjectId: string;
@@ -54,34 +55,38 @@ export function ProjectsModal({
   onOpenDashboard: () => void;
   onBackupAll: () => void;
   onOpenImport: () => void;
-  onClose: () => void;
+  onClose?: () => void;
+  asPage?: boolean;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  return (
+  const cardContent = (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
+      className={
+        asPage
+          ? 'w-full max-w-5xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
+          : 'w-full max-w-3xl max-h-[88vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[88vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-      >
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/70 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-              <FolderKanban className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-sm font-bold text-slate-900 truncate">
-                Daftar Unit Usaha ({projects.length})
-              </h2>
-              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                <HardDrive className="w-3 h-3 text-emerald-600 shrink-0" />
-                <span>Setiap unit usaha memiliki slug, domain kustom, dan pelacakan klik WA sendiri</span>
-              </p>
-            </div>
+      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/70 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <FolderKanban className="w-4 h-4" />
           </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-slate-900 truncate">
+              Daftar Unit Usaha ({projects.length})
+            </h2>
+            <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+              <HardDrive className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span>Setiap unit usaha memiliki slug, domain kustom, dan pelacakan klik WA sendiri</span>
+            </p>
+          </div>
+        </div>
+        {!asPage && (
           <button
             type="button"
             onClick={onClose}
@@ -89,7 +94,8 @@ export function ProjectsModal({
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        )}
+      </div>
 
         <div className="px-5 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-white shrink-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -292,6 +298,18 @@ export function ProjectsModal({
           Tips: Selesaikan 1 usaha hingga rapi, lalu klik <strong>Duplikat</strong> untuk membuat usaha berikutnya agar tidak perlu menyusun ulang dari awal.
         </div>
       </div>
+  );
+
+  if (asPage) {
+    return cardContent;
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+    >
+      {cardContent}
     </div>
   );
 }

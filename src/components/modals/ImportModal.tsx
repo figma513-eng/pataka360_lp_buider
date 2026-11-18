@@ -8,10 +8,12 @@ export type ImportedPayload =
 
 export function ImportModal({
   onImport,
-  onClose,
+  onClose = () => {},
+  asPage = false,
 }: {
   onImport: (payload: ImportedPayload) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  asPage?: boolean;
 }) {
   const [rawJson, setRawJson] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -48,22 +50,25 @@ export function ImportModal({
     reader.readAsText(file);
   };
 
-  return (
+  const cardContent = (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
+      className={
+        asPage
+          ? 'w-full max-w-3xl mx-auto bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
+          : 'w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-      >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Import Backup Proyek (.json)</h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Mendukung file backup 1 usaha maupun backup semua usaha sekaligus.
-            </p>
-          </div>
+      <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Import Backup Proyek (.json)</h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Mendukung file backup 1 usaha maupun backup semua usaha sekaligus.
+          </p>
+        </div>
+        {!asPage && (
           <button
             type="button"
             onClick={onClose}
@@ -71,7 +76,8 @@ export function ImportModal({
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        )}
+      </div>
 
         <div className="p-5 space-y-4">
           <label className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors">
@@ -105,18 +111,20 @@ export function ImportModal({
               Usaha yang diimpor ditambahkan ke daftar tanpa menghapus proyek lama.
             </span>
             <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Batal
-              </button>
+              {!asPage && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  Batal
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => tryParseAndImport(rawJson)}
                 disabled={!rawJson.trim()}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-xs font-semibold text-white cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#17243D] hover:bg-[#223456] disabled:opacity-40 text-xs font-semibold text-white cursor-pointer"
               >
                 Muat Proyek
               </button>
@@ -124,6 +132,18 @@ export function ImportModal({
           </div>
         </div>
       </div>
+  );
+
+  if (asPage) {
+    return cardContent;
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+    >
+      {cardContent}
     </div>
   );
 }

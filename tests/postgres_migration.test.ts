@@ -65,6 +65,7 @@ class MockContractPool implements PgPoolLike {
   public apiSettings = new Map<string, Record<string, unknown>>();
   public webhookLogs = new Map<string, Record<string, unknown>>();
   public mediaAssets = new Map<string, Record<string, unknown>>();
+  public uiAppearanceSettings = new Map<string, Record<string, unknown>>();
 
   private txBackup: {
     users: Map<string, Record<string, unknown>>;
@@ -75,6 +76,7 @@ class MockContractPool implements PgPoolLike {
     apiSettings: Map<string, Record<string, unknown>>;
     webhookLogs: Map<string, Record<string, unknown>>;
     mediaAssets: Map<string, Record<string, unknown>>;
+    uiAppearanceSettings: Map<string, Record<string, unknown>>;
   } | null = null;
 
   async connect(): Promise<PgClientLike> {
@@ -103,6 +105,7 @@ class MockContractPool implements PgPoolLike {
             apiSettings: new Map(self.apiSettings),
             webhookLogs: new Map(self.webhookLogs),
             mediaAssets: new Map(self.mediaAssets),
+            uiAppearanceSettings: new Map(self.uiAppearanceSettings),
           };
           return { rows: [] };
         }
@@ -125,6 +128,7 @@ class MockContractPool implements PgPoolLike {
             self.apiSettings = self.txBackup.apiSettings;
             self.webhookLogs = self.txBackup.webhookLogs;
             self.mediaAssets = self.txBackup.mediaAssets;
+            self.uiAppearanceSettings = self.txBackup.uiAppearanceSettings;
           }
           self.inTransaction = false;
           self.snapshotMigrations = null;
@@ -238,6 +242,15 @@ class MockContractPool implements PgPoolLike {
             meta_api_version,
             wa_default_country_code,
             auto_publish_on_save,
+            updated_at,
+          });
+          return { rows: [], rowCount: 1 };
+        }
+        if (trimmed.startsWith('INSERT INTO ui_appearance_settings')) {
+          const [labels_raw, updated_at] = params as [string, number];
+          self.uiAppearanceSettings.set('default', {
+            id: 'default',
+            labels_json: JSON.parse(labels_raw),
             updated_at,
           });
           return { rows: [], rowCount: 1 };
@@ -433,6 +446,9 @@ class MockContractPool implements PgPoolLike {
         if (trimmed.startsWith('SELECT * FROM sessions')) {
           return { rows: Array.from(self.sessions.values()) as unknown as T[] };
         }
+        if (trimmed.startsWith('SELECT * FROM ui_appearance_settings')) {
+          return { rows: Array.from(self.uiAppearanceSettings.values()) as unknown as T[] };
+        }
         return { rows: [] };
       },
       release() {},
@@ -552,7 +568,7 @@ function buildSampleStore(now = Date.now()): JsonStoreData {
 }
 
 describe('PostgreSQL Readiness, Schema Sync & JSON->PG Migration Suite', () => {
-  it('1. Schema synchronization: schema.sql, schema.ts, and migrations.ts are aligned across all 9 tables & v004 indexes', async () => {
+  it('1. Schema synchronization: schema.sql, schema.ts, and migrations.ts are aligned across all 10 tables & v005 indexes', async () => {
     const schemaSql = await fs.readFile(path.resolve('src/db/schema.sql'), 'utf-8');
     const schemaTs = await fs.readFile(path.resolve('src/db/schema.ts'), 'utf-8');
 
@@ -566,6 +582,7 @@ describe('PostgreSQL Readiness, Schema Sync & JSON->PG Migration Suite', () => {
       'api_settings',
       'webhook_logs',
       'media_assets',
+      'ui_appearance_settings',
     ];
     for (const table of expectedTables) {
       assert.ok(
@@ -574,9 +591,9 @@ describe('PostgreSQL Readiness, Schema Sync & JSON->PG Migration Suite', () => {
       );
     }
 
-    assert.equal(Object.keys(pgSchema).length >= 9, true);
-    assert.equal(CURRENT_SCHEMA_VERSION, '004');
-    assert.equal(POSTGRES_MIGRATIONS.map((m) => m.version).join(','), '001,002,003,004');
+    assert.equal(Object.keys(pgSchema).length >= 10, true);
+    assert.equal(CURRENT_SCHEMA_VERSION, '005');
+    assert.equal(POSTGRES_MIGRATIONS.map((m) => m.version).join(','), '001,002,003,004,005');
 
     // Verify v004 BIGINT and idx_users_email_lower alignment across all three files
     assert.ok(schemaSql.includes('order_value BIGINT'));
@@ -599,16 +616,16 @@ describe('PostgreSQL Readiness, Schema Sync & JSON->PG Migration Suite', () => {
     const pool = new MockContractPool();
 
     const first = await runPostgresMigrationsDetailed(pool);
-    assert.equal(first.currentVersion, '004');
-    assert.equal(first.latestAvailableVersion, '004');
-    assert.deepEqual(first.newlyAppliedVersions, ['001', '002', '003', '004']);
+    assert.equal(first.currentVersion, '005');
+    assert.equal(first.latestAvailableVersion, '005');
+    assert.deepEqual(first.newlyAppliedVersions, ['001', '002', '003', '004', '005']);
     assert.ok(pool.queryLog.includes('BEGIN'));
     assert.ok(pool.queryLog.some((q) => q.includes('pg_advisory_xact_lock')));
     assert.ok(pool.queryLog.includes('COMMIT'));
 
     // Re-running must be strictly idempotent
     const second = await runPostgresMigrationsDetailed(pool);
-    assert.equal(second.currentVersion, '004');
+    assert.equal(second.currentVersion, '005');
     assert.deepEqual(second.newlyAppliedVersions, []);
     assert.equal(second.status.upToDate, true);
 
@@ -776,7 +793,7 @@ describe('PostgreSQL Readiness, Schema Sync & JSON->PG Migration Suite', () => {
       });
       assert.equal(firstApply.ok, true);
       assert.equal(firstApply.applied, true);
-      assert.equal(firstApply.postgresMigrations?.currentVersion, '004');
+      assert.equal(firstApply.postgresMigrations?.currentVersion, '005');
       assert.equal(firstApply.integrityReport?.ok, true);
       assert.equal(pool.sessions.size, 0, 'Active sessions must NOT be migrated by default');
 

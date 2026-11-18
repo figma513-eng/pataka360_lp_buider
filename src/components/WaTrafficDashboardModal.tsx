@@ -25,7 +25,8 @@ interface WaTrafficDashboardModalProps {
   activeProjectId: string;
   onSelectProject?: (projectId: string) => void;
   onOpenDomainSettings?: (projectId: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  asPage?: boolean;
 }
 
 function formatDateTimeShort(ts: number): string {
@@ -50,7 +51,8 @@ export function WaTrafficDashboardModal({
   activeProjectId,
   onSelectProject,
   onOpenDomainSettings,
-  onClose,
+  onClose = () => {},
+  asPage = false,
 }: WaTrafficDashboardModalProps) {
   const [events, setEvents] = useState<AnalyticsEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,53 +300,56 @@ export function WaTrafficDashboardModal({
     await refreshData();
   };
 
-  return (
+  const cardContent = (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
+      className={
+        asPage
+          ? 'w-full max-w-6xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
+          : 'w-full max-w-6xl h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-6xl h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-      >
-        {/* Header */}
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-sm font-bold text-slate-900 truncate">
-                Dashboard Trafik Klik WhatsApp & Iklan
-              </h2>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span>{projects.length} unit usaha</span>
-                <span aria-hidden="true">·</span>
-                <span>
-                  Meta CAPI Server: {capiConfigured ? 'Aktif' : 'Siap (opsional via env)'}
-                </span>
-              </div>
+      {/* Header */}
+      <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/30 text-[#17243D] flex items-center justify-center shrink-0">
+            <BarChart3 className="w-4 h-4 text-[#00A873]" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-[#17243D] truncate">
+              Dashboard Trafik Klik WhatsApp & Iklan
+            </h2>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <span>{projects.length} unit usaha</span>
+              <span aria-hidden="true">·</span>
+              <span>
+                Meta CAPI Server: {capiConfigured ? 'Aktif' : 'Siap (opsional via env)'}
+              </span>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={filteredEvents.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Ekspor CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void refreshData()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Segarkan</span>
-            </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={filteredEvents.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Ekspor CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void refreshData()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Segarkan</span>
+          </button>
+          {!asPage && (
             <button
               type="button"
               onClick={onClose}
@@ -353,8 +358,9 @@ export function WaTrafficDashboardModal({
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
+          )}
         </div>
+      </div>
 
         {/* Filter Bar */}
         <div className="px-5 py-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
@@ -667,7 +673,7 @@ export function WaTrafficDashboardModal({
                                 type="button"
                                 onClick={() => {
                                   if (onSelectProject) onSelectProject(row.projectId);
-                                  onClose();
+                                  if (!asPage) onClose();
                                   onOpenDomainSettings(row.projectId);
                                 }}
                                 className="px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
@@ -782,6 +788,22 @@ export function WaTrafficDashboardModal({
           </div>
         </div>
       </div>
+  );
+
+  if (asPage) {
+    return (
+      <div className="flex-1 h-full flex flex-col bg-[#F0F5FA] p-4 sm:p-6 overflow-hidden">
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
+    >
+      {cardContent}
     </div>
   );
 }

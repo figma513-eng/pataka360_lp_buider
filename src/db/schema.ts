@@ -12,6 +12,7 @@ import type {
   AccessRole,
   BuilderProject,
   FeaturePermissionsMap,
+  UiAppearanceLabelsMap,
   WebhookEventName,
 } from '../types/builder.ts';
 
@@ -171,3 +172,9 @@ export const mediaAssetsTable = pgTable(
   },
   (table) => [index('idx_media_filename').on(table.filename)]
 );
+
+export const uiAppearanceSettingsTable = pgTable('ui_appearance_settings', {
+  id: text('id').primaryKey(),
+  labelsJson: jsonb('labels_json').$type<UiAppearanceLabelsMap>().notNull().default({}),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+});

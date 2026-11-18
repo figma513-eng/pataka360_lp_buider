@@ -10,6 +10,7 @@ import type {
   MediaAssetMeta,
   ProjectRecord,
   RestorePreviewSummary,
+  UiAppearanceSettingsConfig,
 } from '../types/builder.ts';
 import { getDbState } from './index.ts';
 import {
@@ -20,6 +21,7 @@ import {
   createDefaultApiSettings,
   getAccessSettings,
   getApiSettings,
+  getUiAppearanceSettings,
   listAnalyticsEvents,
   listProjectEntries,
   listUsers,
@@ -30,6 +32,7 @@ import {
   resolveDataDir,
   withJsonStoreLock,
 } from './repository.ts';
+import { sanitizeUiAppearanceLabelsMap } from '../utils/uiAppearanceLabels.ts';
 import {
   exportAllDiskMediaAssets,
   isSafeMediaFilename,
@@ -66,6 +69,7 @@ export interface CompleteBackupPayload {
     updatedAt: number;
   };
   apiSettings: ApiSettingsConfig;
+  uiAppearanceSettings?: UiAppearanceSettingsConfig;
 }
 
 export interface CompleteBackupBundle {
@@ -99,18 +103,20 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
   let analyticsEvents: AnalyticsEventRecord[] = [];
   let access: AccessSettingsConfig = createDefaultAccessSettings();
   let apiSettings: ApiSettingsConfig = createDefaultApiSettings();
+  let uiAppearanceSettings: UiAppearanceSettingsConfig = { labels: {}, updatedAt: 0 };
   let userCount = 0;
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const [uRes, pRes, eRes, apRes, apiRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, uiRes] = await Promise.all([
         client.query('SELECT id, name, email, role, is_active, unit_scope_json, permissions_json, created_at FROM users'),
         client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
         client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
         client.query(`SELECT * FROM access_policies WHERE id = 'default' LIMIT 1`),
         client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
+        client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
       ]);
       await client.query('COMMIT');
 
@@ -185,6 +191,13 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         isTest: Boolean(r.is_test),
         createdAt: Number(r.created_at),
       }));
+      const uiRow = uiRes.rows[0];
+      if (uiRow) {
+        uiAppearanceSettings = {
+          labels: sanitizeUiAppearanceLabelsMap(uiRow.labels_json),
+          updatedAt: Number(uiRow.updated_at || 0),
+        };
+      }
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -192,18 +205,20 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       client.release();
     }
   } else {
-    const [users, entries, events, acc, api] = await Promise.all([
+    const [users, entries, events, acc, api, ui] = await Promise.all([
       listUsers(),
       listProjectEntries(),
       listAnalyticsEvents(),
       getAccessSettings(),
       getApiSettings(),
+      getUiAppearanceSettings(),
     ]);
     userCount = users.length;
     projects = entries;
     analyticsEvents = events;
     access = acc;
     apiSettings = api;
+    uiAppearanceSettings = ui;
   }
 
   const media = await exportAllDiskMediaAssets();
@@ -241,6 +256,9 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       updatedAt: access.updatedAt,
     },
     apiSettings,
+    ...(Object.keys(uiAppearanceSettings.labels).length > 0
+      ? { uiAppearanceSettings }
+      : {}),
   };
 
   const checksum = computeCanonicalChecksum(payload);
@@ -601,6 +619,18 @@ export async function applyBackupRestore(params: {
         );
       }
 
+      if (payload.uiAppearanceSettings) {
+        const cleanLabels = sanitizeUiAppearanceLabelsMap(payload.uiAppearanceSettings.labels);
+        await client.query(
+          `INSERT INTO ui_appearance_settings (id, labels_json, updated_at)
+           VALUES ('default', $1::jsonb, $2)
+           ON CONFLICT (id) DO UPDATE SET
+             labels_json = EXCLUDED.labels_json,
+             updated_at = EXCLUDED.updated_at`,
+          [JSON.stringify(cleanLabels), now]
+        );
+      }
+
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
@@ -647,6 +677,12 @@ export async function applyBackupRestore(params: {
           updatedAt: now,
         },
         apiSettings: payload.apiSettings || store.apiSettings || createDefaultApiSettings(),
+        uiAppearanceSettings: payload.uiAppearanceSettings
+          ? {
+              labels: sanitizeUiAppearanceLabelsMap(payload.uiAppearanceSettings.labels),
+              updatedAt: now,
+            }
+          : store.uiAppearanceSettings,
       };
 
       await persistJsonStore(nextStore);

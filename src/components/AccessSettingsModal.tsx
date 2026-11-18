@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -37,7 +37,8 @@ interface AccessSettingsModalProps {
     nextSettings: AccessSettingsConfig
   ) => Promise<{ ok: boolean; settings: AccessSettingsConfig; error?: string }>;
   onSettingsSynced?: (nextSettings: AccessSettingsConfig) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  asPage?: boolean;
 }
 
 export function AccessSettingsModal({
@@ -47,7 +48,8 @@ export function AccessSettingsModal({
   onDemoSeeded,
   onSaveSettings,
   onSettingsSynced,
-  onClose,
+  onClose = () => {},
+  asPage = false,
 }: AccessSettingsModalProps) {
   const [draft, setDraft] = useState<AccessSettingsConfig>(() => ({
     ...settings,
@@ -68,6 +70,24 @@ export function AccessSettingsModal({
   );
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const hasLocalEditsRef = useRef(false);
+
+  useEffect(() => {
+    if (hasLocalEditsRef.current) return;
+    setDraft({
+      ...settings,
+      members: settings.members.map((m) => ({
+        ...m,
+        permissions: { ...m.permissions },
+        unitScope: Array.isArray(m.unitScope) ? [...m.unitScope] : 'all',
+      })),
+    });
+    setSelectedMemberId((prev) =>
+      settings.members.some((m) => m.id === prev)
+        ? prev
+        : settings.activeMemberId || settings.members[0]?.id || 'owner-super-admin'
+    );
+  }, [settings]);
 
   const selectedMember = useMemo(
     () => draft.members.find((m) => m.id === selectedMemberId) ?? draft.members[0],
@@ -132,6 +152,7 @@ export function AccessSettingsModal({
       return;
     }
 
+    hasLocalEditsRef.current = false;
     setDraft(res.settings);
     onSettingsSynced?.(res.settings);
     const added = res.settings.members.find(
@@ -169,6 +190,7 @@ export function AccessSettingsModal({
     }
     const synced = await fetchAccessSettings();
     setSaving(false);
+    hasLocalEditsRef.current = false;
     setDraft(synced);
     onSettingsSynced?.(synced);
     await onDemoSeeded?.();
@@ -182,6 +204,7 @@ export function AccessSettingsModal({
   };
 
   const handleUpdateMemberRole = (memberId: string, role: AccessRole) => {
+    hasLocalEditsRef.current = true;
     setDraft((prev) => ({
       ...prev,
       members: prev.members.map((m) => {
@@ -210,6 +233,7 @@ export function AccessSettingsModal({
     memberId: string,
     key: FeaturePermissionKey
   ) => {
+    hasLocalEditsRef.current = true;
     setDraft((prev) => ({
       ...prev,
       members: prev.members.map((m) => {
@@ -228,6 +252,7 @@ export function AccessSettingsModal({
 
   const handleToggleMemberActive = (memberId: string) => {
     if (memberId === 'owner-super-admin') return;
+    hasLocalEditsRef.current = true;
     setDraft((prev) => ({
       ...prev,
       members: prev.members.map((m) =>
@@ -238,6 +263,7 @@ export function AccessSettingsModal({
   };
 
   const handleSetAllUnitsScope = (memberId: string, allowAll: boolean) => {
+    hasLocalEditsRef.current = true;
     setDraft((prev) => ({
       ...prev,
       members: prev.members.map((m) => {
@@ -252,6 +278,7 @@ export function AccessSettingsModal({
   };
 
   const handleToggleUnitScope = (memberId: string, projectId: string) => {
+    hasLocalEditsRef.current = true;
     setDraft((prev) => ({
       ...prev,
       members: prev.members.map((m) => {
@@ -275,6 +302,7 @@ export function AccessSettingsModal({
 
   const handleDeleteMember = (memberId: string) => {
     if (memberId === 'owner-super-admin' || draft.members.length <= 1) return;
+    hasLocalEditsRef.current = true;
     setDraft((prev) => {
       const nextMembers = prev.members.filter((m) => m.id !== memberId);
       const nextActive =
@@ -304,6 +332,7 @@ export function AccessSettingsModal({
     setSaving(false);
     setDraft(res.settings);
     if (res.ok) {
+      hasLocalEditsRef.current = false;
       setFeedback({
         type: 'ok',
         text: 'Setting akses dan izin akun berhasil disimpan.',
@@ -316,37 +345,40 @@ export function AccessSettingsModal({
     }
   };
 
-  return (
+  const cardContent = (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
+      className={
+        asPage
+          ? 'bg-white w-full max-w-5xl mx-auto flex-1 min-h-0 rounded-2xl border border-[#DCE5EF] shadow-xs flex flex-col overflow-hidden'
+          : 'bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden'
+      }
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
     >
-      <div
-        className="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base font-bold text-slate-900">
-                  Setting Akses &amp; Super Admin
-                </h2>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                  <Crown className="w-3 h-3" />
-                  {`${superAdminCount}/${draft.members.length} Super Admin`}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5 truncate">
-                Kelola peran RBAC, hak akses fitur, dan cakupan unit usaha tiap anggota tim.
-              </p>
-            </div>
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-slate-900">
+                Setting Akses &amp; Super Admin
+              </h2>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                <Crown className="w-3 h-3" />
+                {`${superAdminCount}/${draft.members.length} Super Admin`}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5 truncate">
+              Kelola peran RBAC, hak akses fitur, dan cakupan unit usaha tiap anggota tim.
+            </p>
+          </div>
+        </div>
 
+        {!asPage && (
           <button
             type="button"
             onClick={onClose}
@@ -355,7 +387,8 @@ export function AccessSettingsModal({
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        )}
+      </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto bg-[#F7F9F8] p-5 space-y-4">
@@ -776,13 +809,15 @@ export function AccessSettingsModal({
           </p>
 
           <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
-            >
-              Tutup
-            </button>
+            {!asPage && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Tutup
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void handleSave()}
@@ -795,6 +830,18 @@ export function AccessSettingsModal({
           </div>
         </div>
       </div>
+  );
+
+  if (asPage) {
+    return cardContent;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {cardContent}
     </div>
   );
 }

@@ -2270,11 +2270,13 @@ ${bodyBlocks}
               return;
             }
 
-            var detailCard = target.closest('[data-open-detail]');
-            if (detailCard) {
-              var dParts = parsePairAttr(detailCard.getAttribute('data-open-detail'));
-              if (!dParts) return;
-              applyView({ type: 'detail', blockId: dParts[0], itemId: dParts[1] }, true);
+            if (!target.closest('button, a, input, textarea, select')) {
+              var detailCard = target.closest('[data-open-detail]');
+              if (detailCard) {
+                var dParts = parsePairAttr(detailCard.getAttribute('data-open-detail'));
+                if (!dParts) return;
+                applyView({ type: 'detail', blockId: dParts[0], itemId: dParts[1] }, true);
+              }
             }
           });
 
@@ -2670,12 +2672,14 @@ ${bodyBlocks}
             return;
           }
 
-          var detailCard = t.closest('[data-open-detail]');
-          if (detailCard) {
-            if (typeof window.fbq === 'function') window.fbq('track', 'ViewContent');
-            if (typeof window.ttq === 'object' && window.ttq.track) window.ttq.track('ViewContent');
-            if (typeof window.gtag === 'function') window.gtag('event', 'view_item');
-            return;
+          if (!t.closest('button, a, input, textarea, select')) {
+            var detailCard = t.closest('[data-open-detail]');
+            if (detailCard) {
+              if (typeof window.fbq === 'function') window.fbq('track', 'ViewContent');
+              if (typeof window.ttq === 'object' && window.ttq.track) window.ttq.track('ViewContent');
+              if (typeof window.gtag === 'function') window.gtag('event', 'view_item');
+              return;
+            }
           }
 
           var anchor = t.closest('a[href]');

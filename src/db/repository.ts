@@ -14,6 +14,8 @@ import type {
   FeaturePermissionsMap,
   MediaAssetMeta,
   ProjectRecord,
+  UiAppearanceLabelsMap,
+  UiAppearanceSettingsConfig,
   WebhookEventName,
   WebhookLogRecord,
 } from '../types/builder.ts';
@@ -25,9 +27,11 @@ import {
   mediaAssetsTable,
   projectsTable,
   sessionsTable,
+  uiAppearanceSettingsTable,
   usersTable,
   webhookLogsTable,
 } from './schema.ts';
+import { sanitizeUiAppearanceLabelsMap } from '../utils/uiAppearanceLabels.ts';
 import {
   AppError,
   RevisionConflictError,
@@ -96,6 +100,7 @@ export interface JsonStoreData {
   events: AnalyticsEventRecord[];
   accessSettings?: AccessSettingsConfig;
   apiSettings?: ApiSettingsConfig;
+  uiAppearanceSettings?: UiAppearanceSettingsConfig;
   webhookLogs: WebhookLogRecord[];
   mediaAssets?: MediaAssetMeta[];
 }
@@ -158,6 +163,13 @@ export function createDefaultApiSettings(): ApiSettingsConfig {
     metaApiVersion: 'v21.0',
     waDefaultCountryCode: '62',
     autoPublishOnSave: false,
+    updatedAt: Date.now(),
+  };
+}
+
+export function createDefaultUiAppearanceSettings(): UiAppearanceSettingsConfig {
+  return {
+    labels: {},
     updatedAt: Date.now(),
   };
 }
@@ -362,6 +374,12 @@ export async function loadJsonStore(): Promise<JsonStoreData> {
     events: Array.isArray(parsed.events) ? parsed.events : [],
     accessSettings: parsed.accessSettings || createDefaultAccessSettings(),
     apiSettings: parsed.apiSettings || createDefaultApiSettings(),
+    uiAppearanceSettings: parsed.uiAppearanceSettings
+      ? {
+          labels: sanitizeUiAppearanceLabelsMap(parsed.uiAppearanceSettings.labels),
+          updatedAt: Number(parsed.uiAppearanceSettings.updatedAt || Date.now()),
+        }
+      : undefined,
     webhookLogs: Array.isArray(parsed.webhookLogs) ? parsed.webhookLogs : [],
     mediaAssets: Array.isArray(parsed.mediaAssets) ? parsed.mediaAssets : [],
   };
@@ -587,6 +605,20 @@ export async function registerUserAtomically(params: {
             now,
           ]
         );
+
+        if (isFirstUser) {
+          await client.query(
+            `INSERT INTO access_policies (id, all_users_super_admin, auto_grant_super_admin_on_join, default_role, active_member_id, updated_at)
+             VALUES ('default', FALSE, FALSE, $1, $2, $3)
+             ON CONFLICT (id) DO UPDATE SET
+               all_users_super_admin = FALSE,
+               auto_grant_super_admin_on_join = FALSE,
+               default_role = EXCLUDED.default_role,
+               active_member_id = EXCLUDED.active_member_id,
+               updated_at = EXCLUDED.updated_at`,
+            [publicLeastRole, userId, now]
+          );
+        }
 
         await client.query('COMMIT');
 
@@ -1565,12 +1597,14 @@ export async function saveAccessSettings(
       });
 
     const existingUsers = await listUsers();
+    const retainedIds = new Set<string>(['owner-super-admin']);
     for (const member of nextSettings.members) {
       const matched = existingUsers.find(
         (u) => u.id === member.id || u.email.toLowerCase() === member.email.toLowerCase()
       );
       if (matched) {
-        const deactivatedOrDowngraded = !member.isActive && matched.isActive;
+        retainedIds.add(matched.id);
+        const deactivated = !member.isActive && matched.isActive;
         await upsertUser({
           ...matched,
           name: member.name,
@@ -1580,9 +1614,15 @@ export async function saveAccessSettings(
           permissions: member.permissions,
           updatedAt: now,
         });
-        if (deactivatedOrDowngraded) {
+        if (deactivated) {
           await revokeUserSessions(matched.id);
         }
+      }
+    }
+    for (const existing of existingUsers) {
+      if (!retainedIds.has(existing.id)) {
+        await revokeUserSessions(existing.id);
+        await state.db.delete(usersTable).where(eq(usersTable.id, existing.id));
       }
     }
     return nextSettings;
@@ -1591,12 +1631,14 @@ export async function saveAccessSettings(
   return withJsonStoreLock(async () => {
     const store = await loadJsonStore();
     const nextUsers = [...store.users];
+    const retainedIds = new Set<string>(['owner-super-admin']);
     const revokedUserIds = new Set<string>();
     for (const member of nextSettings.members) {
       const idx = nextUsers.findIndex(
         (u) => u.id === member.id || u.email.toLowerCase() === member.email.toLowerCase()
       );
       if (idx >= 0) {
+        retainedIds.add(nextUsers[idx].id);
         if (!member.isActive && nextUsers[idx].isActive) {
           revokedUserIds.add(nextUsers[idx].id);
         }
@@ -1611,10 +1653,15 @@ export async function saveAccessSettings(
         };
       }
     }
+    const filteredUsers = nextUsers.filter((u) => {
+      if (retainedIds.has(u.id)) return true;
+      revokedUserIds.add(u.id);
+      return false;
+    });
     await persistJsonStore({
       ...store,
       accessSettings: nextSettings,
-      users: nextUsers,
+      users: filteredUsers,
       sessions:
         revokedUserIds.size > 0
           ? store.sessions.filter((s) => !revokedUserIds.has(s.userId))
@@ -1788,6 +1835,105 @@ export async function saveApiSettings(
   });
 }
 
+// ============================================================
+// UI Appearance Labels Repository (Menu "Tampilan")
+// ============================================================
+export async function getUiAppearanceSettings(): Promise<UiAppearanceSettingsConfig> {
+  await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    const [row] = await state.db
+      .select()
+      .from(uiAppearanceSettingsTable)
+      .where(eq(uiAppearanceSettingsTable.id, 'default'))
+      .limit(1);
+    if (!row) {
+      return { labels: {}, updatedAt: 0 };
+    }
+    return {
+      labels: sanitizeUiAppearanceLabelsMap(row.labelsJson),
+      updatedAt: Number(row.updatedAt || 0),
+    };
+  }
+  const store = await loadJsonStore();
+  if (!store.uiAppearanceSettings) {
+    return { labels: {}, updatedAt: 0 };
+  }
+  return {
+    labels: sanitizeUiAppearanceLabelsMap(store.uiAppearanceSettings.labels),
+    updatedAt: Number(store.uiAppearanceSettings.updatedAt || 0),
+  };
+}
+
+export async function saveUiAppearanceSettings(input: {
+  labels?: UiAppearanceLabelsMap;
+  patch?: Record<string, string>;
+  resetAll?: boolean;
+}): Promise<UiAppearanceSettingsConfig> {
+  await assertStorageReady();
+  const now = Date.now();
+  const state = await getDbState();
+
+  const computeNextLabels = (currentLabels: UiAppearanceLabelsMap): UiAppearanceLabelsMap => {
+    if (input.resetAll) {
+      return {};
+    }
+    if (input.labels !== undefined) {
+      return sanitizeUiAppearanceLabelsMap(input.labels);
+    }
+    if (input.patch && typeof input.patch === 'object') {
+      const merged: Record<string, string> = { ...currentLabels };
+      for (const [k, v] of Object.entries(input.patch)) {
+        if (typeof k !== 'string' || !k) continue;
+        if (typeof v !== 'string') continue;
+        const cleanVal = v.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 120);
+        if (!cleanVal) {
+          delete merged[k];
+        } else {
+          merged[k] = cleanVal;
+        }
+      }
+      return sanitizeUiAppearanceLabelsMap(merged);
+    }
+    return sanitizeUiAppearanceLabelsMap(currentLabels);
+  };
+
+  if (state.db) {
+    const cur = await getUiAppearanceSettings();
+    const nextLabels = computeNextLabels(cur.labels);
+    const next: UiAppearanceSettingsConfig = {
+      labels: nextLabels,
+      updatedAt: now,
+    };
+    await state.db
+      .insert(uiAppearanceSettingsTable)
+      .values({
+        id: 'default',
+        labelsJson: next.labels,
+        updatedAt: next.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: uiAppearanceSettingsTable.id,
+        set: {
+          labelsJson: next.labels,
+          updatedAt: next.updatedAt,
+        },
+      });
+    return next;
+  }
+
+  return withJsonStoreLock(async () => {
+    const store = await loadJsonStore();
+    const curLabels = sanitizeUiAppearanceLabelsMap(store.uiAppearanceSettings?.labels);
+    const next: UiAppearanceSettingsConfig = {
+      labels: computeNextLabels(curLabels),
+      updatedAt: now,
+    };
+    await persistJsonStore({ ...store, uiAppearanceSettings: next });
+    return next;
+  });
+}
+
 export async function insertWebhookLog(log: WebhookLogRecord): Promise<void> {
   await assertStorageReady();
   const state = await getDbState();
@@ -1947,6 +2093,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
       [whCnt],
       [apCnt],
       [mCnt],
+      [uiCnt],
     ] = await Promise.all([
       state.db.select({ value: count() }).from(usersTable),
       state.db
@@ -1959,6 +2106,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
       state.db.select({ value: count() }).from(webhookLogsTable),
       state.db.select({ value: count() }).from(accessPoliciesTable),
       state.db.select({ value: count() }).from(mediaAssetsTable),
+      state.db.select({ value: count() }).from(uiAppearanceSettingsTable),
     ]);
 
     return {
@@ -1981,6 +2129,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         webhookLogs: Number(whCnt?.value ?? 0),
         accessPolicies: Number(apCnt?.value ?? 0),
         mediaAssets: Number(mCnt?.value ?? 0),
+        uiAppearance: Number(uiCnt?.value ?? 0),
       },
     };
   }
@@ -2009,6 +2158,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         webhookLogs: store.webhookLogs.length,
         accessPolicies: store.accessSettings ? 1 : 0,
         mediaAssets: Array.isArray(store.mediaAssets) ? store.mediaAssets.length : 0,
+        uiAppearance: store.uiAppearanceSettings ? 1 : 0,
       },
     };
   } catch (err) {
@@ -2033,6 +2183,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         webhookLogs: 0,
         accessPolicies: 0,
         mediaAssets: 0,
+        uiAppearance: 0,
       },
     };
   }
@@ -2080,13 +2231,14 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   let webhookLogs: WebhookLogRecord[] = [];
   let mediaAssets: MediaAssetMeta[] = [];
   let sessions: StoredSessionRecord[] = [];
+  let uiAppearance: UiAppearanceSettingsConfig | null = null;
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
 
-      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes, uiRes] = await Promise.all([
         client.query('SELECT * FROM users'),
         client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
         client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
@@ -2095,6 +2247,7 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         client.query('SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 200'),
         client.query('SELECT * FROM media_assets ORDER BY created_at DESC'),
         client.query('SELECT * FROM sessions WHERE expires_at > $1', [now]),
+        client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
       ]);
 
       await client.query('COMMIT');
@@ -2204,6 +2357,14 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         ipAddress: r.ip_address,
         createdAt: Number(r.created_at),
       }));
+
+      const uiRow = uiRes.rows[0];
+      if (uiRow) {
+        uiAppearance = {
+          labels: sanitizeUiAppearanceLabelsMap(uiRow.labels_json),
+          updatedAt: Number(uiRow.updated_at || now),
+        };
+      }
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -2220,6 +2381,12 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
     webhookLogs = [...store.webhookLogs];
     mediaAssets = Array.isArray(store.mediaAssets) ? [...store.mediaAssets] : [];
     sessions = store.sessions.filter((s) => s.expiresAt > now);
+    uiAppearance = store.uiAppearanceSettings
+      ? {
+          labels: sanitizeUiAppearanceLabelsMap(store.uiAppearanceSettings.labels),
+          updatedAt: Number(store.uiAppearanceSettings.updatedAt || now),
+        }
+      : null;
   }
 
   const userIds = new Set(users.map((u) => u.id));
@@ -2303,6 +2470,15 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
     );
   }
   lines.push(``);
+
+  if (uiAppearance) {
+    lines.push(`-- 9. UI Appearance Settings`);
+    lines.push(
+      `INSERT INTO ui_appearance_settings (id, labels_json, updated_at) VALUES ('default', ${sqlJsonb(uiAppearance.labels)}, ${sqlNum(uiAppearance.updatedAt)}) ON CONFLICT (id) DO UPDATE SET labels_json = EXCLUDED.labels_json, updated_at = EXCLUDED.updated_at;`
+    );
+    lines.push(``);
+  }
+
   lines.push(`COMMIT;`);
   lines.push(``);
 

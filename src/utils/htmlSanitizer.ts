@@ -391,6 +391,21 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       shadowColor: block.style?.shadowColor
         ? sanitizeCssColor(block.style.shadowColor, '#0F172A')
         : block.style?.shadowColor,
+      themeOverrideMode:
+        block.style?.themeOverrideMode === 'local'
+          ? 'local'
+          : block.style?.themeOverrideMode === 'global'
+          ? 'global'
+          : undefined,
+      themeOverrideTokens: block.style?.themeOverrideTokens
+        ? {
+            textColor: Boolean(block.style.themeOverrideTokens.textColor),
+            backgroundColor: Boolean(block.style.themeOverrideTokens.backgroundColor),
+            borderColor: Boolean(block.style.themeOverrideTokens.borderColor),
+            fontFamily: Boolean(block.style.themeOverrideTokens.fontFamily),
+            accentColor: Boolean(block.style.themeOverrideTokens.accentColor),
+          }
+        : undefined,
     },
     content: {
       ...c,

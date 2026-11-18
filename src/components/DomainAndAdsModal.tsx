@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -29,7 +29,7 @@ import {
 } from '../utils/publishingHelpers';
 import { copyTextToClipboard } from '../utils/clipboardHelpers';
 
-type SettingsTab = 'domain' | 'pixels' | 'wa_addon';
+export type DomainAndAdsTab = 'domain' | 'pixels' | 'wa_addon';
 
 interface DomainAndAdsModalProps {
   activeRecord: ProjectRecord;
@@ -39,16 +39,27 @@ interface DomainAndAdsModalProps {
     nextAdsConfig: ProjectAdsConfig,
     publishNow: boolean
   ) => Promise<{ ok: boolean; error?: string }>;
-  onClose: () => void;
+  onClose?: () => void;
+  asPage?: boolean;
+  visibleTabs?: DomainAndAdsTab[];
+  initialTab?: DomainAndAdsTab;
 }
 
 export function DomainAndAdsModal({
   activeRecord,
   allProjects,
   onApplySettings,
-  onClose,
+  onClose = () => {},
+  asPage = false,
+  visibleTabs,
+  initialTab,
 }: DomainAndAdsModalProps) {
-  const [tab, setTab] = useState<SettingsTab>('domain');
+  const allowedTabs: DomainAndAdsTab[] =
+    visibleTabs && visibleTabs.length > 0 ? visibleTabs : ['domain', 'pixels', 'wa_addon'];
+  const [tab, setTab] = useState<DomainAndAdsTab>(() => {
+    if (initialTab && allowedTabs.includes(initialTab)) return initialTab;
+    return allowedTabs[0];
+  });
   const [pub, setPub] = useState<ProjectPublishingConfig>(() =>
     resolveProjectPublishing(activeRecord.project)
   );
@@ -57,6 +68,43 @@ export function DomainAndAdsModal({
   );
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const isDirtyRef = useRef(false);
+  const lastProjectIdRef = useRef(activeRecord.id);
+
+  const updatePub = (
+    updater:
+      | ProjectPublishingConfig
+      | ((prev: ProjectPublishingConfig) => ProjectPublishingConfig)
+  ) => {
+    isDirtyRef.current = true;
+    setPub(updater);
+  };
+
+  const updateAds = (
+    updater: ProjectAdsConfig | ((prev: ProjectAdsConfig) => ProjectAdsConfig)
+  ) => {
+    isDirtyRef.current = true;
+    setAds(updater);
+  };
+
+  useEffect(() => {
+    const projectSwitched = lastProjectIdRef.current !== activeRecord.id;
+    if (projectSwitched) {
+      lastProjectIdRef.current = activeRecord.id;
+      isDirtyRef.current = false;
+      setFeedback(null);
+    }
+    if (projectSwitched || !isDirtyRef.current) {
+      setPub(resolveProjectPublishing(activeRecord.project));
+      setAds(resolveProjectAds(activeRecord.project));
+    }
+  }, [activeRecord.id, activeRecord.revision, activeRecord.lastSavedAt, activeRecord.project]);
+
+  useEffect(() => {
+    if (!allowedTabs.includes(tab)) {
+      setTab(allowedTabs[0]);
+    }
+  }, [tab, allowedTabs]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [capiReady, setCapiReady] = useState<boolean | null>(null);
   const [serverAppUrl, setServerAppUrl] = useState<string | null>(null);
@@ -122,7 +170,8 @@ export function DomainAndAdsModal({
   };
 
   const handleSubmit = async (publishNow: boolean) => {
-    if (slugConflictProject) {
+    const validateDomainTab = allowedTabs.includes('domain');
+    if (validateDomainTab && slugConflictProject) {
       setFeedback({
         type: 'err',
         text: `Slug "/p/${cleanSlug}" sudah dipakai oleh "${slugConflictProject.project.title}". Pilih slug lain.`,
@@ -130,7 +179,7 @@ export function DomainAndAdsModal({
       setTab('domain');
       return;
     }
-    if (!domainValid) {
+    if (validateDomainTab && pub.useCustomDomain && (!cleanDomain || !domainValid)) {
       setFeedback({
         type: 'err',
         text: 'Format domain kustom belum valid (contoh: promo.tokokopi.id).',
@@ -152,12 +201,15 @@ export function DomainAndAdsModal({
     setSaving(false);
 
     if (res.ok) {
+      isDirtyRef.current = false;
       setPub(nextPub);
       setFeedback({
         type: 'ok',
         text: publishNow
           ? `Tersimpan & Tayang di ${urls.internalPath}`
-          : 'Pengaturan domain, slug & tracking berhasil disimpan.',
+          : validateDomainTab
+          ? 'Pengaturan domain, slug & tracking berhasil disimpan.'
+          : 'Pengaturan Pixel Iklan & Add-On WhatsApp berhasil disimpan.',
       });
     } else {
       setFeedback({
@@ -171,36 +223,43 @@ export function DomainAndAdsModal({
     ? `\n\n[Sumber: ${AD_CHANNEL_META[utmChannel].shortLabel} · ${sanitizeSlug(utmCampaign || 'promo-utama', 'promo-utama')}]`
     : '';
 
-  return (
+  const cardContent = (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
+      className={
+        asPage
+          ? 'w-full max-w-4xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
+          : 'w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-      >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/70 shrink-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900 truncate">
-                Domain, Slug & Tracking Iklan
-              </h2>
-              <span
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
-                  pub.isPublished
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}
-              >
-                {pub.isPublished ? 'Tayang Publik' : 'Draft'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5 truncate">
-              Unit Usaha: <strong className="text-slate-700">{activeRecord.project.title}</strong>
-            </p>
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/70 shrink-0">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-[#17243D] truncate">
+              {allowedTabs.length === 1 && allowedTabs[0] === 'domain'
+                ? 'Domain & Slug Publik'
+                : !allowedTabs.includes('domain')
+                ? 'Tracking Iklan, Pixel & Add-On WhatsApp'
+                : 'Domain, Slug & Tracking Iklan'}
+            </h2>
+            <span
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                pub.isPublished
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}
+            >
+              {pub.isPublished ? 'Tayang Publik' : 'Draft'}
+            </span>
           </div>
+          <p className="text-xs text-slate-500 mt-0.5 truncate">
+            Unit Usaha: <strong className="text-slate-700">{activeRecord.project.title}</strong>
+          </p>
+        </div>
+        {!asPage && (
           <button
             type="button"
             onClick={onClose}
@@ -209,47 +268,56 @@ export function DomainAndAdsModal({
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        )}
+      </div>
 
-        {/* Navigation Tabs */}
+      {/* Navigation Tabs */}
+      {allowedTabs.length > 1 && (
         <div className="px-5 py-2.5 border-b border-slate-200 bg-white flex items-center gap-1.5 overflow-x-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => setTab('domain')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              tab === 'domain'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'text-slate-600 hover:bg-slate-100 border border-transparent'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>Domain & Slug</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('pixels')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              tab === 'pixels'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'text-slate-600 hover:bg-slate-100 border border-transparent'
-            }`}
-          >
-            <Megaphone className="w-3.5 h-3.5" />
-            <span>Pixel Meta, TikTok & Google</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('wa_addon')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              tab === 'wa_addon'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'text-slate-600 hover:bg-slate-100 border border-transparent'
-            }`}
-          >
-            <MessageCircle className="w-3.5 h-3.5" />
-            <span>Add-On WA Meta</span>
-          </button>
+          {allowedTabs.includes('domain') && (
+            <button
+              type="button"
+              onClick={() => setTab('domain')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tab === 'domain'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Domain & Slug</span>
+            </button>
+          )}
+          {allowedTabs.includes('pixels') && (
+            <button
+              type="button"
+              onClick={() => setTab('pixels')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tab === 'pixels'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+              }`}
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              <span>Pixel Meta, TikTok & Google</span>
+            </button>
+          )}
+          {allowedTabs.includes('wa_addon') && (
+            <button
+              type="button"
+              onClick={() => setTab('wa_addon')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tab === 'wa_addon'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+              }`}
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>Add-On WA Meta</span>
+            </button>
+          )}
         </div>
+      )}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#F7F9F8]">
@@ -268,7 +336,7 @@ export function DomainAndAdsModal({
                     <input
                       type="checkbox"
                       checked={pub.isPublished}
-                      onChange={(e) => setPub((prev) => ({ ...prev, isPublished: e.target.checked }))}
+                      onChange={(e) => updatePub((prev) => ({ ...prev, isPublished: e.target.checked }))}
                       className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span>Tayang Publik</span>
@@ -287,12 +355,12 @@ export function DomainAndAdsModal({
                       type="text"
                       value={pub.slug}
                       onChange={(e) =>
-                        setPub((prev) => ({
+                        updatePub((prev) => ({
                           ...prev,
                           slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
                         }))
                       }
-                      onBlur={() => setPub((prev) => ({ ...prev, slug: cleanSlug }))}
+                      onBlur={() => updatePub((prev) => ({ ...prev, slug: cleanSlug }))}
                       placeholder="kopi-senja-jakarta"
                       className="flex-1 px-3 py-2 text-xs font-mono text-slate-900 bg-transparent outline-none min-w-0"
                     />
@@ -365,7 +433,7 @@ export function DomainAndAdsModal({
                       type="checkbox"
                       checked={pub.useCustomDomain}
                       onChange={(e) =>
-                        setPub((prev) => ({ ...prev, useCustomDomain: e.target.checked }))
+                        updatePub((prev) => ({ ...prev, useCustomDomain: e.target.checked }))
                       }
                       className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
@@ -381,10 +449,10 @@ export function DomainAndAdsModal({
                     type="text"
                     value={pub.customDomain}
                     onChange={(e) =>
-                      setPub((prev) => ({ ...prev, customDomain: e.target.value }))
+                      updatePub((prev) => ({ ...prev, customDomain: e.target.value }))
                     }
                     onBlur={() =>
-                      setPub((prev) => ({
+                      updatePub((prev) => ({
                         ...prev,
                         customDomain: normalizeCustomDomain(prev.customDomain),
                       }))
@@ -392,7 +460,7 @@ export function DomainAndAdsModal({
                     placeholder="order.usahaku.id"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
                   />
-                  {!domainValid && (
+                  {(pub.useCustomDomain || Boolean(pub.customDomain.trim())) && !domainValid && (
                     <p className="text-[11px] text-red-600 font-medium mt-1">
                       Masukkan nama domain valid tanpa https:// (contoh: promo.brandanda.com).
                     </p>
@@ -505,7 +573,7 @@ export function DomainAndAdsModal({
                     <input
                       type="text"
                       value={pub.seoTitle ?? ''}
-                      onChange={(e) => setPub((prev) => ({ ...prev, seoTitle: e.target.value }))}
+                      onChange={(e) => updatePub((prev) => ({ ...prev, seoTitle: e.target.value }))}
                       placeholder={activeRecord.project.title}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
                     />
@@ -518,7 +586,7 @@ export function DomainAndAdsModal({
                       type="text"
                       value={pub.seoDescription ?? ''}
                       onChange={(e) =>
-                        setPub((prev) => ({ ...prev, seoDescription: e.target.value }))
+                        updatePub((prev) => ({ ...prev, seoDescription: e.target.value }))
                       }
                       placeholder={`Pesan cepat & promo resmi ${activeRecord.project.title}`}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
@@ -553,7 +621,7 @@ export function DomainAndAdsModal({
                       type="text"
                       value={ads.metaPixelId}
                       onChange={(e) =>
-                        setAds((prev) => ({
+                        updateAds((prev) => ({
                           ...prev,
                           metaPixelId: e.target.value.replace(/[^0-9]/g, ''),
                         }))
@@ -570,7 +638,7 @@ export function DomainAndAdsModal({
                     <select
                       value={ads.metaWaEvent}
                       onChange={(e) =>
-                        setAds((prev) => ({
+                        updateAds((prev) => ({
                           ...prev,
                           metaWaEvent: e.target.value as MetaWaEventName,
                         }))
@@ -592,7 +660,7 @@ export function DomainAndAdsModal({
                       type="text"
                       value={ads.metaTestEventCode ?? ''}
                       onChange={(e) =>
-                        setAds((prev) => ({ ...prev, metaTestEventCode: e.target.value }))
+                        updateAds((prev) => ({ ...prev, metaTestEventCode: e.target.value }))
                       }
                       placeholder="TEST12345"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
@@ -608,7 +676,7 @@ export function DomainAndAdsModal({
                         type="checkbox"
                         checked={ads.metaCapiForwarding}
                         onChange={(e) =>
-                          setAds((prev) => ({ ...prev, metaCapiForwarding: e.target.checked }))
+                          updateAds((prev) => ({ ...prev, metaCapiForwarding: e.target.checked }))
                         }
                         className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       />
@@ -638,7 +706,7 @@ export function DomainAndAdsModal({
                     type="text"
                     value={ads.tiktokPixelId}
                     onChange={(e) =>
-                      setAds((prev) => ({ ...prev, tiktokPixelId: e.target.value.trim() }))
+                      updateAds((prev) => ({ ...prev, tiktokPixelId: e.target.value.trim() }))
                     }
                     placeholder="Contoh: C9ABCDEFG1234567890"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
@@ -666,7 +734,7 @@ export function DomainAndAdsModal({
                       type="text"
                       value={ads.googleTagId}
                       onChange={(e) =>
-                        setAds((prev) => ({ ...prev, googleTagId: e.target.value.trim() }))
+                        updateAds((prev) => ({ ...prev, googleTagId: e.target.value.trim() }))
                       }
                       placeholder="G-XXXX atau AW-XXXX"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
@@ -680,7 +748,7 @@ export function DomainAndAdsModal({
                       type="text"
                       value={ads.googleAdsConversionLabel ?? ''}
                       onChange={(e) =>
-                        setAds((prev) => ({
+                        updateAds((prev) => ({
                           ...prev,
                           googleAdsConversionLabel: e.target.value.trim(),
                         }))
@@ -697,7 +765,7 @@ export function DomainAndAdsModal({
                       type="text"
                       value={ads.gtmContainerId ?? ''}
                       onChange={(e) =>
-                        setAds((prev) => ({ ...prev, gtmContainerId: e.target.value.trim() }))
+                        updateAds((prev) => ({ ...prev, gtmContainerId: e.target.value.trim() }))
                       }
                       placeholder="GTM-XXXXXXX"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
@@ -724,7 +792,7 @@ export function DomainAndAdsModal({
                     type="checkbox"
                     checked={ads.waAddonEnabled}
                     onChange={(e) =>
-                      setAds((prev) => ({ ...prev, waAddonEnabled: e.target.checked }))
+                      updateAds((prev) => ({ ...prev, waAddonEnabled: e.target.checked }))
                     }
                     className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                   />
@@ -741,7 +809,7 @@ export function DomainAndAdsModal({
                     type="text"
                     value={ads.waAddonNumber}
                     onChange={(e) =>
-                      setAds((prev) => ({ ...prev, waAddonNumber: e.target.value }))
+                      updateAds((prev) => ({ ...prev, waAddonNumber: e.target.value }))
                     }
                     placeholder="6281234567890"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
@@ -756,7 +824,7 @@ export function DomainAndAdsModal({
                       type="checkbox"
                       checked={ads.appendAdAttributionToWa}
                       onChange={(e) =>
-                        setAds((prev) => ({
+                        updateAds((prev) => ({
                           ...prev,
                           appendAdAttributionToWa: e.target.checked,
                         }))
@@ -775,7 +843,7 @@ export function DomainAndAdsModal({
                   rows={3}
                   value={ads.waAddonGreeting ?? ''}
                   onChange={(e) =>
-                    setAds((prev) => ({ ...prev, waAddonGreeting: e.target.value }))
+                    updateAds((prev) => ({ ...prev, waAddonGreeting: e.target.value }))
                   }
                   placeholder="Halo Admin, saya lihat promo dari iklan dan ingin konsultasi / order."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 outline-none focus:border-emerald-500"
@@ -815,13 +883,15 @@ export function DomainAndAdsModal({
             Semua tombol WA & form di unit usaha ini otomatis terhubung ke tracking di atas.
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              Tutup
-            </button>
+            {!asPage && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Tutup
+              </button>
+            )}
             <button
               type="button"
               disabled={saving}
@@ -843,6 +913,22 @@ export function DomainAndAdsModal({
           </div>
         </div>
       </div>
+  );
+
+  if (asPage) {
+    return (
+      <div className="flex-1 h-full flex flex-col bg-[#F0F5FA] p-4 sm:p-6 overflow-hidden">
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+    >
+      {cardContent}
     </div>
   );
 }

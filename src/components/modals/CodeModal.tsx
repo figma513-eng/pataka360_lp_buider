@@ -7,11 +7,13 @@ import { copyTextToClipboard } from '../../utils/clipboardHelpers';
 export function CodeModal({
   projectId,
   project,
-  onClose,
+  onClose = () => {},
+  asPage = false,
 }: {
   projectId: string;
   project: BuilderProject;
-  onClose: () => void;
+  onClose?: () => void;
+  asPage?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -39,39 +41,42 @@ export function CodeModal({
     URL.revokeObjectURL(url);
   };
 
-  return (
+  const cardContent = (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
+      className={
+        asPage
+          ? 'w-full max-w-5xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl overflow-hidden border border-[#DCE5EF] shadow-xs'
+          : 'w-full max-w-3xl max-h-[85vh] flex flex-col bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-200'
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[85vh] flex flex-col bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-200"
-      >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Kode Ekspor HTML</h2>
-            <p className="text-xs text-slate-500">
-              Siap ditempel ke platform link-in-bio atau diunggah sebagai halaman statis.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDownloadHtml}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Unduh .html</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white cursor-pointer"
-            >
-              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Tersalin!' : 'Salin Kode'}</span>
-            </button>
+      <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Kode Ekspor HTML</h2>
+          <p className="text-xs text-slate-500">
+            Siap ditempel ke platform link-in-bio atau diunggah sebagai halaman statis.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadHtml}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Unduh .html</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-xs font-semibold text-white cursor-pointer"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-[#00C98A]" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? 'Tersalin!' : 'Salin Kode'}</span>
+          </button>
+          {!asPage && (
             <button
               type="button"
               onClick={onClose}
@@ -79,17 +84,30 @@ export function CodeModal({
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
+          )}
         </div>
-        {copyError && (
-          <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-medium">
-            {copyError}
-          </div>
-        )}
-        <pre className="flex-1 overflow-auto p-4 bg-slate-950 text-slate-100 text-xs font-mono leading-relaxed">
-          <code>{html}</code>
-        </pre>
       </div>
+      {copyError && (
+        <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-medium">
+          {copyError}
+        </div>
+      )}
+      <pre className="flex-1 overflow-auto p-4 bg-[#17243D] text-slate-100 text-xs font-mono leading-relaxed min-h-[260px]">
+        <code>{html}</code>
+      </pre>
+    </div>
+  );
+
+  if (asPage) {
+    return cardContent;
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+    >
+      {cardContent}
     </div>
   );
 }

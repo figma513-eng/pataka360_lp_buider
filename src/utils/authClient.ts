@@ -7,6 +7,7 @@ import type {
   MediaAssetMeta,
   ProjectRecord,
   RestorePreviewSummary,
+  UiAppearanceSettingsConfig,
   WebhookLogRecord,
 } from '../types/builder';
 
@@ -357,6 +358,48 @@ export async function saveApiSettingsToServer(
     return { ok: true, settings: data.settings };
   } catch {
     return { ok: false, error: 'Koneksi server terputus.' };
+  }
+}
+
+export async function fetchUiAppearanceSettingsFromServer(): Promise<UiAppearanceSettingsConfig | null> {
+  try {
+    const res = await authFetch('/api/settings/appearance');
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => ({}))) as {
+      settings?: UiAppearanceSettingsConfig;
+    };
+    if (!data.settings || typeof data.settings !== 'object') return null;
+    return {
+      labels: data.settings.labels && typeof data.settings.labels === 'object' ? data.settings.labels : {},
+      updatedAt: Number(data.settings.updatedAt || 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUiAppearanceSettingsToServer(payload: {
+  labels?: Record<string, string>;
+  patch?: Record<string, string>;
+  resetAll?: boolean;
+}): Promise<{ ok: boolean; settings?: UiAppearanceSettingsConfig; error?: string }> {
+  try {
+    const res = await authFetch('/api/settings/appearance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      settings?: UiAppearanceSettingsConfig;
+      error?: string;
+    };
+    if (!res.ok || !data.settings) {
+      return { ok: false, error: data.error || 'Gagal menyimpan pengaturan Tampilan.' };
+    }
+    return { ok: true, settings: data.settings };
+  } catch {
+    return { ok: false, error: 'Koneksi server terputus saat menyimpan Tampilan.' };
   }
 }
 

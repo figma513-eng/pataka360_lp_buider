@@ -149,6 +149,17 @@ export const POSTGRES_MIGRATIONS: MigrationDefinition[] = [
       `ALTER TABLE api_settings ADD COLUMN IF NOT EXISTS demo_login_enabled BOOLEAN;`,
     ],
   },
+  {
+    version: '005',
+    name: 'ui_appearance_settings',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ui_appearance_settings (
+        id TEXT PRIMARY KEY,
+        labels_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at BIGINT NOT NULL
+      );`,
+    ],
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION =

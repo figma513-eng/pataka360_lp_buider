@@ -226,4 +226,156 @@ describe('Audit Regression Fixes: Clone IDs, Button Gradients & Canonical Slug F
     const conflictJson = (await saveB.json()) as { code?: string };
     assert.equal(conflictJson.code, 'SLUG_CONFLICT');
   });
+
+  it('Deleting a member via PUT /api/access-settings revokes active sessions and blocks non-super_admin from deleting super_admin', async () => {
+    // 1. Create an Editor account and verify they can authenticate
+    const createEditor = await adminJar.request(baseUrl, '/api/auth/admin-create-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Editor Hapus Test',
+        email: 'editor-del@test.local',
+        password: 'EditorPassword123',
+        role: 'editor',
+        unitScope: 'all',
+      }),
+    });
+    assert.equal(createEditor.status, 201);
+
+    const editorJar = new TestCookieJar();
+    await editorJar.request(baseUrl, '/api/auth/me');
+    const editorLogin = await editorJar.request(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'editor-del@test.local',
+        password: 'EditorPassword123',
+      }),
+    });
+    assert.equal(editorLogin.status, 200);
+
+    const editorMeBefore = await editorJar.request(baseUrl, '/api/auth/me');
+    const editorMeBeforeData = (await editorMeBefore.json()) as { authenticated: boolean };
+    assert.equal(editorMeBeforeData.authenticated, true);
+
+    // 2. Create a second Super Admin + an Admin with access_control to test super_admin deletion protection
+    const createSecondSuper = await adminJar.request(baseUrl, '/api/auth/admin-create-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Second Super',
+        email: 'super2@test.local',
+        password: 'Super2Password123',
+        role: 'super_admin',
+        unitScope: 'all',
+      }),
+    });
+    assert.equal(createSecondSuper.status, 201);
+
+    const createSubAdmin = await adminJar.request(baseUrl, '/api/auth/admin-create-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Sub Admin Access',
+        email: 'subadmin@test.local',
+        password: 'SubAdminPassword123',
+        role: 'admin',
+        unitScope: 'all',
+      }),
+    });
+    assert.equal(createSubAdmin.status, 201);
+    const subAdminAccessData = (await createSubAdmin.json()) as {
+      settings: {
+        defaultRole: string;
+        activeMemberId: string;
+        members: Array<{
+          id: string;
+          email: string;
+          role: string;
+          permissions: Record<string, boolean>;
+        }>;
+      };
+    };
+
+    // Grant access_control permission to subAdmin so they can call PUT /api/access-settings
+    const elevatedMembers = subAdminAccessData.settings.members.map((m) =>
+      m.email === 'subadmin@test.local'
+        ? { ...m, permissions: { ...m.permissions, access_control: true } }
+        : m
+    );
+    const grantRes = await adminJar.request(baseUrl, '/api/access-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: { ...subAdminAccessData.settings, members: elevatedMembers },
+      }),
+    });
+    assert.equal(grantRes.status, 200);
+
+    const subAdminJar = new TestCookieJar();
+    await subAdminJar.request(baseUrl, '/api/auth/me');
+    const subLogin = await subAdminJar.request(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'subadmin@test.local',
+        password: 'SubAdminPassword123',
+      }),
+    });
+    assert.equal(subLogin.status, 200);
+
+    // Non-super_admin omitting second super_admin from members must get 403 FORBIDDEN
+    const attemptDeleteSuper = await subAdminJar.request(baseUrl, '/api/access-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: {
+          ...subAdminAccessData.settings,
+          members: elevatedMembers.filter((m) => m.email !== 'super2@test.local'),
+        },
+      }),
+    });
+    assert.equal(attemptDeleteSuper.status, 403);
+
+    // 3. Super Admin removes editor-del@test.local and saves
+    const filteredMembers = elevatedMembers.filter((m) => m.email !== 'editor-del@test.local');
+    const delRes = await adminJar.request(baseUrl, '/api/access-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: {
+          ...subAdminAccessData.settings,
+          members: filteredMembers,
+        },
+      }),
+    });
+    assert.equal(delRes.status, 200);
+
+    // Deleted member must stay gone on refetch & have its active session revoked immediately
+    const refetchRes = await adminJar.request(baseUrl, '/api/access-settings');
+    assert.equal(refetchRes.status, 200);
+    const refetched = (await refetchRes.json()) as {
+      settings: { members: Array<{ email: string }> };
+    };
+    assert.equal(
+      refetched.settings.members.some((m) => m.email === 'editor-del@test.local'),
+      false
+    );
+
+    const editorMeAfter = await editorJar.request(baseUrl, '/api/auth/me');
+    const editorMeAfterData = (await editorMeAfter.json()) as { authenticated: boolean };
+    assert.equal(editorMeAfterData.authenticated, false);
+  });
+
+  it('Exported HTML guards [data-open-detail] handlers from intercepting nested interactive controls', () => {
+    const cat = createBlock('catalog');
+    const proj = sanitizeBuilderProject({
+      ...INITIAL_PROJECT,
+      blocks: [cat],
+    });
+    const html = generateProjectHtml(proj, { projectId: 'audit_proj_detail_guard' });
+    const guardMatches = html.match(/closest\('button, a, input, textarea, select'\)/g) || [];
+    assert.ok(guardMatches.length >= 3);
+  });
 });
+

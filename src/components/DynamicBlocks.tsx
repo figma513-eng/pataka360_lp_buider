@@ -373,6 +373,7 @@ export function FnbCatalogCard({
   theme,
   cartQtyLookup,
   externalCategoryFilter,
+  onClearExternalFilter,
   onAddItem,
   onIncrementItem,
   onDecrementItem,
@@ -381,6 +382,7 @@ export function FnbCatalogCard({
   theme: PageTheme;
   cartQtyLookup: Record<string, number>;
   externalCategoryFilter?: string | null;
+  onClearExternalFilter?: () => void;
   onAddItem: (item: FnbMenuItem) => void;
   onIncrementItem: (item: FnbMenuItem) => void;
   onDecrementItem: (item: FnbMenuItem) => void;
@@ -447,12 +449,15 @@ export function FnbCatalogCard({
       {c.fnbShowCategories && categories.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {['Semua', ...categories].map((cat) => {
-            const on = (localCat || 'Semua').toLowerCase() === cat.toLowerCase();
+            const on = (effectiveCat || 'Semua').toLowerCase() === cat.toLowerCase();
             return (
               <button
                 key={cat}
                 type="button"
-                onClick={() => setLocalCat(cat)}
+                onClick={() => {
+                  setLocalCat(cat);
+                  onClearExternalFilter?.();
+                }}
                 style={{
                   backgroundColor: on ? accent : '#F1F5F9',
                   color: on ? '#FFFFFF' : '#334155',

@@ -1,110 +1,106 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  ArrowDown,
-  ArrowUp,
-  Box,
+  BadgeCheck,
   ChevronsUpDown,
   Columns2,
+  Columns3,
   FileText,
   GraduationCap,
-  GripVertical,
   Image as ImageIcon,
-  Layers,
+  Images,
   LayoutGrid,
+  Link2,
+  Mail,
+  MapPin,
   Minus,
   MousePointerClick,
   Package,
-  Palette,
-  PanelBottom,
   PanelBottomOpen,
-  Plus,
+  PanelTop,
+  Search,
   Share2,
   ShoppingBag,
+  Sparkles,
   Square,
-  Trash2,
+  Store,
+  Tag,
+  Tags,
   Type,
   UserCheck,
+  UtensilsCrossed,
   Video,
   Wrench,
 } from 'lucide-react';
-import { BlockType, BuilderBlock, PageTheme } from '../types/builder';
-import { BLOCK_TYPE_NAMES, PREBUILT_SECTIONS, PrebuiltSection, THEMES } from '../data/presets';
-import { FONT_OPTIONS, resolveCssFontFamily } from '../utils/fontHelpers';
+import { BlockType } from '../types/builder';
+import { PREBUILT_SECTIONS, PrebuiltSection } from '../data/presets';
+import { useUiLabel } from '../contexts/UiLabelsContext';
 import { SocialGlyph } from './SocialIcon';
 
-type SidebarTab = 'alat' | 'blok' | 'tema' | 'lapisan';
+type SidebarTab = 'alat' | 'blok';
 
 interface LeftSidebarProps {
-  blocks: BuilderBlock[];
-  selectedId: string | null;
-  currentTheme: PageTheme;
   onAddBlock: (type: BlockType) => void;
   onAddSection: (section: PrebuiltSection) => void;
-  onSelectTheme: (theme: PageTheme) => void;
-  onSelectBlock: (id: string) => void;
-  onMoveBlock: (id: string, dir: 'up' | 'down') => void;
-  onReorderBlock: (draggedId: string, targetId: string, position: 'before' | 'after' | 'inside') => void;
-  onDeleteBlock: (id: string) => void;
-  bottomNavbarEnabled?: boolean;
-  onActivateNavbar?: () => void;
 }
 
-const TOOL_ITEMS: {
+export interface ToolPaletteItem {
   key: string;
   type: BlockType;
   sectionId?: string;
   label: string;
   desc: string;
   icon: React.ReactNode;
-}[] = [
+}
+
+export const TOOL_ITEMS: ToolPaletteItem[] = [
   {
     key: 'hero_profile',
     type: 'hero_profile',
     label: 'Hero Profil Usaha',
     desc: 'Kartu profil kompak atau banner full atas',
-    icon: <UserCheck className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'category_tabs',
     type: 'category_tabs',
     label: 'Tombol Kategori',
     desc: 'Favorit, makanan, minuman & lompat ke judul',
-    icon: <LayoutGrid className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'fnb_catalog',
     type: 'fnb_catalog',
     label: 'Katalog F&B',
     desc: 'Menu makanan/minuman & keranjang mengambang',
-    icon: <ShoppingBag className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'row',
     type: 'row',
     label: 'Kolom / Row Dinamis',
     desc: '2–6+ kolom grid atau slide horizontal',
-    icon: <Columns2 className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Columns2 className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'container',
     type: 'container',
     label: 'Kotak / Wadah',
     desc: 'Pembungkus elemen & latar gradasi',
-    icon: <Square className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Square className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'toggle_container',
     type: 'toggle_container',
     label: 'Wadah Show / Hide',
     desc: 'Buka-tutup elemen (default hide)',
-    icon: <ChevronsUpDown className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <ChevronsUpDown className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'bottom_sheet',
     type: 'bottom_sheet',
     label: 'Bottom Sheet',
     desc: 'Klik ikon/tombol buka panel bawah (Maps, dll)',
-    icon: <PanelBottomOpen className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <PanelBottomOpen className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'catalog_physical',
@@ -112,7 +108,7 @@ const TOOL_ITEMS: {
     sectionId: 'katalog-produk-fisik',
     label: 'Katalog Produk Fisik',
     desc: 'Produk fisik, data pemesan dinamis, pilihan kirim & WA',
-    icon: <Package className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Package className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'catalog_digital',
@@ -120,477 +116,295 @@ const TOOL_ITEMS: {
     sectionId: 'katalog-produk-digital',
     label: 'Katalog Produk Digital',
     desc: 'Produk digital, data pemesan dinamis & kirim via WA',
-    icon: <ShoppingBag className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'training_catalog',
     type: 'training_catalog',
     label: 'Katalog Produk Pelatihan',
     desc: 'Deskripsi, foto/postingan, harga/cashback, berkas, form & WA',
-    icon: <GraduationCap className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <GraduationCap className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'text',
     type: 'text',
     label: 'Teks Biasa',
     desc: 'Judul atau paragraf',
-    icon: <Type className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Type className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'image',
     type: 'image',
     label: 'Gambar',
     desc: 'Foto, logo, ilustrasi',
-    icon: <ImageIcon className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <ImageIcon className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'button',
     type: 'button',
     label: 'Tombol Link',
     desc: 'Tautan CTA interaktif',
-    icon: <MousePointerClick className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <MousePointerClick className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'form',
     type: 'form',
     label: 'Form Isian',
     desc: 'Kumpulkan nama & kontak',
-    icon: <FileText className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <FileText className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'divider',
     type: 'divider',
     label: 'Garis Pembatas',
     desc: 'Pemisah antar bagian',
-    icon: <Minus className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Minus className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'youtube',
     type: 'youtube',
     label: 'Video YouTube',
     desc: 'Embed bersih + Play/Pause/Volume',
-    icon: <Video className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Video className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'facebook_video',
     type: 'facebook_video',
     label: 'Video Facebook',
     desc: 'Embed FB bersih + Play/Pause/Volume',
-    icon: <SocialGlyph platform="facebook" className="w-[18px] h-[18px]" />,
+    icon: <SocialGlyph platform="facebook" className="w-4 h-4" />,
   },
   {
     key: 'tiktok_video',
     type: 'tiktok_video',
     label: 'Video TikTok',
     desc: 'Embed TikTok bersih + Play/Pause/Volume',
-    icon: <SocialGlyph platform="tiktok" className="w-[18px] h-[18px]" />,
+    icon: <SocialGlyph platform="tiktok" className="w-4 h-4" />,
   },
   {
     key: 'instagram_video',
     type: 'instagram_video',
     label: 'Video Instagram',
     desc: 'Embed IG bersih + Play/Pause/Volume',
-    icon: <SocialGlyph platform="instagram" className="w-[18px] h-[18px]" />,
+    icon: <SocialGlyph platform="instagram" className="w-4 h-4" />,
   },
   {
     key: 'social',
     type: 'social',
     label: 'Sosial Media',
     desc: 'Ikon link seluruh sosial media',
-    icon: <Share2 className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <Share2 className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'social_follower',
     type: 'social_follower',
     label: 'Sosial Media + Follower',
     desc: 'Kartu profil & jumlah follower seluruh sosmed',
-    icon: <UserCheck className="w-[18px] h-[18px]" strokeWidth={1.75} />,
+    icon: <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
   },
 ];
 
-export function LeftSidebar({
-  blocks,
-  selectedId,
-  currentTheme,
-  onAddBlock,
-  onAddSection,
-  onSelectTheme,
-  onSelectBlock,
-  onMoveBlock,
-  onReorderBlock,
-  onDeleteBlock,
-  bottomNavbarEnabled,
-  onActivateNavbar,
-}: LeftSidebarProps) {
+export const SECTION_ICONS: Record<string, React.ReactNode> = {
+  'hero-profil-kompak': <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
+  'hero-profil-banner': <PanelTop className="w-4 h-4" strokeWidth={1.85} />,
+  'tombol-kategori-scroll': <Tags className="w-4 h-4" strokeWidth={1.85} />,
+  'row-slide-horizontal': <Columns3 className="w-4 h-4" strokeWidth={1.85} />,
+  'katalog-fnb': <UtensilsCrossed className="w-4 h-4" strokeWidth={1.85} />,
+  'kotak-outlet-dinamis': <Store className="w-4 h-4" strokeWidth={1.85} />,
+  'kotak-promo-gradasi': <Sparkles className="w-4 h-4" strokeWidth={1.85} />,
+  'bottom-sheet-maps': <PanelBottomOpen className="w-4 h-4" strokeWidth={1.85} />,
+  'lokasi-maps': <MapPin className="w-4 h-4" strokeWidth={1.85} />,
+  'sosmed-postingan': <Share2 className="w-4 h-4" strokeWidth={1.85} />,
+  'foto-carousel': <Images className="w-4 h-4" strokeWidth={1.85} />,
+  'katalog-produk-pelatihan': <GraduationCap className="w-4 h-4" strokeWidth={1.85} />,
+  'katalog-produk-fisik': <Package className="w-4 h-4" strokeWidth={1.85} />,
+  'katalog-produk-digital': <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
+  'hero-profile': <BadgeCheck className="w-4 h-4" strokeWidth={1.85} />,
+  'link-stack': <Link2 className="w-4 h-4" strokeWidth={1.85} />,
+  'digital-product': <Tag className="w-4 h-4" strokeWidth={1.85} />,
+  'contact-lead': <Mail className="w-4 h-4" strokeWidth={1.85} />,
+};
+
+export function getSectionIcon(sectionId: string): React.ReactNode {
+  return SECTION_ICONS[sectionId] ?? <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />;
+}
+
+export function LeftSidebar({ onAddBlock, onAddSection }: LeftSidebarProps) {
+  const { label } = useUiLabel();
   const [activeTab, setActiveTab] = useState<SidebarTab>('alat');
-  const [dragLayerState, setDragLayerState] = useState<{
-    draggedId: string | null;
-    targetId: string | null;
-    position: 'before' | 'after' | null;
-  }>({ draggedId: null, targetId: null, position: null });
+  const [query, setQuery] = useState('');
 
-  const tabs: { id: SidebarTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'alat', label: 'Alat', icon: <Wrench className="w-4 h-4" strokeWidth={1.75} /> },
-    { id: 'blok', label: 'Blok', icon: <LayoutGrid className="w-4 h-4" strokeWidth={1.75} /> },
-    { id: 'tema', label: 'Tema', icon: <Palette className="w-4 h-4" strokeWidth={1.75} /> },
-    { id: 'lapisan', label: 'Lapisan', icon: <Layers className="w-4 h-4" strokeWidth={1.75} /> },
-  ];
-
-  const renderLayerNodes = (nodes: BuilderBlock[], depth = 0) => {
-    return nodes.map((node) => {
-      const isSelected = node.id === selectedId;
-      const isTarget = dragLayerState.targetId === node.id;
+  const filteredTools = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return TOOL_ITEMS;
+    return TOOL_ITEMS.filter((item) => {
+      const displayLabel = label(`alat.tool.${item.key}`, item.label);
       return (
-        <div key={node.id} className="space-y-0.5 relative">
-          {isTarget && dragLayerState.position === 'before' && (
-            <div className="h-0.5 bg-emerald-500 rounded-full mx-1" />
-          )}
-          <div
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation();
-              e.dataTransfer.setData('application/lynk-existing-block', node.id);
-              e.dataTransfer.effectAllowed = 'move';
-              setDragLayerState({ draggedId: node.id, targetId: null, position: null });
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const rect = e.currentTarget.getBoundingClientRect();
-              const position = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
-              if (
-                dragLayerState.targetId !== node.id ||
-                dragLayerState.position !== position
-              ) {
-                setDragLayerState((prev) => ({ ...prev, targetId: node.id, position }));
-              }
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const draggedId = e.dataTransfer.getData('application/lynk-existing-block');
-              const pos = dragLayerState.position ?? 'after';
-              if (draggedId && draggedId !== node.id) {
-                onReorderBlock(draggedId, node.id, pos);
-              }
-              setDragLayerState({ draggedId: null, targetId: null, position: null });
-            }}
-            onDragEnd={() =>
-              setDragLayerState({ draggedId: null, targetId: null, position: null })
-            }
-            onClick={() => onSelectBlock(node.id)}
-            style={{ paddingLeft: `${10 + depth * 14}px` }}
-            className={`group flex items-center justify-between gap-2 pr-2 py-2.5 rounded-xl text-[14px] leading-5 cursor-grab active:cursor-grabbing transition-colors ${
-              dragLayerState.draggedId === node.id ? 'opacity-45' : ''
-            } ${
-              isSelected
-                ? 'bg-[#EFF7F4] text-slate-900 font-semibold'
-                : 'bg-transparent text-[#4B5563] font-medium hover:bg-[#EFF7F4]/70 hover:text-slate-900'
-            }`}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <GripVertical className="w-3.5 h-3.5 shrink-0 text-slate-300 group-hover:text-slate-500" />
-              <Box
-                className={`w-[18px] h-[18px] shrink-0 ${
-                  isSelected ? 'text-emerald-600' : 'text-emerald-500'
-                }`}
-                strokeWidth={1.75}
-              />
-              <span className="truncate">{node.label.trim() || BLOCK_TYPE_NAMES[node.type]}</span>
-            </div>
-            <div
-              className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => onMoveBlock(node.id, 'up')}
-                title="Geser ke atas"
-                className="p-1 rounded-lg hover:bg-white text-slate-500 cursor-pointer"
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onMoveBlock(node.id, 'down')}
-                title="Geser ke bawah"
-                className="p-1 rounded-lg hover:bg-white text-slate-500 cursor-pointer"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onDeleteBlock(node.id)}
-                title="Hapus elemen"
-                className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-          {isTarget && dragLayerState.position === 'after' && (
-            <div className="h-0.5 bg-emerald-500 rounded-full mx-1" />
-          )}
-          {node.children && node.children.length > 0 && (
-            <div className="space-y-0.5">{renderLayerNodes(node.children, depth + 1)}</div>
-          )}
-        </div>
+        displayLabel.toLowerCase().includes(q) ||
+        item.label.toLowerCase().includes(q) ||
+        item.desc.toLowerCase().includes(q) ||
+        item.type.toLowerCase().includes(q)
       );
     });
-  };
+  }, [query, label]);
+
+  const filteredSections = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return PREBUILT_SECTIONS;
+    return PREBUILT_SECTIONS.filter((sec) => {
+      const displayTitle = label(`blok.sec.${sec.id}`, sec.title);
+      return (
+        displayTitle.toLowerCase().includes(q) ||
+        sec.title.toLowerCase().includes(q) ||
+        sec.description.toLowerCase().includes(q)
+      );
+    });
+  }, [query, label]);
 
   return (
-    <aside className="w-72 bg-white border-r border-slate-100 flex flex-col shrink-0 h-full overflow-hidden">
-      {/* 4 Tabs */}
-      <div className="grid grid-cols-4 gap-1 p-2 border-b border-slate-100 bg-white shrink-0">
-        {tabs.map((tab) => {
+    <aside className="w-60 xl:w-[17%] min-w-[216px] max-w-[272px] bg-white border-r border-[#DCE5EF] flex flex-col shrink-0 h-full overflow-hidden">
+      {/* Strictly 2 Tabs: Alat & Blok */}
+      <div className="grid grid-cols-2 border-b border-[#DCE5EF] bg-white shrink-0">
+        {(
+          [
+            { id: 'alat', label: label('alat.tab', 'Alat'), icon: <Wrench className="w-3.5 h-3.5" /> },
+            { id: 'blok', label: label('blok.tab', 'Blok'), icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+          ] as const
+        ).map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[12px] transition-colors cursor-pointer whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 py-3 text-[12.5px] font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                 active
-                  ? 'bg-[#EFF7F4] text-emerald-700 font-semibold'
-                  : 'text-slate-500 font-medium hover:bg-slate-50 hover:text-slate-800'
+                  ? 'border-[#00C98A] text-[#17243D] bg-[#F0F5FA]/45'
+                  : 'border-transparent text-[#8FA4BF] hover:text-[#17243D] hover:bg-[#F0F5FA]/30'
               }`}
             >
-              <span className={active ? 'text-emerald-600' : 'text-slate-400'}>{tab.icon}</span>
+              <span className={active ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}>{tab.icon}</span>
               <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Tab Body */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      {/* Quick Filter */}
+      <div className="px-2.5 pt-2.5 pb-1.5 shrink-0">
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              activeTab === 'alat'
+                ? label('alat.search', 'Cari alat...')
+                : label('blok.search', 'Cari blok siap pakai...')
+            }
+            aria-label={activeTab === 'alat' ? label('alat.search', 'Cari alat') : label('blok.search', 'Cari blok')}
+            className="w-full pl-8 pr-2.5 py-1.5 text-[12px] rounded-lg border border-[#DCE5EF] bg-[#F0F5FA]/50 text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:bg-white focus:border-[#00C98A] transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Body: 2-Column Compact Card Grid */}
+      <div className="flex-1 overflow-y-auto px-2.5 pb-4 pt-1">
         {activeTab === 'alat' && (
-          <>
-            <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-              KOMPONEN
+          <div className="space-y-2">
+            <div className="px-0.5 text-[10.5px] font-semibold text-[#8FA4BF]">
+              {label('alat.header', 'Komponen')} ({filteredTools.length})
             </div>
-            <div className="space-y-0.5">
-              {onActivateNavbar && (
-                <button
-                  type="button"
-                  title="Aktifkan & atur Navbar Bawah 5 Menu (Galeri, Belanja, Home, Kontak, Alamat)"
-                  onClick={onActivateNavbar}
-                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#EFF7F4]/70 hover:bg-[#EFF7F4] border border-emerald-200/70 transition-colors text-left group cursor-pointer mb-1.5"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <span className="text-emerald-600 shrink-0 flex items-center justify-center">
-                      <PanelBottom className="w-[18px] h-[18px]" strokeWidth={1.75} />
-                    </span>
-                    <div className="min-w-0">
-                      <span className="block text-[14px] leading-5 font-semibold text-slate-800 truncate">
-                        Navbar Bawah (5 Menu)
+            {filteredTools.length === 0 ? (
+              <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
+                Alat tidak ditemukan.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-1.5">
+                {filteredTools.map((item) => {
+                  const displayLabel = label(`alat.tool.${item.key}`, item.label);
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      title={`${displayLabel} — ${item.desc}`}
+                      draggable
+                      onDragStart={(e) => {
+                        if (item.sectionId) {
+                          e.dataTransfer.setData('application/lynk-section-id', item.sectionId);
+                        } else {
+                          e.dataTransfer.setData('application/lynk-block-type', item.type);
+                        }
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onClick={() => {
+                        if (item.sectionId) {
+                          const sec = PREBUILT_SECTIONS.find((s) => s.id === item.sectionId);
+                          if (sec) {
+                            onAddSection(sec);
+                            return;
+                          }
+                        }
+                        onAddBlock(item.type);
+                      }}
+                      className="flex items-center gap-2 px-2 py-2.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#00C98A] text-left transition-colors group cursor-pointer min-w-0"
+                    >
+                      <span className="text-[#8FA4BF] group-hover:text-[#00C98A] shrink-0 flex items-center justify-center transition-colors">
+                        {item.icon}
                       </span>
-                      <span className="block text-[11px] text-slate-500 truncate">
-                        {bottomNavbarEnabled ? 'Aktif · Klik untuk edit' : 'Nonaktif · Klik untuk aktifkan'}
+                      <span className="text-[11.5px] font-medium text-[#17243D] truncate min-w-0">
+                        {displayLabel}
                       </span>
-                    </div>
-                  </div>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
-                      bottomNavbarEnabled
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {bottomNavbarEnabled ? 'ON' : 'OFF'}
-                  </span>
-                </button>
-              )}
-              {TOOL_ITEMS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  title={item.desc}
-                  draggable
-                  onDragStart={(e) => {
-                    if (item.sectionId) {
-                      e.dataTransfer.setData('application/lynk-section-id', item.sectionId);
-                    } else {
-                      e.dataTransfer.setData('application/lynk-block-type', item.type);
-                    }
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  onClick={() => {
-                    if (item.sectionId) {
-                      const sec = PREBUILT_SECTIONS.find((s) => s.id === item.sectionId);
-                      if (sec) {
-                        onAddSection(sec);
-                        return;
-                      }
-                    }
-                    onAddBlock(item.type);
-                  }}
-                  className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-transparent hover:bg-[#EFF7F4] transition-colors text-left group cursor-pointer"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <span className="text-emerald-500 group-hover:text-emerald-600 shrink-0 flex items-center justify-center">
-                      {item.icon}
-                    </span>
-                    <span className="text-[14px] leading-5 font-medium text-[#4B5563] group-hover:text-slate-900 truncate">
-                      {item.label}
-                    </span>
-                  </div>
-                  <Plus className="w-4 h-4 text-emerald-600 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
-                </button>
-              ))}
-            </div>
-          </>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'blok' && (
-          <div className="space-y-2.5">
-            <div className="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-              BLOK SIAP PAKAI
-            </div>
-            <div className="space-y-2">
-              {PREBUILT_SECTIONS.map((section) => (
-                <div
-                  key={section.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/lynk-section-id', section.id);
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  className="p-2.5 rounded-xl border border-slate-100 bg-white hover:border-emerald-200 hover:bg-[#EFF7F4]/40 transition-colors space-y-2 cursor-grab active:cursor-grabbing"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-[13px] leading-snug font-semibold text-slate-800 truncate">
-                        {section.title}
-                      </div>
-                      <div className="text-[11.5px] text-slate-500 mt-0.5 leading-snug line-clamp-2">
-                        {section.description}
-                      </div>
-                    </div>
-                    <GripVertical className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onAddSection(section)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-[#EFF7F4] hover:bg-emerald-500 hover:text-white text-emerald-700 text-[12px] font-semibold transition-colors cursor-pointer"
-                  >
-                    Tambahkan ke Halaman
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'tema' && (
-          <div className="space-y-4">
-            <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-2">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                JENIS FONT UTAMA HALAMAN
-              </div>
-              <select
-                value={currentTheme.fontFamily || 'Plus Jakarta Sans'}
-                onChange={(e) =>
-                  onSelectTheme({
-                    ...currentTheme,
-                    fontFamily: e.target.value,
-                  })
-                }
-                style={{ fontFamily: resolveCssFontFamily(currentTheme.fontFamily) }}
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-[13px] font-medium text-slate-800 outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                {FONT_OPTIONS.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label} ({f.category})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {(
-              [
-                { key: 'brand', title: 'INSPIRASI BRAND POPULER' },
-                { key: 'basic', title: 'TEMA DASAR & MINIMALIS' },
-                { key: 'aesthetic', title: 'TEMA TAMBAHAN & ESTETIK' },
-              ] as const
-            ).map((group) => {
-              const items = THEMES.filter((t) => (t.category ?? 'basic') === group.key);
-              if (items.length === 0) return null;
-              return (
-                <div key={group.key} className="space-y-1">
-                  <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                    {group.title}
-                  </div>
-                  <div className="space-y-0.5">
-                    {items.map((theme) => {
-                      const isCurrent = theme.id === currentTheme.id;
-                      return (
-                        <button
-                          key={theme.id}
-                          type="button"
-                          onClick={() => onSelectTheme(theme)}
-                          className={`w-full px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer flex items-center justify-between gap-2.5 ${
-                            isCurrent
-                              ? 'bg-[#EFF7F4] text-slate-900'
-                              : 'bg-transparent hover:bg-[#EFF7F4]/60 text-[#4B5563]'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <div
-                              className={`text-[14px] leading-5 truncate ${
-                                isCurrent ? 'font-semibold text-slate-900' : 'font-medium text-[#4B5563]'
-                              }`}
-                            >
-                              {theme.name}
-                            </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                              {theme.brandSource ? `${theme.brandSource} · ` : ''}
-                              <span className="tabular-nums">{theme.accentColor}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center -space-x-1.5 shrink-0">
-                            <span
-                              title="Latar kanvas"
-                              className="w-4.5 h-4.5 rounded-full border border-slate-300 shadow-2xs"
-                              style={{ backgroundColor: theme.canvasBg }}
-                            />
-                            <span
-                              title="Latar kartu"
-                              className="w-4.5 h-4.5 rounded-full border border-slate-300 shadow-2xs"
-                              style={{ backgroundColor: theme.cardBg }}
-                            />
-                            <span
-                              title="Warna teks"
-                              className="w-4.5 h-4.5 rounded-full border border-slate-300 shadow-2xs"
-                              style={{ backgroundColor: theme.textColor }}
-                            />
-                            <span
-                              title="Warna aksen"
-                              className="w-4.5 h-4.5 rounded-full border border-white shadow-2xs"
-                              style={{ backgroundColor: theme.accentColor }}
-                            />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {activeTab === 'lapisan' && (
           <div className="space-y-2">
-            <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-              SUSUNAN LAPISAN
+            <div className="px-0.5 text-[10.5px] font-semibold text-[#8FA4BF]">
+              {label('blok.header', 'Blok Siap Pakai')} ({filteredSections.length})
             </div>
-            {blocks.length === 0 ? (
-              <div className="text-center py-8 px-3 border border-dashed border-slate-200 rounded-xl text-[13px] text-slate-500">
-                Belum ada elemen di kanvas. Buka tab Alat untuk menambahkan komponen.
+            {filteredSections.length === 0 ? (
+              <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
+                Blok tidak ditemukan.
               </div>
             ) : (
-              <div className="space-y-0.5">{renderLayerNodes(blocks)}</div>
+              <div className="flex flex-col gap-1.5">
+                {filteredSections.map((section) => {
+                  const displayTitle = label(`blok.sec.${section.id}`, section.title);
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      title={`${displayTitle} — ${section.description}`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/lynk-section-id', section.id);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onClick={() => onAddSection(section)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#00C98A] text-left transition-colors group cursor-pointer min-w-0"
+                    >
+                      <span className="w-7 h-7 rounded-md bg-[#F0F5FA] group-hover:bg-[#ECFDF6] text-[#8FA4BF] group-hover:text-[#00C98A] shrink-0 flex items-center justify-center transition-colors">
+                        {getSectionIcon(section.id)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12px] font-semibold text-[#17243D] truncate">
+                          {displayTitle}
+                        </div>
+                        <div className="text-[10.5px] text-[#8FA4BF] truncate">
+                          {section.description}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

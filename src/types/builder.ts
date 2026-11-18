@@ -318,6 +318,14 @@ export interface BlockStyle {
   paddingX?: number;
   fullBleed?: boolean;
   marginBottom: number;
+  themeOverrideMode?: 'global' | 'local';
+  themeOverrideTokens?: {
+    textColor?: boolean;
+    backgroundColor?: boolean;
+    borderColor?: boolean;
+    fontFamily?: boolean;
+    accentColor?: boolean;
+  };
 }
 
 export interface BlockContent {
@@ -722,6 +730,13 @@ export interface WebhookLogRecord {
   createdAt: number;
 }
 
+export type UiAppearanceLabelsMap = Record<string, string>;
+
+export interface UiAppearanceSettingsConfig {
+  labels: UiAppearanceLabelsMap;
+  updatedAt: number;
+}
+
 export interface DbDiagnostics {
   engine: 'postgresql' | 'local-json';
   connected: boolean;
@@ -749,6 +764,7 @@ export interface DbDiagnostics {
     webhookLogs: number;
     accessPolicies: number;
     mediaAssets?: number;
+    uiAppearance?: number;
   };
 }
 

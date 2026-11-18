@@ -9,10 +9,11 @@ import {
   Eye,
   GripVertical,
   ImageOff,
+  Monitor,
   PanelBottomOpen,
   Plus,
-  Save,
   ShoppingCart,
+  Smartphone,
   Trash2,
   X,
 } from 'lucide-react';
@@ -24,7 +25,6 @@ import {
   CategoryJumpItem,
   FnbMenuItem,
   PageTheme,
-  ServerSyncState,
 } from '../types/builder';
 import { BLOCK_TYPE_NAMES, resolveNavbarMetrics } from '../data/presets';
 import { resolveBlockTextColor, shadowToCss } from '../utils/htmlExporter';
@@ -33,10 +33,9 @@ import { resolveButtonIcon, sanitizeIconUrl } from '../utils/buttonIcons';
 import { resolveCartButtonMetrics } from '../utils/cartHelpers';
 import { resolveCssFontFamily } from '../utils/fontHelpers';
 import { buildLinearGradientCss, resolveBackgroundInlineProps } from '../utils/gradientHelpers';
-import { DevicePreset, clampDimension } from '../utils/devicePresets';
+import { clampDimension } from '../utils/devicePresets';
 import { ButtonGlyph } from './ButtonIcon';
 import { CleanVideoEmbed } from './CleanVideoEmbed';
-import { DeviceViewportSelector } from './DeviceViewportSelector';
 import {
   CategoryJumpTabs,
   FnbCatalogCard,
@@ -59,13 +58,7 @@ interface MobileCanvasProps {
   bottomNavbar: BottomNavbarConfig;
   inspectorMode: 'element' | 'navbar';
   selectedId: string | null;
-  hasUnsavedChanges: boolean;
-  isSaving: boolean;
-  syncState?: ServerSyncState;
-  syncError?: string | null;
-  revision?: number;
   remotePeersByBlock?: Record<string, CollabPeer[]>;
-  onSaveProject: () => void;
   onOpenPreview: () => void;
   onSelectBlock: (id: string | null) => void;
   onOpenNavbarSettings: (itemId?: string) => void;
@@ -97,13 +90,7 @@ export function MobileCanvas({
   bottomNavbar,
   inspectorMode,
   selectedId,
-  hasUnsavedChanges,
-  isSaving,
-  syncState = 'idle',
-  syncError,
-  revision,
   remotePeersByBlock = {},
-  onSaveProject,
   onOpenPreview,
   onSelectBlock,
   onOpenNavbarSettings,
@@ -115,13 +102,10 @@ export function MobileCanvas({
   onDropSection,
   onReorderBlock,
 }: MobileCanvasProps) {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('iphone-16');
   const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({
-    width: 393,
-    height: 852,
+    width: 390,
+    height: 844,
   });
-  const [rotated, setRotated] = useState(false);
-  const [customDevices, setCustomDevices] = useState<DevicePreset[]>([]);
   const [zoom, setZoom] = useState<0.5 | 0.65 | 0.75 | 0.85 | 1>(1);
   const [dragOverRoot, setDragOverRoot] = useState(false);
   const [dragState, setDragState] = useState<{
@@ -182,34 +166,16 @@ export function MobileCanvas({
 
   const frameWidth = viewportSize.width;
   const frameHeight = viewportSize.height;
-  const isWideViewport = frameWidth >= 720;
+  const isWideViewport = frameWidth >= 600;
 
-  const autoZoomForWidth = (w: number): 0.5 | 0.65 | 0.75 | 0.85 | 1 => {
-    if (w >= 1150) return 0.5;
-    if (w >= 900) return 0.65;
-    if (w >= 650) return 0.75;
-    return 1;
-  };
-
-  const handleSelectDevice = (dev: DevicePreset) => {
-    setSelectedDeviceId(dev.id);
-    setRotated(false);
-    setViewportSize({ width: dev.width, height: dev.height });
-    setZoom(autoZoomForWidth(dev.width));
-  };
-
-  const handleChangeDimensions = (w: number, h: number) => {
-    setSelectedDeviceId('responsive');
-    setViewportSize({ width: w, height: h });
-  };
-
-  const handleToggleRotate = () => {
-    setRotated((prev) => !prev);
-    setViewportSize((prev) => {
-      const next = { width: prev.height, height: prev.width };
-      setZoom(autoZoomForWidth(next.width));
-      return next;
-    });
+  const handleSelectPresetWidth = (mode: 'mobile' | 'wide') => {
+    if (mode === 'mobile') {
+      setViewportSize({ width: 390, height: 844 });
+      setZoom(1);
+    } else {
+      setViewportSize({ width: 680, height: 840 });
+      setZoom(0.85);
+    }
   };
 
   const handleStartResizeResponsive = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -218,10 +184,9 @@ export function MobileCanvas({
     const startX = e.clientX;
     const startW = viewportSize.width;
     const startH = viewportSize.height;
-    setSelectedDeviceId('responsive');
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / zoom;
-      const nextW = clampDimension(startW + dx * 2, 280, 1440);
+      const nextW = clampDimension(startW + dx * 2, 320, 960);
       setViewportSize({ width: nextW, height: startH });
     };
     const onUp = () => {
@@ -1574,87 +1539,55 @@ export function MobileCanvas({
   return (
     <main
       onClick={() => onSelectBlock(null)}
-      className="flex-1 bg-[#F4F7F5] flex flex-col overflow-hidden relative"
+      className="flex-1 bg-[#F0F5FA] flex flex-col overflow-hidden relative"
     >
-      {/* Workspace Utility Strip */}
+      {/* Workspace Toolbar: Mobile (390px), Lebar (680px) & Zoom */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="min-h-11 px-4 py-1.5 bg-white border-b border-slate-100 flex items-center justify-between gap-2 text-[13px] text-slate-600 shrink-0 flex-wrap"
+        className="min-h-12 px-4 py-1.5 bg-white border-b border-[#DCE5EF] flex items-center justify-between gap-2 text-[13px] text-[#17243D] shrink-0 overflow-x-auto no-scrollbar"
       >
-        <DeviceViewportSelector
-          selectedDeviceId={selectedDeviceId}
-          width={frameWidth}
-          height={frameHeight}
-          rotated={rotated}
-          customDevices={customDevices}
-          onSelectDevice={handleSelectDevice}
-          onChangeDimensions={handleChangeDimensions}
-          onToggleRotate={handleToggleRotate}
-          onAddCustomDevice={(dev) => setCustomDevices((prev) => [...prev, dev])}
-        />
-
-        {/* Center Actions: Simpan & Preview sejajar dengan iPhone 16 */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            onClick={onSaveProject}
-            disabled={isSaving}
-            title={syncError || `Simpan perubahan unit usaha (Ctrl+S)${revision ? ` · Revisi v${revision}` : ''}`}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              syncState === 'conflict' || syncState === 'error'
-                ? 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800'
-                : hasUnsavedChanges || syncState === 'local_saved' || syncState === 'pending'
-                ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800'
-                : 'border-emerald-200 bg-[#EFF7F4] hover:bg-emerald-100/70 text-emerald-700'
+            onClick={() => handleSelectPresetWidth('mobile')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              !isWideViewport
+                ? 'bg-[#17243D] border-[#17243D] text-white'
+                : 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA]'
             }`}
           >
-            {isSaving || syncState === 'syncing' ? (
-              <Save className="w-3.5 h-3.5 animate-pulse" />
-            ) : hasUnsavedChanges || syncState === 'conflict' || syncState === 'error' || syncState === 'local_saved' ? (
-              <Save className="w-3.5 h-3.5" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )}
-            <span>
-              {isSaving || syncState === 'syncing'
-                ? 'Menyinkronkan...'
-                : syncState === 'conflict'
-                ? 'Konflik Versi'
-                : syncState === 'error'
-                ? 'Simpan Ulang'
-                : syncState === 'local_saved'
-                ? 'Lokal (Tertunda)'
-                : hasUnsavedChanges
-                ? 'Simpan'
-                : revision
-                ? `Tersimpan · v${revision}`
-                : 'Tersimpan'}
-            </span>
+            <Smartphone className={`w-3.5 h-3.5 ${!isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
+            <span>Mobile (390px)</span>
           </button>
 
           <button
             type="button"
-            onClick={onOpenPreview}
-            title="Pratinjau halaman"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-700 hover:bg-[#EFF7F4] hover:text-emerald-700 hover:border-emerald-200 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            onClick={() => handleSelectPresetWidth('wide')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              isWideViewport
+                ? 'bg-[#17243D] border-[#17243D] text-white'
+                : 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA]'
+            }`}
           >
-            <Eye className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Preview</span>
+            <Monitor className={`w-3.5 h-3.5 ${isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
+            <span>Lebar (680px)</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-slate-500 tabular-nums hidden 2xl:inline">
-            {blocks.length} elemen utama
+        <div className="hidden lg:flex items-center gap-2.5 shrink-0">
+          <span className="text-[11px] text-[#8FA4BF] font-mono tabular-nums">
+            {frameWidth}×{frameHeight}px
           </span>
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200/80 rounded-lg p-0.5">
+          <div className="flex items-center gap-0.5 bg-[#F0F5FA] border border-[#DCE5EF] rounded-lg p-0.5">
             {([0.5, 0.65, 0.75, 0.85, 1] as const).map((z) => (
               <button
                 key={z}
                 type="button"
                 onClick={() => setZoom(z)}
-                className={`px-2 py-0.5 rounded-md text-xs font-medium tabular-nums cursor-pointer ${
-                  zoom === z ? 'bg-emerald-500 text-white' : 'text-slate-600 hover:text-slate-900'
+                className={`px-2 py-0.5 rounded-md text-[11px] font-medium tabular-nums cursor-pointer transition-colors ${
+                  zoom === z
+                    ? 'bg-[#17243D] text-white'
+                    : 'text-[#5B708B] hover:text-[#17243D]'
                 }`}
               >
                 {Math.round(z * 100)}%
@@ -1709,29 +1642,29 @@ export function MobileCanvas({
           }}
           className={`shadow-xl transition-all shrink-0 overflow-hidden ${
             isWideViewport
-              ? 'rounded-2xl border border-slate-300'
-              : 'rounded-[32px] bg-slate-900 p-[6px]'
-          } ${dragOverRoot ? 'ring-4 ring-emerald-500/40' : ''}`}
+              ? 'rounded-2xl border border-[#DCE5EF] bg-white'
+              : 'rounded-[36px] bg-[#17243D] p-[7px] border border-[#223456]'
+          } ${dragOverRoot ? 'ring-4 ring-[#00C98A]/40' : ''}`}
         >
-          {/* Device Header: Desktop/Tablet Browser Bar or Sleek Phone Hardware Bezel */}
+          {/* Device Header: Desktop/Wide Browser Bar or Sleek Smartphone Bezel */}
           {isWideViewport ? (
-            <div className="h-9 px-4 bg-slate-100 border-b border-slate-200 flex items-center justify-between gap-3">
+            <div className="h-9 px-4 bg-[#F0F5FA] border-b border-[#DCE5EF] flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#00C98A]" />
               </div>
-              <div className="flex-1 max-w-sm mx-auto px-3 py-1 rounded-md bg-white border border-slate-200 text-[11px] text-slate-500 text-center truncate">
-                https://halaman-anda.lynk.id
+              <div className="flex-1 max-w-sm mx-auto px-3 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] text-[#5B708B] text-center truncate font-mono">
+                halaman-anda.lynk.id
               </div>
-              <span className="text-[10px] font-medium text-slate-400 tabular-nums shrink-0">
+              <span className="text-[10px] font-medium text-[#8FA4BF] font-mono tabular-nums shrink-0">
                 {frameWidth}×{frameHeight}
               </span>
             </div>
           ) : (
-            <div className="pt-1 pb-2 flex items-center justify-center gap-2 bg-slate-900">
-              <div className="w-12 h-1 rounded-full bg-slate-700" />
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+            <div className="pt-1.5 pb-2 flex items-center justify-center gap-2 bg-[#17243D]">
+              <div className="w-12 h-1 rounded-full bg-[#2B3F66]" />
+              <div className="w-1.5 h-1.5 rounded-full bg-[#2B3F66]" />
             </div>
           )}
 

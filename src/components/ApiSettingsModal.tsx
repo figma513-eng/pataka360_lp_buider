@@ -41,9 +41,10 @@ import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import { downloadTextFile } from '../utils/projectStorage';
 
 interface ApiSettingsModalProps {
-  onClose: () => void;
+  onClose?: () => void;
   onSaved?: (settings: ApiSettingsConfig) => void;
   onRestoreCompleted?: () => void;
+  asPage?: boolean;
 }
 
 type ApiTab = 'webhook' | 'public_api' | 'database';
@@ -75,7 +76,12 @@ const WEBHOOK_EVENT_OPTIONS: {
   },
 ];
 
-export function ApiSettingsModal({ onClose, onSaved, onRestoreCompleted }: ApiSettingsModalProps) {
+export function ApiSettingsModal({
+  onClose = () => {},
+  onSaved,
+  onRestoreCompleted,
+  asPage = false,
+}: ApiSettingsModalProps) {
   const [tab, setTab] = useState<ApiTab>('webhook');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -329,31 +335,34 @@ export function ApiSettingsModal({ onClose, onSaved, onRestoreCompleted }: ApiSe
     });
   };
 
-  return (
+  const cardContent = (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
-      onClick={onClose}
+      className={
+        asPage
+          ? 'bg-white w-full max-w-5xl mx-auto flex-1 min-h-0 rounded-2xl border border-[#DCE5EF] shadow-xs flex flex-col overflow-hidden'
+          : 'bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden'
+      }
+      onClick={(e) => {
+        if (!asPage) e.stopPropagation();
+      }}
     >
-      <div
-        className="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
-              <Settings2 className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-base font-bold text-slate-900 truncate">
-                Setting API, Webhook &amp; PostgreSQL
-              </h2>
-              <p className="text-xs text-slate-500 truncate mt-0.5">
-                Kelola REST API publik, integrasi webhook event, proteksi login, &amp; koneksi database.
-              </p>
-            </div>
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
+            <Settings2 className="w-5 h-5" />
           </div>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 truncate">
+              Setting API, Webhook &amp; PostgreSQL
+            </h2>
+            <p className="text-xs text-slate-500 truncate mt-0.5">
+              Kelola REST API publik, integrasi webhook event, proteksi login, &amp; koneksi database.
+            </p>
+          </div>
+        </div>
 
+        {!asPage && (
           <button
             type="button"
             onClick={onClose}
@@ -362,7 +371,8 @@ export function ApiSettingsModal({ onClose, onSaved, onRestoreCompleted }: ApiSe
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        )}
+      </div>
 
         {/* Navigation Tabs */}
         <div className="px-5 bg-slate-50/70 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
@@ -1081,13 +1091,15 @@ export function ApiSettingsModal({ onClose, onSaved, onRestoreCompleted }: ApiSe
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
-            >
-              Tutup
-            </button>
+            {!asPage && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+              >
+                Tutup
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void handleSave()}
@@ -1100,6 +1112,18 @@ export function ApiSettingsModal({ onClose, onSaved, onRestoreCompleted }: ApiSe
           </div>
         </div>
       </div>
+  );
+
+  if (asPage) {
+    return cardContent;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      onClick={onClose}
+    >
+      {cardContent}
     </div>
   );
 }

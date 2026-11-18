@@ -1,7 +1,11 @@
 import type http from 'node:http';
 import crypto from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { AccessRole, ProjectRecord } from '../types/builder.ts';
+import type {
+  AccessRole,
+  ProjectRecord,
+  UiAppearanceSettingsConfig,
+} from '../types/builder.ts';
 import type { StoredUserRecord } from '../db/repository.ts';
 
 export interface CollabPeerInfo {
@@ -55,6 +59,11 @@ export type CollabServerMessage =
   | {
       type: 'access:updated';
       targetUserId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'appearance:updated';
+      settings: UiAppearanceSettingsConfig;
       timestamp: number;
     }
   | {
@@ -388,6 +397,19 @@ export class CollabHub {
         if (!targetUserId || client.user.id === targetUserId) {
           sendJson(client.ws, payload);
         }
+      }
+    }
+  }
+
+  broadcastAppearanceUpdated(settings: UiAppearanceSettingsConfig): void {
+    const payload: CollabServerMessage = {
+      type: 'appearance:updated',
+      settings,
+      timestamp: Date.now(),
+    };
+    for (const client of this.clients) {
+      if (client.ws.readyState === WebSocket.OPEN) {
+        sendJson(client.ws, payload);
       }
     }
   }

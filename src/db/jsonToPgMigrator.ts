@@ -7,6 +7,7 @@ import type {
   AnalyticsEventRecord,
   ApiSettingsConfig,
   MediaAssetMeta,
+  UiAppearanceSettingsConfig,
   WebhookLogRecord,
 } from '../types/builder.ts';
 import {
@@ -21,6 +22,7 @@ import {
   normalizeServerSlug,
   resolveDataDir,
 } from './repository.ts';
+import { sanitizeUiAppearanceLabelsMap } from '../utils/uiAppearanceLabels.ts';
 import {
   type MigrationRunResult,
   type PgPoolLike,
@@ -109,6 +111,7 @@ export interface NormalizedDbSnapshot {
   analyticsEvents: AnalyticsEventRecord[];
   accessPolicy: NormalizedAccessPolicySnapshot | null;
   apiSettings: ApiSettingsConfig | null;
+  uiAppearanceSettings: UiAppearanceSettingsConfig | null;
   webhookLogs: WebhookLogRecord[];
   mediaAssets: NormalizedMediaSnapshot[];
 }
@@ -121,6 +124,7 @@ export interface TableDiffResult {
     | 'analytics_events'
     | 'access_policies'
     | 'api_settings'
+    | 'ui_appearance_settings'
     | 'webhook_logs'
     | 'media_assets';
   sourceCount: number;
@@ -171,6 +175,7 @@ export interface JsonToPgMigrationPlan {
     analyticsEvents: number;
     accessPolicies: number;
     apiSettings: number;
+    uiAppearanceSettings: number;
     webhookLogs: number;
     mediaAssets: number;
   };
@@ -276,6 +281,7 @@ export async function loadLocalJsonStoreReadOnly(storeFilePath: string): Promise
       events: Array.isArray(parsed.events) ? parsed.events : [],
       accessSettings: parsed.accessSettings,
       apiSettings: parsed.apiSettings,
+      uiAppearanceSettings: parsed.uiAppearanceSettings,
       webhookLogs: Array.isArray(parsed.webhookLogs) ? parsed.webhookLogs : [],
       mediaAssets: Array.isArray(parsed.mediaAssets) ? parsed.mediaAssets : [],
     },
@@ -516,6 +522,12 @@ export function buildSourceSnapshotFromJson(params: {
 
   const accessPolicy = normalizeAccessPolicy(params.store.accessSettings);
   const apiSettings = params.store.apiSettings ? { ...params.store.apiSettings } : null;
+  const uiAppearanceSettings: UiAppearanceSettingsConfig | null = params.store.uiAppearanceSettings
+    ? {
+        labels: sanitizeUiAppearanceLabelsMap(params.store.uiAppearanceSettings.labels),
+        updatedAt: Number(params.store.uiAppearanceSettings.updatedAt || 0),
+      }
+    : null;
   const webhookLogs = [...params.store.webhookLogs].sort((a, b) => a.id.localeCompare(b.id));
   const mediaAssets: NormalizedMediaSnapshot[] = params.mediaEntries
     .map((m) => ({
@@ -536,6 +548,7 @@ export function buildSourceSnapshotFromJson(params: {
     analyticsEvents,
     accessPolicy,
     apiSettings,
+    uiAppearanceSettings,
     webhookLogs,
     mediaAssets,
   };
@@ -667,6 +680,7 @@ export function buildMigrationPreFlightPlan(params: {
       analyticsEvents: params.store.events.length,
       accessPolicies: params.store.accessSettings ? 1 : 0,
       apiSettings: params.store.apiSettings ? 1 : 0,
+      uiAppearanceSettings: params.store.uiAppearanceSettings ? 1 : 0,
       webhookLogs: params.store.webhookLogs.length,
       mediaAssets: params.mediaReport.entries.length,
     },
@@ -935,6 +949,25 @@ export async function compareNormalizedSnapshots(params: {
     }
   }
 
+  const uiAppearanceDiff = diffRecordSets({
+    table: 'ui_appearance_settings',
+    sourceItems: params.source.uiAppearanceSettings
+      ? [{ id: 'default', ...params.source.uiAppearanceSettings }]
+      : [],
+    targetItems: params.target.uiAppearanceSettings
+      ? [{ id: 'default', ...params.target.uiAppearanceSettings }]
+      : [],
+    getId: (u) => u.id,
+    compareFields: (s, t) => {
+      const diffs: string[] = [];
+      if (stableCanonicalJson(s.labels) !== stableCanonicalJson(t.labels)) {
+        diffs.push('labels');
+      }
+      if (s.updatedAt !== t.updatedAt) diffs.push('updatedAt');
+      return diffs;
+    },
+  });
+
   const tables: IntegrityComparisonReport['tables'] = {
     users: usersDiff,
     sessions: sessionsDiff,
@@ -942,6 +975,7 @@ export async function compareNormalizedSnapshots(params: {
     analytics_events: analyticsDiff,
     access_policies: accessPoliciesDiff,
     api_settings: apiSettingsDiff,
+    ui_appearance_settings: uiAppearanceDiff,
     webhook_logs: webhookLogsDiff,
     media_assets: mediaAssetsDiff,
   };
@@ -981,7 +1015,7 @@ export async function readPostgresSnapshot(
   try {
     await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
     try {
-      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes, uiRes] = await Promise.all([
         client.query<Record<string, unknown>>('SELECT * FROM users ORDER BY id ASC'),
         client.query<Record<string, unknown>>('SELECT * FROM projects ORDER BY id ASC'),
         client.query<Record<string, unknown>>('SELECT * FROM analytics_events ORDER BY id ASC'),
@@ -996,6 +1030,9 @@ export async function readPostgresSnapshot(
         includeSessions
           ? client.query<Record<string, unknown>>('SELECT * FROM sessions ORDER BY token_hash ASC')
           : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+        client.query<Record<string, unknown>>(
+          `SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`
+        ),
       ]);
       await client.query('COMMIT');
 
@@ -1123,6 +1160,14 @@ export async function readPostgresSnapshot(
         createdAt: Number(r.created_at),
       }));
 
+      const uiRow = uiRes.rows[0];
+      const uiAppearanceSettings: UiAppearanceSettingsConfig | null = uiRow
+        ? {
+            labels: sanitizeUiAppearanceLabelsMap(uiRow.labels_json),
+            updatedAt: Number(uiRow.updated_at || 0),
+          }
+        : null;
+
       return {
         users,
         sessions,
@@ -1130,6 +1175,7 @@ export async function readPostgresSnapshot(
         analyticsEvents,
         accessPolicy,
         apiSettings,
+        uiAppearanceSettings,
         webhookLogs,
         mediaAssets,
       };
@@ -1340,6 +1386,19 @@ export async function migrateJsonToPostgres(params: {
             Boolean(api.autoPublishOnSave),
             Number(api.updatedAt || now),
           ]
+        );
+      }
+
+      // 3b. UI Appearance Settings
+      if (sourceSnapshot.uiAppearanceSettings) {
+        const ui = sourceSnapshot.uiAppearanceSettings;
+        await client.query(
+          `INSERT INTO ui_appearance_settings (id, labels_json, updated_at)
+           VALUES ('default', $1::jsonb, $2)
+           ON CONFLICT (id) DO UPDATE SET
+             labels_json = EXCLUDED.labels_json,
+             updated_at = EXCLUDED.updated_at`,
+          [JSON.stringify(ui.labels || {}), Number(ui.updatedAt || now)]
         );
       }
 

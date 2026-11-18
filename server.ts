@@ -39,6 +39,7 @@ import {
   getProjectEntryById,
   getProjectEntryBySlug,
   getSessionUserByToken,
+  getUiAppearanceSettings,
   getUserByEmail,
   hashPassword,
   insertAnalyticsEvent,
@@ -51,6 +52,7 @@ import {
   registerUserAtomically,
   saveAccessSettings,
   saveApiSettings,
+  saveUiAppearanceSettings,
   toPublicAuthUser,
   updateUserLoginTime,
   upsertMediaAssetMeta,
@@ -948,36 +950,6 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
 
       const newUser = regResult.user;
 
-      if (regResult.isFirstUser) {
-        const access = await getAccessSettings();
-        const cleanedMembers = access.members.filter(
-          (m) =>
-            m.id !== newUser.id &&
-            m.email.toLowerCase() !== newUser.email &&
-            m.id !== 'owner-super-admin'
-        );
-        await saveAccessSettings({
-          ...access,
-          allUsersSuperAdmin: false,
-          autoGrantSuperAdminOnJoin: false,
-          defaultRole: access.defaultRole === 'editor' ? 'editor' : 'viewer',
-          activeMemberId: newUser.id,
-          members: [
-            {
-              id: newUser.id,
-              name: newUser.name,
-              email: newUser.email,
-              role: newUser.role,
-              isActive: newUser.isActive,
-              unitScope: newUser.unitScope,
-              permissions: newUser.permissions,
-              createdAt: newUser.createdAt,
-            },
-            ...cleanedMembers,
-          ],
-        });
-      }
-
       const { rawToken, expiresAt } = await createSession({
         userId: newUser.id,
         userAgent: String(req.headers['user-agent'] || ''),
@@ -1864,7 +1836,16 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           );
           return prev?.role === 'super_admin';
         });
-        if (touchesSuperAdmin) {
+        const deletedSuperAdmin = existingUsers.some(
+          (u) =>
+            u.role === 'super_admin' &&
+            !raw.members.some(
+              (m) =>
+                m.id === u.id ||
+                String(m.email || '').toLowerCase() === u.email.toLowerCase()
+            )
+        );
+        if (touchesSuperAdmin || deletedSuperAdmin) {
           return res.status(403).json({
             error: 'Hanya Super Admin yang dapat mengelola akun atau peran Super Admin.',
             code: 'FORBIDDEN',
@@ -1928,6 +1909,59 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
       }
       const updated = await saveApiSettings(body);
       return res.json({ ok: true, settings: updated });
+    })
+  );
+
+  // ============================================================
+  // UI Appearance Labels ("Tampilan")
+  // ============================================================
+  app.get(
+    '/api/settings/appearance',
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const api = await getApiSettings();
+      if (api.requireAuthForBuilder && !req.authUser) {
+        return res.status(401).json({
+          error: 'Sesi login diperlukan untuk mengakses tampilan aplikasi.',
+          code: 'AUTH_REQUIRED',
+        });
+      }
+      if (req.authUser && !req.authUser.isActive) {
+        return res.status(403).json({
+          error: 'Akun Anda berstatus nonaktif. Hubungi Super Admin.',
+          code: 'ACCOUNT_DISABLED',
+        });
+      }
+      const settings = await getUiAppearanceSettings();
+      return res.json({ settings });
+    })
+  );
+
+  app.put(
+    '/api/settings/appearance',
+    requireAuthenticatedAccess('access_control'),
+    asyncHandler(async (req, res) => {
+      const body = (req.body || {}) as {
+        labels?: unknown;
+        patch?: unknown;
+        resetAll?: unknown;
+      };
+      const isResetAll = body.resetAll === true;
+      const hasLabels =
+        Boolean(body.labels) && typeof body.labels === 'object' && !Array.isArray(body.labels);
+      const hasPatch =
+        Boolean(body.patch) && typeof body.patch === 'object' && !Array.isArray(body.patch);
+
+      if (!isResetAll && !hasLabels && !hasPatch) {
+        return res.status(400).json({ error: 'Payload pengaturan tampilan tidak valid.' });
+      }
+
+      const saved = await saveUiAppearanceSettings({
+        resetAll: isResetAll,
+        labels: hasLabels ? (body.labels as Record<string, string>) : undefined,
+        patch: hasPatch ? (body.patch as Record<string, string>) : undefined,
+      });
+      collabHub.broadcastAppearanceUpdated(saved);
+      return res.json({ ok: true, settings: saved });
     })
   );
 
@@ -2045,6 +2079,7 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
       publicPageCache.clear();
       collabHub.updateConnectedUsers(await listUsers());
       collabHub.broadcastAccessUpdated();
+      collabHub.broadcastAppearanceUpdated(await getUiAppearanceSettings());
       return res.json(result);
     })
   );
@@ -2102,6 +2137,7 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
       publicPageCache.clear();
       collabHub.updateConnectedUsers(await listUsers());
       collabHub.broadcastAccessUpdated();
+      collabHub.broadcastAppearanceUpdated(await getUiAppearanceSettings());
       return res.json(result);
     })
   );

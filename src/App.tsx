@@ -1,20 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TopBar } from './components/TopBar';
+import { TopBar, WorkspacePageId } from './components/TopBar';
 import { LeftSidebar } from './components/LeftSidebar';
 import { MobileCanvas } from './components/MobileCanvas';
 import { RightInspector } from './components/RightInspector';
 import { DomainAndAdsModal } from './components/DomainAndAdsModal';
 import { WaTrafficDashboardModal } from './components/WaTrafficDashboardModal';
-import { AccessSettingsModal } from './components/AccessSettingsModal';
-import { ApiSettingsModal } from './components/ApiSettingsModal';
+import { BusinessSettingsPage } from './components/BusinessSettingsPage';
+import { SystemSettingsPage, SystemTabId } from './components/SystemSettingsPage';
 import { LoginPage } from './components/LoginPage';
-import {
-  CodeModal,
-  ImportModal,
-  ImportedPayload,
-  PreviewModal,
-  ProjectsModal,
-} from './components/Modals';
+import { ImportedPayload, PreviewModal } from './components/Modals';
+import { getBlockThemeStatus, getDefaultBlockBgForTheme } from './utils/blockThemeHelpers';
 import {
   AccessRole,
   AccessSettingsConfig,
@@ -29,6 +24,7 @@ import {
   ProjectPublishingConfig,
   ProjectRecord,
   ServerSyncState,
+  UiAppearanceSettingsConfig,
   WorkspaceBundle,
 } from './types/builder';
 import {
@@ -80,10 +76,12 @@ import {
   clearStoredAuthToken,
   fetchAuthMe,
   fetchProjectsFromServer,
+  fetchUiAppearanceSettingsFromServer,
   logoutUser,
 } from './utils/authClient';
 import { copyTextToClipboard } from './utils/clipboardHelpers';
 import { CollabPeer, CollabSocketClient } from './utils/collabClient';
+import { UiLabelsProvider } from './contexts/UiLabelsContext';
 
 function mergeServerAndLocalWorkspace(
   localWs: WorkspaceBundle,
@@ -228,7 +226,6 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(
     () => workspace.projects[0]?.project.blocks[0]?.id ?? null
   );
-  const [copied, setCopied] = useState(false);
   const [copyWarning, setCopyWarning] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -242,6 +239,8 @@ export default function App() {
   } | null>(null);
   const retryBackoffRef = useRef(5000);
   const retryTimerRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const lastKeepaliveFlushRef = useRef('');
   const latestProjectUpdatedAtRef = useRef<Record<string, number>>({});
   const lastBackgroundSyncAtRef = useRef(0);
   const backgroundSyncInFlightRef = useRef(false);
@@ -257,16 +256,16 @@ export default function App() {
     updatedByName: string;
   } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [showCode, setShowCode] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showProjects, setShowProjects] = useState(false);
-  const [showDomainAds, setShowDomainAds] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false);
-  const [showAccessSettings, setShowAccessSettings] = useState(false);
-  const [showApiSettings, setShowApiSettings] = useState(false);
+  const [activePage, setActivePage] = useState<WorkspacePageId>('editor');
+  const [systemSubTab, setSystemSubTab] = useState<SystemTabId>('daftar_usaha');
+  const [navbarFocusNonce, setNavbarFocusNonce] = useState<number>(0);
   const [accessSettings, setAccessSettings] = useState<AccessSettingsConfig>(() =>
     createDefaultAccessSettings()
   );
+  const [uiAppearanceSettings, setUiAppearanceSettings] = useState<UiAppearanceSettingsConfig>({
+    labels: {},
+    updatedAt: 0,
+  });
   const [inspectorMode, setInspectorMode] = useState<'element' | 'navbar'>('element');
   const [activeNavItemId, setActiveNavItemId] = useState<string>('nav_galeri');
   const [pendingCreatedIds, setPendingCreatedIds] = useState<string[]>([]);
@@ -275,6 +274,33 @@ export default function App() {
     () => resolveEffectivePermissions(accessSettings, authUser),
     [accessSettings, authUser]
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activePage === 'analitik' && !effectivePermissions.analytics) {
+      setActivePage('editor');
+    } else if (
+      activePage === 'ads' &&
+      !effectivePermissions.ads_wa &&
+      !effectivePermissions.publishing
+    ) {
+      setActivePage('editor');
+    } else if (
+      activePage === 'setting_sistem' &&
+      !effectivePermissions.publishing &&
+      !effectivePermissions.access_control &&
+      !effectivePermissions.export_backup &&
+      !effectivePermissions.projects
+    ) {
+      setActivePage('editor');
+    }
+  }, [activePage, effectivePermissions]);
 
   const visibleProjects = useMemo(() => {
     if (!authUser) {
@@ -336,21 +362,29 @@ export default function App() {
 
     let serverProjects: ProjectRecord[] | null = null;
     let loadedAccess: AccessSettingsConfig = createDefaultAccessSettings();
+    let loadedAppearance: UiAppearanceSettingsConfig | null = null;
 
     if (user) {
       const canAccessControl =
         user.role === 'super_admin' || Boolean(user.permissions?.access_control);
-      const [fetchedProjects, fetchedAccess] = await Promise.all([
+      const [fetchedProjects, fetchedAccess, fetchedAppearance] = await Promise.all([
         fetchProjectsFromServer(),
         canAccessControl ? fetchAccessSettings() : Promise.resolve(createDefaultAccessSettings()),
+        fetchUiAppearanceSettingsFromServer(),
       ]);
       serverProjects = fetchedProjects;
       loadedAccess = fetchedAccess;
+      loadedAppearance = fetchedAppearance;
+    } else {
+      loadedAppearance = await fetchUiAppearanceSettingsFromServer();
     }
 
     const merged = mergeServerAndLocalWorkspace(idbRes.workspace, serverProjects, user);
     isHydratedRef.current = true;
     setAccessSettings(loadedAccess);
+    if (loadedAppearance) {
+      setUiAppearanceSettings(loadedAppearance);
+    }
 
     if (!hasUserMutatedBeforeHydrationRef.current) {
       setWorkspace(merged);
@@ -448,13 +482,12 @@ export default function App() {
     setWorkspace(cleanAnon);
     setSelectedId(cleanAnon.projects[0]?.project.blocks[0]?.id ?? null);
     setAccessSettings(createDefaultAccessSettings());
-    setShowAccessSettings(false);
-    setShowApiSettings(false);
-    setShowDashboard(false);
-    setShowDomainAds(false);
-    setShowProjects(false);
+    setActivePage('editor');
+    setSystemSubTab('daftar_usaha');
     const me = await refreshAuthMeta();
-    if (!me.requireAuthForBuilder) {
+    if (me.requireAuthForBuilder) {
+      setUiAppearanceSettings({ labels: {}, updatedAt: 0 });
+    } else {
       setForceLoginView(true);
     }
   };
@@ -658,20 +691,8 @@ export default function App() {
   const handleOpenNavbarSettings = (itemId?: string) => {
     setSelectedId(null);
     setInspectorMode('navbar');
+    setNavbarFocusNonce((n) => n + 1);
     if (itemId) setActiveNavItemId(itemId);
-  };
-
-  const handleActivateNavbar = () => {
-    if (!effectivePermissions.editor) return;
-    commitProject((prev) => {
-      const curNav = resolveBottomNavbar(prev);
-      return {
-        ...prev,
-        bottomNavbar: { ...curNav, enabled: true },
-      };
-    });
-    setSelectedId(null);
-    setInspectorMode('navbar');
   };
 
   const handleUpdateBottomNavbar = (updater: (prev: BottomNavbarConfig) => BottomNavbarConfig) => {
@@ -796,46 +817,101 @@ export default function App() {
     const eq = (a?: string, b?: string) =>
       Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 
-    return blocks.map((blk) => ({
-      ...blk,
-      style: {
-        ...blk.style,
-        textColor:
-          blk.style.useThemeTextColor !== false || eq(blk.style.textColor, prevTheme.textColor)
-            ? nextTheme.textColor
-            : blk.style.textColor,
-        backgroundColor: eq(blk.style.backgroundColor, prevTheme.cardBg)
-          ? nextTheme.cardBg
-          : blk.style.backgroundColor,
-        borderColor: eq(blk.style.borderColor, prevTheme.borderColor)
+    return blocks.map((blk) => {
+      const status = getBlockThemeStatus(blk, prevTheme);
+      const isLocal = blk.style.themeOverrideMode === 'local';
+
+      if (isLocal) {
+        const nextTextColor = !status.tokens.textColor
+          ? nextTheme.textColor
+          : blk.style.textColor;
+        const nextBgColor =
+          !status.tokens.backgroundColor && blk.style.backgroundColor !== 'transparent'
+            ? getDefaultBlockBgForTheme(blk, nextTheme)
+            : blk.style.backgroundColor;
+        const nextBorderColor = !status.tokens.borderColor
           ? nextTheme.borderColor
-          : blk.style.borderColor,
-      },
-      content: {
-        ...blk.content,
-        buttonBg: eq(blk.content.buttonBg, prevTheme.accentColor)
-          ? nextTheme.accentColor
-          : blk.content.buttonBg,
-        buttonColor: eq(blk.content.buttonColor, prevTheme.accentColor)
-          ? nextTheme.accentColor
-          : blk.content.buttonColor,
-        toggleButtonBg: eq(blk.content.toggleButtonBg, prevTheme.accentColor)
-          ? nextTheme.accentColor
-          : blk.content.toggleButtonBg,
-        sheetTriggerBg: eq(blk.content.sheetTriggerBg, prevTheme.accentColor)
-          ? nextTheme.accentColor
-          : blk.content.sheetTriggerBg,
-        socialColor: eq(blk.content.socialColor, prevTheme.accentColor)
-          ? nextTheme.accentColor
-          : blk.content.socialColor,
-        lineColor: eq(blk.content.lineColor, prevTheme.borderColor)
-          ? nextTheme.borderColor
-          : blk.content.lineColor,
-      },
-      children: blk.children
-        ? remapBlocksForTheme(blk.children, prevTheme, nextTheme)
-        : undefined,
-    }));
+          : blk.style.borderColor;
+        const nextAccent = (val?: string) =>
+          !status.tokens.accentColor && eq(val, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : val;
+
+        return {
+          ...blk,
+          style: {
+            ...blk.style,
+            textColor: nextTextColor,
+            backgroundColor: nextBgColor,
+            borderColor: nextBorderColor,
+          },
+          content: {
+            ...blk.content,
+            buttonBg: nextAccent(blk.content.buttonBg),
+            buttonColor: nextAccent(blk.content.buttonColor),
+            toggleButtonBg: nextAccent(blk.content.toggleButtonBg),
+            sheetTriggerBg: nextAccent(blk.content.sheetTriggerBg),
+            socialColor: nextAccent(blk.content.socialColor),
+            fnbAccentColor: nextAccent(blk.content.fnbAccentColor),
+            categoryActiveBg: nextAccent(blk.content.categoryActiveBg),
+            lineColor:
+              !status.tokens.borderColor && eq(blk.content.lineColor, prevTheme.borderColor)
+                ? nextTheme.borderColor
+                : blk.content.lineColor,
+          },
+          children: blk.children
+            ? remapBlocksForTheme(blk.children, prevTheme, nextTheme)
+            : undefined,
+        };
+      }
+
+      return {
+        ...blk,
+        style: {
+          ...blk.style,
+          textColor:
+            blk.style.useThemeTextColor !== false || eq(blk.style.textColor, prevTheme.textColor)
+              ? nextTheme.textColor
+              : blk.style.textColor,
+          backgroundColor: eq(blk.style.backgroundColor, prevTheme.cardBg)
+            ? nextTheme.cardBg
+            : blk.style.backgroundColor,
+          borderColor: eq(blk.style.borderColor, prevTheme.borderColor)
+            ? nextTheme.borderColor
+            : blk.style.borderColor,
+        },
+        content: {
+          ...blk.content,
+          buttonBg: eq(blk.content.buttonBg, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.buttonBg,
+          buttonColor: eq(blk.content.buttonColor, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.buttonColor,
+          toggleButtonBg: eq(blk.content.toggleButtonBg, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.toggleButtonBg,
+          sheetTriggerBg: eq(blk.content.sheetTriggerBg, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.sheetTriggerBg,
+          socialColor: eq(blk.content.socialColor, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.socialColor,
+          fnbAccentColor: eq(blk.content.fnbAccentColor, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.fnbAccentColor,
+          categoryActiveBg: eq(blk.content.categoryActiveBg, prevTheme.accentColor)
+            ? nextTheme.accentColor
+            : blk.content.categoryActiveBg,
+          lineColor: eq(blk.content.lineColor, prevTheme.borderColor)
+            ? nextTheme.borderColor
+            : blk.content.lineColor,
+        },
+        children: blk.children
+          ? remapBlocksForTheme(blk.children, prevTheme, nextTheme)
+          : undefined,
+      };
+    });
   };
 
   const handleSelectTheme = (theme: PageTheme) => {
@@ -1134,9 +1210,10 @@ export default function App() {
         const canAccessControl =
           nextUser.role === 'super_admin' || Boolean(nextUser.permissions?.access_control);
 
-        const [serverProjects, fetchedAccess] = await Promise.all([
+        const [serverProjects, fetchedAccess, fetchedAppearance] = await Promise.all([
           fetchProjectsFromServer(),
           canAccessControl ? fetchAccessSettings() : Promise.resolve(null),
+          fetchUiAppearanceSettingsFromServer(),
         ]);
 
         setAuthUser((prev) => {
@@ -1154,6 +1231,14 @@ export default function App() {
 
         if (fetchedAccess) {
           setAccessSettings(fetchedAccess);
+        }
+        if (fetchedAppearance) {
+          setUiAppearanceSettings((prev) =>
+            prev.updatedAt === fetchedAppearance.updatedAt &&
+            JSON.stringify(prev.labels) === JSON.stringify(fetchedAppearance.labels)
+              ? prev
+              : fetchedAppearance
+          );
         }
 
         if (serverProjects) {
@@ -1314,6 +1399,9 @@ export default function App() {
       onAccessUpdated: () => {
         void syncFromServerQuietly(true);
       },
+      onAppearanceUpdated: (settings) => {
+        setUiAppearanceSettings(settings);
+      },
       onReconnected: () => {
         void syncFromServerQuietly(true);
       },
@@ -1401,13 +1489,85 @@ export default function App() {
         !isSaving &&
         syncState !== 'conflict'
       ) {
+        if (retryTimerRef.current !== null) {
+          window.clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
         void saveWorkspaceScoped(workspace, authUser.id);
-        const html = generateProjectHtml(activeRecord.project, { projectId: activeRecord.id });
-        const approxSize = html.length + JSON.stringify(activeRecord).length;
+        const flushKey = `${activeRecord.id}:${activeRecord.updatedAt}`;
+        if (lastKeepaliveFlushRef.current === flushKey) {
+          return;
+        }
+        const snapshot = activeRecord;
+        const html = generateProjectHtml(snapshot.project, { projectId: snapshot.id });
+        const approxSize = html.length + JSON.stringify(snapshot).length;
         if (approxSize < 56_000) {
-          void saveProjectToServer(activeRecord, html, false, { keepalive: true });
+          lastKeepaliveFlushRef.current = flushKey;
+          void saveProjectToServer(snapshot, html, false, { keepalive: true }).then((res) => {
+            if (!mountedRef.current) return;
+            if (res.ok) {
+              const savedAt = res.savedAt || Date.now();
+              const nextRev = res.revision ?? snapshot.revision ?? 1;
+              const nextPublished =
+                typeof res.isPublished === 'boolean'
+                  ? res.isPublished
+                  : Boolean(snapshot.project.publishing?.isPublished);
+              setWorkspace((prev) => ({
+                ...prev,
+                projects: prev.projects.map((p) => {
+                  if (p.id !== snapshot.id) return p;
+                  if (p.updatedAt > snapshot.updatedAt) {
+                    return {
+                      ...p,
+                      revision: nextRev,
+                      lastSavedAt: savedAt,
+                      project: {
+                        ...p.project,
+                        publishing: {
+                          ...resolveProjectPublishing(p.project),
+                          slug: res.slug || resolveProjectPublishing(p.project).slug,
+                          isPublished: nextPublished,
+                        },
+                      },
+                    };
+                  }
+                  return {
+                    ...p,
+                    revision: nextRev,
+                    updatedAt: savedAt,
+                    lastSavedAt: savedAt,
+                    project: {
+                      ...p.project,
+                      publishing: {
+                        ...resolveProjectPublishing(p.project),
+                        slug: res.slug || resolveProjectPublishing(p.project).slug,
+                        isPublished: nextPublished,
+                      },
+                    },
+                  };
+                }),
+              }));
+              const editedDuringSave =
+                (latestProjectUpdatedAtRef.current[snapshot.id] ?? 0) > snapshot.updatedAt;
+              setSyncState(editedDuringSave ? 'pending' : 'server_saved');
+              setSyncError(null);
+            } else {
+              if (lastKeepaliveFlushRef.current === flushKey) {
+                lastKeepaliveFlushRef.current = '';
+              }
+              if (res.conflict) {
+                setSyncState('conflict');
+                setSyncError(res.error || 'Konflik revisi dengan versi server.');
+                setConflictState({
+                  localRecord: snapshot,
+                  serverRecord: res.serverRecord,
+                  currentRevision: res.currentRevision,
+                });
+              }
+            }
+          });
         } else {
-          void persistActiveRecord(activeRecord, false);
+          void persistActiveRecord(snapshot, false);
         }
       }
     };
@@ -1511,6 +1671,44 @@ export default function App() {
     return res;
   };
 
+  const handleSaveBusinessSettings = async ({
+    title,
+    nextPublishing,
+    publishNow,
+  }: {
+    title: string;
+    nextPublishing: ProjectPublishingConfig;
+    publishNow: boolean;
+  }): Promise<{ ok: boolean; error?: string }> => {
+    if (!activeRecord) {
+      return { ok: false, error: 'Tidak ada unit usaha aktif dalam cakupan akun Anda.' };
+    }
+    if (!effectivePermissions.editor && !effectivePermissions.publishing) {
+      return { ok: false, error: 'Akun Anda tidak memiliki izin pengaturan usaha.' };
+    }
+    const now = Date.now();
+    const updatedProject: BuilderProject = {
+      ...activeRecord.project,
+      title,
+      publishing: effectivePermissions.publishing ? nextPublishing : activeRecord.project.publishing,
+    };
+    const updatedRecord: ProjectRecord = {
+      ...activeRecord,
+      project: updatedProject,
+      updatedAt: now,
+    };
+    const res = await persistActiveRecord(updatedRecord, publishNow);
+    if (res.ok) {
+      showSaveToast(
+        'ok',
+        publishNow
+          ? `Unit usaha tayang di /p/${nextPublishing.slug}`
+          : 'Pengaturan identitas & publikasi usaha tersimpan.'
+      );
+    }
+    return res;
+  };
+
   const handleSaveAccessSettings = async (nextSettings: AccessSettingsConfig) => {
     const res = await saveAccessSettings(nextSettings);
     setAccessSettings(res.settings);
@@ -1601,10 +1799,10 @@ export default function App() {
     const ok = await copyTextToClipboard(html);
     if (ok) {
       setCopyWarning(null);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      showSaveToast('ok', 'Kode HTML berhasil disalin ke clipboard.');
     } else {
-      setShowCode(true);
+      setSystemSubTab('backup_html');
+      setActivePage('setting_sistem');
       setCopyWarning('Browser membatasi akses clipboard otomatis. Gunakan tombol Salin Kode atau Unduh .html.');
       setTimeout(() => setCopyWarning(null), 4000);
     }
@@ -1658,59 +1856,83 @@ export default function App() {
     );
   }
 
-  return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#F7F9F8] text-slate-800 relative">
-      <TopBar
-        projectTitle={project?.title ?? 'Belum Ada Unit Usaha'}
-        projectSlug={activePublishing?.slug ?? ''}
-        isPublished={activePublishing?.isPublished ?? false}
-        projectCount={visibleProjects.length}
-        permissions={effectivePermissions}
-        authUser={authUser}
-        activePeers={remotePeers}
-        onChangeTitle={(title) => commitProject((prev) => ({ ...prev, title }))}
-        onOpenProjects={() => setShowProjects(true)}
-        onOpenDomainAndAds={() => {
-          if (activeRecord && (effectivePermissions.publishing || effectivePermissions.ads_wa)) {
-            setShowDomainAds(true);
-          }
-        }}
-        onOpenDashboard={() => {
-          if (effectivePermissions.analytics) {
-            setShowDashboard(true);
-          }
-        }}
-        onOpenAccessSettings={() => {
-          if (effectivePermissions.access_control) {
-            setShowAccessSettings(true);
-          }
-        }}
-        onOpenApiSettings={() => {
-          if (effectivePermissions.access_control) {
-            setShowApiSettings(true);
-          }
-        }}
-        onOpenLogin={() => setForceLoginView(true)}
-        onLogout={() => void handleLogout()}
-        isAllSuperAdmin={false}
-        onOpenImport={() => {
-          if (effectivePermissions.export_backup) setShowImport(true);
-        }}
-        onBackup={handleBackup}
-        onCopyHtml={handleCopyHtml}
-        onOpenCode={() => {
-          if (activeRecord && effectivePermissions.export_backup) setShowCode(true);
-        }}
-        copied={copied}
-      />
+  const renderMainWorkspace = () => {
+    if (activePage === 'analitik' && effectivePermissions.analytics) {
+      return (
+        <WaTrafficDashboardModal
+          asPage
+          projects={visibleProjects}
+          activeProjectId={activeRecord?.id ?? ''}
+          onSelectProject={handleSelectProject}
+          onOpenDomainSettings={(id) => {
+            handleSelectProject(id);
+            if (effectivePermissions.publishing) {
+              setSystemSubTab('domain');
+              setActivePage('setting_sistem');
+            } else if (effectivePermissions.ads_wa) {
+              setActivePage('ads');
+            }
+          }}
+        />
+      );
+    }
 
-      {!activeRecord || !project || !bottomNavbar ? (
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-3 shadow-xs">
-            <h2 className="text-base font-bold text-slate-900">
+    if (activePage === 'setting_sistem') {
+      return (
+        <SystemSettingsPage
+          activeTab={systemSubTab}
+          onChangeTab={setSystemSubTab}
+          permissions={effectivePermissions}
+          projects={visibleProjects}
+          activeRecord={activeRecord}
+          accessSettings={accessSettings}
+          demoModeAvailable={authMeta.demoModeAvailable}
+          onDemoSeeded={async () => {
+            await refreshAuthMeta();
+          }}
+          onSaveAccessSettings={handleSaveAccessSettings}
+          onAccessSettingsSynced={(next) => setAccessSettings(next)}
+          onApiSaved={(nextApi) => {
+            setRequireAuthForBuilder(nextApi.requireAuthForBuilder);
+          }}
+          onRestoreCompleted={() => {
+            hasUserMutatedBeforeHydrationRef.current = false;
+            isHydratedRef.current = false;
+            void hydrateWorkspaceAndSettings(authUser);
+          }}
+          onSelectProject={handleSelectProject}
+          onCreateProject={handleCreateProject}
+          onDuplicateProject={handleDuplicateProject}
+          onDeleteProject={handleDeleteProject}
+          onDownloadHtml={handleDownloadHtml}
+          onBackupProject={handleBackup}
+          onBackupAll={handleBackupAll}
+          onCopyHtml={() => void handleCopyHtml()}
+          onImportData={handleImportData}
+          onApplyDomainAndAds={handleApplyDomainAndAds}
+          onNavigateToAds={() => {
+            if (effectivePermissions.ads_wa || effectivePermissions.publishing) {
+              setActivePage('ads');
+            }
+          }}
+          onNavigateToDashboard={() => {
+            if (effectivePermissions.analytics) {
+              setActivePage('analitik');
+            }
+          }}
+          onNavigateToEditor={() => setActivePage('editor')}
+        />
+      );
+    }
+
+    if (!activeRecord || !project || !bottomNavbar) {
+      return (
+        <div className="flex-1 flex items-center justify-center p-6 bg-[#F0F5FA]">
+          <div className="max-w-md w-full bg-white rounded-2xl border border-[#DCE5EF] p-6 text-center space-y-3 shadow-xs">
+            <h2 className="text-base font-bold text-[#17243D]">
               Belum Ada Unit Usaha di Cakupan Akun Anda
             </h2>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-xs text-[#51637D] leading-relaxed">
               Akun Anda aktif dengan peran terbatas dan belum diberikan akses ke proyek mana pun. Hubungi Super Admin untuk menetapkan Unit Usaha ke akun Anda.
             </p>
             <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
@@ -1718,7 +1940,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => void syncFromServerQuietly(true)}
-                  className="px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-[#00C98A]/40 bg-[#ECFDF6] hover:bg-[#D1FAE5] text-[#17243D] text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cek Ulang Akses &amp; Unit Usaha
                 </button>
@@ -1727,7 +1949,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => handleCreateProject('template')}
-                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Buat Unit Usaha Baru
                 </button>
@@ -1736,7 +1958,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
-                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-[#17243D] text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Keluar Akun
                 </button>
@@ -1744,170 +1966,161 @@ export default function App() {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="flex-1 flex overflow-hidden">
-          <LeftSidebar
-            blocks={project.blocks}
-            selectedId={selectedId}
-            currentTheme={project.theme}
-            onAddBlock={(type) => handleAddBlock(type)}
-            onAddSection={(section) => handleAddSection(section)}
-            onSelectTheme={handleSelectTheme}
-            onSelectBlock={handleSelectBlock}
-            onMoveBlock={handleMoveBlock}
-            onReorderBlock={handleReorderBlock}
-            onDeleteBlock={handleDeleteBlock}
-            bottomNavbarEnabled={bottomNavbar.enabled}
-            onActivateNavbar={handleActivateNavbar}
-          />
+      );
+    }
 
-          <MobileCanvas
-            blocks={project.blocks}
-            theme={project.theme}
-            advanceOptions={project.advanceOptions}
-            bottomNavbar={bottomNavbar}
-            inspectorMode={inspectorMode}
-            selectedId={selectedId}
-            hasUnsavedChanges={hasUnsavedChanges}
-            isSaving={isSaving}
-            syncState={syncState}
-            syncError={syncError}
-            revision={activeRecord.revision}
-            remotePeersByBlock={remotePeersByBlock}
-            onSaveProject={() => void handleSaveProject()}
-            onOpenPreview={() => setShowPreview(true)}
-            onSelectBlock={handleSelectBlock}
-            onOpenNavbarSettings={handleOpenNavbarSettings}
-            onMoveBlock={handleMoveBlock}
-            onDuplicateBlock={handleDuplicateBlock}
-            onDeleteBlock={handleDeleteBlock}
-            onToggleFullBleed={(id) =>
-              handleUpdateBlock(id, (blk) => {
-                const nextFull = !blk.style.fullBleed;
-                return {
-                  ...blk,
-                  style: {
-                    ...blk.style,
-                    fullBleed: nextFull,
-                    widthPercent: nextFull ? 100 : blk.style.widthPercent,
-                  },
-                };
-              })
-            }
-            onDropNewBlock={handleAddBlock}
-            onDropSection={handleDropSectionById}
-            onReorderBlock={handleReorderBlock}
-          />
+    if (activePage === 'ads' && (effectivePermissions.ads_wa || effectivePermissions.publishing)) {
+      return (
+        <DomainAndAdsModal
+          asPage
+          visibleTabs={['pixels', 'wa_addon']}
+          initialTab="pixels"
+          activeRecord={activeRecord}
+          allProjects={visibleProjects}
+          onApplySettings={handleApplyDomainAndAds}
+        />
+      );
+    }
 
-          <RightInspector
-            selectedBlock={selectedBlock}
-            theme={project.theme}
-            advanceOptions={project.advanceOptions}
-            bottomNavbar={bottomNavbar}
-            inspectorMode={inspectorMode}
-            activeNavItemId={activeNavItemId}
-            selectedParentNavId={selectedParentNavId}
-            selectedParentNavLabel={selectedParentNavLabel}
-            onChangeInspectorMode={setInspectorMode}
-            onSelectNavItem={setActiveNavItemId}
-            onUpdateBottomNavbar={handleUpdateBottomNavbar}
-            onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
-            onUpdateBlock={handleUpdateBlock}
-            onDuplicateBlock={handleDuplicateBlock}
-            onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
-            onSelectBlock={handleSelectBlock}
-          />
-        </div>
-      )}
+    if (activePage === 'setting_usaha') {
+      return (
+        <BusinessSettingsPage
+          activeRecord={activeRecord}
+          allProjects={visibleProjects}
+          permissions={effectivePermissions}
+          canDelete={visibleProjects.length > 1}
+          onSaveBusinessSettings={handleSaveBusinessSettings}
+          onDuplicateProject={(id) => {
+            handleDuplicateProject(id);
+            setActivePage('editor');
+          }}
+          onDeleteProject={(id) => {
+            void handleDeleteProject(id);
+            setActivePage('editor');
+          }}
+          onDownloadHtml={handleDownloadHtml}
+          onBackupProject={handleBackup}
+          onOpenSystemTab={(tab) => {
+            setSystemSubTab(tab);
+            setActivePage('setting_sistem');
+          }}
+        />
+      );
+    }
+
+    return (
+      <div className="flex-1 flex overflow-hidden">
+        <LeftSidebar
+          onAddBlock={(type) => handleAddBlock(type)}
+          onAddSection={(section) => handleAddSection(section)}
+        />
+
+        <MobileCanvas
+          blocks={project.blocks}
+          theme={project.theme}
+          advanceOptions={project.advanceOptions}
+          bottomNavbar={bottomNavbar}
+          inspectorMode={inspectorMode}
+          selectedId={selectedId}
+          remotePeersByBlock={remotePeersByBlock}
+          onOpenPreview={() => setShowPreview(true)}
+          onSelectBlock={handleSelectBlock}
+          onOpenNavbarSettings={handleOpenNavbarSettings}
+          onMoveBlock={handleMoveBlock}
+          onDuplicateBlock={handleDuplicateBlock}
+          onDeleteBlock={handleDeleteBlock}
+          onToggleFullBleed={(id) =>
+            handleUpdateBlock(id, (blk) => {
+              const nextFull = !blk.style.fullBleed;
+              return {
+                ...blk,
+                style: {
+                  ...blk.style,
+                  fullBleed: nextFull,
+                  widthPercent: nextFull ? 100 : blk.style.widthPercent,
+                },
+              };
+            })
+          }
+          onDropNewBlock={handleAddBlock}
+          onDropSection={handleDropSectionById}
+          onReorderBlock={handleReorderBlock}
+        />
+
+        <RightInspector
+          blocks={project.blocks}
+          selectedBlock={selectedBlock}
+          theme={project.theme}
+          advanceOptions={project.advanceOptions}
+          bottomNavbar={bottomNavbar}
+          inspectorMode={inspectorMode}
+          activeNavItemId={activeNavItemId}
+          selectedParentNavId={selectedParentNavId}
+          selectedParentNavLabel={selectedParentNavLabel}
+          navbarFocusNonce={navbarFocusNonce}
+          onChangeInspectorMode={setInspectorMode}
+          onSelectNavItem={setActiveNavItemId}
+          onSelectTheme={handleSelectTheme}
+          onUpdateBottomNavbar={handleUpdateBottomNavbar}
+          onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
+          onUpdateBlock={handleUpdateBlock}
+          onDuplicateBlock={handleDuplicateBlock}
+          onMoveBlock={handleMoveBlock}
+          onReorderBlock={handleReorderBlock}
+          onDeleteBlock={handleDeleteBlock}
+          onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
+          onSelectBlock={handleSelectBlock}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <UiLabelsProvider
+      settings={uiAppearanceSettings}
+      onSettingsChange={setUiAppearanceSettings}
+    >
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#F0F5FA] text-[#17243D] relative">
+      <TopBar
+        activePage={activePage}
+        onNavigatePage={(page) => setActivePage(page)}
+        projects={visibleProjects}
+        activeProjectId={activeRecord?.id ?? ''}
+        projectTitle={project?.title ?? 'Belum Ada Unit Usaha'}
+        projectSlug={activePublishing?.slug ?? ''}
+        isPublished={activePublishing?.isPublished ?? false}
+        permissions={effectivePermissions}
+        authUser={authUser}
+        activePeers={remotePeers}
+        hasUnsavedChanges={hasUnsavedChanges}
+        isSaving={isSaving}
+        syncState={syncState}
+        syncError={syncError}
+        revision={activeRecord?.revision}
+        onSelectProject={handleSelectProject}
+        onCreateProject={(mode) => {
+          handleCreateProject(mode);
+          setActivePage('editor');
+        }}
+        onOpenProjectsManager={() => {
+          setSystemSubTab('daftar_usaha');
+          setActivePage('setting_sistem');
+        }}
+        onSaveProject={() => void handleSaveProject()}
+        onOpenPreview={() => setShowPreview(true)}
+        onOpenLogin={() => setForceLoginView(true)}
+        onLogout={() => void handleLogout()}
+      />
+
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {renderMainWorkspace()}
+      </main>
 
       {showPreview && activeRecord && project && (
         <PreviewModal
           projectId={activeRecord.id}
           project={project}
           onClose={() => setShowPreview(false)}
-        />
-      )}
-      {showCode && activeRecord && project && (
-        <CodeModal
-          projectId={activeRecord.id}
-          project={project}
-          onClose={() => setShowCode(false)}
-        />
-      )}
-      {showImport && (
-        <ImportModal onImport={handleImportData} onClose={() => setShowImport(false)} />
-      )}
-      {showProjects && (
-        <ProjectsModal
-          projects={visibleProjects}
-          activeProjectId={activeRecord?.id ?? ''}
-          onSelectProject={handleSelectProject}
-          onCreateProject={handleCreateProject}
-          onDuplicateProject={handleDuplicateProject}
-          onDeleteProject={handleDeleteProject}
-          onDownloadHtml={handleDownloadHtml}
-          onOpenDomainAndAds={(id) => {
-            handleSelectProject(id);
-            if (effectivePermissions.publishing || effectivePermissions.ads_wa) {
-              setShowDomainAds(true);
-            }
-          }}
-          onOpenDashboard={() => {
-            if (effectivePermissions.analytics) setShowDashboard(true);
-          }}
-          onBackupAll={handleBackupAll}
-          onOpenImport={() => {
-            if (effectivePermissions.export_backup) setShowImport(true);
-          }}
-          onClose={() => setShowProjects(false)}
-        />
-      )}
-      {showDomainAds && activeRecord && (
-        <DomainAndAdsModal
-          activeRecord={activeRecord}
-          allProjects={visibleProjects}
-          onApplySettings={handleApplyDomainAndAds}
-          onClose={() => setShowDomainAds(false)}
-        />
-      )}
-      {showDashboard && activeRecord && (
-        <WaTrafficDashboardModal
-          projects={visibleProjects}
-          activeProjectId={activeRecord.id}
-          onSelectProject={handleSelectProject}
-          onOpenDomainSettings={(id) => {
-            handleSelectProject(id);
-            if (effectivePermissions.publishing || effectivePermissions.ads_wa) {
-              setShowDomainAds(true);
-            }
-          }}
-          onClose={() => setShowDashboard(false)}
-        />
-      )}
-      {showAccessSettings && (
-        <AccessSettingsModal
-          settings={accessSettings}
-          projects={workspace.projects}
-          demoModeAvailable={authMeta.demoModeAvailable}
-          onDemoSeeded={async () => {
-            await refreshAuthMeta();
-          }}
-          onSaveSettings={handleSaveAccessSettings}
-          onSettingsSynced={(next) => setAccessSettings(next)}
-          onClose={() => setShowAccessSettings(false)}
-        />
-      )}
-      {showApiSettings && (
-        <ApiSettingsModal
-          onClose={() => setShowApiSettings(false)}
-          onSaved={(nextApi) => {
-            setRequireAuthForBuilder(nextApi.requireAuthForBuilder);
-          }}
-          onRestoreCompleted={() => {
-            hasUserMutatedBeforeHydrationRef.current = false;
-            isHydratedRef.current = false;
-            void hydrateWorkspaceAndSettings(authUser);
-          }}
         />
       )}
       {storageError && (
@@ -2025,5 +2238,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </UiLabelsProvider>
   );
 }

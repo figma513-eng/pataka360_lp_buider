@@ -1,4 +1,8 @@
-import type { AccessRole, ProjectRecord } from '../types/builder';
+import type {
+  AccessRole,
+  ProjectRecord,
+  UiAppearanceSettingsConfig,
+} from '../types/builder';
 
 export interface CollabPeer {
   connectionId: string;
@@ -54,6 +58,11 @@ export type IncomingCollabEvent =
       timestamp: number;
     }
   | {
+      type: 'appearance:updated';
+      settings: UiAppearanceSettingsConfig;
+      timestamp: number;
+    }
+  | {
       type: 'collab:error';
       code: string;
       message: string;
@@ -65,6 +74,7 @@ export interface CollabClientHandlers {
   onProjectUpdated?: (event: Extract<IncomingCollabEvent, { type: 'project:updated' }>) => void;
   onProjectDeleted?: (event: Extract<IncomingCollabEvent, { type: 'project:deleted' }>) => void;
   onAccessUpdated?: () => void;
+  onAppearanceUpdated?: (settings: UiAppearanceSettingsConfig) => void;
   onReconnected?: () => void;
 }
 
@@ -144,6 +154,11 @@ export class CollabSocketClient {
             break;
           case 'access:updated':
             this.handlers.onAccessUpdated?.();
+            break;
+          case 'appearance:updated':
+            if (parsed.settings) {
+              this.handlers.onAppearanceUpdated?.(parsed.settings);
+            }
             break;
           default:
             break;

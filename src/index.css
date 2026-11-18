@@ -1,14 +1,58 @@
 @import "tailwindcss";
 
+:root {
+  --lb-navy: #17243D;
+  --lb-navy-soft: #223456;
+  --lb-green: #00C98A;
+  --lb-green-hover: #00B37B;
+  --lb-green-tint: #ECFDF6;
+  --lb-bg: #F0F5FA;
+  --lb-surface: #FFFFFF;
+  --lb-border: #DCE5EF;
+  --lb-slate: #8FA4BF;
+  --lb-text-muted: #5B708B;
+}
+
 @layer base {
   html,
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 14px;
-    color: #374151;
+    color: #17243D;
+    background-color: #F0F5FA;
   }
 
-  code, pre, .font-mono {
+  code,
+  pre,
+  .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #00C98A;
+    outline-offset: 2px;
+  }
+}
+
+/* Subtle custom scrollbars for editor panels & inline workspace views */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD8E6;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8FA4BF;
 }

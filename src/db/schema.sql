@@ -1,4 +1,4 @@
--- Lynk Builder — Skema PostgreSQL Lengkap (v004)
+-- Lynk Builder — Skema PostgreSQL Lengkap (v005)
 -- Sinkron 100% dengan src/db/schema.ts & src/db/migrations.ts
 -- PostgreSQL 14+
 
@@ -126,3 +126,9 @@ CREATE TABLE IF NOT EXISTS media_assets (
   created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_media_filename ON media_assets (filename);
+
+CREATE TABLE IF NOT EXISTS ui_appearance_settings (
+  id TEXT PRIMARY KEY,
+  labels_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at BIGINT NOT NULL
+);
