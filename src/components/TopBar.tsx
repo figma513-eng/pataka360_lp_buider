@@ -129,7 +129,7 @@ export function TopBar({
   const userInitials = getUserInitials(authUser?.name);
 
   return (
-    <header className="min-h-14 bg-white border-b border-[#DCE5EF] px-3 sm:px-4 flex items-center justify-between gap-2 shrink-0 z-30 overflow-x-auto no-scrollbar">
+    <header className="min-h-14 bg-white border-b border-[#DCE5EF] px-3 sm:px-4 flex items-center justify-between gap-2 shrink-0 z-30">
       {/* KIRI — Identitas aplikasi & bisnis */}
       <div className="flex items-center gap-2 min-w-0 shrink-0">
         {/* 1. Brand */}
@@ -340,7 +340,7 @@ export function TopBar({
       {/* TENGAH — Navigasi halaman (Editor pertama) */}
       <nav
         aria-label="Navigasi Halaman Utama"
-        className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar shrink-0"
+        className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar min-w-0"
       >
         <button
           type="button"

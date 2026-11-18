@@ -268,5 +268,13 @@ describe('UI/UX Redesign Preservation & Per-Component Theme Override', () => {
       false,
       'MobileCanvas toolbar must no longer contain Simpan button'
     );
+
+    const headerLine = topBarSrc.match(/<header\s+className="([^"]+)"/);
+    assert.ok(headerLine, 'TopBar must render <header>');
+    assert.equal(
+      /overflow-x-auto|overflow-hidden|overflow-y-hidden/.test(headerLine[1]),
+      false,
+      'TopBar <header> must not clip vertical overflow of Business Selector dropdown'
+    );
   });
 });
