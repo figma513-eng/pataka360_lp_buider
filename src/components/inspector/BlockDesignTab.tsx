@@ -1,21 +1,15 @@
 import { useState, type CSSProperties } from 'react';
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
   Info,
   LayoutTemplate,
   Maximize2,
-  Palette,
-  RotateCcw,
   SlidersHorizontal,
   Sparkles,
-  Square,
-  Type,
 } from 'lucide-react';
 import {
   AdvanceOptions,
   BlockLayoutMode,
+  BlockShapePreset,
   BlockStyle,
   BottomSheetTriggerStyle,
   BuilderBlock,
@@ -24,9 +18,7 @@ import {
   CategoryScrollMode,
   FloatingCartPosition,
   HeroProfileVariant,
-  MenuIconShape,
   PageTheme,
-  ShadowPreset,
 } from '../../types/builder';
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import {
@@ -34,6 +26,7 @@ import {
   buildLinearGradientCss,
   clampGradientAngle,
 } from '../../utils/gradientHelpers';
+import { resolveShadowSizePx } from '../../utils/htmlExporter';
 import { resolveButtonIcon } from '../../utils/buttonIcons';
 import { resolveSocialMetrics } from '../../utils/socialIcons';
 import { ThemeOverrideTokenKey, withLocalThemeTokenPatch } from '../../utils/blockThemeHelpers';
@@ -56,7 +49,7 @@ interface BlockDesignTabProps {
   onUpdateBlock: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
 }
 
-type DesignSectionId = 'specific' | 'layout' | 'visual' | 'typo' | 'bg' | 'border';
+type DesignSectionId = 'visual' | 'layout' | 'specific';
 
 function rangeProgressStyle(current: number, min: number, max: number): CSSProperties {
   const span = max - min;
@@ -75,12 +68,9 @@ export function BlockDesignTab({
 }: BlockDesignTabProps) {
   const { label } = useUiLabel();
   const [openSections, setOpenSections] = useState<Record<DesignSectionId, boolean>>({
-    specific: true,
-    layout: false,
-    visual: false,
-    typo: false,
-    bg: false,
-    border: false,
+    visual: true,
+    layout: true,
+    specific: false,
   });
 
   const toggleSection = (id: DesignSectionId) => {
@@ -119,29 +109,57 @@ export function BlockDesignTab({
     );
   };
 
-  const isCustomTextColor = s.useThemeTextColor === false;
-  const isContainerLike =
-    selectedBlock.type === 'container' ||
-    selectedBlock.type === 'toggle_container' ||
-    selectedBlock.type === 'row';
+  const hasSpecificVisualControls =
+    selectedBlock.type !== 'container' &&
+    selectedBlock.type !== 'text' &&
+    selectedBlock.type !== 'row' &&
+    selectedBlock.type !== 'menu_icon';
 
   const isProfilePhoto =
     selectedBlock.type === 'image' &&
     (c.imageShape === 'circle' || selectedBlock.label.toLowerCase().includes('profil'));
 
-  const applyInheritToDescendants = (children?: BuilderBlock[]): BuilderBlock[] | undefined =>
-    children?.map((ch) => ({
-      ...ch,
-      style: {
-        ...ch.style,
-        useThemeTextColor: true,
-        textColor: theme.textColor,
-        themeOverrideTokens: ch.style.themeOverrideTokens
-          ? { ...ch.style.themeOverrideTokens, textColor: false }
-          : undefined,
-      },
-      children: applyInheritToDescendants(ch.children),
-    }));
+  const currentShapePreset: BlockShapePreset =
+    selectedBlock.type === 'menu_icon'
+      ? (c.menuIconShape ?? s.shapePreset ?? 'circle')
+      : s.shapePreset ??
+        (selectedBlock.type === 'image' && c.imageShape === 'circle'
+          ? 'circle'
+          : s.borderRadius === 0
+          ? 'square'
+          : s.borderRadius >= 999
+          ? 'pill'
+          : 'rounded');
+
+  const applyShapePreset = (nextShape: BlockShapePreset) => {
+    const nextRadius =
+      nextShape === 'square'
+        ? 0
+        : nextShape === 'rounded'
+        ? Math.max(8, Math.min(48, s.borderRadius === 0 || s.borderRadius >= 999 ? 16 : s.borderRadius))
+        : s.borderRadius;
+
+    onUpdateBlock(selectedBlock.id, (blk) => {
+      const nextContent = { ...blk.content };
+      if (blk.type === 'menu_icon') {
+        nextContent.menuIconShape = nextShape;
+        if (nextShape === 'rounded' && (nextContent.menuIconRadius === undefined || nextContent.menuIconRadius === 0)) {
+          nextContent.menuIconRadius = 14;
+        }
+      } else if (blk.type === 'image') {
+        nextContent.imageShape = nextShape === 'circle' ? 'circle' : 'rect';
+      }
+      return {
+        ...blk,
+        style: {
+          ...blk.style,
+          shapePreset: nextShape,
+          borderRadius: nextRadius,
+        },
+        content: nextContent,
+      };
+    });
+  };
 
   const renderSpecificControls = () => {
     switch (selectedBlock.type) {
@@ -553,116 +571,8 @@ export function BlockDesignTab({
           </div>
         );
 
-      case 'row': {
-        const rowMode = c.rowLayoutMode ?? 'grid';
-        const rowCols = Math.max(1, Math.min(20, c.rowColumns ?? 2));
-        const rowColWidth = Math.max(80, Math.min(340, c.rowColumnWidth ?? 156));
-        const rowColMinH = Math.max(0, Math.min(360, c.rowColumnMinHeight ?? 0));
-        const rowGap = Math.max(0, Math.min(32, c.rowGap ?? 12));
-
-        return (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
-                {label('desain.field.layoutRow', 'Mode Susunan Kolom / Slide')}
-              </label>
-              <SegmentedControl<'horizontal' | 'vertical' | 'grid'>
-                columns={3}
-                value={rowMode}
-                onChange={(m) => updateContent({ rowLayoutMode: m })}
-                options={[
-                  { id: 'horizontal', label: 'Horizontal' },
-                  { id: 'vertical', label: 'Vertikal' },
-                  { id: 'grid', label: 'Grid' },
-                ]}
-              />
-            </div>
-
-            {rowMode === 'horizontal' && (
-              <div className="space-y-2 pt-1">
-                <SliderRow
-                  label={label('desain.field.lebarKolom', 'Ukuran Lebar Tiap Slide')}
-                  value={`${rowColWidth}px`}
-                  min={80}
-                  max={340}
-                  current={rowColWidth}
-                  onChange={(val) => updateContent({ rowColumnWidth: val })}
-                />
-                <div className="grid grid-cols-4 gap-1">
-                  {[
-                    { label: 'Kecil', px: 110 },
-                    { label: 'Sedang', px: 150 },
-                    { label: 'Besar', px: 200 },
-                    { label: 'Lebar', px: 260 },
-                  ].map((p) => (
-                    <button
-                      key={p.px}
-                      type="button"
-                      onClick={() => updateContent({ rowColumnWidth: p.px })}
-                      className={`py-1 px-1.5 rounded text-[10px] font-semibold border cursor-pointer ${
-                        rowColWidth === p.px
-                          ? 'bg-[#17243D] text-white border-[#17243D]'
-                          : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10.5px] text-[#8FA4BF]">
-                  Slide horizontal menampilkan indikator progress 3 titik secara otomatis.
-                </p>
-              </div>
-            )}
-
-            {rowMode === 'grid' && (
-              <div className="space-y-2">
-                <SliderRow
-                  label={label('desain.field.jumlahKolomGrid', 'Jumlah Kolom per Baris (1–20)')}
-                  value={`${rowCols}`}
-                  min={1}
-                  max={20}
-                  current={rowCols}
-                  onChange={(val) => updateContent({ rowColumns: val })}
-                />
-                <div className="grid grid-cols-6 gap-1">
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => updateContent({ rowColumns: n })}
-                      className={`py-1 rounded-md text-[11px] font-bold border cursor-pointer ${
-                        rowCols === n
-                          ? 'bg-[#17243D] text-white border-[#17243D]'
-                          : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
-                      }`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <SliderRow
-              label={label('desain.field.tinggiKolom', 'Tinggi Minimal Kolom / Slide')}
-              value={rowColMinH === 0 ? 'Auto' : `${rowColMinH}px`}
-              min={0}
-              max={360}
-              current={rowColMinH}
-              onChange={(val) => updateContent({ rowColumnMinHeight: val })}
-            />
-            <SliderRow
-              label={label('desain.field.jarakKolom', 'Jarak Antar Kolom / Slide')}
-              value={`${rowGap}px`}
-              min={0}
-              max={32}
-              current={rowGap}
-              onChange={(val) => updateContent({ rowGap: val })}
-            />
-          </div>
-        );
-      }
+      case 'row':
+        return null;
 
       case 'catalog':
         return (
@@ -948,104 +858,8 @@ export function BlockDesignTab({
         );
       }
 
-      case 'menu_icon': {
-        const shape: MenuIconShape = c.menuIconShape ?? 'circle';
-        const radius = Math.max(0, Math.min(48, c.menuIconRadius ?? 14));
-        const size = Math.max(36, Math.min(160, c.menuIconSize ?? 64));
-        const fit = c.menuIconImageFit ?? 'cover';
-        return (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
-                Bentuk Menu Icon
-              </label>
-              <SegmentedControl<MenuIconShape>
-                columns={3}
-                value={shape}
-                onChange={(nextShape) => updateContent({ menuIconShape: nextShape })}
-                options={[
-                  { id: 'circle', label: 'Bulat' },
-                  { id: 'rounded', label: 'Segi Empat' },
-                  { id: 'square', label: 'Kotak' },
-                ]}
-              />
-            </div>
-
-            {shape === 'rounded' && (
-              <SliderRow
-                label="Lengkungan Sudut"
-                value={`${radius}px`}
-                min={0}
-                max={48}
-                step={1}
-                current={radius}
-                onChange={(val) => updateContent({ menuIconRadius: val })}
-              />
-            )}
-
-            <SliderRow
-              label="Ukuran Ikon"
-              value={`${size}px`}
-              min={36}
-              max={160}
-              step={2}
-              current={size}
-              onChange={(val) => updateContent({ menuIconSize: val })}
-            />
-
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                Tampilan Gambar
-              </label>
-              <SegmentedControl<'cover' | 'contain'>
-                columns={2}
-                value={fit}
-                onChange={(nextFit) => updateContent({ menuIconImageFit: nextFit })}
-                options={[
-                  { id: 'cover', label: 'Penuh (Cover)' },
-                  { id: 'contain', label: 'Utuh (Contain)' },
-                ]}
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-0.5">
-              <span className="text-[11px] font-semibold text-[#17243D]">
-                Tampilkan Label Teks
-              </span>
-              <ToggleSwitch
-                label="Tampilkan Label Teks"
-                checked={c.menuIconShowLabel !== false}
-                onChange={(checked) => updateContent({ menuIconShowLabel: checked })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-medium text-[#8FA4BF] mb-1">
-                  Warna Latar Ikon
-                </label>
-                <input
-                  type="color"
-                  value={c.menuIconBg || theme.accentColor}
-                  onChange={(e) => updateAccentContent({ menuIconBg: e.target.value })}
-                  className="w-full h-8 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-[#8FA4BF] mb-1">
-                  Warna Label
-                </label>
-                <input
-                  type="color"
-                  value={c.menuIconTextColor || theme.textColor}
-                  onChange={(e) => updateContent({ menuIconTextColor: e.target.value })}
-                  className="w-full h-8 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-        );
-      }
+      case 'menu_icon':
+        return null;
 
       case 'toggle_container':
         return (
@@ -1570,204 +1384,25 @@ export function BlockDesignTab({
       case 'text':
       case 'container':
       default:
-        return (
-          <SectionEmptyNote message="Komponen ini tidak memiliki pengaturan tampilan khusus tambahan. Atur gaya lengkap di bagian Layout, Gaya Visual, Tipografi, Background, atau Border di bawah." />
-        );
+        return null;
     }
   };
 
+  const shadowSizePx = resolveShadowSizePx(s.shadow, s.shadowSize);
+  const padTopVal = s.paddingTop ?? s.padding;
+  const padBottomVal = s.paddingBottom ?? s.padding;
+  const padRightVal = s.paddingRight ?? s.paddingX ?? s.padding;
+  const padLeftVal = s.paddingLeft ?? s.paddingX ?? s.padding;
+  const marginTopVal = s.marginTop ?? 0;
+  const radiusVal =
+    selectedBlock.type === 'menu_icon'
+      ? Math.max(0, Math.min(48, c.menuIconRadius ?? s.borderRadius ?? 14))
+      : Math.max(0, Math.min(48, s.borderRadius));
+  const isTransparentBg = s.backgroundColor === 'transparent';
+
   return (
     <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#F0F5FA]/50">
-      <AccordionSection
-        id="specific"
-        title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
-        icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
-        isOpen={openSections.specific}
-        onToggle={() => toggleSection('specific')}
-      >
-        {renderSpecificControls()}
-      </AccordionSection>
-
-      <AccordionSection
-        id="layout"
-        title={label('desain.sec.layout', 'Layout & Spasi')}
-        icon={<Maximize2 className="w-3.5 h-3.5" />}
-        isOpen={openSections.layout}
-        onToggle={() => toggleSection('layout')}
-      >
-        <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#17243D] flex items-center gap-1.5">
-              <LayoutTemplate className="w-3.5 h-3.5 text-[#00C98A]" />
-              <span>{label('desain.field.fullKananKiri', 'Full Kanan-Kiri')}</span>
-            </span>
-            <ToggleSwitch
-              checked={Boolean(s.fullBleed)}
-              onChange={(checked) =>
-                updateStyle(
-                  checked ? { fullBleed: true, widthPercent: 100 } : { fullBleed: false }
-                )
-              }
-              label={label('desain.field.fullKananKiri', 'Full Kanan-Kiri')}
-            />
-          </div>
-          {s.fullBleed && s.borderRadius > 0 && (
-            <button
-              type="button"
-              onClick={() => updateStyle({ borderRadius: 0 })}
-              className="px-2 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10.5px] font-semibold text-[#17243D] hover:border-[#00C98A] cursor-pointer"
-            >
-              Sudut 0px
-            </button>
-          )}
-        </div>
-
-        <div className="p-2.5 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#17243D]">{label('desain.field.jarakAtasHalaman', 'Jarak Atas Halaman')}</span>
-            <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums">
-              {advanceOptions.pageTopPadding ?? (s.fullBleed ? 0 : 12)}px
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-1">
-            {[
-              { val: 0, label: '0px Rapat' },
-              { val: 12, label: '12px Rapi' },
-              { val: 24, label: '24px Lega' },
-            ].map((opt) => {
-              const currentTop = advanceOptions.pageTopPadding ?? (s.fullBleed ? 0 : 12);
-              const active = currentTop === opt.val;
-              return (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() => onUpdateAdvanceOptions({ pageTopPadding: opt.val })}
-                  className={`py-1 px-1.5 rounded border text-[10.5px] font-semibold cursor-pointer ${
-                    active
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-white text-[#17243D] border-[#DCE5EF]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
-            {label('desain.field.posisiIsi', 'Posisi Isi di Dalamnya')}
-          </label>
-          <SegmentedControl<'left' | 'center' | 'right'>
-            columns={3}
-            value={s.align}
-            onChange={(align) => updateStyle({ align })}
-            options={[
-              { id: 'left', label: <AlignLeft className="w-3.5 h-3.5" /> },
-              { id: 'center', label: <AlignCenter className="w-3.5 h-3.5" /> },
-              { id: 'right', label: <AlignRight className="w-3.5 h-3.5" /> },
-            ]}
-          />
-        </div>
-
-        <SliderRow
-          label={label('desain.field.lebarElemen', 'Lebar Elemen')}
-          value={`${s.widthPercent}%`}
-          min={30}
-          max={100}
-          current={s.widthPercent}
-          onChange={(val) =>
-            updateStyle({ widthPercent: val, fullBleed: val < 100 ? false : s.fullBleed })
-          }
-        />
-
-        <SliderRow
-          label={label('desain.field.tinggiMinimal', 'Tinggi Minimal')}
-          value={`${s.minHeight}px`}
-          min={0}
-          max={420}
-          current={s.minHeight}
-          onChange={(val) => updateStyle({ minHeight: val })}
-        />
-
-        {isProfilePhoto ? (
-          <div className="space-y-2.5 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
-            <SliderRow
-              label="Padding Atas"
-              value={`${s.paddingTop ?? s.padding}px`}
-              min={0}
-              max={48}
-              current={s.paddingTop ?? s.padding}
-              onChange={(val) => updateStyle({ paddingTop: val })}
-            />
-            <SliderRow
-              label="Padding Bawah"
-              value={`${s.paddingBottom ?? s.padding}px`}
-              min={0}
-              max={48}
-              current={s.paddingBottom ?? s.padding}
-              onChange={(val) => updateStyle({ paddingBottom: val })}
-            />
-          </div>
-        ) : (
-          <SliderRow
-            label={label('desain.field.paddingAtasBawah', 'Padding Atas & Bawah')}
-            value={`${s.padding}px`}
-            min={0}
-            max={40}
-            current={s.padding}
-            onChange={(val) =>
-              updateStyle({
-                padding: val,
-                paddingTop: undefined,
-                paddingBottom: undefined,
-              })
-            }
-          />
-        )}
-
-        <div>
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="font-medium text-[#17243D]">{label('desain.field.paddingKananKiri', 'Padding Kanan & Kiri')}</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => updateStyle({ paddingX: 0 })}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
-                  (s.paddingX ?? s.padding) === 0
-                    ? 'bg-[#17243D] text-white border-[#17243D]'
-                    : 'bg-white text-[#17243D] border-[#DCE5EF]'
-                }`}
-              >
-                0px
-              </button>
-              <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums">
-                {s.paddingX ?? s.padding}px
-              </span>
-            </div>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={40}
-            value={s.paddingX ?? s.padding}
-            onChange={(e) => updateStyle({ paddingX: Number(e.target.value) })}
-            style={rangeProgressStyle(s.paddingX ?? s.padding, 0, 40)}
-            className="w-full cursor-pointer"
-          />
-        </div>
-
-        <SliderRow
-          label={label('desain.field.jarakBawah', 'Jarak Bawah (Margin)')}
-          value={`${s.marginBottom}px`}
-          min={0}
-          max={48}
-          current={s.marginBottom}
-          onChange={(val) => updateStyle({ marginBottom: val })}
-        />
-      </AccordionSection>
-
+      {/* 1. GAYA VISUAL — Unified across ALL components (Gambar 1) */}
       <AccordionSection
         id="visual"
         title={label('desain.sec.visual', 'Gaya Visual')}
@@ -1775,320 +1410,84 @@ export function BlockDesignTab({
         isOpen={openSections.visual}
         onToggle={() => toggleSection('visual')}
       >
-        {selectedBlock.type === 'container' && (
-          <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
-            <div className="text-[11px] font-bold text-[#17243D]">
-              Preset Wadah Cepat
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() =>
-                  updateStyleWithToken(
-                    {
-                      backgroundMode: 'solid',
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: 20,
-                      borderWidth: 1,
-                      borderColor: '#E2E8F0',
-                      shadow: 'sm',
-                      hoverLift: true,
-                      useThemeTextColor: false,
-                      textColor: '#0F172A',
-                    },
-                    ['backgroundColor', 'textColor', 'borderColor']
-                  )
-                }
-                className="py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
-              >
-                Kartu Bersih + Lift
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  updateStyleWithToken(
-                    {
-                      backgroundMode: 'gradient',
-                      gradientColor1: '#EA580C',
-                      gradientColor2: '#9A3412',
-                      gradientAngle: 135,
-                      borderRadius: 24,
-                      borderWidth: 0,
-                      shadow: 'md',
-                      hoverLift: true,
-                      useThemeTextColor: false,
-                      textColor: '#FFFFFF',
-                    },
-                    ['backgroundColor', 'textColor']
-                  )
-                }
-                className="py-1.5 px-2 rounded-lg text-[11px] font-semibold text-white cursor-pointer"
-                style={{ backgroundImage: 'linear-gradient(135deg, #EA580C, #9A3412)' }}
-              >
-                Box Promo Gradasi
-              </button>
-            </div>
-          </div>
-        )}
-
-        <SliderRow
-          label={label('desain.field.lengkungSudut', 'Lengkung Sudut')}
-          value={`${s.borderRadius}px`}
-          min={0}
-          max={36}
-          current={s.borderRadius}
-          onChange={(val) => updateStyle({ borderRadius: val })}
+        {/* Bentuk: Bulat | Segi Empat | Kotak | Kapsul */}
+        <SegmentedControl<BlockShapePreset>
+          columns={4}
+          value={currentShapePreset}
+          onChange={applyShapePreset}
+          options={[
+            { id: 'circle', label: 'Bulat' },
+            { id: 'rounded', label: 'Segi Empat' },
+            { id: 'square', label: 'Kotak' },
+            { id: 'pill', label: 'Kapsul' },
+          ]}
         />
 
-        <SliderRow
-          label={label('desain.field.efekKaca', 'Efek Kaca (Blur)')}
-          value={`${s.blur}px`}
-          min={0}
-          max={24}
-          current={s.blur}
-          onChange={(val) => updateStyle({ blur: val })}
-        />
-
-        <div>
-          <label className="block text-xs font-semibold text-[#17243D] mb-1">
-            {label('desain.field.efekBayangan', 'Efek Bayangan (Shadow)')}
-          </label>
-          <select
-            value={s.shadow}
-            onChange={(e) => updateStyle({ shadow: e.target.value as ShadowPreset })}
-            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-          >
-            <option value="none">Tanpa Bayangan</option>
-            <option value="sm">Halus</option>
-            <option value="md">Sedang</option>
-            <option value="lg">Tegas</option>
-          </select>
-          {s.shadow !== 'none' && (
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-[#8FA4BF]">Warna Shadow</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="color"
-                  value={s.shadowColor || '#0F172A'}
-                  onChange={(e) => updateStyle({ shadowColor: e.target.value })}
-                  className="w-7 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-                />
-                {s.shadowColor && (
-                  <button
-                    type="button"
-                    onClick={() => updateStyle({ shadowColor: undefined })}
-                    className="px-2 py-1 rounded border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] hover:bg-[#F0F5FA] cursor-pointer"
-                  >
-                    Default
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
-          <div>
-            <div className="text-xs font-semibold text-[#17243D]">{label('desain.field.efekHoverLift', 'Efek Hover Lift')}</div>
-            <div className="text-[10.5px] text-[#8FA4BF]">Terangkat halus saat disentuh</div>
+        {/* Preset Wadah Cepat — available for all components */}
+        <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+          <div className="text-[11px] font-bold text-[#17243D]">
+            Preset Wadah Cepat
           </div>
-          <ToggleSwitch
-            checked={Boolean(s.hoverLift)}
-            onChange={(checked) => updateStyle({ hoverLift: checked })}
-            label="Efek Kartu Dinamis"
-          />
-        </div>
-      </AccordionSection>
-
-      <AccordionSection
-        id="typo"
-        title={label('desain.sec.typo', 'Tipografi')}
-        icon={<Type className="w-3.5 h-3.5" />}
-        isOpen={openSections.typo}
-        onToggle={() => toggleSection('typo')}
-      >
-        {selectedBlock.type === 'text' && (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Jenis Teks
-              </label>
-              <select
-                value={c.variant ?? 'body'}
-                onChange={(e) =>
-                  updateContent({ variant: e.target.value as 'h1' | 'h2' | 'body' })
-                }
-                className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-              >
-                <option value="h1">Judul Besar</option>
-                <option value="h2">Subjudul</option>
-                <option value="body">Paragraf</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Ketebalan Teks
-              </label>
-              <select
-                value={c.fontWeight ?? 'normal'}
-                onChange={(e) =>
-                  updateContent({ fontWeight: e.target.value as 'normal' | 'semibold' | 'bold' })
-                }
-                className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-              >
-                <option value="normal">Normal</option>
-                <option value="semibold">Semi Tebal</option>
-                <option value="bold">Tebal</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-[#17243D]">{label('desain.field.jenisFont', 'Jenis Font')}</label>
-            {s.fontFamily && (
-              <button
-                type="button"
-                onClick={() =>
-                  updateStyle({
-                    fontFamily: undefined,
-                    themeOverrideTokens: s.themeOverrideTokens
-                      ? { ...s.themeOverrideTokens, fontFamily: false }
-                      : undefined,
-                  })
-                }
-                className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[#00C98A] hover:underline cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Ikuti Global</span>
-              </button>
-            )}
-          </div>
-          <select
-            value={s.fontFamily ?? ''}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (!val) {
-                updateStyle({
-                  fontFamily: undefined,
-                  themeOverrideTokens: s.themeOverrideTokens
-                    ? { ...s.themeOverrideTokens, fontFamily: false }
-                    : undefined,
-                });
-              } else {
-                updateStyleWithToken({ fontFamily: val }, ['fontFamily']);
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() =>
+                updateStyleWithToken(
+                  {
+                    shapePreset: 'rounded',
+                    backgroundMode: 'solid',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: '#E2E8F0',
+                    shadow: 'sm',
+                    shadowSize: 8,
+                    hoverLift: true,
+                    useThemeTextColor: false,
+                    textColor: '#0F172A',
+                  },
+                  ['backgroundColor', 'textColor', 'borderColor']
+                )
               }
-            }}
-            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-          >
-            <option value="">Ikuti Font Default Tema</option>
-            {(['Sans', 'Display', 'Serif', 'Script', 'Mono'] as const).map((cat) => (
-              <optgroup key={cat} label={cat}>
-                {FONT_OPTIONS.filter((f) => f.category === cat).map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="font-medium text-[#17243D]">{label('desain.field.ukuranTeks', 'Ukuran Teks (Font Size)')}</span>
-            <div className="flex items-center gap-1.5">
-              {s.fontSize !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => updateStyle({ fontSize: undefined })}
-                  className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
-                >
-                  Auto
-                </button>
-              )}
-              <span className="font-mono text-[11px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
-                {s.fontSize ? `${s.fontSize}px` : 'Auto'}
-              </span>
-            </div>
-          </div>
-          <input
-            type="range"
-            min={10}
-            max={42}
-            value={s.fontSize ?? 15}
-            onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })}
-            style={rangeProgressStyle(s.fontSize ?? 15, 10, 42)}
-            className="w-full cursor-pointer"
-          />
-        </div>
-
-        <div>
-          <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-            {label('desain.field.ketebalanTeks', 'Ketebalan Teks (Weight)')}
-          </label>
-          <div className="grid grid-cols-5 gap-1">
-            {(['400', '500', '600', '700', '800'] as const).map((w) => (
-              <button
-                key={w}
-                type="button"
-                onClick={() =>
-                  updateStyle({ fontWeightCss: s.fontWeightCss === w ? undefined : w })
-                }
-                className={`py-1 rounded border text-[10.5px] font-semibold cursor-pointer tabular-nums ${
-                  s.fontWeightCss === w
-                    ? 'bg-[#17243D] text-white border-[#17243D]'
-                    : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
-                }`}
-              >
-                {w}
-              </button>
-            ))}
+              className="py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] text-[10.5px] font-semibold text-[#17243D] cursor-pointer"
+            >
+              Kartu Bersih + Lift
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                updateStyleWithToken(
+                  {
+                    shapePreset: 'rounded',
+                    backgroundMode: 'gradient',
+                    gradientColor1: '#EA580C',
+                    gradientColor2: '#9A3412',
+                    gradientAngle: 135,
+                    borderRadius: 20,
+                    borderWidth: 0,
+                    shadow: 'md',
+                    shadowSize: 20,
+                    hoverLift: true,
+                    useThemeTextColor: false,
+                    textColor: '#FFFFFF',
+                  },
+                  ['backgroundColor', 'textColor']
+                )
+              }
+              className="py-1.5 px-2 rounded-lg text-[10.5px] font-semibold text-white cursor-pointer"
+              style={{ backgroundImage: 'linear-gradient(135deg, #EA580C, #9A3412)' }}
+            >
+              Box Promo Gradasi
+            </button>
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="font-medium text-[#17243D]">{label('desain.field.tinggiBaris', 'Tinggi Baris (Line Height)')}</span>
-            <div className="flex items-center gap-1.5">
-              {s.lineHeight !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => updateStyle({ lineHeight: undefined })}
-                  className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
-                >
-                  Auto
-                </button>
-              )}
-              <span className="font-mono text-[11px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
-                {s.lineHeight ? s.lineHeight.toFixed(1) : 'Auto'}
-              </span>
-            </div>
-          </div>
-          <input
-            type="range"
-            min={1.0}
-            max={2.4}
-            step={0.1}
-            value={s.lineHeight ?? 1.5}
-            onChange={(e) => updateStyle({ lineHeight: Number(e.target.value) })}
-            style={rangeProgressStyle(s.lineHeight ?? 1.5, 1.0, 2.4)}
-            className="w-full cursor-pointer"
-          />
-        </div>
-      </AccordionSection>
-
-      <AccordionSection
-        id="bg"
-        title={label('desain.sec.bg', 'Background & Warna')}
-        icon={<Palette className="w-3.5 h-3.5" />}
-        isOpen={openSections.bg}
-        onToggle={() => toggleSection('bg')}
-      >
-        <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+        {/* Latar & Gradasi */}
+        <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-[#17243D]">{label('desain.field.latarGradasi', 'Latar & Gradasi')}</span>
+            <span className="text-[11px] font-bold text-[#17243D]">
+              {label('desain.field.latarGradasi', 'Latar & Gradasi')}
+            </span>
             <div className="inline-flex rounded-md bg-white border border-[#DCE5EF] p-0.5">
               <button
                 type="button"
@@ -2126,38 +1525,50 @@ export function BlockDesignTab({
           </div>
 
           {(s.backgroundMode ?? 'solid') === 'solid' ? (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={s.backgroundColor === 'transparent' ? '#ffffff' : s.backgroundColor}
-                onChange={(e) =>
-                  updateStyleWithToken({ backgroundColor: e.target.value }, ['backgroundColor'])
-                }
-                className="w-8 h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer shrink-0 bg-white"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  updateStyleWithToken({ backgroundColor: 'transparent' }, ['backgroundColor'])
-                }
-                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-[#17243D] cursor-pointer"
-              >
-                Transparan
-              </button>
+            <div className="flex items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#17243D] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isTransparentBg}
+                  onChange={(e) =>
+                    updateStyleWithToken(
+                      { backgroundColor: e.target.checked ? 'transparent' : theme.cardBg || '#FFFFFF' },
+                      ['backgroundColor']
+                    )
+                  }
+                  className="accent-[#17243D] rounded cursor-pointer"
+                />
+                <span>Transparan</span>
+              </label>
+              {!isTransparentBg && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={s.backgroundColor === 'transparent' ? '#ffffff' : s.backgroundColor}
+                    onChange={(e) =>
+                      updateStyleWithToken({ backgroundColor: e.target.value }, ['backgroundColor'])
+                    }
+                    className="w-7 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                  <span className="font-mono text-[10px] text-[#51637D] uppercase">
+                    {s.backgroundColor}
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <div
-                className="w-full h-7 rounded-lg border border-[#DCE5EF]"
+                className="w-full h-6 rounded-lg border border-[#DCE5EF]"
                 style={{
                   backgroundImage:
                     buildLinearGradientCss(s) ||
                     'linear-gradient(135deg, #EA580C 0%, #9A3412 100%)',
                 }}
               />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <div>
-                  <label className="block text-[10px] font-medium text-[#8FA4BF] mb-1">
+                  <label className="block text-[10px] font-medium text-[#8FA4BF] mb-0.5">
                     Warna 1
                   </label>
                   <input
@@ -2166,11 +1577,11 @@ export function BlockDesignTab({
                     onChange={(e) =>
                       updateStyleWithToken({ gradientColor1: e.target.value }, ['backgroundColor'])
                     }
-                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    className="w-full h-6 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-[#8FA4BF] mb-1">
+                  <label className="block text-[10px] font-medium text-[#8FA4BF] mb-0.5">
                     Warna 2
                   </label>
                   <input
@@ -2179,11 +1590,11 @@ export function BlockDesignTab({
                     onChange={(e) =>
                       updateStyleWithToken({ gradientColor2: e.target.value }, ['backgroundColor'])
                     }
-                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    className="w-full h-6 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-[#8FA4BF] mb-1">
+                  <label className="block text-[10px] font-medium text-[#8FA4BF] mb-0.5">
                     Warna 3
                   </label>
                   {s.gradientColor3 ? (
@@ -2197,7 +1608,7 @@ export function BlockDesignTab({
                             ['backgroundColor']
                           )
                         }
-                        className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                        className="w-full h-6 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
                       />
                       <button
                         type="button"
@@ -2213,7 +1624,7 @@ export function BlockDesignTab({
                       onClick={() =>
                         updateStyleWithToken({ gradientColor3: '#7C2D12' }, ['backgroundColor'])
                       }
-                      className="w-full h-7 rounded border border-dashed border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
+                      className="w-full h-6 rounded border border-dashed border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
                     >
                       + Warna 3
                     </button>
@@ -2222,9 +1633,9 @@ export function BlockDesignTab({
               </div>
 
               <div>
-                <div className="flex items-center justify-between text-xs mb-1">
+                <div className="flex items-center justify-between text-[11px] mb-1">
                   <span className="font-medium text-[#17243D]">Sudut Gradasi</span>
-                  <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums">
+                  <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
                     {clampGradientAngle(s.gradientAngle ?? 135)}°
                   </span>
                 </div>
@@ -2263,194 +1674,365 @@ export function BlockDesignTab({
                 </div>
               </div>
 
-              <div>
-                <div className="text-[10.5px] font-medium text-[#8FA4BF] mb-1.5">
-                  Preset Gradasi:
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {GRADIENT_PRESETS.map((gp) => (
-                    <button
-                      key={gp.id}
-                      type="button"
-                      title={gp.name}
-                      onClick={() =>
-                        updateStyleWithToken(
-                          {
-                            backgroundMode: 'gradient',
-                            gradientColor1: gp.color1,
-                            gradientColor2: gp.color2,
-                            gradientColor3: gp.color3,
-                            gradientAngle: gp.angle,
-                            useThemeTextColor: false,
-                            textColor: gp.suggestedTextColor,
-                          },
-                          ['backgroundColor', 'textColor']
-                        )
-                      }
-                      className="w-6 h-6 rounded-full border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                      style={{
-                        backgroundImage: gp.color3
-                          ? `linear-gradient(${gp.angle}deg, ${gp.color1}, ${gp.color2}, ${gp.color3})`
-                          : `linear-gradient(${gp.angle}deg, ${gp.color1}, ${gp.color2})`,
-                      }}
-                    />
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-1.5">
+                {GRADIENT_PRESETS.map((gp) => (
+                  <button
+                    key={gp.id}
+                    type="button"
+                    title={gp.name}
+                    onClick={() =>
+                      updateStyleWithToken(
+                        {
+                          backgroundMode: 'gradient',
+                          gradientColor1: gp.color1,
+                          gradientColor2: gp.color2,
+                          gradientColor3: gp.color3,
+                          gradientAngle: gp.angle,
+                          useThemeTextColor: false,
+                          textColor: gp.suggestedTextColor,
+                        },
+                        ['backgroundColor', 'textColor']
+                      )
+                    }
+                    className="w-5 h-5 rounded-full border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
+                    style={{
+                      backgroundImage: gp.color3
+                        ? `linear-gradient(${gp.angle}deg, ${gp.color1}, ${gp.color2}, ${gp.color3})`
+                        : `linear-gradient(${gp.angle}deg, ${gp.color1}, ${gp.color2})`,
+                    }}
+                  />
+                ))}
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+        {/* Lengkung Sudut */}
+        <SliderRow
+          label={label('desain.field.lengkungSudut', 'Lengkung Sudut')}
+          value={`${radiusVal}px`}
+          min={0}
+          max={48}
+          current={radiusVal}
+          onChange={(val) => {
+            onUpdateBlock(selectedBlock.id, (blk) => {
+              const nextContent =
+                blk.type === 'menu_icon'
+                  ? { ...blk.content, menuIconShape: 'rounded' as const, menuIconRadius: val }
+                  : blk.content;
+              return {
+                ...blk,
+                style: {
+                  ...blk.style,
+                  borderRadius: val,
+                  shapePreset: val === 0 ? 'square' : 'rounded',
+                },
+                content: nextContent,
+              };
+            });
+          }}
+        />
+
+        {/* Efek Kaca (Blur) */}
+        <SliderRow
+          label={label('desain.field.efekKaca', 'Efek Kaca (Blur)')}
+          value={`${s.blur}px`}
+          min={0}
+          max={24}
+          current={s.blur}
+          onChange={(val) => updateStyle({ blur: val })}
+        />
+
+        {/* Efek Bayangan (Shadow) Slider + Warna Shadow */}
+        <div className="space-y-1.5">
+          <SliderRow
+            label={label('desain.field.efekBayangan', 'Efek Bayangan (Shadow)')}
+            value={`${shadowSizePx}px`}
+            min={0}
+            max={48}
+            current={shadowSizePx}
+            onChange={(val) =>
+              updateStyle({
+                shadowSize: val,
+                shadow: val === 0 ? 'none' : val <= 12 ? 'sm' : val <= 28 ? 'md' : 'lg',
+              })
+            }
+          />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-[#17243D]">{label('desain.field.warnaTeks', 'Warna Teks')}</span>
-            <div className="inline-flex rounded-md bg-white border border-[#DCE5EF] p-0.5">
-              <button
-                type="button"
-                onClick={() =>
-                  updateStyle({
-                    useThemeTextColor: true,
-                    textColor: theme.textColor,
-                    themeOverrideTokens: s.themeOverrideTokens
-                      ? { ...s.themeOverrideTokens, textColor: false }
-                      : undefined,
-                  })
-                }
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                  !isCustomTextColor
-                    ? 'bg-[#17243D] text-white'
-                    : 'text-[#8FA4BF] hover:text-[#17243D]'
-                }`}
-              >
-                Ikut Template
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  updateStyleWithToken(
-                    {
-                      useThemeTextColor: false,
-                      textColor: s.textColor || theme.textColor,
-                    },
-                    ['textColor']
-                  )
-                }
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                  isCustomTextColor
-                    ? 'bg-[#17243D] text-white'
-                    : 'text-[#8FA4BF] hover:text-[#17243D]'
-                }`}
-              >
-                Kustom
-              </button>
+            <span className="text-[11px] font-medium text-[#51637D]">Warna Shadow</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={s.shadowColor || '#0F172A'}
+                onChange={(e) => updateStyle({ shadowColor: e.target.value })}
+                className="w-7 h-6 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+              />
+              {s.shadowColor && (
+                <button
+                  type="button"
+                  onClick={() => updateStyle({ shadowColor: undefined })}
+                  className="px-1.5 py-0.5 rounded border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] hover:bg-[#F0F5FA] cursor-pointer"
+                >
+                  Default
+                </button>
+              )}
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2">
+        {/* Efek Hover Lift */}
+        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+          <div>
+            <div className="text-[11px] font-semibold text-[#17243D]">
+              {label('desain.field.efekHoverLift', 'Efek Hover Lift')}
+            </div>
+            <div className="text-[10px] text-[#8FA4BF]">Terangkat halus saat disentuh</div>
+          </div>
+          <ToggleSwitch
+            checked={Boolean(s.hoverLift)}
+            onChange={(checked) => updateStyle({ hoverLift: checked })}
+            label="Efek Kartu Dinamis"
+          />
+        </div>
+
+        {/* Ketebalan Garis Tepi + Quick 0/1/2/4/6px + Warna Garis Tepi */}
+        <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
+          <SliderRow
+            label={label('desain.field.ketebalanGarisTepi', 'Ketebalan Garis Tepi')}
+            value={`${s.borderWidth}px`}
+            min={0}
+            max={16}
+            current={s.borderWidth}
+            onChange={(val) => updateStyle({ borderWidth: val })}
+          />
+          <div className="grid grid-cols-5 gap-1">
+            {[0, 1, 2, 4, 6].map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => updateStyle({ borderWidth: w })}
+                className={`py-1 rounded border text-[10.5px] font-semibold cursor-pointer ${
+                  s.borderWidth === w
+                    ? 'bg-[#17243D] text-white border-[#17243D]'
+                    : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF]'
+                }`}
+              >
+                {w}px
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+              {label('desain.field.warnaGarisTepi', 'Warna Garis Tepi')}
+            </label>
             <input
               type="color"
-              value={isCustomTextColor ? s.textColor : theme.textColor}
+              value={s.borderColor}
               onChange={(e) =>
-                updateStyleWithToken(
-                  { useThemeTextColor: false, textColor: e.target.value },
-                  ['textColor']
+                updateStyleWithToken({ borderColor: e.target.value }, ['borderColor'])
+              }
+              className="w-full h-7 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+            />
+          </div>
+        </div>
+      </AccordionSection>
+
+      {/* 2. LAYOUT & SPASI — Unified across ALL components (Gambar 1) */}
+      <AccordionSection
+        id="layout"
+        title={label('desain.sec.layout', 'Layout & Spasi')}
+        icon={<Maximize2 className="w-3.5 h-3.5" />}
+        isOpen={openSections.layout}
+        onToggle={() => toggleSection('layout')}
+      >
+        <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-[#17243D] flex items-center gap-1.5">
+              <LayoutTemplate className="w-3.5 h-3.5 text-[#00C98A]" />
+              <span>{label('desain.field.fullKananKiri', 'Full Kanan-Kiri')}</span>
+            </span>
+            <ToggleSwitch
+              checked={Boolean(s.fullBleed)}
+              onChange={(checked) =>
+                updateStyle(
+                  checked ? { fullBleed: true, widthPercent: 100 } : { fullBleed: false }
                 )
               }
-              className="w-8 h-8 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer shrink-0 bg-white"
+              label={label('desain.field.fullKananKiri', 'Full Kanan-Kiri')}
             />
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {[
-                { color: '#FFFFFF', title: 'Putih' },
-                { color: '#0F172A', title: 'Gelap' },
-                { color: theme.textColor, title: 'Warna Template' },
-                { color: theme.accentColor, title: 'Aksen Tema' },
-              ].map((sw, idx) => {
-                const activeColor = isCustomTextColor ? s.textColor : theme.textColor;
-                return (
-                  <button
-                    key={`${sw.color}_${idx}`}
-                    type="button"
-                    title={sw.title}
-                    onClick={() =>
-                      updateStyleWithToken(
-                        { useThemeTextColor: false, textColor: sw.color },
-                        ['textColor']
-                      )
-                    }
-                    style={{ backgroundColor: sw.color }}
-                    className={`w-6 h-6 rounded-full border border-[#DCE5EF] cursor-pointer ${
-                      activeColor.toLowerCase() === sw.color.toLowerCase() && isCustomTextColor
-                        ? 'ring-2 ring-[#00C98A] ring-offset-1'
-                        : ''
-                    }`}
-                  />
-                );
-              })}
-            </div>
           </div>
-
-          {isContainerLike && isCustomTextColor && (
+          {s.fullBleed && s.borderRadius > 0 && (
             <button
               type="button"
-              onClick={() =>
-                onUpdateBlock(selectedBlock.id, (blk) => ({
-                  ...blk,
-                  children: applyInheritToDescendants(blk.children),
-                }))
-              }
-              className="w-full py-1.5 px-2.5 rounded-lg bg-white border border-[#DCE5EF] text-[11px] font-semibold text-[#17243D] hover:border-[#00C98A] cursor-pointer"
+              onClick={() => updateStyle({ borderRadius: 0, shapePreset: 'square' })}
+              className="px-2 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] hover:border-[#00C98A] cursor-pointer"
             >
-              Samakan Semua Teks di Dalam Kartu
+              Sudut 0px
             </button>
           )}
         </div>
-      </AccordionSection>
 
-      <AccordionSection
-        id="border"
-        title={label('desain.sec.border', 'Border & Garis Tepi')}
-        icon={<Square className="w-3.5 h-3.5" />}
-        isOpen={openSections.border}
-        onToggle={() => toggleSection('border')}
-      >
+        {/* Padding Atas */}
         <SliderRow
-          label={label('desain.field.ketebalanGarisTepi', 'Ketebalan Garis Tepi')}
-          value={`${s.borderWidth}px`}
+          label="Padding Atas"
+          value={`${padTopVal}px`}
           min={0}
-          max={16}
-          current={s.borderWidth}
-          onChange={(val) => updateStyle({ borderWidth: val })}
+          max={48}
+          current={padTopVal}
+          onChange={(val) => updateStyle({ paddingTop: val })}
         />
-        <div className="grid grid-cols-5 gap-1">
-          {[0, 1, 2, 4, 6].map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => updateStyle({ borderWidth: w })}
-              className={`py-1 rounded border text-[10.5px] font-semibold cursor-pointer ${
-                s.borderWidth === w
-                  ? 'bg-[#17243D] text-white border-[#17243D]'
-                  : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF]'
-              }`}
-            >
-              {w}px
-            </button>
-          ))}
-        </div>
+
+        {/* Padding Bawah + 0px */}
         <div>
-          <label className="block text-xs font-semibold text-[#17243D] mb-1">
-            {label('desain.field.warnaGarisTepi', 'Warna Garis Tepi')}
-          </label>
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="font-medium text-[#17243D]">Padding Bawah</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => updateStyle({ paddingBottom: 0 })}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                  padBottomVal === 0
+                    ? 'bg-[#17243D] text-white border-[#17243D]'
+                    : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                }`}
+              >
+                0px
+              </button>
+              <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
+                {padBottomVal}px
+              </span>
+            </div>
+          </div>
           <input
-            type="color"
-            value={s.borderColor}
-            onChange={(e) =>
-              updateStyleWithToken({ borderColor: e.target.value }, ['borderColor'])
+            type="range"
+            min={0}
+            max={48}
+            value={padBottomVal}
+            onChange={(e) => updateStyle({ paddingBottom: Number(e.target.value) })}
+            style={rangeProgressStyle(padBottomVal, 0, 48)}
+            className="w-full cursor-pointer"
+          />
+        </div>
+
+        {/* Padding Kanan + 0px */}
+        <div>
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="font-medium text-[#17243D]">Padding Kanan</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => updateStyle({ paddingRight: 0 })}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                  padRightVal === 0
+                    ? 'bg-[#17243D] text-white border-[#17243D]'
+                    : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                }`}
+              >
+                0px
+              </button>
+              <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
+                {padRightVal}px
+              </span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={48}
+            value={padRightVal}
+            onChange={(e) => updateStyle({ paddingRight: Number(e.target.value) })}
+            style={rangeProgressStyle(padRightVal, 0, 48)}
+            className="w-full cursor-pointer"
+          />
+        </div>
+
+        {/* Padding Kiri + 0px */}
+        <div>
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="font-medium text-[#17243D]">Padding Kiri</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => updateStyle({ paddingLeft: 0 })}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                  padLeftVal === 0
+                    ? 'bg-[#17243D] text-white border-[#17243D]'
+                    : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                }`}
+              >
+                0px
+              </button>
+              <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
+                {padLeftVal}px
+              </span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={48}
+            value={padLeftVal}
+            onChange={(e) => updateStyle({ paddingLeft: Number(e.target.value) })}
+            style={rangeProgressStyle(padLeftVal, 0, 48)}
+            className="w-full cursor-pointer"
+          />
+        </div>
+
+        {/* Jarak Atas (Margin) */}
+        <SliderRow
+          label="Jarak Atas (Margin)"
+          value={`${marginTopVal}px`}
+          min={0}
+          max={64}
+          current={marginTopVal}
+          onChange={(val) => updateStyle({ marginTop: val })}
+        />
+
+        {/* Jarak Bawah (Margin) */}
+        <SliderRow
+          label={label('desain.field.jarakBawah', 'Jarak Bawah (Margin)')}
+          value={`${s.marginBottom}px`}
+          min={0}
+          max={64}
+          current={s.marginBottom}
+          onChange={(val) => updateStyle({ marginBottom: val })}
+        />
+
+        {/* Lebar Elemen & Tinggi Minimal */}
+        <div className="pt-1.5 border-t border-[#DCE5EF] space-y-2">
+          <SliderRow
+            label={label('desain.field.lebarElemen', 'Lebar Elemen')}
+            value={`${s.widthPercent}%`}
+            min={30}
+            max={100}
+            current={s.widthPercent}
+            onChange={(val) =>
+              updateStyle({ widthPercent: val, fullBleed: val < 100 ? false : s.fullBleed })
             }
-            className="w-full h-8 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+          />
+          <SliderRow
+            label={label('desain.field.tinggiMinimal', 'Tinggi Minimal')}
+            value={`${s.minHeight}px`}
+            min={0}
+            max={420}
+            current={s.minHeight}
+            onChange={(val) => updateStyle({ minHeight: val })}
           />
         </div>
       </AccordionSection>
+
+      {/* 3. PENGATURAN KHUSUS KOMPONEN — only when component has extra design settings */}
+      {hasSpecificVisualControls && (
+        <AccordionSection
+          id="specific"
+          title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
+          icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+          isOpen={openSections.specific}
+          onToggle={() => toggleSection('specific')}
+        >
+          {renderSpecificControls()}
+        </AccordionSection>
+      )}
     </div>
   );
 }

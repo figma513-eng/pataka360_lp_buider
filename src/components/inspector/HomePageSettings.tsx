@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Copy,
   GripVertical,
   Layers,
   Palette,
@@ -54,6 +55,7 @@ interface HomePageSettingsProps {
     targetId: string,
     position: 'before' | 'after' | 'inside'
   ) => void;
+  onDuplicateBlock?: (id: string) => void;
   onDeleteBlock: (id: string) => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
 }
@@ -75,6 +77,7 @@ export function HomePageSettings({
   onSelectBlock,
   onMoveBlock,
   onReorderBlock,
+  onDuplicateBlock,
   onDeleteBlock,
   onAddChildToContainer,
 }: HomePageSettingsProps) {
@@ -313,6 +316,20 @@ export function HomePageSettings({
             >
               <ArrowDown className="w-3 h-3" />
             </button>
+            {onDuplicateBlock && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicateBlock(blk.id);
+                }}
+                title="Duplikat Lapisan"
+                aria-label="Duplikat Lapisan"
+                className="p-0.5 rounded hover:bg-[#ECFDF6] text-[#8FA4BF] hover:text-[#00A873] cursor-pointer"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {

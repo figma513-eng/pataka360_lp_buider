@@ -4,6 +4,7 @@ import {
   Copy,
   FileText,
   Palette,
+  Pencil,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -84,12 +85,32 @@ export function RightInspector({
         )}
 
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-[12px] font-bold text-[#17243D] truncate">
-              {selectedBlock
-                ? selectedBlock.label?.trim() || blockTypeDisplay
-                : 'Inspektor Komponen'}
-            </div>
+          <div className="min-w-0 flex-1">
+            {selectedBlock ? (
+              <div className="group/rename relative flex items-center">
+                <input
+                  type="text"
+                  value={selectedBlock.label}
+                  placeholder={blockTypeDisplay}
+                  aria-label={label('konten.field.namaLapisan', 'Nama Lapisan Komponen')}
+                  title="Klik untuk ubah nama lapisan komponen"
+                  onChange={(e) =>
+                    onUpdateBlock(selectedBlock.id, (blk) => ({ ...blk, label: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  className="w-full text-[13px] font-bold text-[#17243D] bg-transparent hover:bg-[#F0F5FA] focus:bg-[#F0F5FA] border border-transparent hover:border-[#DCE5EF] focus:border-[#00C98A] rounded-md px-1.5 py-0.5 -ml-1.5 pr-6 outline-none truncate transition-colors"
+                />
+                <Pencil className="w-3 h-3 text-[#8FA4BF] opacity-60 group-hover/rename:opacity-100 group-focus-within/rename:text-[#00C98A] pointer-events-none absolute right-1.5" />
+              </div>
+            ) : (
+              <div className="text-[12px] font-bold text-[#17243D] truncate">
+                Inspektor Komponen
+              </div>
+            )}
             <div className="text-[10.5px] font-medium text-[#00A873] truncate">
               {selectedBlock ? blockTypeDisplay : 'Pilih elemen pada Canvas'}
             </div>

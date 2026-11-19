@@ -16,10 +16,11 @@ import {
   escapeHtml,
   renderBlockHtml,
   resolveBlockTextColor,
+  resolveShadowSizePx,
   shadowToCss,
 } from './exporterBlocks.ts';
 
-export { extractYouTubeId, resolveBlockTextColor, shadowToCss };
+export { extractYouTubeId, resolveBlockTextColor, resolveShadowSizePx, shadowToCss };
 
 function findFirstFnbCatalogBlock(
   blocks: BuilderBlock[],

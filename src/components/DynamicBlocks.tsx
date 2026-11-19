@@ -128,8 +128,8 @@ export function HeroProfileCard({
             borderStyle: 'solid',
             borderColor: s.borderColor || theme.borderColor,
             boxShadow:
-              s.shadow !== 'none'
-                ? shadowToCss(s.shadow, s.shadowColor)
+              shadowToCss(s.shadow, s.shadowColor, s.shadowSize) !== 'none'
+                ? shadowToCss(s.shadow, s.shadowColor, s.shadowSize)
                 : '0 10px 26px rgba(15, 23, 42, 0.12)',
             color: resolvedTextColor,
             ...cardBgProps,

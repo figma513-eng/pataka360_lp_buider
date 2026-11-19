@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, type CSSProperties } from 'react';
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowLeft,
   CheckCircle2,
-  Copy,
   Eye,
   EyeOff,
   FileText,
@@ -13,14 +15,16 @@ import {
   Plus,
   RotateCcw,
   Settings2,
-  Tag,
+  SlidersHorizontal,
   Trash2,
+  Type,
   Upload,
   Video,
   X,
 } from 'lucide-react';
 import {
   AdvanceOptions,
+  BlockStyle,
   BlockType,
   BuilderBlock,
   CarouselItem,
@@ -73,11 +77,13 @@ import { removeSelectedItemByIdOrIndex } from '../../utils/itemListHelpers';
 import { RichTextEditor } from '../RichTextEditor';
 import { SocialGlyph } from '../SocialIcon';
 import { useUiLabel } from '../../contexts/UiLabelsContext';
+import { ThemeOverrideTokenKey, withLocalThemeTokenPatch } from '../../utils/blockThemeHelpers';
 import {
   AccordionSection,
   ItemOverflowMenu,
   MediaSourceInput,
   SectionEmptyNote,
+  SegmentedControl,
   SliderRow,
   ToggleSwitch,
 } from './InspectorPrimitives';
@@ -95,7 +101,15 @@ interface BlockContentTabProps {
   onSetUploadError: (msg: string | null) => void;
 }
 
-type ContentSectionId = 'identity' | 'main' | 'items' | 'nav' | 'actions' | 'extra';
+type ContentSectionId = 'rowSpecific' | 'main' | 'typo' | 'items' | 'nav' | 'actions' | 'extra';
+
+function rangeProgressStyle(current: number, min: number, max: number): CSSProperties {
+  const span = max - min;
+  const pct = span > 0 ? Math.max(0, Math.min(100, ((current - min) / span) * 100)) : 0;
+  return {
+    background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${pct}%, #E2E8F0 ${pct}%, #E2E8F0 100%)`,
+  };
+}
 
 const SAMPLE_CAROUSEL_IMAGES = [
   CAROUSEL_SAMPLE_1_SVG,
@@ -147,11 +161,12 @@ export function BlockContentTab({
 }: BlockContentTabProps) {
   const { label } = useUiLabel();
   const [openSections, setOpenSections] = useState<Record<ContentSectionId, boolean>>({
-    identity: true,
+    rowSpecific: true,
     main: true,
+    typo: true,
     items: true,
-    nav: false,
-    actions: false,
+    nav: true,
+    actions: true,
     extra: false,
   });
 
@@ -179,6 +194,8 @@ export function BlockContentTab({
   };
 
   const c = selectedBlock.content;
+  const s = selectedBlock.style;
+  const isCustomTextColor = s.useThemeTextColor === false;
 
   const updateContent = (patch: Partial<BuilderBlock['content']>) => {
     onUpdateBlock(selectedBlock.id, (blk) => ({
@@ -186,6 +203,335 @@ export function BlockContentTab({
       content: { ...blk.content, ...patch },
     }));
   };
+
+  const updateStyle = (patch: Partial<BlockStyle>) => {
+    onUpdateBlock(selectedBlock.id, (blk) => ({
+      ...blk,
+      style: { ...blk.style, ...patch },
+    }));
+  };
+
+  const updateStyleWithToken = (
+    patch: Partial<BlockStyle>,
+    tokenKeys: ThemeOverrideTokenKey[]
+  ) => {
+    onUpdateBlock(selectedBlock.id, (blk) =>
+      withLocalThemeTokenPatch(blk, patch, undefined, tokenKeys)
+    );
+  };
+
+  const updateAccentContent = (patch: Partial<BuilderBlock['content']>) => {
+    onUpdateBlock(selectedBlock.id, (blk) =>
+      withLocalThemeTokenPatch(blk, {}, patch, ['accentColor'])
+    );
+  };
+
+  const renderTypographyControls = (opts?: { showVariantAndWeight?: boolean; syncMenuIconColor?: boolean }) => (
+    <div className="space-y-2.5">
+      {/* Alignment */}
+      <SegmentedControl<'left' | 'center' | 'right'>
+        columns={3}
+        value={s.align}
+        onChange={(align) => updateStyle({ align })}
+        options={[
+          { id: 'left', label: <AlignLeft className="w-3.5 h-3.5" /> },
+          { id: 'center', label: <AlignCenter className="w-3.5 h-3.5" /> },
+          { id: 'right', label: <AlignRight className="w-3.5 h-3.5" /> },
+        ]}
+      />
+
+      {opts?.showVariantAndWeight && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+              Jenis Teks
+            </label>
+            <select
+              value={c.variant ?? 'body'}
+              onChange={(e) =>
+                updateContent({ variant: e.target.value as 'h1' | 'h2' | 'body' })
+              }
+              className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+            >
+              <option value="h1">Judul Besar</option>
+              <option value="h2">Subjudul</option>
+              <option value="body">Paragraf</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+              Ketebalan Teks
+            </label>
+            <select
+              value={c.fontWeight ?? 'normal'}
+              onChange={(e) =>
+                updateContent({ fontWeight: e.target.value as 'normal' | 'semibold' | 'bold' })
+              }
+              className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+            >
+              <option value="normal">Normal</option>
+              <option value="semibold">Semi Tebal</option>
+              <option value="bold">Tebal</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[11px] font-semibold text-[#17243D]">
+            {label('desain.field.jenisFont', 'Jenis Font')}
+          </label>
+          {s.fontFamily && (
+            <button
+              type="button"
+              onClick={() =>
+                updateStyle({
+                  fontFamily: undefined,
+                  themeOverrideTokens: s.themeOverrideTokens
+                    ? { ...s.themeOverrideTokens, fontFamily: false }
+                    : undefined,
+                })
+              }
+              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[#00C98A] hover:underline cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Ikuti Global</span>
+            </button>
+          )}
+        </div>
+        <select
+          value={s.fontFamily ?? ''}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (!val) {
+              updateStyle({
+                fontFamily: undefined,
+                themeOverrideTokens: s.themeOverrideTokens
+                  ? { ...s.themeOverrideTokens, fontFamily: false }
+                  : undefined,
+              });
+            } else {
+              updateStyleWithToken({ fontFamily: val }, ['fontFamily']);
+            }
+          }}
+          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+        >
+          <option value="">Ikuti Font Default Tema</option>
+          {(['Sans', 'Display', 'Serif', 'Script', 'Mono'] as const).map((cat) => (
+            <optgroup key={cat} label={cat}>
+              {FONT_OPTIONS.filter((f) => f.category === cat).map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between text-[11px] mb-1">
+          <span className="font-medium text-[#17243D]">
+            {label('desain.field.ukuranTeks', 'Ukuran Teks (Font Size)')}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {s.fontSize !== undefined && (
+              <button
+                type="button"
+                onClick={() => updateStyle({ fontSize: undefined })}
+                className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
+              >
+                Auto
+              </button>
+            )}
+            <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
+              {s.fontSize ? `${s.fontSize}px` : 'Auto'}
+            </span>
+          </div>
+        </div>
+        <input
+          type="range"
+          min={10}
+          max={42}
+          value={s.fontSize ?? 15}
+          onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })}
+          style={rangeProgressStyle(s.fontSize ?? 15, 10, 42)}
+          className="w-full cursor-pointer"
+        />
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+          {label('desain.field.ketebalanTeks', 'Ketebalan Teks (Weight)')}
+        </label>
+        <div className="grid grid-cols-5 gap-1">
+          {(['400', '500', '600', '700', '800'] as const).map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() =>
+                updateStyle({ fontWeightCss: s.fontWeightCss === w ? undefined : w })
+              }
+              className={`py-1 rounded border text-[10.5px] font-semibold cursor-pointer tabular-nums ${
+                s.fontWeightCss === w
+                  ? 'bg-[#17243D] text-white border-[#17243D]'
+                  : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+              }`}
+            >
+              {w}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between text-[11px] mb-1">
+          <span className="font-medium text-[#17243D]">
+            {label('desain.field.tinggiBaris', 'Tinggi Baris (Line Height)')}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {s.lineHeight !== undefined && (
+              <button
+                type="button"
+                onClick={() => updateStyle({ lineHeight: undefined })}
+                className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
+              >
+                Auto
+              </button>
+            )}
+            <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
+              {s.lineHeight ? s.lineHeight.toFixed(1) : 'Auto'}
+            </span>
+          </div>
+        </div>
+        <input
+          type="range"
+          min={1.0}
+          max={2.4}
+          step={0.1}
+          value={s.lineHeight ?? 1.5}
+          onChange={(e) => updateStyle({ lineHeight: Number(e.target.value) })}
+          style={rangeProgressStyle(s.lineHeight ?? 1.5, 1.0, 2.4)}
+          className="w-full cursor-pointer"
+        />
+      </div>
+
+      {/* Warna Teks */}
+      <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-bold text-[#17243D]">
+            {label('desain.field.warnaTeks', 'Warna Teks')}
+          </span>
+          <div className="inline-flex rounded-md bg-white border border-[#DCE5EF] p-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                onUpdateBlock(selectedBlock.id, (blk) => ({
+                  ...blk,
+                  style: {
+                    ...blk.style,
+                    useThemeTextColor: true,
+                    textColor: theme.textColor,
+                    themeOverrideTokens: blk.style.themeOverrideTokens
+                      ? { ...blk.style.themeOverrideTokens, textColor: false }
+                      : undefined,
+                  },
+                  content: opts?.syncMenuIconColor
+                    ? { ...blk.content, menuIconTextColor: undefined }
+                    : blk.content,
+                }));
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                !isCustomTextColor
+                  ? 'bg-[#17243D] text-white'
+                  : 'text-[#8FA4BF] hover:text-[#17243D]'
+              }`}
+            >
+              Ikut Template
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const chosen = s.textColor || c.menuIconTextColor || theme.textColor;
+                onUpdateBlock(selectedBlock.id, (blk) =>
+                  withLocalThemeTokenPatch(
+                    blk,
+                    { useThemeTextColor: false, textColor: chosen },
+                    opts?.syncMenuIconColor ? { menuIconTextColor: chosen } : undefined,
+                    ['textColor']
+                  )
+                );
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                isCustomTextColor
+                  ? 'bg-[#17243D] text-white'
+                  : 'text-[#8FA4BF] hover:text-[#17243D]'
+              }`}
+            >
+              Kustom
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={
+              isCustomTextColor
+                ? s.textColor || c.menuIconTextColor || theme.textColor
+                : theme.textColor
+            }
+            onChange={(e) => {
+              const col = e.target.value;
+              onUpdateBlock(selectedBlock.id, (blk) =>
+                withLocalThemeTokenPatch(
+                  blk,
+                  { useThemeTextColor: false, textColor: col },
+                  opts?.syncMenuIconColor ? { menuIconTextColor: col } : undefined,
+                  ['textColor']
+                )
+              );
+            }}
+            className="w-7 h-7 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer shrink-0 bg-white"
+          />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { color: '#FFFFFF', title: 'Putih' },
+              { color: '#0F172A', title: 'Gelap' },
+              { color: theme.textColor, title: 'Warna Template' },
+              { color: theme.accentColor, title: 'Aksen Tema' },
+            ].map((sw, idx) => {
+              const activeColor = isCustomTextColor ? s.textColor : theme.textColor;
+              return (
+                <button
+                  key={`${sw.color}_${idx}`}
+                  type="button"
+                  title={sw.title}
+                  onClick={() =>
+                    onUpdateBlock(selectedBlock.id, (blk) =>
+                      withLocalThemeTokenPatch(
+                        blk,
+                        { useThemeTextColor: false, textColor: sw.color },
+                        opts?.syncMenuIconColor ? { menuIconTextColor: sw.color } : undefined,
+                        ['textColor']
+                      )
+                    )
+                  }
+                  style={{ backgroundColor: sw.color }}
+                  className={`w-5 h-5 rounded-full border border-[#DCE5EF] cursor-pointer ${
+                    activeColor.toLowerCase() === sw.color.toLowerCase() && isCustomTextColor
+                      ? 'ring-2 ring-[#00C98A] ring-offset-1'
+                      : ''
+                  }`}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const handleCompressAndSet = async (
     file: File,
@@ -910,10 +1256,135 @@ export function BlockContentTab({
         );
       }
 
-      default:
-        return (
-          <SectionEmptyNote message="Komponen ini tidak memiliki teks utama tunggal. Kelola item atau elemen di bagian Data & Daftar Item di bawah." />
+      case 'menu_icon': {
+        const iconSize = Math.max(36, Math.min(160, c.menuIconSize ?? 64));
+        const photoSize = Math.max(
+          16,
+          Math.min(160, c.menuIconImageSize ?? iconSize)
         );
+        const fit = c.menuIconImageFit ?? 'cover';
+        return (
+          <div className="space-y-3">
+            <SliderRow
+              label="Ukuran Ikon"
+              value={`${iconSize}px`}
+              min={36}
+              max={160}
+              step={2}
+              current={iconSize}
+              onChange={(val) => updateContent({ menuIconSize: val })}
+            />
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
+                Tampilan Gambar
+              </label>
+              <SegmentedControl<'cover' | 'contain'>
+                columns={2}
+                value={fit}
+                onChange={(nextFit) => updateContent({ menuIconImageFit: nextFit })}
+                options={[
+                  { id: 'cover', label: 'Penuh (Cover)' },
+                  { id: 'contain', label: 'Utuh (Contain)' },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-0.5">
+              <span className="text-[11px] font-semibold text-[#17243D]">
+                Tampilkan Label Teks
+              </span>
+              <ToggleSwitch
+                label="Tampilkan Label Teks"
+                checked={c.menuIconShowLabel !== false}
+                onChange={(checked) => updateContent({ menuIconShowLabel: checked })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-[#51637D] mb-1">
+                Warna Latar Ikon
+              </label>
+              <input
+                type="color"
+                value={c.menuIconBg || theme.accentColor}
+                onChange={(e) => updateAccentContent({ menuIconBg: e.target.value })}
+                className="w-full h-7 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
+              />
+            </div>
+
+            <MediaSourceInput
+              label="Gambar / Ikon Menu (Upload atau Link URL)"
+              value={c.menuIconImage ?? ''}
+              placeholder="https://.../icon.png"
+              onChangeUrl={(url) => updateContent({ menuIconImage: url })}
+              onUploadFile={(file) =>
+                handleCompressAndSet(
+                  file,
+                  { maxDimension: 640, quality: 0.85 },
+                  (blk, url) => ({
+                    ...blk,
+                    content: { ...blk.content, menuIconImage: url },
+                  })
+                )
+              }
+              onClear={() => updateContent({ menuIconImage: '' })}
+            />
+
+            {/* Ukuran Foto (px) */}
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="font-medium text-[#17243D]">Ukuran Foto (px)</span>
+                <div className="flex items-center gap-1.5">
+                  {c.menuIconImageSize !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => updateContent({ menuIconImageSize: undefined })}
+                      className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      Auto
+                    </button>
+                  )}
+                  <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
+                    {c.menuIconImageSize ? `${photoSize}px` : `${iconSize}px`}
+                  </span>
+                </div>
+              </div>
+              <input
+                type="range"
+                min={16}
+                max={160}
+                step={1}
+                value={photoSize}
+                onChange={(e) => updateContent({ menuIconImageSize: Number(e.target.value) })}
+                style={rangeProgressStyle(photoSize, 16, 160)}
+                className="w-full cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Label Menu Icon
+              </label>
+              <input
+                type="text"
+                value={c.menuIconLabel ?? 'Menu Icon'}
+                onChange={(e) => updateContent({ menuIconLabel: e.target.value })}
+                placeholder="Contoh: Promo, Lokasi, Menu"
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+              />
+            </div>
+
+            {/* Inline Tipografi controls matching Gambar 1 top-right */}
+            <div className="pt-2 border-t border-[#DCE5EF]">
+              {renderTypographyControls({ showVariantAndWeight: true, syncMenuIconColor: true })}
+            </div>
+          </div>
+        );
+      }
+
+      default:
+        return null;
     }
   };
 
@@ -956,7 +1427,7 @@ export function BlockContentTab({
     </div>
   );
 
-  const renderDataItemsSection = (): { badge?: string | number; body: React.ReactNode } => {
+  const renderDataItemsSection = (): { badge?: string | number; body: React.ReactNode } | null => {
     // --- CATALOG ---
     if (selectedBlock.type === 'catalog') {
       const items = c.catalogItems ?? [];
@@ -3548,79 +4019,12 @@ export function BlockContentTab({
         children: [],
       });
 
-      const setSlideCount = (targetCount: number) => {
-        const clamped = Math.max(1, Math.min(20, Math.round(targetCount)));
-        const next = [...rowChildren];
-        while (next.length < clamped) {
-          next.push(makeEmptySlide(next.length + 1));
-        }
-        const trimmed = next.slice(0, clamped);
-        onUpdateBlock(selectedBlock.id, (blk) => ({
-          ...blk,
-          content: {
-            ...blk.content,
-            rowColumns:
-              (blk.content.rowLayoutMode ?? 'grid') === 'grid'
-                ? Math.min(20, Math.max(1, clamped))
-                : blk.content.rowColumns,
-          },
-          children: trimmed,
-        }));
-      };
-
       const canAddMore = rowChildren.length < 20;
 
       return {
         badge: rowChildren.length,
         body: (
           <div className="space-y-2.5">
-            {/* Jumlah Kolom / Slide 1-20 */}
-            <div className="p-2 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-[#17243D]">
-                  Jumlah Kolom / Slide (1–20)
-                </span>
-                <div className="inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={rowChildren.length <= 1}
-                    onClick={() => setSlideCount(rowChildren.length - 1)}
-                    className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                    aria-label="Kurangi kolom"
-                  >
-                    -
-                  </button>
-                  <span className="min-w-[28px] text-center text-xs font-bold tabular-nums text-[#17243D]">
-                    {rowChildren.length}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!canAddMore}
-                    onClick={() => setSlideCount(rowChildren.length + 1)}
-                    className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                    aria-label="Tambah kolom"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={20}
-                step={1}
-                value={Math.max(1, Math.min(20, rowChildren.length || 1))}
-                onChange={(e) => setSlideCount(Number(e.target.value))}
-                style={{
-                  background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${
-                    ((Math.max(1, Math.min(20, rowChildren.length || 1)) - 1) / 19) * 100
-                  }%, #E2E8F0 ${
-                    ((Math.max(1, Math.min(20, rowChildren.length || 1)) - 1) / 19) * 100
-                  }%, #E2E8F0 100%)`,
-                }}
-                className="w-full cursor-pointer"
-              />
-            </div>
 
             {/* Buat Slide Kosong Horizontal / Vertikal */}
             <div className="grid grid-cols-2 gap-1.5">
@@ -3949,11 +4353,7 @@ export function BlockContentTab({
       };
     }
 
-    return {
-      body: (
-        <SectionEmptyNote message="Komponen ini tidak memiliki daftar item berulang." />
-      ),
-    };
+    return null;
   };
 
   // --- 4. TAUTAN & NAVIGASI ---
@@ -4041,10 +4441,113 @@ export function BlockContentTab({
           <SectionEmptyNote message="Setiap tombol di daftar Data & Daftar Item otomatis menggulir halaman ke judul target saat diklik pengunjung." />
         );
 
-      default:
+      case 'menu_icon': {
+        const action: MenuIconAction = c.menuIconAction ?? 'sheet';
+        const sheetPos: MenuIconSheetPosition = c.menuIconSheetPosition ?? 'bottom';
+        const targetCandidates = flattenTargetBlocks(allBlocks, selectedBlock.id);
         return (
-          <SectionEmptyNote message="Tautan atau navigasi diatur langsung di dalam daftar item atau bagian Konten Utama." />
+          <div className="space-y-2.5">
+            {action === 'sheet' && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Judul Panel Sheet
+                </label>
+                <input
+                  type="text"
+                  value={c.sheetTitle ?? 'Menu Panel'}
+                  onChange={(e) => updateContent({ sheetTitle: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
+                Fungsi Saat Diklik
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'sheet' as const, label: 'Tampilkan Sheet' },
+                    { id: 'card' as const, label: 'Menuju Card Lain' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ menuIconAction: opt.id })}
+                    className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                      action === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {action === 'sheet' ? (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
+                  Arah Muncul Sheet
+                </label>
+                <div className="grid grid-cols-4 gap-1">
+                  {(
+                    [
+                      { id: 'bottom' as const, label: 'Bawah' },
+                      { id: 'right' as const, label: 'Kanan' },
+                      { id: 'left' as const, label: 'Kiri' },
+                      { id: 'top' as const, label: 'Atas' },
+                    ] as const
+                  ).map((pos) => (
+                    <button
+                      key={pos.id}
+                      type="button"
+                      onClick={() => updateContent({ menuIconSheetPosition: pos.id })}
+                      className={`py-1.5 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                        sheetPos === pos.id
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+                      }`}
+                    >
+                      {pos.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
+                <label className="block text-[11px] font-semibold text-[#17243D]">
+                  Pilih Card / Komponen Tujuan
+                </label>
+                <select
+                  value={c.menuIconTargetBlockId ?? ''}
+                  onChange={(e) => updateContent({ menuIconTargetBlockId: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D]"
+                >
+                  <option value="">-- Pilih card / blok tujuan --</option>
+                  {targetCandidates.map((cand, idx) => (
+                    <option key={cand.id} value={cand.id}>
+                      {cand.depth > 0 ? '↳ '.repeat(cand.depth) : `${idx + 1}. `}
+                      {cand.label} ({BLOCK_TYPE_NAMES[cand.type]})
+                    </option>
+                  ))}
+                </select>
+                {targetCandidates.length === 0 && (
+                  <p className="text-[10.5px] text-[#8FA4BF]">
+                    Tambahkan komponen/card lain di kanvas agar bisa dipilih sebagai tujuan.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         );
+      }
+
+      default:
+        return null;
     }
   };
 
@@ -4420,141 +4923,6 @@ export function BlockContentTab({
           </div>
         );
 
-      case 'menu_icon': {
-        const action: MenuIconAction = c.menuIconAction ?? 'sheet';
-        const sheetPos: MenuIconSheetPosition = c.menuIconSheetPosition ?? 'bottom';
-        const targetCandidates = flattenTargetBlocks(allBlocks, selectedBlock.id);
-        return (
-          <div className="space-y-3">
-            <MediaSourceInput
-              label="Gambar / Ikon Menu (Upload atau Link URL)"
-              value={c.menuIconImage ?? ''}
-              placeholder="https://.../icon.png"
-              onChangeUrl={(url) => updateContent({ menuIconImage: url })}
-              onUploadFile={(file) =>
-                handleCompressAndSet(
-                  file,
-                  { maxDimension: 640, quality: 0.85 },
-                  (blk, url) => ({
-                    ...blk,
-                    content: { ...blk.content, menuIconImage: url },
-                  })
-                )
-              }
-              onClear={() => updateContent({ menuIconImage: '' })}
-            />
-
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Label Menu Icon
-              </label>
-              <input
-                type="text"
-                value={c.menuIconLabel ?? 'Menu Icon'}
-                onChange={(e) => updateContent({ menuIconLabel: e.target.value })}
-                placeholder="Contoh: Promo, Lokasi, Menu"
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                Fungsi Saat Diklik
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {(
-                  [
-                    { id: 'sheet' as const, label: 'Tampilkan Sheet' },
-                    { id: 'card' as const, label: 'Menuju Card Lain' },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => updateContent({ menuIconAction: opt.id })}
-                    className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border cursor-pointer ${
-                      action === opt.id
-                        ? 'bg-[#17243D] text-white border-[#17243D]'
-                        : 'bg-white text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {action === 'sheet' ? (
-              <div className="space-y-2.5 pt-1 border-t border-[#DCE5EF]">
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                    Arah Muncul Sheet
-                  </label>
-                  <div className="grid grid-cols-4 gap-1">
-                    {(
-                      [
-                        { id: 'bottom' as const, label: 'Bawah' },
-                        { id: 'right' as const, label: 'Kanan' },
-                        { id: 'left' as const, label: 'Kiri' },
-                        { id: 'top' as const, label: 'Atas' },
-                      ] as const
-                    ).map((pos) => (
-                      <button
-                        key={pos.id}
-                        type="button"
-                        onClick={() => updateContent({ menuIconSheetPosition: pos.id })}
-                        className={`py-1.5 rounded-lg text-[11px] font-semibold border cursor-pointer ${
-                          sheetPos === pos.id
-                            ? 'bg-[#17243D] text-white border-[#17243D]'
-                            : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
-                        }`}
-                      >
-                        {pos.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Judul Panel Sheet
-                  </label>
-                  <input
-                    type="text"
-                    value={c.sheetTitle ?? 'Menu Panel'}
-                    onChange={(e) => updateContent({ sheetTitle: e.target.value })}
-                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
-                <label className="block text-[11px] font-semibold text-[#17243D]">
-                  Pilih Card / Komponen Tujuan
-                </label>
-                <select
-                  value={c.menuIconTargetBlockId ?? ''}
-                  onChange={(e) => updateContent({ menuIconTargetBlockId: e.target.value })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D]"
-                >
-                  <option value="">-- Pilih card / blok tujuan --</option>
-                  {targetCandidates.map((cand, idx) => (
-                    <option key={cand.id} value={cand.id}>
-                      {cand.depth > 0 ? '↳ '.repeat(cand.depth) : `${idx + 1}. `}
-                      {cand.label} ({BLOCK_TYPE_NAMES[cand.type]})
-                    </option>
-                  ))}
-                </select>
-                {targetCandidates.length === 0 && (
-                  <p className="text-[10.5px] text-[#8FA4BF]">
-                    Tambahkan komponen/card lain di kanvas agar bisa dipilih sebagai tujuan.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      }
-
       case 'form':
         return (
           <div>
@@ -4571,9 +4939,7 @@ export function BlockContentTab({
         );
 
       default:
-        return (
-          <SectionEmptyNote message="Komponen ini tidak memiliki pengaturan aksi atau interaksi khusus." />
-        );
+        return null;
     }
   };
 
@@ -4737,101 +5103,289 @@ export function BlockContentTab({
         );
 
       default:
-        return (
-          <SectionEmptyNote message="Tidak ada pengaturan konten tambahan untuk komponen ini." />
-        );
+        return null;
     }
   };
 
+  // --- ROW SPECIFIC CONTROLS IN KONTEN (matching Gambar 1 bottom-right) ---
+  const renderRowSettings = () => {
+    if (selectedBlock.type !== 'row') return null;
+    const rowChildren = selectedBlock.children ?? [];
+    const rowMode = c.rowLayoutMode ?? 'grid';
+    const rowColWidth = Math.max(80, Math.min(340, c.rowColumnWidth ?? 156));
+    const rowColMinH = Math.max(0, Math.min(360, c.rowColumnMinHeight ?? 0));
+    const rowGap = Math.max(0, Math.min(32, c.rowGap ?? 12));
+
+    const makeEmptySlide = (idx: number): BuilderBlock => ({
+      id: createId('slide'),
+      type: 'container',
+      label: `Slide ${idx}`,
+      style: {
+        ...DEFAULT_STYLE,
+        padding: 12,
+        marginBottom: 0,
+        minHeight: 80,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: theme.borderColor,
+        backgroundColor: theme.cardBg,
+        textColor: theme.textColor,
+        shadow: 'sm',
+        hoverLift: false,
+        align: 'left',
+      },
+      content: {},
+      children: [],
+    });
+
+    const setSlideCount = (targetCount: number) => {
+      const clamped = Math.max(1, Math.min(20, Math.round(targetCount)));
+      const next = [...rowChildren];
+      while (next.length < clamped) {
+        next.push(makeEmptySlide(next.length + 1));
+      }
+      const trimmed = next.slice(0, clamped);
+      onUpdateBlock(selectedBlock.id, (blk) => ({
+        ...blk,
+        content: {
+          ...blk.content,
+          rowColumns:
+            (blk.content.rowLayoutMode ?? 'grid') === 'grid'
+              ? Math.min(20, Math.max(1, clamped))
+              : blk.content.rowColumns,
+        },
+        children: trimmed,
+      }));
+    };
+
+    return (
+      <div className="space-y-2.5">
+        <div>
+          <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
+            {label('desain.field.layoutRow', 'Mode Susunan Kolom / Slide')}
+          </label>
+          <SegmentedControl<'horizontal' | 'vertical' | 'grid'>
+            columns={3}
+            value={rowMode}
+            onChange={(m) => updateContent({ rowLayoutMode: m })}
+            options={[
+              { id: 'horizontal', label: 'Horizontal' },
+              { id: 'vertical', label: 'Vertikal' },
+              { id: 'grid', label: 'Grid' },
+            ]}
+          />
+        </div>
+
+        {/* Jumlah Kolom / Slide (1-20) */}
+        <div className="p-2 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-[#17243D]">
+              Jumlah Kolom / Slide (1–20)
+            </span>
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                disabled={rowChildren.length <= 1}
+                onClick={() => setSlideCount(rowChildren.length - 1)}
+                className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                aria-label="Kurangi kolom"
+              >
+                -
+              </button>
+              <span className="min-w-[24px] text-center text-xs font-bold tabular-nums text-[#17243D]">
+                {rowChildren.length}
+              </span>
+              <button
+                type="button"
+                disabled={rowChildren.length >= 20}
+                onClick={() => setSlideCount(rowChildren.length + 1)}
+                className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                aria-label="Tambah kolom"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={20}
+            step={1}
+            value={Math.max(1, Math.min(20, rowChildren.length || 1))}
+            onChange={(e) => setSlideCount(Number(e.target.value))}
+            style={rangeProgressStyle(Math.max(1, Math.min(20, rowChildren.length || 1)), 1, 20)}
+            className="w-full cursor-pointer"
+          />
+        </div>
+
+        {rowMode === 'horizontal' && (
+          <div className="space-y-2">
+            <SliderRow
+              label={label('desain.field.lebarKolom', 'Ukuran Lebar Tiap Slide')}
+              value={`${rowColWidth}px`}
+              min={80}
+              max={340}
+              current={rowColWidth}
+              onChange={(val) => updateContent({ rowColumnWidth: val })}
+            />
+            <div className="grid grid-cols-4 gap-1">
+              {[
+                { label: 'Kecil', px: 110 },
+                { label: 'Sedang', px: 150 },
+                { label: 'Besar', px: 200 },
+                { label: 'Lebar', px: 260 },
+              ].map((p) => (
+                <button
+                  key={p.px}
+                  type="button"
+                  onClick={() => updateContent({ rowColumnWidth: p.px })}
+                  className={`py-1 px-1.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                    rowColWidth === p.px
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[#8FA4BF]">
+              Slide horizontal menampilkan indikator progress 3 titik secara otomatis.
+            </p>
+          </div>
+        )}
+
+        <SliderRow
+          label={label('desain.field.tinggiKolom', 'Tinggi Minimal Kolom / Slide')}
+          value={rowColMinH === 0 ? 'Auto' : `${rowColMinH}px`}
+          min={0}
+          max={360}
+          current={rowColMinH}
+          onChange={(val) => updateContent({ rowColumnMinHeight: val })}
+        />
+
+        <SliderRow
+          label={label('desain.field.jarakKolom', 'Jarak Antar Kolom / Slide')}
+          value={`${rowGap}px`}
+          min={0}
+          max={32}
+          current={rowGap}
+          onChange={(val) => updateContent({ rowGap: val })}
+        />
+      </div>
+    );
+  };
+
+  const rowSpecialContent = renderRowSettings();
+  const mainContent = renderMainContent();
   const itemsInfo = renderDataItemsSection();
+  const navContent = renderNavSection();
+  const actionsContent = renderActionsSection();
+  const extraContent = renderExtraSection();
+
+  const showTypographyAccordion =
+    selectedBlock.type === 'text' ||
+    selectedBlock.type === 'button' ||
+    selectedBlock.type === 'hero_profile' ||
+    selectedBlock.type === 'catalog' ||
+    selectedBlock.type === 'fnb_catalog' ||
+    selectedBlock.type === 'training_catalog' ||
+    selectedBlock.type === 'maps_place' ||
+    selectedBlock.type === 'form' ||
+    selectedBlock.type === 'toggle_container' ||
+    selectedBlock.type === 'bottom_sheet' ||
+    selectedBlock.type === 'category_tabs' ||
+    selectedBlock.type === 'social_feed' ||
+    selectedBlock.type === 'social_follower';
 
   return (
     <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#F0F5FA]/50">
-      <AccordionSection
-        id="identity"
-        title={label('konten.sec.identity', 'Identitas Komponen')}
-        icon={<Tag className="w-3.5 h-3.5" />}
-        isOpen={openSections.identity}
-        onToggle={() => toggleSection('identity')}
-      >
-        <div>
-          <label className="block text-xs font-semibold text-[#17243D] mb-1">
-            {label('konten.field.namaLapisan', 'Nama Lapisan Komponen')}
-          </label>
-          <input
-            type="text"
-            value={selectedBlock.label}
-            onChange={(e) =>
-              onUpdateBlock(selectedBlock.id, (blk) => ({ ...blk, label: e.target.value }))
-            }
-            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
-          />
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="px-2 py-0.5 rounded bg-[#F0F5FA] border border-[#DCE5EF] text-[10.5px] font-semibold text-[#17243D]">
-            {label(`komponen.type.${selectedBlock.type}`, BLOCK_TYPE_NAMES[selectedBlock.type])}
-          </span>
-          <button
-            type="button"
-            onClick={() => onDuplicateBlock(selectedBlock.id)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
-          >
-            <Copy className="w-3 h-3 text-[#00C98A]" />
-            <span>{label('komponen.action.duplicate', 'Duplikat Komponen')}</span>
-          </button>
-        </div>
-      </AccordionSection>
+      {rowSpecialContent && (
+        <AccordionSection
+          id="rowSpecific"
+          title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
+          icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+          isOpen={openSections.rowSpecific}
+          onToggle={() => toggleSection('rowSpecific')}
+        >
+          {rowSpecialContent}
+        </AccordionSection>
+      )}
 
-      <AccordionSection
-        id="main"
-        title={label('konten.sec.main', 'Konten Utama')}
-        icon={<FileText className="w-3.5 h-3.5" />}
-        isOpen={openSections.main}
-        onToggle={() => toggleSection('main')}
-      >
-        {renderMainContent()}
-      </AccordionSection>
+      {mainContent && (
+        <AccordionSection
+          id="main"
+          title={label('konten.sec.main', 'Konten Utama')}
+          icon={<FileText className="w-3.5 h-3.5" />}
+          isOpen={openSections.main}
+          onToggle={() => toggleSection('main')}
+        >
+          {mainContent}
+        </AccordionSection>
+      )}
 
-      <AccordionSection
-        id="items"
-        title={label('konten.sec.items', 'Data & Daftar Item')}
-        icon={<ListOrdered className="w-3.5 h-3.5" />}
-        badge={itemsInfo.badge}
-        isOpen={openSections.items}
-        onToggle={() => toggleSection('items')}
-      >
-        {itemsInfo.body}
-      </AccordionSection>
+      {showTypographyAccordion && (
+        <AccordionSection
+          id="typo"
+          title={label('desain.sec.typo', 'Tipografi')}
+          icon={<Type className="w-3.5 h-3.5" />}
+          isOpen={openSections.typo}
+          onToggle={() => toggleSection('typo')}
+        >
+          {renderTypographyControls({
+            showVariantAndWeight: selectedBlock.type === 'text',
+          })}
+        </AccordionSection>
+      )}
 
-      <AccordionSection
-        id="nav"
-        title={label('konten.sec.nav', 'Tautan & Navigasi')}
-        icon={<Link2 className="w-3.5 h-3.5" />}
-        isOpen={openSections.nav}
-        onToggle={() => toggleSection('nav')}
-      >
-        {renderNavSection()}
-      </AccordionSection>
+      {navContent && (
+        <AccordionSection
+          id="nav"
+          title={label('konten.sec.nav', 'Tautan & Navigasi')}
+          icon={<Link2 className="w-3.5 h-3.5" />}
+          isOpen={openSections.nav}
+          onToggle={() => toggleSection('nav')}
+        >
+          {navContent}
+        </AccordionSection>
+      )}
 
-      <AccordionSection
-        id="actions"
-        title={label('konten.sec.actions', 'Aksi & Interaksi')}
-        icon={<MousePointerClick className="w-3.5 h-3.5" />}
-        isOpen={openSections.actions}
-        onToggle={() => toggleSection('actions')}
-      >
-        {renderActionsSection()}
-      </AccordionSection>
+      {itemsInfo && (
+        <AccordionSection
+          id="items"
+          title={label('konten.sec.items', 'Data & Daftar Item')}
+          icon={<ListOrdered className="w-3.5 h-3.5" />}
+          badge={itemsInfo.badge}
+          isOpen={openSections.items}
+          onToggle={() => toggleSection('items')}
+        >
+          {itemsInfo.body}
+        </AccordionSection>
+      )}
 
-      <AccordionSection
-        id="extra"
-        title={label('konten.sec.extra', 'Pengaturan Tambahan')}
-        icon={<Settings2 className="w-3.5 h-3.5" />}
-        isOpen={openSections.extra}
-        onToggle={() => toggleSection('extra')}
-      >
-        {renderExtraSection()}
-      </AccordionSection>
+      {actionsContent && (
+        <AccordionSection
+          id="actions"
+          title={label('konten.sec.actions', 'Aksi & Interaksi')}
+          icon={<MousePointerClick className="w-3.5 h-3.5" />}
+          isOpen={openSections.actions}
+          onToggle={() => toggleSection('actions')}
+        >
+          {actionsContent}
+        </AccordionSection>
+      )}
+
+      {extraContent && (
+        <AccordionSection
+          id="extra"
+          title={label('konten.sec.extra', 'Pengaturan Tambahan')}
+          icon={<Settings2 className="w-3.5 h-3.5" />}
+          isOpen={openSections.extra}
+          onToggle={() => toggleSection('extra')}
+        >
+          {extraContent}
+        </AccordionSection>
+      )}
     </div>
   );
 }

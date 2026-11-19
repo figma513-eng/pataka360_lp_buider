@@ -24,7 +24,8 @@ export type BlockType =
   | 'category_tabs'
   | 'menu_icon';
 
-export type MenuIconShape = 'circle' | 'rounded' | 'square';
+export type MenuIconShape = 'circle' | 'rounded' | 'square' | 'pill';
+export type BlockShapePreset = 'circle' | 'rounded' | 'square' | 'pill';
 export type MenuIconAction = 'sheet' | 'card';
 export type MenuIconSheetPosition = 'bottom' | 'right' | 'left' | 'top';
 
@@ -317,11 +318,16 @@ export interface BlockStyle {
   fontSize?: number;
   fontWeightCss?: '400' | '500' | '600' | '700' | '800';
   lineHeight?: number;
+  shapePreset?: BlockShapePreset;
+  shadowSize?: number;
   padding: number;
   paddingTop?: number;
   paddingBottom?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
   paddingX?: number;
   fullBleed?: boolean;
+  marginTop?: number;
   marginBottom: number;
   themeOverrideMode?: 'global' | 'local';
   themeOverrideTokens?: {
@@ -539,6 +545,7 @@ export interface BlockContent {
   menuIconShape?: MenuIconShape;
   menuIconRadius?: number;
   menuIconSize?: number;
+  menuIconImageSize?: number;
   menuIconImageFit?: 'cover' | 'contain';
   menuIconLabel?: string;
   menuIconShowLabel?: boolean;

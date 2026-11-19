@@ -1980,6 +1980,7 @@ export default function App() {
           onSelectBlock={handleSelectBlock}
           onMoveBlock={handleMoveBlock}
           onReorderBlock={handleReorderBlock}
+          onDuplicateBlock={handleDuplicateBlock}
           onDeleteBlock={handleDeleteBlock}
           onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
         />

@@ -127,6 +127,7 @@ export function MobileCanvas({
   const [activeCategoryTabIds, setActiveCategoryTabIds] = useState<Record<string, string>>({});
   const [fnbPreviewQtys, setFnbPreviewQtys] = useState<Record<string, number>>({});
   const [rowActiveDots, setRowActiveDots] = useState<Record<string, number>>({});
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
   const rowTrackRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const canvasFrameRef = useRef<HTMLDivElement>(null);
@@ -241,6 +242,9 @@ export function MobileCanvas({
     const padX = s.paddingX ?? s.padding;
     const padTop = s.paddingTop ?? s.padding;
     const padBottom = s.paddingBottom ?? s.padding;
+    const padLeft = s.paddingLeft ?? padX;
+    const padRight = s.paddingRight ?? padX;
+    const marginTop = s.marginTop ?? 0;
     const isHeroBanner = block.type === 'hero_profile' && (block.content.heroVariant ?? 'compact') === 'banner';
     const isHeroCompact = block.type === 'hero_profile' && !isHeroBanner;
     const bgProps =
@@ -249,17 +253,27 @@ export function MobileCanvas({
         : resolveBackgroundInlineProps(s);
     const resolvedFontFamily =
       resolveCssFontFamily(s.fontFamily) || resolveCssFontFamily(theme.fontFamily);
+    const resolvedRadius = isHeroCompact
+      ? `${block.content.heroCardRadius ?? s.borderRadius}px`
+      : isHeroBanner
+      ? '0px'
+      : s.shapePreset === 'circle' || s.shapePreset === 'pill'
+      ? '9999px'
+      : s.shapePreset === 'square'
+      ? '0px'
+      : `${s.borderRadius}px`;
     const inlineStyle: React.CSSProperties = {
       width: `${s.widthPercent}%`,
       minHeight: isEmptyText || isCircleImage ? '0px' : `${s.minHeight}px`,
-      borderRadius: `${isHeroCompact ? (block.content.heroCardRadius ?? s.borderRadius) : isHeroBanner ? 0 : s.borderRadius}px`,
+      borderRadius: resolvedRadius,
       padding: isEmptyText
         ? isSelected
           ? '6px 8px'
           : '0px'
         : isHeroBanner
         ? '0px'
-        : `${padTop}px ${padX}px ${padBottom}px ${padX}px`,
+        : `${padTop}px ${padRight}px ${padBottom}px ${padLeft}px`,
+      marginTop: isEmptyText ? '0px' : `${marginTop}px`,
       marginBottom: isEmptyText ? (isSelected ? '4px' : '0px') : `${s.marginBottom}px`,
       textAlign: s.align,
       ...bgProps,
@@ -275,7 +289,7 @@ export function MobileCanvas({
       boxShadow:
         isEmptyText || isCircleImage || isHeroBanner
           ? 'none'
-          : shadowToCss(s.shadow, s.shadowColor),
+          : shadowToCss(s.shadow, s.shadowColor, s.shadowSize),
       backdropFilter:
         !isEmptyText && !isCircleImage && s.blur > 0 ? `blur(${s.blur}px)` : undefined,
       WebkitBackdropFilter:
@@ -374,6 +388,12 @@ export function MobileCanvas({
             setDragState({ draggedId: null, targetId: null, position: null });
             setDragOverRoot(false);
           }}
+          onMouseOver={(e) => {
+            e.stopPropagation();
+            if (hoveredBlockId !== block.id) {
+              setHoveredBlockId(block.id);
+            }
+          }}
           onClick={(e) => {
             e.stopPropagation();
             onSelectBlock(block.id);
@@ -386,45 +406,55 @@ export function MobileCanvas({
                 : inlineStyle.outline,
             outlineOffset: !isSelected && primaryRemoteEditor ? '2px' : undefined,
           }}
-          className={`relative transition-all cursor-grab active:cursor-grabbing group ${
+          className={`relative transition-all cursor-grab active:cursor-grabbing ${
+            isSelected ? 'z-30' : hoveredBlockId === block.id ? 'z-20' : 'z-0'
+          } ${
             s.hoverLift ? 'hover:-translate-y-0.5 hover:shadow-lg' : ''
           } ${isDraggingThis ? 'opacity-40 scale-[0.99]' : ''} ${
             isDropTarget && dragState.position === 'inside'
               ? 'ring-2 ring-dashed ring-blue-600 bg-blue-50/20'
               : isSelected
-              ? s.fullBleed && depth === 0
+              ? depth > 0 || s.fullBleed
                 ? 'ring-2 ring-inset ring-blue-600'
-                : 'ring-2 ring-blue-600 ring-offset-2 ring-offset-transparent'
-              : 'hover:ring-1 hover:ring-blue-400/70'
+                : 'ring-2 ring-blue-600 ring-offset-1 ring-offset-transparent'
+              : hoveredBlockId === block.id
+              ? depth > 0 || s.fullBleed
+                ? 'ring-1 ring-inset ring-blue-400/80'
+                : 'ring-1 ring-blue-400/80'
+              : ''
           }`}
         >
-          {/* Drag Handle Badge on Hover/Selected */}
-          <div
-            title="Tarik untuk geser posisi"
-            className={`absolute -top-3 left-2 z-20 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-medium shadow-sm transition-opacity pointer-events-none ${
-              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-90'
-            }`}
-          >
-            <GripVertical className="w-3 h-3" />
-            <span>{block.label.trim() || BLOCK_TYPE_NAMES[block.type]}</span>
-          </div>
+          {/* Drag Handle Badge — only for selected OR single innermost hovered block (no ancestor stacking) */}
+          {(isSelected || hoveredBlockId === block.id) && (
+            <div
+              title="Tarik untuk geser posisi"
+              className={`absolute ${
+                depth > 0 || s.fullBleed ? 'top-1 left-1.5' : '-top-2.5 left-2'
+              } z-30 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-900/95 text-white text-[9.5px] font-medium shadow-sm pointer-events-none max-w-[140px] truncate`}
+            >
+              <GripVertical className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{block.label.trim() || BLOCK_TYPE_NAMES[block.type]}</span>
+            </div>
+          )}
 
           {primaryRemoteEditor && (
             <div
               style={{ backgroundColor: primaryRemoteEditor.color }}
-              className={`absolute ${isSelected ? '-bottom-2.5' : '-top-2.5'} right-2 z-20 px-1.5 py-0.5 rounded-md text-white text-[10px] font-semibold shadow-sm pointer-events-none whitespace-nowrap`}
+              className={`absolute ${isSelected ? '-bottom-2.5' : 'top-1'} right-1.5 z-30 px-1.5 py-0.5 rounded-md text-white text-[10px] font-semibold shadow-sm pointer-events-none whitespace-nowrap`}
             >
               Sedang diedit: {primaryRemoteEditor.name}
               {remoteEditors.length > 1 ? ` +${remoteEditors.length - 1}` : ''}
             </div>
           )}
 
-          {/* Quick Toolbar when Selected */}
+          {/* Quick Toolbar when Selected — placed cleanly inside on nested/full-bleed blocks so never clipped */}
           {isSelected && (
             <div
               onClick={(e) => e.stopPropagation()}
               onDragStart={(e) => e.stopPropagation()}
-              className="absolute -top-8 right-0 z-20 flex items-center gap-0.5 bg-slate-900 text-white rounded-lg px-1.5 py-1 shadow-md"
+              className={`absolute ${
+                depth > 0 || s.fullBleed ? 'top-1 right-1.5' : '-top-7 right-0'
+              } z-40 flex items-center gap-0.5 bg-slate-900/95 text-white rounded-lg px-1 py-0.5 shadow-md`}
             >
               <button
                 type="button"
@@ -778,20 +808,44 @@ export function MobileCanvas({
           })()}
 
           {block.type === 'menu_icon' && (() => {
-            const shape = block.content.menuIconShape ?? 'circle';
+            const shape = block.content.menuIconShape ?? s.shapePreset ?? 'circle';
             const radius =
-              shape === 'circle'
+              shape === 'circle' || shape === 'pill'
                 ? '9999px'
                 : shape === 'square'
                 ? '0px'
-                : `${Math.max(0, Math.min(48, block.content.menuIconRadius ?? 14))}px`;
+                : `${Math.max(0, Math.min(48, block.content.menuIconRadius ?? s.borderRadius ?? 14))}px`;
             const size = Math.max(36, Math.min(160, block.content.menuIconSize ?? 64));
+            const imgSize =
+              typeof block.content.menuIconImageSize === 'number' &&
+              Number.isFinite(block.content.menuIconImageSize) &&
+              block.content.menuIconImageSize > 0
+                ? Math.max(16, Math.min(160, Math.round(block.content.menuIconImageSize)))
+                : null;
+            const iconWidth = shape === 'pill' ? Math.round(size * 1.45) : size;
             const fit = block.content.menuIconImageFit ?? 'cover';
             const imgSrc = (block.content.menuIconImage ?? '').trim();
             const showLabel = block.content.menuIconShowLabel !== false;
             const iconLabel = block.content.menuIconLabel ?? 'Menu Icon';
             const bgColor = block.content.menuIconBg || theme.accentColor;
-            const labelColor = block.content.menuIconTextColor || resolvedTextColor;
+            const labelColor =
+              s.useThemeTextColor === false
+                ? s.textColor || block.content.menuIconTextColor || resolvedTextColor
+                : block.content.menuIconTextColor || resolvedTextColor;
+            const labelFontSize = s.fontSize
+              ? s.fontSize
+              : block.content.variant === 'h1'
+              ? 18
+              : block.content.variant === 'h2'
+              ? 15
+              : 12;
+            const labelFontWeight = s.fontWeightCss
+              ? Number(s.fontWeightCss)
+              : block.content.fontWeight === 'bold'
+              ? 700
+              : block.content.fontWeight === 'normal'
+              ? 400
+              : 600;
             const action = block.content.menuIconAction ?? 'sheet';
             const sheetPos = block.content.menuIconSheetPosition ?? 'bottom';
             const targetId = (block.content.menuIconTargetBlockId ?? '').trim();
@@ -839,7 +893,7 @@ export function MobileCanvas({
                   >
                     <span
                       style={{
-                        width: `${size}px`,
+                        width: `${iconWidth}px`,
                         height: `${size}px`,
                         borderRadius: radius,
                         backgroundColor: bgColor,
@@ -854,8 +908,12 @@ export function MobileCanvas({
                           onError={() =>
                             setBrokenImages((prev) => ({ ...prev, [`mico_${block.id}`]: true }))
                           }
-                          style={{ objectFit: fit }}
-                          className="w-full h-full block"
+                          style={{
+                            objectFit: fit,
+                            width: imgSize ? `${imgSize}px` : '100%',
+                            height: imgSize ? `${imgSize}px` : '100%',
+                          }}
+                          className="block"
                         />
                       ) : (
                         <Shapes
@@ -869,8 +927,14 @@ export function MobileCanvas({
                     </span>
                     {showLabel && iconLabel.trim() && (
                       <span
-                        style={{ color: labelColor }}
-                        className="text-xs font-semibold leading-tight text-center"
+                        style={{
+                          color: labelColor,
+                          fontSize: `${labelFontSize}px`,
+                          fontWeight: labelFontWeight,
+                          lineHeight: s.lineHeight ? String(s.lineHeight) : '1.25',
+                          textAlign: s.align,
+                        }}
+                        className="leading-tight"
                       >
                         {iconLabel}
                       </span>
@@ -981,7 +1045,7 @@ export function MobileCanvas({
                     WebkitOverflowScrolling: 'touch',
                     scrollSnapType: 'x proximity',
                   }}
-                  className="flex flex-row flex-nowrap items-stretch overflow-x-auto pb-1.5 touch-pan-x no-scrollbar"
+                  className="flex flex-row flex-nowrap items-stretch overflow-x-auto pt-1.5 pb-2 px-0.5 touch-pan-x no-scrollbar"
                 >
                   {rowChildren.map((child) => (
                     <div
@@ -1154,7 +1218,7 @@ export function MobileCanvas({
                     borderWidth: s.borderWidth > 0 ? `${s.borderWidth}px` : undefined,
                     borderStyle: s.borderWidth > 0 ? 'solid' : undefined,
                     borderColor: s.borderWidth > 0 ? s.borderColor : undefined,
-                    boxShadow: shadowToCss(s.shadow, s.shadowColor),
+                    boxShadow: shadowToCss(s.shadow, s.shadowColor, s.shadowSize),
                   }}
                 >
                   {!block.content.src || brokenImages[block.id] ? (
@@ -1992,6 +2056,7 @@ export function MobileCanvas({
             return (
               <div
                 ref={canvasRootRef}
+                onMouseLeave={() => setHoveredBlockId(null)}
                 style={{
                   backgroundColor: theme.canvasBg,
                   color: theme.textColor,

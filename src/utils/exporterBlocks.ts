@@ -52,10 +52,37 @@ function hexToRgb(hex?: string): { r: number; g: number; b: number } | null {
   };
 }
 
-export function shadowToCss(shadow: ShadowPreset, shadowColor?: string): string {
+export function resolveShadowSizePx(shadow: ShadowPreset, shadowSize?: number): number {
+  if (typeof shadowSize === 'number' && Number.isFinite(shadowSize)) {
+    return Math.max(0, Math.min(48, Math.round(shadowSize)));
+  }
+  switch (shadow) {
+    case 'sm':
+      return 8;
+    case 'md':
+      return 24;
+    case 'lg':
+      return 36;
+    default:
+      return 0;
+  }
+}
+
+export function shadowToCss(
+  shadow: ShadowPreset,
+  shadowColor?: string,
+  shadowSize?: number
+): string {
   const rgb = hexToRgb(shadowColor);
   const c = (alpha: number) =>
     rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})` : `rgba(15, 23, 42, ${alpha})`;
+  if (typeof shadowSize === 'number' && Number.isFinite(shadowSize)) {
+    const px = Math.max(0, Math.min(48, Math.round(shadowSize)));
+    if (px <= 0) return 'none';
+    const y = Math.max(1, Math.round(px * 0.35));
+    const alpha = Math.min(0.42, (rgb ? 0.16 : 0.07) + (px / 48) * (rgb ? 0.24 : 0.16));
+    return `0 ${y}px ${px}px ${c(Number(alpha.toFixed(2)))}`;
+  }
   switch (shadow) {
     case 'sm':
       return `0 2px 8px ${c(rgb ? 0.22 : 0.08)}`;
@@ -103,13 +130,22 @@ function styleObjectToCss(
   const padX = style.paddingX ?? style.padding;
   const padTop = style.paddingTop ?? style.padding;
   const padBottom = style.paddingBottom ?? style.padding;
+  const padLeft = style.paddingLeft ?? padX;
+  const padRight = style.paddingRight ?? padX;
+  const marginTop = style.marginTop ?? 0;
+  const radiusCss =
+    style.shapePreset === 'circle' || style.shapePreset === 'pill'
+      ? '9999px'
+      : style.shapePreset === 'square'
+      ? '0px'
+      : `${style.borderRadius}px`;
   const gradCss = options?.isHeroBanner ? null : buildLinearGradientCss(style);
   const parts: string[] = [
     `width: ${style.widthPercent}%`,
-    `margin: 0 auto ${style.marginBottom}px auto`,
-    `padding: ${padTop}px ${padX}px ${padBottom}px ${padX}px`,
+    `margin: ${marginTop}px auto ${style.marginBottom}px auto`,
+    `padding: ${padTop}px ${padRight}px ${padBottom}px ${padLeft}px`,
     `min-height: ${style.minHeight}px`,
-    `border-radius: ${style.borderRadius}px`,
+    `border-radius: ${radiusCss}`,
     `text-align: ${style.align}`,
     `color: ${resolvedTextColor ?? style.textColor}`,
     ...(options?.isHeroBanner
@@ -142,8 +178,9 @@ function styleObjectToCss(
     if (style.borderWidth > 0) {
       parts.push(`border: ${style.borderWidth}px solid ${style.borderColor}`);
     }
-    if (style.shadow !== 'none') {
-      parts.push(`box-shadow: ${shadowToCss(style.shadow, style.shadowColor)}`);
+    const resolvedShadow = shadowToCss(style.shadow, style.shadowColor, style.shadowSize);
+    if (resolvedShadow !== 'none') {
+      parts.push(`box-shadow: ${resolvedShadow}`);
     }
     if (style.blur > 0) {
       parts.push(`backdrop-filter: blur(${style.blur}px)`);
@@ -338,20 +375,42 @@ ${indent}</div>`;
       const c = block.content;
       const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
       const sheetId = `sheet_mico_${safeId}`;
-      const shape = c.menuIconShape ?? 'circle';
+      const shape = c.menuIconShape ?? block.style.shapePreset ?? 'circle';
       const radiusCss =
-        shape === 'circle'
+        shape === 'circle' || shape === 'pill'
           ? '9999px'
           : shape === 'square'
           ? '0px'
-          : `${Math.max(0, Math.min(48, c.menuIconRadius ?? 14))}px`;
+          : `${Math.max(0, Math.min(48, c.menuIconRadius ?? block.style.borderRadius ?? 14))}px`;
       const size = Math.max(36, Math.min(160, c.menuIconSize ?? 64));
+      const imgSize =
+        typeof c.menuIconImageSize === 'number' && Number.isFinite(c.menuIconImageSize) && c.menuIconImageSize > 0
+          ? Math.max(16, Math.min(160, Math.round(c.menuIconImageSize)))
+          : null;
       const fit = c.menuIconImageFit ?? 'cover';
       const imgSrc = (c.menuIconImage ?? '').trim();
       const showLabel = c.menuIconShowLabel !== false;
       const iconLabel = c.menuIconLabel ?? 'Menu Icon';
       const bgColor = c.menuIconBg || theme.accentColor;
-      const labelColor = c.menuIconTextColor || resolvedTextColor;
+      const labelColor =
+        block.style.useThemeTextColor === false
+          ? block.style.textColor || c.menuIconTextColor || resolvedTextColor
+          : c.menuIconTextColor || resolvedTextColor;
+      const labelFontSize =
+        block.style.fontSize && Number.isFinite(block.style.fontSize)
+          ? Math.max(10, Math.min(42, Math.round(block.style.fontSize)))
+          : c.variant === 'h1'
+          ? 18
+          : c.variant === 'h2'
+          ? 15
+          : 12;
+      const labelFontWeight =
+        block.style.fontWeightCss ||
+        (c.fontWeight === 'bold' ? '700' : c.fontWeight === 'normal' ? '400' : '600');
+      const labelLineHeight =
+        block.style.lineHeight && Number.isFinite(block.style.lineHeight)
+          ? String(block.style.lineHeight)
+          : '1.25';
       const action = c.menuIconAction ?? 'sheet';
       const sheetPos = c.menuIconSheetPosition ?? 'bottom';
       const targetId = (c.menuIconTargetBlockId ?? '').trim();
@@ -359,19 +418,23 @@ ${indent}</div>`;
       const align = block.style.align;
       const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
 
+      const imgStyle = imgSize
+        ? `width: ${imgSize}px; height: ${imgSize}px; object-fit: ${fit}; display: block;`
+        : `width: 100%; height: 100%; object-fit: ${fit}; display: block;`;
+
       const visualHtml = imgSrc
         ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(
             iconLabel
-          )}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;" />`
+          )}" referrerpolicy="no-referrer" style="${imgStyle}" />`
         : `<svg viewBox="0 0 24 24" width="${Math.round(size * 0.44)}" height="${Math.round(
             size * 0.44
           )}" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>`;
 
       const labelHtml =
         showLabel && iconLabel.trim()
-          ? `<span style="font-size: 12px; font-weight: 600; line-height: 1.25; color: ${escapeHtml(
+          ? `<span style="font-size: ${labelFontSize}px; font-weight: ${labelFontWeight}; line-height: ${labelLineHeight}; color: ${escapeHtml(
               labelColor
-            )}; text-align: center;">${escapeHtml(iconLabel)}</span>`
+            )}; text-align: ${align};">${escapeHtml(iconLabel)}</span>`
           : '';
 
       const triggerAttr =
@@ -379,8 +442,9 @@ ${indent}</div>`;
           ? `data-jump-block="${escapeHtml(targetId)}"`
           : `data-sheet-open="${sheetId}"`;
 
+      const iconWidthCss = shape === 'pill' ? `${Math.round(size * 1.45)}px` : `${size}px`;
       const triggerHtml = `<button type="button" ${triggerAttr} style="display: inline-flex; flex-direction: column; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; font-family: inherit;">
-${indent}    <span style="width: ${size}px; height: ${size}px; border-radius: ${radiusCss}; background: ${escapeHtml(
+${indent}    <span style="width: ${iconWidthCss}; height: ${size}px; border-radius: ${radiusCss}; background: ${escapeHtml(
         bgColor
       )}; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);">${visualHtml}</span>${labelHtml}
 ${indent}  </button>`;
@@ -529,6 +593,9 @@ ${indent}</div>`;
         const padX = s.paddingX ?? s.padding;
         const padTop = s.paddingTop ?? s.padding;
         const padBottom = s.paddingBottom ?? s.padding;
+        const padLeft = s.paddingLeft ?? padX;
+        const padRight = s.paddingRight ?? padX;
+        const marginTop = s.marginTop ?? 0;
         const circleSize = Math.max(40, Math.min(280, block.content.circleSize ?? 112));
         const imageZoom = Math.max(40, Math.min(250, block.content.imageZoom ?? 100));
         const justify =
@@ -539,9 +606,10 @@ ${indent}</div>`;
             : '#F1F5F9';
         const circleBorder =
           s.borderWidth > 0 ? `border: ${s.borderWidth}px solid ${s.borderColor};` : '';
+        const resolvedCircleShadow = shadowToCss(s.shadow, s.shadowColor, s.shadowSize);
         const circleShadow =
-          s.shadow !== 'none' ? `box-shadow: ${shadowToCss(s.shadow, s.shadowColor)};` : '';
-        const wrapCss = `width: ${s.widthPercent}%; margin: 0 auto ${s.marginBottom}px auto; padding: ${padTop}px ${padX}px ${padBottom}px ${padX}px; box-sizing: border-box; display: flex; justify-content: ${justify};`;
+          resolvedCircleShadow !== 'none' ? `box-shadow: ${resolvedCircleShadow};` : '';
+        const wrapCss = `width: ${s.widthPercent}%; margin: ${marginTop}px auto ${s.marginBottom}px auto; padding: ${padTop}px ${padRight}px ${padBottom}px ${padLeft}px; box-sizing: border-box; display: flex; justify-content: ${justify};`;
 
         return `${indent}<div style="${wrapCss}">\n${indent}  <div style="width: ${circleSize}px; height: ${circleSize}px; border-radius: 9999px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background-color: ${circleBg}; ${circleBorder} ${circleShadow}">\n${indent}    <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; transform: scale(${(
           imageZoom / 100

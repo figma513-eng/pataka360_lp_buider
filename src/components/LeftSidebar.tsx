@@ -68,6 +68,7 @@ interface LeftSidebarProps {
     targetId: string,
     position: 'before' | 'after' | 'inside'
   ) => void;
+  onDuplicateBlock?: (id: string) => void;
   onDeleteBlock: (id: string) => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
 }
@@ -282,6 +283,7 @@ export function LeftSidebar({
   onSelectBlock,
   onMoveBlock,
   onReorderBlock,
+  onDuplicateBlock,
   onDeleteBlock,
   onAddChildToContainer,
 }: LeftSidebarProps) {
@@ -396,6 +398,7 @@ export function LeftSidebar({
           onSelectBlock={onSelectBlock}
           onMoveBlock={onMoveBlock}
           onReorderBlock={onReorderBlock}
+          onDuplicateBlock={onDuplicateBlock}
           onDeleteBlock={onDeleteBlock}
           onAddChildToContainer={onAddChildToContainer}
         />

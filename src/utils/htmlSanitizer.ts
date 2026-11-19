@@ -391,6 +391,37 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       shadowColor: block.style?.shadowColor
         ? sanitizeCssColor(block.style.shadowColor, '#0F172A')
         : block.style?.shadowColor,
+      shadowSize:
+        typeof block.style?.shadowSize === 'number' && Number.isFinite(block.style.shadowSize)
+          ? Math.max(0, Math.min(48, Math.round(block.style.shadowSize)))
+          : block.style?.shadowSize,
+      shapePreset:
+        block.style?.shapePreset === 'circle' ||
+        block.style?.shapePreset === 'rounded' ||
+        block.style?.shapePreset === 'square' ||
+        block.style?.shapePreset === 'pill'
+          ? block.style.shapePreset
+          : block.style?.shapePreset,
+      paddingTop:
+        typeof block.style?.paddingTop === 'number' && Number.isFinite(block.style.paddingTop)
+          ? Math.max(0, Math.min(80, Math.round(block.style.paddingTop)))
+          : block.style?.paddingTop,
+      paddingBottom:
+        typeof block.style?.paddingBottom === 'number' && Number.isFinite(block.style.paddingBottom)
+          ? Math.max(0, Math.min(80, Math.round(block.style.paddingBottom)))
+          : block.style?.paddingBottom,
+      paddingLeft:
+        typeof block.style?.paddingLeft === 'number' && Number.isFinite(block.style.paddingLeft)
+          ? Math.max(0, Math.min(80, Math.round(block.style.paddingLeft)))
+          : block.style?.paddingLeft,
+      paddingRight:
+        typeof block.style?.paddingRight === 'number' && Number.isFinite(block.style.paddingRight)
+          ? Math.max(0, Math.min(80, Math.round(block.style.paddingRight)))
+          : block.style?.paddingRight,
+      marginTop:
+        typeof block.style?.marginTop === 'number' && Number.isFinite(block.style.marginTop)
+          ? Math.max(0, Math.min(80, Math.round(block.style.marginTop)))
+          : block.style?.marginTop,
       themeOverrideMode:
         block.style?.themeOverrideMode === 'local'
           ? 'local'
@@ -511,7 +542,8 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       menuIconShape:
         c.menuIconShape === 'circle' ||
         c.menuIconShape === 'rounded' ||
-        c.menuIconShape === 'square'
+        c.menuIconShape === 'square' ||
+        c.menuIconShape === 'pill'
           ? c.menuIconShape
           : c.menuIconShape,
       menuIconRadius:
@@ -522,6 +554,10 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.menuIconSize === 'number' && Number.isFinite(c.menuIconSize)
           ? Math.max(36, Math.min(160, Math.round(c.menuIconSize)))
           : c.menuIconSize,
+      menuIconImageSize:
+        typeof c.menuIconImageSize === 'number' && Number.isFinite(c.menuIconImageSize)
+          ? Math.max(16, Math.min(160, Math.round(c.menuIconImageSize)))
+          : c.menuIconImageSize,
       menuIconImageFit:
         c.menuIconImageFit === 'cover' || c.menuIconImageFit === 'contain'
           ? c.menuIconImageFit

@@ -479,6 +479,9 @@ export function PreviewModal({
     const padX = s.paddingX ?? s.padding;
     const padTop = s.paddingTop ?? s.padding;
     const padBottom = s.paddingBottom ?? s.padding;
+    const padLeft = s.paddingLeft ?? padX;
+    const padRight = s.paddingRight ?? padX;
+    const marginTop = s.marginTop ?? 0;
     const isCircleImage = block.type === 'image' && block.content.imageShape === 'circle';
     const isHeroBanner = block.type === 'hero_profile' && (block.content.heroVariant ?? 'compact') === 'banner';
     const isHeroCompact = block.type === 'hero_profile' && !isHeroBanner;
@@ -497,11 +500,21 @@ export function PreviewModal({
       isCircleImage || isHeroBanner
         ? { backgroundColor: 'transparent' }
         : resolveBackgroundInlineProps(s);
+    const resolvedRadius = isHeroCompact
+      ? `${block.content.heroCardRadius ?? s.borderRadius}px`
+      : isHeroBanner
+      ? '0px'
+      : s.shapePreset === 'circle' || s.shapePreset === 'pill'
+      ? '9999px'
+      : s.shapePreset === 'square'
+      ? '0px'
+      : `${s.borderRadius}px`;
     const style: React.CSSProperties = {
       width: `${s.widthPercent}%`,
       minHeight: isCircleImage ? '0px' : `${s.minHeight}px`,
-      borderRadius: `${isHeroCompact ? (block.content.heroCardRadius ?? s.borderRadius) : isHeroBanner ? 0 : s.borderRadius}px`,
-      padding: isHeroBanner ? '0px' : `${padTop}px ${padX}px ${padBottom}px ${padX}px`,
+      borderRadius: resolvedRadius,
+      padding: isHeroBanner ? '0px' : `${padTop}px ${padRight}px ${padBottom}px ${padLeft}px`,
+      marginTop: `${marginTop}px`,
       marginBottom: `${s.marginBottom}px`,
       textAlign: s.align,
       ...bgProps,
@@ -514,7 +527,7 @@ export function PreviewModal({
       borderStyle: !isCircleImage && !isHeroBanner && s.borderWidth > 0 ? 'solid' : 'none',
       borderColor: s.borderColor,
       boxShadow:
-        isCircleImage || isHeroBanner ? 'none' : shadowToCss(s.shadow, s.shadowColor),
+        isCircleImage || isHeroBanner ? 'none' : shadowToCss(s.shadow, s.shadowColor, s.shadowSize),
       backdropFilter: !isCircleImage && s.blur > 0 ? `blur(${s.blur}px)` : undefined,
       boxSizing: 'border-box',
       marginLeft: 'auto',
@@ -710,20 +723,44 @@ export function PreviewModal({
     }
 
     if (block.type === 'menu_icon') {
-      const shape = block.content.menuIconShape ?? 'circle';
+      const shape = block.content.menuIconShape ?? s.shapePreset ?? 'circle';
       const radius =
-        shape === 'circle'
+        shape === 'circle' || shape === 'pill'
           ? '9999px'
           : shape === 'square'
           ? '0px'
-          : `${Math.max(0, Math.min(48, block.content.menuIconRadius ?? 14))}px`;
+          : `${Math.max(0, Math.min(48, block.content.menuIconRadius ?? s.borderRadius ?? 14))}px`;
       const size = Math.max(36, Math.min(160, block.content.menuIconSize ?? 64));
+      const imgSize =
+        typeof block.content.menuIconImageSize === 'number' &&
+        Number.isFinite(block.content.menuIconImageSize) &&
+        block.content.menuIconImageSize > 0
+          ? Math.max(16, Math.min(160, Math.round(block.content.menuIconImageSize)))
+          : null;
+      const iconWidth = shape === 'pill' ? Math.round(size * 1.45) : size;
       const fit = block.content.menuIconImageFit ?? 'cover';
       const imgSrc = (block.content.menuIconImage ?? '').trim();
       const showLabel = block.content.menuIconShowLabel !== false;
       const iconLabel = block.content.menuIconLabel ?? 'Menu Icon';
       const bgColor = block.content.menuIconBg || project.theme.accentColor;
-      const labelColor = block.content.menuIconTextColor || resolvedTextColor;
+      const labelColor =
+        s.useThemeTextColor === false
+          ? s.textColor || block.content.menuIconTextColor || resolvedTextColor
+          : block.content.menuIconTextColor || resolvedTextColor;
+      const labelFontSize = s.fontSize
+        ? s.fontSize
+        : block.content.variant === 'h1'
+        ? 18
+        : block.content.variant === 'h2'
+        ? 15
+        : 12;
+      const labelFontWeight = s.fontWeightCss
+        ? Number(s.fontWeightCss)
+        : block.content.fontWeight === 'bold'
+        ? 700
+        : block.content.fontWeight === 'normal'
+        ? 400
+        : 600;
       const action = block.content.menuIconAction ?? 'sheet';
       const targetId = (block.content.menuIconTargetBlockId ?? '').trim();
       const justifyClass =
@@ -748,7 +785,7 @@ export function PreviewModal({
           >
             <span
               style={{
-                width: `${size}px`,
+                width: `${iconWidth}px`,
                 height: `${size}px`,
                 borderRadius: radius,
                 backgroundColor: bgColor,
@@ -760,8 +797,12 @@ export function PreviewModal({
                   src={imgSrc}
                   alt={iconLabel}
                   referrerPolicy="no-referrer"
-                  style={{ objectFit: fit }}
-                  className="w-full h-full block"
+                  style={{
+                    objectFit: fit,
+                    width: imgSize ? `${imgSize}px` : '100%',
+                    height: imgSize ? `${imgSize}px` : '100%',
+                  }}
+                  className="block"
                 />
               ) : (
                 <Shapes
@@ -775,8 +816,14 @@ export function PreviewModal({
             </span>
             {showLabel && iconLabel.trim() && (
               <span
-                style={{ color: labelColor }}
-                className="text-xs font-semibold leading-tight text-center"
+                style={{
+                  color: labelColor,
+                  fontSize: `${labelFontSize}px`,
+                  fontWeight: labelFontWeight,
+                  lineHeight: s.lineHeight ? String(s.lineHeight) : '1.25',
+                  textAlign: s.align,
+                }}
+                className="leading-tight"
               >
                 {iconLabel}
               </span>
@@ -980,7 +1027,7 @@ export function PreviewModal({
                 borderWidth: s.borderWidth > 0 ? `${s.borderWidth}px` : undefined,
                 borderStyle: s.borderWidth > 0 ? 'solid' : undefined,
                 borderColor: s.borderWidth > 0 ? s.borderColor : undefined,
-                boxShadow: shadowToCss(s.shadow, s.shadowColor),
+                boxShadow: shadowToCss(s.shadow, s.shadowColor, s.shadowSize),
               }}
             >
               <img
