@@ -259,6 +259,7 @@ export default function App() {
   const [activePage, setActivePage] = useState<WorkspacePageId>('editor');
   const [systemSubTab, setSystemSubTab] = useState<SystemTabId>('daftar_usaha');
   const [navbarFocusNonce, setNavbarFocusNonce] = useState<number>(0);
+  const [contentFocusNonce, setContentFocusNonce] = useState<number>(0);
   const [accessSettings, setAccessSettings] = useState<AccessSettingsConfig>(() =>
     createDefaultAccessSettings()
   );
@@ -685,6 +686,13 @@ export default function App() {
     setSelectedId(id);
     if (id) {
       setInspectorMode('element');
+    }
+  };
+
+  const handleCanvasSelectBlock = (id: string | null) => {
+    handleSelectBlock(id);
+    if (id) {
+      setContentFocusNonce((n) => n + 1);
     }
   };
 
@@ -2013,6 +2021,22 @@ export default function App() {
         <LeftSidebar
           onAddBlock={(type) => handleAddBlock(type)}
           onAddSection={(section) => handleAddSection(section)}
+          blocks={project.blocks}
+          selectedId={selectedBlock?.id ?? null}
+          theme={project.theme}
+          advanceOptions={project.advanceOptions}
+          bottomNavbar={bottomNavbar}
+          activeNavItemId={activeNavItemId}
+          navbarFocusNonce={navbarFocusNonce}
+          onSelectTheme={handleSelectTheme}
+          onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
+          onUpdateBottomNavbar={handleUpdateBottomNavbar}
+          onSelectNavItem={setActiveNavItemId}
+          onSelectBlock={handleSelectBlock}
+          onMoveBlock={handleMoveBlock}
+          onReorderBlock={handleReorderBlock}
+          onDeleteBlock={handleDeleteBlock}
+          onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
         />
 
         <MobileCanvas
@@ -2024,7 +2048,7 @@ export default function App() {
           selectedId={selectedId}
           remotePeersByBlock={remotePeersByBlock}
           onOpenPreview={() => setShowPreview(true)}
-          onSelectBlock={handleSelectBlock}
+          onSelectBlock={handleCanvasSelectBlock}
           onOpenNavbarSettings={handleOpenNavbarSettings}
           onMoveBlock={handleMoveBlock}
           onDuplicateBlock={handleDuplicateBlock}
@@ -2048,26 +2072,16 @@ export default function App() {
         />
 
         <RightInspector
-          blocks={project.blocks}
           selectedBlock={selectedBlock}
           theme={project.theme}
           advanceOptions={project.advanceOptions}
-          bottomNavbar={bottomNavbar}
-          inspectorMode={inspectorMode}
-          activeNavItemId={activeNavItemId}
           selectedParentNavId={selectedParentNavId}
           selectedParentNavLabel={selectedParentNavLabel}
-          navbarFocusNonce={navbarFocusNonce}
-          onChangeInspectorMode={setInspectorMode}
-          onSelectNavItem={setActiveNavItemId}
-          onSelectTheme={handleSelectTheme}
-          onUpdateBottomNavbar={handleUpdateBottomNavbar}
+          contentFocusNonce={contentFocusNonce}
+          onOpenNavbarSettings={handleOpenNavbarSettings}
           onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
           onUpdateBlock={handleUpdateBlock}
           onDuplicateBlock={handleDuplicateBlock}
-          onMoveBlock={handleMoveBlock}
-          onReorderBlock={handleReorderBlock}
-          onDeleteBlock={handleDeleteBlock}
           onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
           onSelectBlock={handleSelectBlock}
         />

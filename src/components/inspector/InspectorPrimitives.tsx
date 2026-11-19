@@ -33,7 +33,7 @@ export function AccordionSection({
     <div
       className={`rounded-xl border transition-all ${
         isOpen
-          ? 'border-[#00C98A]/70 bg-white shadow-xs overflow-hidden'
+          ? 'border-[#00C98A]/70 bg-white shadow-xs'
           : 'border-[#DCE5EF] bg-white shadow-2xs hover:border-[#00C98A]'
       }`}
     >
@@ -41,16 +41,16 @@ export function AccordionSection({
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        className={`w-full px-3 py-2.5 flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+        className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
           isOpen
-            ? 'bg-[#ECFDF6]/70 border-b border-[#DCE5EF] text-[#17243D]'
+            ? 'bg-[#ECFDF6]/70 border-b border-[#DCE5EF] text-[#17243D] rounded-t-xl'
             : 'bg-white hover:bg-[#F7FBFD] text-[#17243D] rounded-xl'
         }`}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           {icon && (
             <span
-              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+              className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                 isOpen
                   ? 'bg-[#00C98A] text-white'
                   : 'bg-[#F0F5FA] text-[#51637D]'
@@ -59,28 +59,28 @@ export function AccordionSection({
               {icon}
             </span>
           )}
-          <span className="text-[12.5px] font-semibold text-[#17243D] truncate">
+          <span className="text-[11px] font-semibold text-[#17243D] truncate">
             {title}
           </span>
           {badge !== undefined && badge !== '' && (
-            <span className="px-1.5 py-0.5 rounded-md bg-[#F0F5FA] border border-[#DCE5EF] text-[10px] font-semibold text-[#51637D] tabular-nums shrink-0">
+            <span className="px-1.5 py-0.5 rounded bg-[#F0F5FA] border border-[#DCE5EF] text-[9.5px] font-semibold text-[#51637D] tabular-nums shrink-0">
               {badge}
             </span>
           )}
         </div>
         <span
-          className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+          className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
             isOpen ? 'bg-[#17243D] text-white' : 'bg-[#F0F5FA] text-[#51637D]'
           }`}
         >
           <ChevronDown
-            className={`w-3.5 h-3.5 transition-transform duration-150 ${
+            className={`w-3 h-3 transition-transform duration-150 ${
               isOpen ? 'rotate-180' : ''
             }`}
           />
         </span>
       </button>
-      {isOpen && <div className="p-3 space-y-3 bg-white">{children}</div>}
+      {isOpen && <div className="p-2.5 space-y-2 bg-white rounded-b-xl">{children}</div>}
     </div>
   );
 }
@@ -101,13 +101,13 @@ export function ToggleSwitch({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
-        checked ? 'bg-[#00C98A]' : 'bg-[#DCE5EF]'
+      className={`relative inline-flex h-4.5 w-8 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+        checked ? 'bg-[#00C98A]' : 'bg-[#CBD5E1]'
       }`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform ${
-          checked ? 'translate-x-4.5' : 'translate-x-0.5'
+        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
+          checked ? 'translate-x-4' : 'translate-x-0.5'
         }`}
       />
     </button>
@@ -131,11 +131,13 @@ export function SliderRow({
   current: number;
   onChange: (val: number) => void;
 }) {
+  const safeSpan = max - min;
+  const pct = safeSpan > 0 ? Math.max(0, Math.min(100, ((current - min) / safeSpan) * 100)) : 0;
   return (
     <div>
-      <div className="flex items-center justify-between text-xs mb-1">
+      <div className="flex items-center justify-between text-[11px] mb-1">
         <span className="font-medium text-[#17243D]">{label}</span>
-        <span className="font-mono text-[11px] font-semibold text-[#17243D] bg-[#F0F5FA] border border-[#DCE5EF] px-1.5 py-0.5 rounded tabular-nums">
+        <span className="font-mono text-[10px] font-semibold text-[#17243D] bg-[#F0F5FA] border border-[#DCE5EF] px-1.5 py-0.5 rounded tabular-nums">
           {value}
         </span>
       </div>
@@ -146,7 +148,10 @@ export function SliderRow({
         step={step}
         value={current}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[#00C98A] cursor-pointer"
+        style={{
+          background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${pct}%, #E2E8F0 ${pct}%, #E2E8F0 100%)`,
+        }}
+        className="w-full cursor-pointer"
       />
     </div>
   );
@@ -166,7 +171,7 @@ export function SegmentedControl<T extends string>({
   const cols = columns ?? Math.min(options.length, 4);
   return (
     <div
-      className="grid gap-1 p-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]"
+      className="grid gap-1 p-0.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]"
       style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
     >
       {options.map((opt) => {
@@ -176,7 +181,7 @@ export function SegmentedControl<T extends string>({
             key={opt.id}
             type="button"
             onClick={() => onChange(opt.id)}
-            className={`py-1.5 px-2 rounded-md text-[11px] font-semibold transition-colors cursor-pointer truncate flex items-center justify-center gap-1 ${
+            className={`py-1 px-1.5 rounded-md text-[10.5px] font-semibold transition-colors cursor-pointer truncate flex items-center justify-center gap-1 ${
               active
                 ? 'bg-[#17243D] text-white shadow-2xs'
                 : 'text-[#17243D]/75 hover:text-[#17243D] hover:bg-white/70'
@@ -192,7 +197,7 @@ export function SegmentedControl<T extends string>({
 
 export function SectionEmptyNote({ message }: { message: string }) {
   return (
-    <div className="px-3 py-2.5 rounded-lg bg-[#F0F5FA]/70 border border-dashed border-[#DCE5EF] text-[11px] text-[#8FA4BF] leading-relaxed">
+    <div className="px-2.5 py-2 rounded-lg bg-[#F0F5FA]/70 border border-dashed border-[#DCE5EF] text-[10.5px] text-[#8FA4BF] leading-relaxed">
       {message}
     </div>
   );
@@ -222,13 +227,13 @@ export function MediaSourceInput({
   const displaySrc = value || previewFallback || '';
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {label && (
-        <label className="block text-[11px] font-semibold text-[#17243D]">{label}</label>
+        <label className="block text-[10.5px] font-semibold text-[#17243D]">{label}</label>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {displaySrc && (
-          <div className="w-10 h-10 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] overflow-hidden shrink-0 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] overflow-hidden shrink-0 flex items-center justify-center">
             <img
               src={displaySrc}
               alt="Preview"
@@ -237,7 +242,7 @@ export function MediaSourceInput({
             />
           </div>
         )}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+        <div className="flex-1 min-w-0 flex items-center gap-1">
           <input
             type="url"
             value={isEmbedded ? '' : value ?? ''}
@@ -245,13 +250,13 @@ export function MediaSourceInput({
               isEmbedded && !isSvgPlaceholder ? 'Gambar terunggah (isi URL untuk ganti)' : placeholder
             }
             onChange={(e) => onChangeUrl(e.target.value)}
-            className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] outline-none focus:border-[#00C98A]"
+            className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] outline-none focus:border-[#00C98A]"
           />
           <label
             title="Upload gambar dari perangkat"
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] hover:bg-[#DCE5EF]/50 text-[11px] font-semibold text-[#17243D] cursor-pointer shrink-0 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] hover:bg-[#DCE5EF]/50 text-[10.5px] font-semibold text-[#17243D] cursor-pointer shrink-0 transition-colors"
           >
-            <Upload className="w-3.5 h-3.5 text-[#00C98A]" />
+            <Upload className="w-3 h-3 text-[#00C98A]" />
             <span>{uploading ? '...' : 'Upload'}</span>
             <input
               type="file"
@@ -270,9 +275,9 @@ export function MediaSourceInput({
               type="button"
               onClick={onClear}
               title="Hapus gambar"
-              className="p-1.5 rounded-lg border border-[#DCE5EF] bg-white text-[#8FA4BF] hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
+              className="p-1 rounded-lg border border-[#DCE5EF] bg-white text-[#8FA4BF] hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -317,7 +322,24 @@ export function ItemOverflowMenu({
   }, [open]);
 
   return (
-    <div ref={menuRef} className="relative shrink-0">
+    <div ref={menuRef} className="relative shrink-0 flex items-center gap-0.5">
+      {onDelete && (
+        <button
+          type="button"
+          disabled={disableDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (disableDelete) return;
+            setOpen(false);
+            onDelete();
+          }}
+          title="Hapus item terpilih"
+          aria-label="Hapus item terpilih"
+          className="p-1.5 rounded-md text-[#8FA4BF] hover:text-red-600 hover:bg-red-50 disabled:opacity-35 disabled:pointer-events-none cursor-pointer transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={(e) => {
@@ -339,7 +361,8 @@ export function ItemOverflowMenu({
           {onEdit && (
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setOpen(false);
                 onEdit();
               }}
@@ -352,7 +375,8 @@ export function ItemOverflowMenu({
           {onDuplicate && (
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setOpen(false);
                 onDuplicate();
               }}
@@ -366,7 +390,8 @@ export function ItemOverflowMenu({
             <button
               type="button"
               disabled={disableMoveUp}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setOpen(false);
                 onMoveUp();
               }}
@@ -380,7 +405,8 @@ export function ItemOverflowMenu({
             <button
               type="button"
               disabled={disableMoveDown}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setOpen(false);
                 onMoveDown();
               }}
@@ -394,7 +420,9 @@ export function ItemOverflowMenu({
             <button
               type="button"
               disabled={disableDelete}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
+                if (disableDelete) return;
                 setOpen(false);
                 onDelete();
               }}

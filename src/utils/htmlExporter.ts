@@ -130,7 +130,7 @@ export function generateProjectHtml(
   const waAddonHref = `https://wa.me/${waAddonPhone}?text=${encodeURIComponent(waAddonMsg)}`;
   const waAddonHtml = ads.waAddonEnabled
     ? `
-  <a id="lynk-wa-addon-btn" href="${escapeHtml(waAddonHref)}" target="_blank" rel="noopener noreferrer" data-lynk-wa-source="Add-On WA Meta" style="position: fixed; right: 16px; bottom: ${
+  <a id="lynk-wa-addon-btn" href="${escapeHtml(waAddonHref)}" target="_blank" rel="noopener noreferrer" data-lynk-wa-source="Add-On WA Meta" style="position: fixed; right: max(16px, calc((100vw - 576px) / 2 + 16px)); bottom: ${
         showBottomNavbar ? `${navReservedHeight + 16}px` : '18px'
       }; z-index: 8900; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 9999px; background: #059669; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 700; box-shadow: 0 10px 24px rgba(5, 150, 105, 0.35);">
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -183,9 +183,9 @@ ${inner || `        <div style="padding: 28px 0; text-align: center; font-size: 
 
   const bottomNavbarHtml = showBottomNavbar
     ? `
-  <nav class="lynk-bottom-nav" aria-label="Navigasi Bawah" style="width: ${
+  <nav class="lynk-bottom-nav" aria-label="Navigasi Bawah" style="width: min(${
       navMetrics.barWidthPercent
-    }%; left: 50%; transform: translateX(-50%); bottom: ${
+    }%, ${Math.round((576 * navMetrics.barWidthPercent) / 100)}px); left: 50%; transform: translateX(-50%); bottom: ${
       navMetrics.bottomOffset
     }px; padding: ${navMetrics.barPaddingY}px 8px calc(${
       navMetrics.barPaddingY
@@ -311,17 +311,50 @@ ${enabledNavItems
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="${escapeHtml(googleFontsHref)}" rel="stylesheet" />${metaPixelSnippet}${tiktokPixelSnippet}${googleTagSnippet}${gtmSnippet}
   <style>
+    html, body {
+      max-width: 100%;
+      overflow-x: clip;
+    }
     body {
       margin: 0;
-      padding: ${
-        project.advanceOptions.pageTopPadding ??
-        (project.blocks[0]?.style.fullBleed ? 0 : 12)
-      }px 0 ${showBottomNavbar ? `${navReservedHeight + 36}px` : '24px'} 0;
+      padding: 0;
       min-height: 100vh;
       font-family: ${bodyFontStack};
       background-color: ${project.theme.canvasBg};
       color: ${project.theme.textColor};
       box-sizing: border-box;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 576px;
+      margin-left: auto;
+      margin-right: auto;
+      min-height: 100vh;
+      padding: ${
+        project.advanceOptions.pageTopPadding ??
+        (project.blocks[0]?.style.fullBleed ? 0 : 12)
+      }px 0 ${showBottomNavbar ? `${navReservedHeight + 36}px` : '24px'} 0;
+      box-sizing: border-box;
+      overflow-x: clip;
+      position: relative;
+    }
+    .app-container * {
+      box-sizing: border-box;
+    }
+    .app-container img,
+    .app-container iframe {
+      max-width: 100%;
+    }
+    @media (max-width: 440px) {
+      .app-container {
+        max-width: 440px;
+      }
+      .lynk-bottom-nav,
+      #lynk-cart-bar,
+      #lynk-fnb-float-bar,
+      .lynk-sheet-panel {
+        max-width: 440px;
+      }
     }
     .lynk-hover-lift {
       transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -331,9 +364,10 @@ ${enabledNavItems
     }
     .page-shell {
       width: 100%;
+      box-sizing: border-box;
     }
     .page-pad {
-      max-width: 420px;
+      width: 100%;
       margin: 0 auto;
       padding-left: 16px;
       padding-right: 16px;
@@ -345,13 +379,6 @@ ${enabledNavItems
       padding-right: 0;
       box-sizing: border-box;
     }
-    @media (min-width: 768px) {
-      .page-pad {
-        max-width: 680px;
-        padding-left: 24px;
-        padding-right: 24px;
-      }
-    }
     [data-car-track] {
       scrollbar-width: none;
     }
@@ -361,11 +388,12 @@ ${enabledNavItems
     .lynk-bottom-nav {
       position: fixed;
       z-index: 8800;
+      max-width: 576px;
       box-sizing: border-box;
       transition: all 0.2s ease;
     }
     .lynk-bottom-nav-grid {
-      max-width: 540px;
+      max-width: 576px;
       margin: 0 auto;
       display: grid;
       align-items: end;
@@ -438,7 +466,7 @@ ${enabledNavItems
     }
     .lynk-sheet-panel {
       width: 100%;
-      max-width: 540px;
+      max-width: 576px;
       max-height: 85vh;
       border-top-left-radius: 22px;
       border-top-right-radius: 22px;
@@ -476,14 +504,16 @@ ${enabledNavItems
   </style>
 </head>
 <body>
-  <main id="lynk-main-view" class="page-shell">
+  <div class="app-container">
+    <main id="lynk-main-view" class="page-shell">
 ${bodyBlocks}
-  </main>
-  <section id="lynk-subpage-detail" class="page-pad" style="display: none; padding-bottom: 108px;"></section>
-  <section id="lynk-subpage-cart" class="page-pad" style="display: none; padding-bottom: 100px;"></section>${waAddonHtml}${bottomNavbarHtml}${bottomNavbarSheetsHtml ? '\n' + bottomNavbarSheetsHtml : ''}
-  <div id="lynk-cart-bar" style="display: none; position: fixed; left: 0; right: 0; bottom: ${
+    </main>
+    <section id="lynk-subpage-detail" class="page-pad" style="display: none; padding-bottom: 108px;"></section>
+    <section id="lynk-subpage-cart" class="page-pad" style="display: none; padding-bottom: 100px;"></section>
+  </div>${waAddonHtml}${bottomNavbarHtml}${bottomNavbarSheetsHtml ? '\n' + bottomNavbarSheetsHtml : ''}
+  <div id="lynk-cart-bar" style="display: none; position: fixed; left: 50%; transform: translateX(-50%); width: 100%; max-width: 576px; bottom: ${
       showBottomNavbar ? `${navReservedHeight + 2}px` : '0'
-    }; z-index: 9650; background: #FFFFFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.14);">
+    }; z-index: 9650; background: #FFFFFF; border-top: 1px solid #E2E8F0; box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.14); box-sizing: border-box;">
     <div class="page-pad" style="padding-top: 10px; padding-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
       <div style="min-width: 0;">
         <div id="lynk-cart-bar-count" style="font-size: 11px; font-weight: 600; color: #64748B;">0 item di keranjang</div>
@@ -492,7 +522,7 @@ ${bodyBlocks}
       <button type="button" id="lynk-open-cart-btn" style="padding: 9px 16px; border: 0; border-radius: 12px; background: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0;">Lihat Keranjang</button>
     </div>
   </div>
-  <div id="lynk-fnb-float-bar" style="display: none; position: fixed; left: 0; right: 0; z-index: 9660; justify-content: center; padding: 0 14px; pointer-events: none; box-sizing: border-box;">
+  <div id="lynk-fnb-float-bar" style="display: none; position: fixed; left: 50%; transform: translateX(-50%); width: 100%; max-width: 576px; z-index: 9660; justify-content: center; padding: 0 14px; pointer-events: none; box-sizing: border-box;">
     <button type="button" id="lynk-fnb-float-btn" style="width: 100%; max-width: 400px; pointer-events: auto; border: 0; border-radius: 9999px; background: #EA580C; color: #FFFFFF; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; font-family: inherit; box-shadow: 0 10px 26px rgba(15, 23, 42, 0.22);">
       <span style="display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left;">
         <span style="width: 32px; height: 32px; border-radius: 9999px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">

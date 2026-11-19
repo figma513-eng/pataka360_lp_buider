@@ -82,7 +82,7 @@ export function HomePageSettings({
   const [openSections, setOpenSections] = useState<Record<HomeSectionId, boolean>>({
     temaGlobal: false,
     top: false,
-    body: false,
+    body: true,
     bottom: false,
   });
 
@@ -185,6 +185,20 @@ export function HomePageSettings({
     return 'Menu Kanan 2';
   };
 
+  const countLayerTree = (nodes: BuilderBlock[]): number =>
+    nodes.reduce((sum, node) => sum + 1 + (Array.isArray(node.children) ? countLayerTree(node.children) : 0), 0);
+
+  const navSheetLayers = bottomNavbar.items
+    .filter((it) => Array.isArray(it.children) && it.children.length > 0)
+    .map((it) => ({
+      navItem: it,
+      children: it.children,
+    }));
+
+  const totalLayerCount =
+    countLayerTree(blocks) +
+    navSheetLayers.reduce((sum, entry) => sum + countLayerTree(entry.children), 0);
+
   const renderLayerNode = (
     blk: BuilderBlock,
     index: number,
@@ -193,7 +207,10 @@ export function HomePageSettings({
   ): React.ReactNode => {
     const isSelected = blk.id === selectedId;
     const isContainer =
-      blk.type === 'container' || blk.type === 'toggle_container' || blk.type === 'row';
+      blk.type === 'container' ||
+      blk.type === 'toggle_container' ||
+      blk.type === 'row' ||
+      blk.type === 'bottom_sheet';
     const isOver = dragOverInfo?.id === blk.id;
 
     return (
@@ -236,8 +253,7 @@ export function HomePageSettings({
             setDragLayerId(null);
             setDragOverInfo(null);
           }}
-          style={{ marginLeft: depth > 0 ? `${Math.min(depth, 3) * 12}px` : undefined }}
-          className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs transition-all ${
+          className={`group flex items-center gap-1 px-1.5 py-1 rounded-lg border text-[11px] transition-all ${
             isSelected
               ? 'bg-[#ECFDF6] border-[#00C98A] text-[#17243D]'
               : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#8FA4BF]'
@@ -255,7 +271,7 @@ export function HomePageSettings({
             className="text-[#8FA4BF] cursor-grab active:cursor-grabbing shrink-0"
             title="Seret untuk urutkan"
           >
-            <GripVertical className="w-3.5 h-3.5" />
+            <GripVertical className="w-3 h-3" />
           </span>
 
           <button
@@ -263,10 +279,10 @@ export function HomePageSettings({
             onClick={() => onSelectBlock(blk.id)}
             className="min-w-0 flex-1 text-left cursor-pointer"
           >
-            <div className="font-semibold truncate text-[11.5px] leading-tight">
+            <div className="font-semibold truncate text-[11px] leading-tight">
               {blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
             </div>
-            <div className="text-[10px] text-[#8FA4BF] truncate">
+            <div className="text-[9.5px] text-[#8FA4BF] truncate">
               {label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
             </div>
           </button>
@@ -280,7 +296,7 @@ export function HomePageSettings({
                 onMoveBlock(blk.id, 'up');
               }}
               title="Naikkan"
-              className="p-1 rounded hover:bg-[#F0F5FA] disabled:opacity-30 text-[#51637D] cursor-pointer"
+              className="p-0.5 rounded hover:bg-[#F0F5FA] disabled:opacity-30 text-[#51637D] cursor-pointer"
             >
               <ArrowUp className="w-3 h-3" />
             </button>
@@ -292,7 +308,7 @@ export function HomePageSettings({
                 onMoveBlock(blk.id, 'down');
               }}
               title="Turunkan"
-              className="p-1 rounded hover:bg-[#F0F5FA] disabled:opacity-30 text-[#51637D] cursor-pointer"
+              className="p-0.5 rounded hover:bg-[#F0F5FA] disabled:opacity-30 text-[#51637D] cursor-pointer"
             >
               <ArrowDown className="w-3 h-3" />
             </button>
@@ -303,7 +319,7 @@ export function HomePageSettings({
                 onDeleteBlock(blk.id);
               }}
               title="Hapus Blok"
-              className="p-1 rounded hover:bg-red-50 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+              className="p-0.5 rounded hover:bg-red-50 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -311,7 +327,7 @@ export function HomePageSettings({
         </div>
 
         {Array.isArray(blk.children) && blk.children.length > 0 && (
-          <div className="space-y-1 border-l border-[#DCE5EF] ml-2 pl-1.5">
+          <div className="space-y-1 border-l border-[#DCE5EF] ml-1.5 pl-1.5">
             {blk.children.map((ch, cIdx) =>
               renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
             )}
@@ -496,24 +512,57 @@ export function HomePageSettings({
         </div>
       </AccordionSection>
 
-      {/* 3. Body (Susunan Lapisan) */}
+      {/* 3. Body (Susunan Semua Lapisan) */}
       <AccordionSection
         id="body"
         title={label('home.sec.body', 'Body (Lapisan)')}
         icon={<Layers className="w-3.5 h-3.5" />}
-        badge={blocks.length}
+        badge={totalLayerCount}
         isOpen={openSections.body}
         onToggle={() => toggleSection('body')}
       >
-        {blocks.length === 0 ? (
-          <div className="py-4 px-3 rounded-xl border border-dashed border-[#DCE5EF] bg-[#F0F5FA]/50 text-center text-xs text-[#8FA4BF]">
-            Kanvas masih kosong. Tambahkan blok dari panel kiri.
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {blocks.map((blk, idx) => renderLayerNode(blk, idx, blocks.length, 0))}
-          </div>
-        )}
+        <div className="space-y-2" data-all-layers-list>
+          {blocks.length === 0 && navSheetLayers.length === 0 ? (
+            <div className="py-3 px-2.5 rounded-xl border border-dashed border-[#DCE5EF] bg-[#F0F5FA]/50 text-center text-[11px] text-[#8FA4BF]">
+              Kanvas masih kosong. Tambahkan blok dari panel kiri.
+            </div>
+          ) : (
+            <>
+              {blocks.length > 0 && (
+                <div className="space-y-1">
+                  {blocks.map((blk, idx) => renderLayerNode(blk, idx, blocks.length, 0))}
+                </div>
+              )}
+
+              {navSheetLayers.length > 0 && (
+                <div className="pt-2 border-t border-[#DCE5EF] space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-[#51637D]">
+                    Lapisan Modal Navbar Bawah
+                  </div>
+                  {navSheetLayers.map(({ navItem, children }) => (
+                    <div key={navItem.id} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectNavItem(navItem.id);
+                          setOpenSections((prev) => ({ ...prev, bottom: true }));
+                        }}
+                        className="w-full text-left px-1.5 py-0.5 rounded bg-[#F0F5FA] text-[10px] font-semibold text-[#17243D] hover:text-[#00A873] truncate cursor-pointer"
+                      >
+                        Navbar: {navItem.label || navItem.sheetTitle || 'Menu'} ({children.length})
+                      </button>
+                      <div className="space-y-1 border-l border-[#DCE5EF] ml-1.5 pl-1.5">
+                        {children.map((ch, cIdx) =>
+                          renderLayerNode(ch, cIdx, children.length, 1)
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </AccordionSection>
 
       {/* 4. Bottom (Navbar Bawah) */}

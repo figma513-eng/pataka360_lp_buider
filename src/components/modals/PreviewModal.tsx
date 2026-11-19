@@ -151,10 +151,10 @@ export function PreviewModal({
   onClose: () => void;
 }) {
   const [submittedForms, setSubmittedForms] = useState<Record<string, boolean>>({});
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('iphone-16');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('mobile-440');
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number }>({
-    width: 393,
-    height: 852,
+    width: 440,
+    height: 844,
   });
   const [rotated, setRotated] = useState(false);
   const [customDevices, setCustomDevices] = useState<DevicePreset[]>([]);
@@ -1764,10 +1764,8 @@ export function PreviewModal({
 
   const cartWaUrl = cartStoreGroups[0]?.waUrl ?? '#';
 
-  const isWidePreview = previewSize.width >= 720;
-  const containerPaddingClass = isWidePreview
-    ? 'max-w-[680px] mx-auto px-4 sm:px-6'
-    : 'px-4 sm:px-6';
+  const isWidePreview = previewSize.width >= 576;
+  const containerPaddingClass = 'px-4';
 
   return (
     <div
@@ -1817,6 +1815,39 @@ export function PreviewModal({
                 <span className="tabular-nums">{totalCartCount}</span>
               </button>
             )}
+
+            <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDeviceId('mobile-440');
+                  setRotated(false);
+                  setPreviewSize({ width: 440, height: 844 });
+                }}
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                  previewSize.width === 440
+                    ? 'bg-[#17243D] text-white'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Mobile 440 px
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDeviceId('mobile-576');
+                  setRotated(false);
+                  setPreviewSize({ width: 576, height: 844 });
+                }}
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                  previewSize.width === 576
+                    ? 'bg-[#17243D] text-white'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Mobile 576 px
+              </button>
+            </div>
 
             <DeviceViewportSelector
               selectedDeviceId={selectedDeviceId}
@@ -1915,7 +1946,7 @@ export function PreviewModal({
             )}
 
           {subPage.type === 'home' && (
-            <div className={`w-full ${totalCartCount > 0 && hasCartFeature ? 'pb-16' : ''}`}>
+            <div className={`app-container w-full max-w-[576px] mx-auto box-border ${totalCartCount > 0 && hasCartFeature ? 'pb-16' : ''}`}>
               {project.blocks.map((block) => (
                 <div
                   key={block.id}
@@ -1975,7 +2006,7 @@ export function PreviewModal({
             });
 
             return (
-              <div className={`w-full ${containerPaddingClass} ${totalCartCount > 0 && cartEnabled ? 'pb-20' : 'pb-6'} space-y-4`}>
+              <div className={`app-container w-full max-w-[576px] mx-auto box-border ${containerPaddingClass} ${totalCartCount > 0 && cartEnabled ? 'pb-20' : 'pb-6'} space-y-4`}>
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
@@ -2211,7 +2242,7 @@ export function PreviewModal({
           })()}
 
           {subPage.type === 'cart' && (
-            <div className={`w-full ${containerPaddingClass} pb-8 space-y-4`}>
+            <div className={`app-container w-full max-w-[576px] mx-auto box-border ${containerPaddingClass} pb-8 space-y-4`}>
               <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
@@ -2727,7 +2758,8 @@ export function PreviewModal({
               >
                 <nav
                   style={{
-                    width: `${navMetrics.barWidthPercent}%`,
+                    width: `min(${navMetrics.barWidthPercent}%, ${Math.round((576 * navMetrics.barWidthPercent) / 100)}px)`,
+                    maxWidth: '576px',
                     backgroundColor: bottomNavbar.barBg,
                     color: bottomNavbar.textColor,
                     paddingTop: `${navMetrics.barPaddingY}px`,
@@ -2744,7 +2776,7 @@ export function PreviewModal({
                     style={{
                       gridTemplateColumns: `repeat(${enabledNavItems.length}, minmax(0, 1fr))`,
                     }}
-                    className="grid items-end gap-0.5 max-w-[540px] mx-auto"
+                    className="grid items-end gap-0.5 max-w-[576px] mx-auto"
                   >
                     {enabledNavItems.map((item) => {
                       const isCenterHome =

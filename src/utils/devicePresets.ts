@@ -24,24 +24,16 @@ export const RESPONSIVE_PRESET: DevicePreset = {
   id: 'responsive',
   name: 'Responsive',
   category: 'responsive',
-  width: 390,
-  height: 760,
+  width: 440,
+  height: 844,
 };
 
 export const BUILTIN_DEVICE_PRESETS: DevicePreset[] = [
   // Mobile
+  { id: 'mobile-440', name: 'Mobile 440 px', category: 'mobile', width: 440, height: 844 },
+  { id: 'mobile-576', name: 'Mobile 576 px', category: 'mobile', width: 576, height: 844 },
   { id: 'iphone-se', name: 'iPhone SE', category: 'mobile', width: 375, height: 667 },
-  { id: 'iphone-16', name: 'iPhone 16', category: 'mobile', width: 393, height: 852 },
-  {
-    id: 'iphone-16-pro-max',
-    name: 'iPhone 16 Pro Max',
-    category: 'mobile',
-    width: 440,
-    height: 956,
-  },
   { id: 'pixel-9', name: 'Pixel 9', category: 'mobile', width: 412, height: 915 },
-  { id: 'pixel-9-pro', name: 'Pixel 9 Pro', category: 'mobile', width: 428, height: 926 },
-  { id: 'pixel-10', name: 'Pixel 10', category: 'mobile', width: 412, height: 915 },
   {
     id: 'galaxy-a55',
     name: 'Samsung Galaxy A55',

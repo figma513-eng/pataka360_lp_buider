@@ -67,6 +67,7 @@ import { SOCIAL_PLATFORMS, SOCIAL_PLATFORM_LIST } from '../../utils/socialIcons'
 import { readVideoFileSafe, uploadCompressedImageOrFallback } from '../../utils/imageHelpers';
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import { cloneBlockDeep } from '../../utils/treeHelpers';
+import { removeSelectedItemByIdOrIndex } from '../../utils/itemListHelpers';
 import { RichTextEditor } from '../RichTextEditor';
 import { SocialGlyph } from '../SocialIcon';
 import { useUiLabel } from '../../contexts/UiLabelsContext';
@@ -75,6 +76,7 @@ import {
   ItemOverflowMenu,
   MediaSourceInput,
   SectionEmptyNote,
+  SliderRow,
   ToggleSwitch,
 } from './InspectorPrimitives';
 
@@ -139,9 +141,8 @@ export function BlockContentTab({
   const [newSocialPlatform, setNewSocialPlatform] = useState<SocialPlatform>('instagram');
   const [newSocialFollowerPlatform, setNewSocialFollowerPlatform] =
     useState<SocialPlatform>('tiktok');
-  const [heroUploadingField, setHeroUploadingField] = useState<
-    'heroCoverImage' | 'heroLogoImage' | null
-  >(null);
+  const [uploadingHeroCover, setUploadingHeroCover] = useState(false);
+  const [uploadingHeroPhoto, setUploadingHeroPhoto] = useState(false);
 
   useEffect(() => {
     setEditingItemKey(null);
@@ -228,89 +229,191 @@ export function BlockContentTab({
         const heroVariant = c.heroVariant ?? 'compact';
         const coverTitleShown =
           c.heroCoverTitleEnabled !== false && c.heroCoverFontFamily !== '__none__';
+        const coverHeightPx = Math.max(100, Math.min(340, c.heroCoverHeight ?? 170));
+        const photoSizePx = Math.max(
+          40,
+          Math.min(140, c.heroLogoSize ?? (heroVariant === 'banner' ? 78 : 72))
+        );
 
-        const uploadHeroImg = async (
-          field: 'heroCoverImage' | 'heroLogoImage',
-          file: File
-        ) => {
+        const uploadHeroCover = async (file: File) => {
           const targetBlockId = selectedBlock.id;
           onSetUploadError(null);
-          setHeroUploadingField(field);
+          setUploadingHeroCover(true);
           try {
             const url = await uploadCompressedImageOrFallback(file, {
-              maxDimension: field === 'heroCoverImage' ? 1200 : 480,
+              maxDimension: 1200,
               quality: 0.84,
             });
             onUpdateBlock(targetBlockId, (blk) => ({
               ...blk,
-              content: { ...blk.content, [field]: url },
+              content: { ...blk.content, heroCoverImage: url },
             }));
           } catch (err) {
-            onSetUploadError(err instanceof Error ? err.message : 'Gagal memproses gambar.');
+            onSetUploadError(err instanceof Error ? err.message : 'Gagal memproses gambar cover.');
           } finally {
-            setHeroUploadingField((prev) => (prev === field ? null : prev));
+            setUploadingHeroCover(false);
+          }
+        };
+
+        const uploadHeroPhoto = async (file: File) => {
+          const targetBlockId = selectedBlock.id;
+          onSetUploadError(null);
+          setUploadingHeroPhoto(true);
+          try {
+            const url = await uploadCompressedImageOrFallback(file, {
+              maxDimension: 480,
+              quality: 0.84,
+            });
+            onUpdateBlock(targetBlockId, (blk) => ({
+              ...blk,
+              content: { ...blk.content, heroLogoImage: url },
+            }));
+          } catch (err) {
+            onSetUploadError(err instanceof Error ? err.message : 'Gagal memproses foto profil.');
+          } finally {
+            setUploadingHeroPhoto(false);
           }
         };
 
         return (
           <div className="space-y-3">
-            {heroVariant === 'banner' && (
-              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#17243D]">Foto Banner Cover</span>
-                  <span className="px-2 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#8FA4BF]">
-                    {getImgSourceLabel(c.heroCoverImage)}
-                  </span>
-                </div>
-                <MediaSourceInput
-                  value={c.heroCoverImage ?? ''}
-                  placeholder="https://contoh.com/foto-cover.jpg"
-                  uploading={heroUploadingField === 'heroCoverImage'}
-                  onChangeUrl={(url) => updateContent({ heroCoverImage: url })}
-                  onUploadFile={(f) => uploadHeroImg('heroCoverImage', f)}
-                  onClear={
-                    c.heroCoverImage ? () => updateContent({ heroCoverImage: '' }) : undefined
-                  }
-                />
-                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[#DCE5EF]">
-                  <span className="text-xs font-medium text-[#17243D]">
-                    Teks di Tengah Banner
-                  </span>
-                  <ToggleSwitch
-                    checked={coverTitleShown}
-                    onChange={(val) => updateContent({ heroCoverTitleEnabled: val })}
-                    label="Tampilkan teks di banner"
-                  />
-                </div>
-                {coverTitleShown && (
-                  <input
-                    type="text"
-                    value={c.heroCoverTitle ?? ''}
-                    onChange={(e) => updateContent({ heroCoverTitle: e.target.value })}
-                    placeholder="Contoh: Warung Barokah"
-                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+            {/* PENGATURAN COVER (TERPISAH & INDEPENDEN) */}
+            <div
+              data-hero-setting="cover"
+              className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5"
+            >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-[#17243D]">Logo / Foto Profil Bulat</span>
+                <span className="text-xs font-bold text-[#17243D]">Pengaturan Cover</span>
                 <span className="px-2 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#8FA4BF]">
-                  {c.heroLogoImage ? getImgSourceLabel(c.heroLogoImage) : 'Inisial'}
+                  {getImgSourceLabel(c.heroCoverImage)} · {coverHeightPx}px
                 </span>
               </div>
+
+              <div className="w-full h-20 rounded-lg border border-[#DCE5EF] bg-white overflow-hidden flex items-center justify-center">
+                {c.heroCoverImage ? (
+                  <img
+                    src={c.heroCoverImage}
+                    alt="Preview Cover"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[11px] font-medium text-[#8FA4BF]">
+                    Belum ada gambar cover
+                  </span>
+                )}
+              </div>
+
               <MediaSourceInput
+                label="Upload / URL Cover"
+                value={c.heroCoverImage ?? ''}
+                placeholder="https://contoh.com/foto-cover.jpg"
+                uploading={uploadingHeroCover}
+                onChangeUrl={(url) => updateContent({ heroCoverImage: url })}
+                onUploadFile={uploadHeroCover}
+                onClear={
+                  c.heroCoverImage ? () => updateContent({ heroCoverImage: '' }) : undefined
+                }
+              />
+
+              <SliderRow
+                label="Ukuran Tinggi Cover (px)"
+                value={`${coverHeightPx}px`}
+                min={100}
+                max={340}
+                current={coverHeightPx}
+                onChange={(v) => updateContent({ heroCoverHeight: v })}
+              />
+
+              {heroVariant === 'compact' && (
+                <p className="text-[10.5px] text-[#8FA4BF] leading-snug">
+                  Pilih model Banner Overlap di tab Desain untuk menampilkan cover di bagian atas profil.
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[#DCE5EF]">
+                <span className="text-xs font-medium text-[#17243D]">
+                  Teks di Tengah Banner
+                </span>
+                <ToggleSwitch
+                  checked={coverTitleShown}
+                  onChange={(val) => updateContent({ heroCoverTitleEnabled: val })}
+                  label="Tampilkan teks di banner"
+                />
+              </div>
+              {coverTitleShown && (
+                <input
+                  type="text"
+                  value={c.heroCoverTitle ?? ''}
+                  onChange={(e) => updateContent({ heroCoverTitle: e.target.value })}
+                  placeholder="Contoh: Warung Barokah"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              )}
+            </div>
+
+            {/* PENGATURAN FOTO (TERPISAH & INDEPENDEN) */}
+            <div
+              data-hero-setting="foto"
+              className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">Pengaturan Foto</span>
+                <span className="px-2 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#8FA4BF]">
+                  {c.heroLogoImage ? getImgSourceLabel(c.heroLogoImage) : 'Inisial'} · {photoSizePx}px
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 p-2 rounded-lg bg-white border border-[#DCE5EF]">
+                <div
+                  style={{
+                    width: `${Math.min(56, Math.max(36, Math.round(photoSizePx * 0.6)))}px`,
+                    height: `${Math.min(56, Math.max(36, Math.round(photoSizePx * 0.6)))}px`,
+                    backgroundColor: c.heroLogoImage ? '#FFFFFF' : c.heroLogoBg ?? '#FFEDD5',
+                    color: c.heroLogoColor ?? '#C2410C',
+                  }}
+                  className="rounded-full border border-[#DCE5EF] overflow-hidden shrink-0 flex items-center justify-center text-xs font-bold"
+                >
+                  {c.heroLogoImage ? (
+                    <img
+                      src={c.heroLogoImage}
+                      alt="Preview Foto"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{(c.heroLogoMonogram || 'WB').slice(0, 2).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-[#17243D]">Preview Foto Profil</div>
+                  <div className="text-[10.5px] text-[#8FA4BF] tabular-nums">
+                    Diameter tampil: {photoSizePx}px × {photoSizePx}px
+                  </div>
+                </div>
+              </div>
+
+              <MediaSourceInput
+                label="Upload / URL Foto"
                 value={c.heroLogoImage ?? ''}
                 placeholder="https://... (kosongkan pakai inisial)"
-                uploading={heroUploadingField === 'heroLogoImage'}
+                uploading={uploadingHeroPhoto}
                 onChangeUrl={(url) => updateContent({ heroLogoImage: url })}
-                onUploadFile={(f) => uploadHeroImg('heroLogoImage', f)}
+                onUploadFile={uploadHeroPhoto}
                 onClear={
                   c.heroLogoImage ? () => updateContent({ heroLogoImage: '' }) : undefined
                 }
               />
+
+              <SliderRow
+                label="Ukuran Foto (px)"
+                value={`${photoSizePx}px`}
+                min={40}
+                max={140}
+                current={photoSizePx}
+                onChange={(v) => updateContent({ heroLogoSize: v })}
+              />
+
               <div className="grid grid-cols-3 gap-1.5">
                 <div>
                   <label className="block text-[10px] font-medium text-[#8FA4BF] mb-0.5">
@@ -789,19 +892,41 @@ export function BlockContentTab({
   };
 
   // --- 3. DATA & DAFTAR ITEM (MULTI-ITEM DRILL-DOWN) ---
-  const renderDrillHeader = (title: string) => (
+  const renderDrillHeader = (
+    title: string,
+    onDeleteSelected?: () => void,
+    deleteDisabled?: boolean
+  ) => (
     <div className="sticky top-0 z-10 -mx-3.5 px-3.5 py-2 mb-2.5 bg-[#F0F5FA] border-y border-[#DCE5EF] flex items-center justify-between gap-2">
       <button
         type="button"
         onClick={() => setEditingItemKey(null)}
-        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#17243D] hover:text-[#00C98A] cursor-pointer"
+        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#17243D] hover:text-[#00C98A] cursor-pointer shrink-0"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         <span>Kembali ke Daftar</span>
       </button>
-      <span className="text-[11px] font-semibold text-[#8FA4BF] truncate max-w-[140px]">
-        {title}
-      </span>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-[11px] font-semibold text-[#8FA4BF] truncate max-w-[110px]">
+          {title}
+        </span>
+        {onDeleteSelected && (
+          <button
+            type="button"
+            disabled={deleteDisabled}
+            onClick={() => {
+              if (deleteDisabled) return;
+              onDeleteSelected();
+              setEditingItemKey(null);
+            }}
+            title="Hapus item ini"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-35 disabled:pointer-events-none text-[11px] font-semibold cursor-pointer shrink-0 transition-colors"
+          >
+            <Trash2 className="w-3 h-3" />
+            <span>Hapus</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -846,7 +971,11 @@ export function BlockContentTab({
           badge: items.length,
           body: (
             <div className="space-y-3">
-              {renderDrillHeader(item.title || 'Detail Produk')}
+              {renderDrillHeader(item.title || 'Detail Produk', () =>
+                updateContent({
+                  catalogItems: removeSelectedItemByIdOrIndex(items, item.id),
+                })
+              )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                   Nama Produk
@@ -1395,9 +1524,12 @@ export function BlockContentTab({
                       onMoveDown={() => updateContent({ catalogItems: moveArrayItem(items, idx, 1) })}
                       disableMoveUp={idx === 0}
                       disableMoveDown={idx === items.length - 1}
-                      onDelete={() =>
-                        updateContent({ catalogItems: items.filter((it) => it.id !== item.id) })
-                      }
+                      onDelete={() => {
+                        updateContent({
+                          catalogItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                        });
+                        if (editingItemKey === `catalog:${item.id}`) setEditingItemKey(null);
+                      }}
                     />
                   </div>
                 ))}
@@ -1574,7 +1706,11 @@ export function BlockContentTab({
           badge: items.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(item.title || 'Detail Menu')}
+              {renderDrillHeader(item.title || 'Detail Menu', () =>
+                updateContent({
+                  fnbItems: removeSelectedItemByIdOrIndex(items, item.id),
+                })
+              )}
               <MediaSourceInput
                 label="Foto Menu (Upload atau URL)"
                 value={item.image ?? ''}
@@ -1749,9 +1885,12 @@ export function BlockContentTab({
                   onMoveDown={() => updateContent({ fnbItems: moveArrayItem(items, idx, 1) })}
                   disableMoveUp={idx === 0}
                   disableMoveDown={idx === items.length - 1}
-                  onDelete={() =>
-                    updateContent({ fnbItems: items.filter((it) => it.id !== item.id) })
-                  }
+                  onDelete={() => {
+                    updateContent({
+                      fnbItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                    });
+                    if (editingItemKey === `fnb:${item.id}`) setEditingItemKey(null);
+                  }}
                 />
               </div>
             ))}
@@ -1789,7 +1928,14 @@ export function BlockContentTab({
           badge: programs.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(prog.title || 'Program')}
+              {renderDrillHeader(
+                prog.title || 'Program',
+                () =>
+                  updateContent({
+                    trainingPrograms: removeSelectedItemByIdOrIndex(programs, prog.id),
+                  }),
+                programs.length <= 1
+              )}
               <input
                 type="text"
                 value={prog.title}
@@ -1862,7 +2008,11 @@ export function BlockContentTab({
           badge: programs.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(box.title || 'Box Konten')}
+              {renderDrillHeader(box.title || 'Box Konten', () =>
+                updateContent({
+                  trainingCustomBoxes: removeSelectedItemByIdOrIndex(customBoxes, box.id),
+                })
+              )}
               <label className="inline-flex items-center gap-2 text-xs font-medium text-[#17243D] cursor-pointer">
                 <input
                   type="checkbox"
@@ -1904,7 +2054,11 @@ export function BlockContentTab({
           badge: programs.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader('Foto Pelatihan')}
+              {renderDrillHeader('Foto Pelatihan', () =>
+                updateContent({
+                  trainingMedia: removeSelectedItemByIdOrIndex(mediaList, media.id),
+                })
+              )}
               <MediaSourceInput
                 label="Foto Dokumentasi"
                 value={media.imageUrl}
@@ -2013,11 +2167,12 @@ export function BlockContentTab({
                       disableMoveUp={idx === 0}
                       disableMoveDown={idx === programs.length - 1}
                       disableDelete={programs.length <= 1}
-                      onDelete={() =>
+                      onDelete={() => {
                         updateContent({
-                          trainingPrograms: programs.filter((p) => p.id !== prog.id),
-                        })
-                      }
+                          trainingPrograms: removeSelectedItemByIdOrIndex(programs, prog.id, idx),
+                        });
+                        if (editingItemKey === `tr_prog:${prog.id}`) setEditingItemKey(null);
+                      }}
                     />
                   </div>
                 ))}
@@ -2076,11 +2231,16 @@ export function BlockContentTab({
                       }
                       disableMoveUp={idx === 0}
                       disableMoveDown={idx === customBoxes.length - 1}
-                      onDelete={() =>
+                      onDelete={() => {
                         updateContent({
-                          trainingCustomBoxes: customBoxes.filter((b) => b.id !== box.id),
-                        })
-                      }
+                          trainingCustomBoxes: removeSelectedItemByIdOrIndex(
+                            customBoxes,
+                            box.id,
+                            idx
+                          ),
+                        });
+                        if (editingItemKey === `tr_box:${box.id}`) setEditingItemKey(null);
+                      }}
                     />
                   </div>
                 ))}
@@ -2124,11 +2284,12 @@ export function BlockContentTab({
                     </div>
                     <ItemOverflowMenu
                       onEdit={() => setEditingItemKey(`tr_media:${m.id}`)}
-                      onDelete={() =>
+                      onDelete={() => {
                         updateContent({
-                          trainingMedia: mediaList.filter((it) => it.id !== m.id),
-                        })
-                      }
+                          trainingMedia: removeSelectedItemByIdOrIndex(mediaList, m.id, idx),
+                        });
+                        if (editingItemKey === `tr_media:${m.id}`) setEditingItemKey(null);
+                      }}
                     />
                   </div>
                 ))}
@@ -2318,7 +2479,14 @@ export function BlockContentTab({
           badge: items.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(item.title || `Foto #${idx + 1}`)}
+              {renderDrillHeader(
+                item.title || `Foto #${idx + 1}`,
+                () =>
+                  updateContent({
+                    carouselItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                  }),
+                items.length <= 1
+              )}
               <MediaSourceInput
                 label="Gambar Slide (Upload atau URL)"
                 value={item.image}
@@ -2449,9 +2617,12 @@ export function BlockContentTab({
                   disableMoveUp={idx === 0}
                   disableMoveDown={idx === items.length - 1}
                   disableDelete={items.length <= 1}
-                  onDelete={() =>
-                    updateContent({ carouselItems: items.filter((s) => s.id !== item.id) })
-                  }
+                  onDelete={() => {
+                    updateContent({
+                      carouselItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                    });
+                    if (editingItemKey === `slide:${item.id}`) setEditingItemKey(null);
+                  }}
                 />
               </div>
             ))}
@@ -2477,7 +2648,11 @@ export function BlockContentTab({
           badge: items.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(meta.label)}
+              {renderDrillHeader(meta.label, () =>
+                updateContent({
+                  socialItems: removeSelectedItemByIdOrIndex(items, item.id),
+                })
+              )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                   Platform
@@ -2602,9 +2777,12 @@ export function BlockContentTab({
                     onMoveDown={() => updateContent({ socialItems: moveArrayItem(items, idx, 1) })}
                     disableMoveUp={idx === 0}
                     disableMoveDown={idx === items.length - 1}
-                    onDelete={() =>
-                      updateContent({ socialItems: items.filter((i) => i.id !== item.id) })
-                    }
+                    onDelete={() => {
+                      updateContent({
+                        socialItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                      });
+                      if (editingItemKey === `soc:${item.id}`) setEditingItemKey(null);
+                    }}
                   />
                 </div>
               );
@@ -2651,7 +2829,11 @@ export function BlockContentTab({
           badge: accounts.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(acc.accountName || meta.label)}
+              {renderDrillHeader(acc.accountName || meta.label, () =>
+                updateContent({
+                  socialFollowerAccounts: removeSelectedItemByIdOrIndex(accounts, acc.id),
+                })
+              )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                   Platform
@@ -2881,11 +3063,16 @@ export function BlockContentTab({
                     }
                     disableMoveUp={idx === 0}
                     disableMoveDown={idx === accounts.length - 1}
-                    onDelete={() =>
+                    onDelete={() => {
                       updateContent({
-                        socialFollowerAccounts: accounts.filter((a) => a.id !== acc.id),
-                      })
-                    }
+                        socialFollowerAccounts: removeSelectedItemByIdOrIndex(
+                          accounts,
+                          acc.id,
+                          idx
+                        ),
+                      });
+                      if (editingItemKey === `sfa:${acc.id}`) setEditingItemKey(null);
+                    }}
                   />
                 </div>
               );
@@ -2933,7 +3120,14 @@ export function BlockContentTab({
           badge: posts.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(`Postingan #${idx + 1}`)}
+              {renderDrillHeader(
+                `Postingan #${idx + 1}`,
+                () =>
+                  updateContent({
+                    socialFeedPosts: removeSelectedItemByIdOrIndex(posts, post.id, idx),
+                  }),
+                posts.length <= 1
+              )}
               <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
                 <button
                   type="button"
@@ -3123,9 +3317,12 @@ export function BlockContentTab({
                   disableMoveUp={idx === 0}
                   disableMoveDown={idx === posts.length - 1}
                   disableDelete={posts.length <= 1}
-                  onDelete={() =>
-                    updateContent({ socialFeedPosts: posts.filter((p) => p.id !== post.id) })
-                  }
+                  onDelete={() => {
+                    updateContent({
+                      socialFeedPosts: removeSelectedItemByIdOrIndex(posts, post.id, idx),
+                    });
+                    if (editingItemKey === `sfp:${post.id}`) setEditingItemKey(null);
+                  }}
                 />
               </div>
             ))}
@@ -3150,7 +3347,11 @@ export function BlockContentTab({
           badge: buttons.length,
           body: (
             <div className="space-y-2.5">
-              {renderDrillHeader(btn.label || 'Kategori')}
+              {renderDrillHeader(btn.label || 'Kategori', () =>
+                updateContent({
+                  categoryButtons: removeSelectedItemByIdOrIndex(buttons, btn.id),
+                })
+              )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                   Label Tombol
@@ -3223,11 +3424,12 @@ export function BlockContentTab({
                   }
                   disableMoveUp={idx === 0}
                   disableMoveDown={idx === buttons.length - 1}
-                  onDelete={() =>
+                  onDelete={() => {
                     updateContent({
-                      categoryButtons: buttons.filter((b) => b.id !== btn.id),
-                    })
-                  }
+                      categoryButtons: removeSelectedItemByIdOrIndex(buttons, btn.id, idx),
+                    });
+                    if (editingItemKey === `cat:${btn.id}`) setEditingItemKey(null);
+                  }}
                 />
               </div>
             ))}
@@ -3386,7 +3588,9 @@ export function BlockContentTab({
                   disableMoveUp={idx === 0}
                   disableMoveDown={idx === rowChildren.length - 1}
                   onDelete={() =>
-                    updateRowChildren(rowChildren.filter((ch) => ch.id !== child.id))
+                    updateRowChildren(
+                      removeSelectedItemByIdOrIndex(rowChildren, child.id, idx)
+                    )
                   }
                 />
               </div>
@@ -3555,7 +3759,11 @@ export function BlockContentTab({
                       onDelete={() =>
                         onUpdateBlock(selectedBlock.id, (blk) => ({
                           ...blk,
-                          children: (blk.children ?? []).filter((ch) => ch.id !== child.id),
+                          children: removeSelectedItemByIdOrIndex(
+                            blk.children ?? [],
+                            child.id,
+                            idx
+                          ),
                         }))
                       }
                     />
@@ -4249,7 +4457,7 @@ export function BlockContentTab({
   const itemsInfo = renderDataItemsSection();
 
   return (
-    <div className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-[#F0F5FA]/50">
+    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#F0F5FA]/50">
       <AccordionSection
         id="identity"
         title={label('konten.sec.identity', 'Identitas Komponen')}

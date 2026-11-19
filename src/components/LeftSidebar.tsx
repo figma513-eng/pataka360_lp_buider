@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   ChevronsUpDown,
@@ -15,6 +15,7 @@ import {
   Minus,
   MousePointerClick,
   Package,
+  Palette,
   PanelBottomOpen,
   PanelTop,
   Search,
@@ -31,16 +32,43 @@ import {
   Video,
   Wrench,
 } from 'lucide-react';
-import { BlockType } from '../types/builder';
+import {
+  AdvanceOptions,
+  BlockType,
+  BottomNavbarConfig,
+  BuilderBlock,
+  PageTheme,
+} from '../types/builder';
 import { PREBUILT_SECTIONS, PrebuiltSection } from '../data/presets';
 import { useUiLabel } from '../contexts/UiLabelsContext';
 import { SocialGlyph } from './SocialIcon';
+import { HomePageSettings } from './inspector/HomePageSettings';
 
-type SidebarTab = 'alat' | 'blok';
+type SidebarTab = 'alat' | 'blok' | 'tema';
 
 interface LeftSidebarProps {
   onAddBlock: (type: BlockType) => void;
   onAddSection: (section: PrebuiltSection) => void;
+  blocks: BuilderBlock[];
+  selectedId: string | null;
+  theme: PageTheme;
+  advanceOptions: AdvanceOptions;
+  bottomNavbar: BottomNavbarConfig;
+  activeNavItemId: string;
+  navbarFocusNonce?: number;
+  onSelectTheme: (next: PageTheme) => void;
+  onUpdateAdvanceOptions: (patch: Partial<AdvanceOptions>) => void;
+  onUpdateBottomNavbar: (updater: (prev: BottomNavbarConfig) => BottomNavbarConfig) => void;
+  onSelectNavItem: (id: string) => void;
+  onSelectBlock: (id: string | null) => void;
+  onMoveBlock: (id: string, dir: 'up' | 'down') => void;
+  onReorderBlock: (
+    draggedId: string,
+    targetId: string,
+    position: 'before' | 'after' | 'inside'
+  ) => void;
+  onDeleteBlock: (id: string) => void;
+  onAddChildToContainer: (containerId: string, type: BlockType) => void;
 }
 
 export interface ToolPaletteItem {
@@ -229,10 +257,35 @@ export function getSectionIcon(sectionId: string): React.ReactNode {
   return SECTION_ICONS[sectionId] ?? <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />;
 }
 
-export function LeftSidebar({ onAddBlock, onAddSection }: LeftSidebarProps) {
+export function LeftSidebar({
+  onAddBlock,
+  onAddSection,
+  blocks,
+  selectedId,
+  theme,
+  advanceOptions,
+  bottomNavbar,
+  activeNavItemId,
+  navbarFocusNonce = 0,
+  onSelectTheme,
+  onUpdateAdvanceOptions,
+  onUpdateBottomNavbar,
+  onSelectNavItem,
+  onSelectBlock,
+  onMoveBlock,
+  onReorderBlock,
+  onDeleteBlock,
+  onAddChildToContainer,
+}: LeftSidebarProps) {
   const { label } = useUiLabel();
   const [activeTab, setActiveTab] = useState<SidebarTab>('alat');
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (navbarFocusNonce > 0) {
+      setActiveTab('tema');
+    }
+  }, [navbarFocusNonce]);
 
   const filteredTools = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -262,13 +315,18 @@ export function LeftSidebar({ onAddBlock, onAddSection }: LeftSidebarProps) {
   }, [query, label]);
 
   return (
-    <aside className="w-60 xl:w-[17%] min-w-[216px] max-w-[272px] bg-white border-r border-[#DCE5EF] flex flex-col shrink-0 h-full overflow-hidden">
-      {/* Strictly 2 Tabs: Alat & Blok */}
-      <div className="grid grid-cols-2 border-b border-[#DCE5EF] bg-white shrink-0">
+    <aside className="w-64 xl:w-[19%] min-w-[240px] max-w-[300px] bg-white border-r border-[#DCE5EF] flex flex-col shrink-0 h-full overflow-hidden">
+      {/* Strictly 3 Tabs: Alat, Blok, Tema */}
+      <div
+        role="tablist"
+        aria-label="Navigasi Panel Kiri"
+        className="grid grid-cols-3 border-b border-[#DCE5EF] bg-white shrink-0"
+      >
         {(
           [
             { id: 'alat', label: label('alat.tab', 'Alat'), icon: <Wrench className="w-3.5 h-3.5" /> },
             { id: 'blok', label: label('blok.tab', 'Blok'), icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+            { id: 'tema', label: label('tema.tab', 'Tema'), icon: <Palette className="w-3.5 h-3.5" /> },
           ] as const
         ).map((tab) => {
           const active = activeTab === tab.id;
@@ -276,8 +334,10 @@ export function LeftSidebar({ onAddBlock, onAddSection }: LeftSidebarProps) {
             <button
               key={tab.id}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center justify-center gap-1.5 py-3 text-[12.5px] font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1 py-3 px-1 text-[12px] font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                 active
                   ? 'border-[#00C98A] text-[#17243D] bg-[#F0F5FA]/45'
                   : 'border-transparent text-[#8FA4BF] hover:text-[#17243D] hover:bg-[#F0F5FA]/30'
@@ -290,26 +350,48 @@ export function LeftSidebar({ onAddBlock, onAddSection }: LeftSidebarProps) {
         })}
       </div>
 
-      {/* Quick Filter */}
-      <div className="px-2.5 pt-2.5 pb-1.5 shrink-0">
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              activeTab === 'alat'
-                ? label('alat.search', 'Cari alat...')
-                : label('blok.search', 'Cari blok siap pakai...')
-            }
-            aria-label={activeTab === 'alat' ? label('alat.search', 'Cari alat') : label('blok.search', 'Cari blok')}
-            className="w-full pl-8 pr-2.5 py-1.5 text-[12px] rounded-lg border border-[#DCE5EF] bg-[#F0F5FA]/50 text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:bg-white focus:border-[#00C98A] transition-colors"
-          />
+      {/* Quick Filter (Alat & Blok only) */}
+      {activeTab !== 'tema' && (
+        <div className="px-2.5 pt-2.5 pb-1.5 shrink-0">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={
+                activeTab === 'alat'
+                  ? label('alat.search', 'Cari alat...')
+                  : label('blok.search', 'Cari blok siap pakai...')
+              }
+              aria-label={activeTab === 'alat' ? label('alat.search', 'Cari alat') : label('blok.search', 'Cari blok')}
+              className="w-full pl-8 pr-2.5 py-1.5 text-[12px] rounded-lg border border-[#DCE5EF] bg-[#F0F5FA]/50 text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:bg-white focus:border-[#00C98A] transition-colors"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Body: 2-Column Compact Card Grid */}
+      {/* Body */}
+      {activeTab === 'tema' ? (
+        <HomePageSettings
+          blocks={blocks}
+          selectedId={selectedId}
+          theme={theme}
+          advanceOptions={advanceOptions}
+          bottomNavbar={bottomNavbar}
+          activeNavItemId={activeNavItemId}
+          navbarFocusNonce={navbarFocusNonce}
+          onSelectTheme={onSelectTheme}
+          onUpdateAdvanceOptions={onUpdateAdvanceOptions}
+          onUpdateBottomNavbar={onUpdateBottomNavbar}
+          onSelectNavItem={onSelectNavItem}
+          onSelectBlock={onSelectBlock}
+          onMoveBlock={onMoveBlock}
+          onReorderBlock={onReorderBlock}
+          onDeleteBlock={onDeleteBlock}
+          onAddChildToContainer={onAddChildToContainer}
+        />
+      ) : (
       <div className="flex-1 overflow-y-auto px-2.5 pb-4 pt-1">
         {activeTab === 'alat' && (
           <div className="space-y-2">
@@ -409,6 +491,7 @@ export function LeftSidebar({ onAddBlock, onAddSection }: LeftSidebarProps) {
           </div>
         )}
       </div>
+      )}
     </aside>
   );
 }

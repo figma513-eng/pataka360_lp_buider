@@ -38,6 +38,104 @@
   }
 }
 
+/* Global Fixed Container — Lynk Builder Standard (576px WEB / 440px Mobile) */
+.app-container {
+  width: 100%;
+  max-width: 576px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.app-container * {
+  box-sizing: border-box;
+}
+
+@media (max-width: 440px) {
+  .app-container {
+    max-width: 440px;
+  }
+}
+
+/* Gray range slider track & progress (replaces dark/black browser default track) */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 9999px;
+  background-color: #CBD5E1;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 9999px;
+  background: #64748B;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
+  margin-top: -4px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+  background: #475569;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 5px;
+  border-radius: 9999px;
+  background: #E2E8F0;
+  border: none;
+}
+
+input[type="range"]::-moz-range-progress {
+  height: 5px;
+  border-radius: 9999px;
+  background: #94A3B8;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 9999px;
+  background: #64748B;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
+  cursor: pointer;
+}
+
+/* Compact density for Right Inspector (Konten & Desain panels) */
+.inspector-compact {
+  font-size: 11px;
+}
+
+.inspector-compact label {
+  font-size: 10.5px;
+}
+
+.inspector-compact input[type="text"],
+.inspector-compact input[type="url"],
+.inspector-compact input[type="number"],
+.inspector-compact select,
+.inspector-compact textarea {
+  font-size: 11px;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
 /* Subtle custom scrollbars for editor panels & inline workspace views */
 ::-webkit-scrollbar {
   width: 6px;

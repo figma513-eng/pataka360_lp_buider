@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import {
   AlignCenter,
   AlignLeft,
@@ -56,6 +56,14 @@ interface BlockDesignTabProps {
 }
 
 type DesignSectionId = 'specific' | 'layout' | 'visual' | 'typo' | 'bg' | 'border';
+
+function rangeProgressStyle(current: number, min: number, max: number): CSSProperties {
+  const span = max - min;
+  const pct = span > 0 ? Math.max(0, Math.min(100, ((current - min) / span) * 100)) : 0;
+  return {
+    background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${pct}%, #E2E8F0 ${pct}%, #E2E8F0 100%)`,
+  };
+}
 
 export function BlockDesignTab({
   selectedBlock,
@@ -1158,7 +1166,8 @@ export function BlockDesignTab({
                     step={5}
                     value={imageZoom}
                     onChange={(e) => updateContent({ imageZoom: Number(e.target.value) })}
-                    className="w-full accent-[#00C98A] cursor-pointer"
+                    style={rangeProgressStyle(imageZoom, 50, 220)}
+                    className="w-full cursor-pointer"
                   />
                 </div>
               </div>
@@ -1457,7 +1466,7 @@ export function BlockDesignTab({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-[#F0F5FA]/50">
+    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#F0F5FA]/50">
       <AccordionSection
         id="specific"
         title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
@@ -1633,7 +1642,8 @@ export function BlockDesignTab({
             max={40}
             value={s.paddingX ?? s.padding}
             onChange={(e) => updateStyle({ paddingX: Number(e.target.value) })}
-            className="w-full accent-[#00C98A] cursor-pointer"
+            style={rangeProgressStyle(s.paddingX ?? s.padding, 0, 40)}
+            className="w-full cursor-pointer"
           />
         </div>
 
@@ -1898,7 +1908,8 @@ export function BlockDesignTab({
             max={42}
             value={s.fontSize ?? 15}
             onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })}
-            className="w-full accent-[#00C98A] cursor-pointer"
+            style={rangeProgressStyle(s.fontSize ?? 15, 10, 42)}
+            className="w-full cursor-pointer"
           />
         </div>
 
@@ -1951,7 +1962,8 @@ export function BlockDesignTab({
             step={0.1}
             value={s.lineHeight ?? 1.5}
             onChange={(e) => updateStyle({ lineHeight: Number(e.target.value) })}
-            className="w-full accent-[#00C98A] cursor-pointer"
+            style={rangeProgressStyle(s.lineHeight ?? 1.5, 1.0, 2.4)}
+            className="w-full cursor-pointer"
           />
         </div>
       </AccordionSection>
@@ -2117,7 +2129,8 @@ export function BlockDesignTab({
                       ['backgroundColor']
                     )
                   }
-                  className="w-full accent-[#00C98A] cursor-pointer"
+                  style={rangeProgressStyle(clampGradientAngle(s.gradientAngle ?? 135), 0, 360)}
+                  className="w-full cursor-pointer"
                 />
                 <div className="grid grid-cols-5 gap-1 mt-1">
                   {[0, 45, 90, 135, 180].map((deg) => (

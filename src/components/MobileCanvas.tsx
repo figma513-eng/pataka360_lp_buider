@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowLeftRight,
@@ -103,10 +103,11 @@ export function MobileCanvas({
   onReorderBlock,
 }: MobileCanvasProps) {
   const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({
-    width: 390,
+    width: 440,
     height: 844,
   });
-  const [zoom, setZoom] = useState<0.5 | 0.65 | 0.75 | 0.85 | 1>(1);
+  const [zoom, setZoom] = useState<number>(1);
+  const [measuredFrameHeight, setMeasuredFrameHeight] = useState<number>(844);
   const [dragOverRoot, setDragOverRoot] = useState(false);
   const [dragState, setDragState] = useState<{
     draggedId: string | null;
@@ -120,7 +121,23 @@ export function MobileCanvas({
   const [activeCategoryTabIds, setActiveCategoryTabIds] = useState<Record<string, string>>({});
   const [fnbPreviewQtys, setFnbPreviewQtys] = useState<Record<string, number>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const canvasFrameRef = useRef<HTMLDivElement>(null);
   const canvasRootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = canvasFrameRef.current;
+    if (!el) return;
+    const syncHeight = () => {
+      const nextH = Math.max(640, el.offsetHeight || viewportSize.height);
+      setMeasuredFrameHeight(nextH);
+    };
+    syncHeight();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(syncHeight);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+  }, [blocks, viewportSize.height, bottomNavbar.enabled]);
 
   const jumpToMatchingHeadingInCanvas = (targetTitle: string) => {
     const query = targetTitle.trim().toLowerCase();
@@ -166,15 +183,13 @@ export function MobileCanvas({
 
   const frameWidth = viewportSize.width;
   const frameHeight = viewportSize.height;
-  const isWideViewport = frameWidth >= 600;
+  const isWideViewport = frameWidth >= 576;
 
-  const handleSelectPresetWidth = (mode: 'mobile' | 'wide') => {
-    if (mode === 'mobile') {
-      setViewportSize({ width: 390, height: 844 });
-      setZoom(1);
+  const handleSelectPresetWidth = (mode: 'mobile-440' | 'mobile-576') => {
+    if (mode === 'mobile-440') {
+      setViewportSize({ width: 440, height: 844 });
     } else {
-      setViewportSize({ width: 680, height: 840 });
-      setZoom(0.85);
+      setViewportSize({ width: 576, height: 844 });
     }
   };
 
@@ -272,9 +287,7 @@ export function MobileCanvas({
       depth === 0
         ? s.fullBleed
           ? 'w-full px-0'
-          : isWideViewport
-          ? 'max-w-[680px] mx-auto px-10'
-          : 'px-4'
+          : 'w-full px-4'
         : '';
 
     const handleBlockDrop = (
@@ -1541,15 +1554,16 @@ export function MobileCanvas({
       onClick={() => onSelectBlock(null)}
       className="flex-1 bg-[#F0F5FA] flex flex-col overflow-hidden relative"
     >
-      {/* Workspace Toolbar: Mobile (390px), Lebar (680px) & Zoom */}
+      {/* Workspace Toolbar: Preview Mobile (440px / 576px) & Zoom Canvas */}
       <div
         onClick={(e) => e.stopPropagation()}
         className="min-h-12 px-4 py-1.5 bg-white border-b border-[#DCE5EF] flex items-center justify-between gap-2 text-[13px] text-[#17243D] shrink-0 overflow-x-auto no-scrollbar"
       >
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="Preview Mobile">
           <button
             type="button"
-            onClick={() => handleSelectPresetWidth('mobile')}
+            onClick={() => handleSelectPresetWidth('mobile-440')}
+            aria-pressed={!isWideViewport}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               !isWideViewport
                 ? 'bg-[#17243D] border-[#17243D] text-white'
@@ -1557,12 +1571,13 @@ export function MobileCanvas({
             }`}
           >
             <Smartphone className={`w-3.5 h-3.5 ${!isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
-            <span>Mobile (390px)</span>
+            <span>Mobile 440 px</span>
           </button>
 
           <button
             type="button"
-            onClick={() => handleSelectPresetWidth('wide')}
+            onClick={() => handleSelectPresetWidth('mobile-576')}
+            aria-pressed={isWideViewport}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               isWideViewport
                 ? 'bg-[#17243D] border-[#17243D] text-white'
@@ -1570,43 +1585,79 @@ export function MobileCanvas({
             }`}
           >
             <Monitor className={`w-3.5 h-3.5 ${isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
-            <span>Lebar (680px)</span>
+            <span>Mobile 576 px</span>
           </button>
         </div>
 
-        <div className="hidden lg:flex items-center gap-2.5 shrink-0">
-          <span className="text-[11px] text-[#8FA4BF] font-mono tabular-nums">
+        <div className="flex items-center gap-2 shrink-0" role="group" aria-label="Zoom Canvas">
+          <span className="hidden xl:inline text-[11px] text-[#8FA4BF] font-mono tabular-nums">
             {frameWidth}×{frameHeight}px
           </span>
           <div className="flex items-center gap-0.5 bg-[#F0F5FA] border border-[#DCE5EF] rounded-lg p-0.5">
-            {([0.5, 0.65, 0.75, 0.85, 1] as const).map((z) => (
-              <button
-                key={z}
-                type="button"
-                onClick={() => setZoom(z)}
-                className={`px-2 py-0.5 rounded-md text-[11px] font-medium tabular-nums cursor-pointer transition-colors ${
-                  zoom === z
-                    ? 'bg-[#17243D] text-white'
-                    : 'text-[#5B708B] hover:text-[#17243D]'
-                }`}
-              >
-                {Math.round(z * 100)}%
-              </button>
-            ))}
+            {([0.5, 0.75, 1] as const).map((z) => {
+              const active = Math.abs(zoom - z) < 0.005;
+              return (
+                <button
+                  key={z}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setZoom(z)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium tabular-nums cursor-pointer transition-colors whitespace-nowrap ${
+                    active
+                      ? 'bg-[#17243D] text-white'
+                      : 'text-[#5B708B] hover:text-[#17243D]'
+                  }`}
+                >
+                  {Math.round(z * 100)}%
+                </button>
+              );
+            })}
           </div>
+          {(() => {
+            const zoomPct = Math.round(zoom * 100);
+            const sliderFill = Math.max(0, Math.min(100, ((zoomPct - 50) / (250 - 50)) * 100));
+            return (
+              <div className="flex items-center gap-1.5 bg-[#F0F5FA] border border-[#DCE5EF] rounded-lg px-2 py-1">
+                <input
+                  type="range"
+                  min={50}
+                  max={250}
+                  step={5}
+                  value={zoomPct}
+                  aria-label="Slider Zoom Canvas (50% - 250%)"
+                  onChange={(e) => {
+                    const nextPct = Math.max(50, Math.min(250, Number(e.target.value)));
+                    setZoom(nextPct / 100);
+                  }}
+                  style={{
+                    background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${sliderFill}%, #E2E8F0 ${sliderFill}%, #E2E8F0 100%)`,
+                  }}
+                  className="w-20 sm:w-24 cursor-pointer"
+                />
+                <span className="text-[10.5px] font-mono font-semibold text-[#17243D] tabular-nums w-9 text-right">
+                  {zoomPct}%
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
-      {/* Scrollable Canvas Area */}
+      {/* Scrollable Canvas Area (Zoom scales Canvas only) */}
       <div ref={scrollAreaRef} className="flex-1 overflow-auto py-8 px-4">
         <div
+          data-canvas-zoom-stage
+          data-canvas-zoom={Math.round(zoom * 100)}
           style={{
-            width: `${frameWidth * zoom}px`,
+            width: `${Math.round(frameWidth * zoom)}px`,
+            height: `${Math.round(measuredFrameHeight * zoom)}px`,
             margin: '0 auto',
           }}
-          className="transition-all relative"
+          className="relative shrink-0"
         >
         <div
+          ref={canvasFrameRef}
+          data-canvas-frame
           style={{
             width: `${frameWidth}px`,
             minHeight: `${Math.max(640, frameHeight)}px`,
@@ -1741,7 +1792,7 @@ export function MobileCanvas({
 
                 <div className="flex-1 pb-6">
                   {blocks.length === 0 ? (
-                    <div className={isWideViewport ? 'max-w-[680px] mx-auto px-10' : 'px-4'}>
+                    <div className="w-full max-w-[576px] mx-auto px-4">
                       <div className="my-16 py-12 px-6 rounded-2xl border-2 border-dashed border-slate-300 text-center space-y-3">
                         <div className="w-10 h-10 rounded-full bg-[#EFF7F4] text-emerald-600 mx-auto flex items-center justify-center">
                           <Plus className="w-5 h-5" />
