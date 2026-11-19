@@ -479,7 +479,39 @@ ${enabledNavItems
       box-sizing: border-box;
     }
     .lynk-sheet-backdrop.is-open .lynk-sheet-panel {
-      transform: translateY(0);
+      transform: translate(0, 0);
+    }
+    .lynk-sheet-pos-top {
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .lynk-sheet-pos-top .lynk-sheet-panel {
+      border-radius: 0 0 22px 22px;
+      transform: translateY(-100%);
+    }
+    .lynk-sheet-pos-right {
+      align-items: stretch;
+      justify-content: flex-end;
+    }
+    .lynk-sheet-pos-right .lynk-sheet-panel {
+      width: min(86vw, 380px);
+      max-width: 380px;
+      height: 100%;
+      max-height: 100vh;
+      border-radius: 22px 0 0 22px;
+      transform: translateX(100%);
+    }
+    .lynk-sheet-pos-left {
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+    .lynk-sheet-pos-left .lynk-sheet-panel {
+      width: min(86vw, 380px);
+      max-width: 380px;
+      height: 100%;
+      max-height: 100vh;
+      border-radius: 0 22px 22px 0;
+      transform: translateX(-100%);
     }
     .lynk-sheet-header {
       padding: 10px 16px 12px 16px;
@@ -500,6 +532,38 @@ ${enabledNavItems
       overflow-y: auto;
       padding: 16px;
       box-sizing: border-box;
+    }
+    .lynk-row-track {
+      scrollbar-width: none;
+    }
+    .lynk-row-track::-webkit-scrollbar {
+      display: none;
+    }
+    .lynk-row-dots {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding-top: 8px;
+    }
+    .lynk-row-dot {
+      width: 6px;
+      height: 6px;
+      padding: 0;
+      border: 0;
+      border-radius: 9999px;
+      background: #CBD5E1;
+      cursor: pointer;
+      transition: width 0.2s ease, background-color 0.2s ease;
+    }
+    .lynk-row-dot.is-active {
+      width: 18px;
+      background: var(--dot-accent, #10B981);
+    }
+    .lynk-card-highlight {
+      outline: 2px solid #10B981 !important;
+      outline-offset: 3px;
+      transition: outline-color 0.3s ease;
     }
   </style>
 </head>
@@ -1241,6 +1305,61 @@ ${bodyBlocks}
         if (ev.key === 'Escape') {
           closeAllBottomSheets();
         }
+      });
+
+      document.querySelectorAll('[data-jump-block]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var targetId = btn.getAttribute('data-jump-block');
+          if (!targetId) return;
+          closeAllBottomSheets();
+          if (typeof window.__lynkGoHome === 'function') {
+            window.__lynkGoHome();
+          }
+          setTimeout(function () {
+            var allNodes = document.querySelectorAll('[data-block-id]');
+            var targetEl = null;
+            for (var i = 0; i < allNodes.length; i++) {
+              if (allNodes[i].getAttribute('data-block-id') === targetId) {
+                targetEl = allNodes[i];
+                break;
+              }
+            }
+            if (!targetEl) return;
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetEl.classList.add('lynk-card-highlight');
+            setTimeout(function () {
+              targetEl.classList.remove('lynk-card-highlight');
+            }, 1200);
+          }, 30);
+        });
+      });
+
+      document.querySelectorAll('[data-row-slider]').forEach(function (wrap) {
+        var track = wrap.querySelector('[data-row-track]');
+        var dots = Array.prototype.slice.call(wrap.querySelectorAll('[data-row-dot]'));
+        if (!track || dots.length === 0) return;
+        function setActiveDot(idx) {
+          dots.forEach(function (d, i) {
+            if (i === idx) d.classList.add('is-active');
+            else d.classList.remove('is-active');
+          });
+        }
+        track.addEventListener('scroll', function () {
+          var maxScroll = Math.max(1, track.scrollWidth - track.clientWidth);
+          var ratio = track.scrollLeft / maxScroll;
+          var idx = ratio < 0.33 ? 0 : ratio <= 0.67 ? 1 : 2;
+          setActiveDot(idx);
+        }, { passive: true });
+        dots.forEach(function (dot, idx) {
+          dot.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+            var targetLeft = idx === 0 ? 0 : idx === 1 ? maxScroll / 2 : maxScroll;
+            track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+            setActiveDot(idx);
+          });
+        });
       });
 
       // Tombol Kategori -> Lompat & Highlight Judul yang Sama

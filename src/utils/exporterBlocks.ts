@@ -161,6 +161,21 @@ export function renderBlockHtml(
   indent = '      ',
   inheritedTextColor?: string
 ): string {
+  const html = renderBlockHtmlInner(block, theme, advance, indent, inheritedTextColor);
+  if (!html) return html;
+  return html.replace(
+    /^(\s*<[a-zA-Z0-9-]+)/,
+    `$1 data-block-id="${escapeHtml(block.id)}"`
+  );
+}
+
+function renderBlockHtmlInner(
+  block: BuilderBlock,
+  theme: PageTheme,
+  advance: AdvanceOptions,
+  indent = '      ',
+  inheritedTextColor?: string
+): string {
   const resolvedTextColor = resolveBlockTextColor(block.style, theme, inheritedTextColor);
   const nextInheritedTextColor =
     block.style.useThemeTextColor === false
@@ -319,20 +334,139 @@ ${indent}  </div>
 ${indent}</div>`;
     }
 
+    case 'menu_icon': {
+      const c = block.content;
+      const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
+      const sheetId = `sheet_mico_${safeId}`;
+      const shape = c.menuIconShape ?? 'circle';
+      const radiusCss =
+        shape === 'circle'
+          ? '9999px'
+          : shape === 'square'
+          ? '0px'
+          : `${Math.max(0, Math.min(48, c.menuIconRadius ?? 14))}px`;
+      const size = Math.max(36, Math.min(160, c.menuIconSize ?? 64));
+      const fit = c.menuIconImageFit ?? 'cover';
+      const imgSrc = (c.menuIconImage ?? '').trim();
+      const showLabel = c.menuIconShowLabel !== false;
+      const iconLabel = c.menuIconLabel ?? 'Menu Icon';
+      const bgColor = c.menuIconBg || theme.accentColor;
+      const labelColor = c.menuIconTextColor || resolvedTextColor;
+      const action = c.menuIconAction ?? 'sheet';
+      const sheetPos = c.menuIconSheetPosition ?? 'bottom';
+      const targetId = (c.menuIconTargetBlockId ?? '').trim();
+      const sheetTitle = c.sheetTitle?.trim() || 'Menu Panel';
+      const align = block.style.align;
+      const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
+
+      const visualHtml = imgSrc
+        ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(
+            iconLabel
+          )}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;" />`
+        : `<svg viewBox="0 0 24 24" width="${Math.round(size * 0.44)}" height="${Math.round(
+            size * 0.44
+          )}" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>`;
+
+      const labelHtml =
+        showLabel && iconLabel.trim()
+          ? `<span style="font-size: 12px; font-weight: 600; line-height: 1.25; color: ${escapeHtml(
+              labelColor
+            )}; text-align: center;">${escapeHtml(iconLabel)}</span>`
+          : '';
+
+      const triggerAttr =
+        action === 'card'
+          ? `data-jump-block="${escapeHtml(targetId)}"`
+          : `data-sheet-open="${sheetId}"`;
+
+      const triggerHtml = `<button type="button" ${triggerAttr} style="display: inline-flex; flex-direction: column; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; font-family: inherit;">
+${indent}    <span style="width: ${size}px; height: ${size}px; border-radius: ${radiusCss}; background: ${escapeHtml(
+        bgColor
+      )}; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);">${visualHtml}</span>${labelHtml}
+${indent}  </button>`;
+
+      if (action === 'card') {
+        return `${indent}<div style="${css}; display: flex; justify-content: ${justify};">
+${indent}  ${triggerHtml}
+${indent}</div>`;
+      }
+
+      const inner = (block.children ?? [])
+        .map((child) =>
+          renderBlockHtml(child, theme, advance, indent + '        ', theme.textColor)
+        )
+        .filter(Boolean)
+        .join('\n');
+      const handleHtml =
+        sheetPos === 'bottom' || sheetPos === 'top'
+          ? `${indent}        <div class="lynk-sheet-handle"></div>\n`
+          : '';
+
+      return `${indent}<div style="${css}; display: flex; justify-content: ${justify};">
+${indent}  ${triggerHtml}
+${indent}  <div id="${sheetId}" data-bottom-sheet data-sheet-pos="${sheetPos}" class="lynk-sheet-backdrop lynk-sheet-pos-${sheetPos}" role="dialog" aria-modal="true" aria-label="${escapeHtml(
+        sheetTitle
+      )}">
+${indent}    <div class="lynk-sheet-panel" style="background-color: ${theme.cardBg}; color: ${
+        theme.textColor
+      }; border: 1px solid ${theme.borderColor};">
+${indent}      <div class="lynk-sheet-header" style="border-bottom: 1px solid ${theme.borderColor};">
+${handleHtml}${indent}        <div style="width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+${indent}          <div style="font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(
+        sheetTitle
+      )}</div>
+${indent}          <button type="button" data-sheet-close aria-label="Tutup Panel" style="width: 30px; height: 30px; border-radius: 9999px; border: 0; background: rgba(148, 163, 184, 0.16); color: inherit; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">&#10005;</button>
+${indent}        </div>
+${indent}      </div>
+${indent}      <div class="lynk-sheet-body">
+${inner || `${indent}        <div style="padding: 28px 0; text-align: center; font-size: 12px; opacity: 0.65;">Belum ada konten di dalam panel ini.</div>`}
+${indent}      </div>
+${indent}    </div>
+${indent}  </div>
+${indent}</div>`;
+    }
+
     case 'row': {
       const c = block.content;
       const rowMode = c.rowLayoutMode ?? 'grid';
-      const rowCols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
+      const rowCols = Math.max(1, Math.min(20, c.rowColumns ?? 2));
       const rowColWidth = Math.max(80, Math.min(340, c.rowColumnWidth ?? 156));
       const rowColMinH = Math.max(0, Math.min(360, c.rowColumnMinHeight ?? 0));
       const rowGap = Math.max(0, Math.min(32, c.rowGap ?? 12));
       const minHStyle = rowColMinH > 0 ? ` min-height: ${rowColMinH}px;` : '';
+      const rowChildren = block.children ?? [];
 
       if (rowMode === 'horizontal') {
-        const cols = (block.children ?? [])
+        const cols = rowChildren
           .map(
             (child) =>
-              `${indent}  <div style="flex: 0 0 ${rowColWidth}px; width: ${rowColWidth}px; min-width: ${rowColWidth}px;${minHStyle} scroll-snap-align: start; display: flex; flex-direction: column;">\n${renderBlockHtml(
+              `${indent}    <div style="flex: 0 0 ${rowColWidth}px; width: ${rowColWidth}px; min-width: ${rowColWidth}px;${minHStyle} scroll-snap-align: start; display: flex; flex-direction: column;">\n${renderBlockHtml(
+                child,
+                theme,
+                advance,
+                indent + '      ',
+                nextInheritedTextColor
+              )}\n${indent}    </div>`
+          )
+          .join('\n');
+        const dotsHtml =
+          rowChildren.length > 1
+            ? `\n${indent}  <div class="lynk-row-dots" data-row-dots="3" aria-label="Indikator progress slide">\n${indent}    <button type="button" class="lynk-row-dot is-active" data-row-dot="0" aria-label="Slide awal" style="--dot-accent: ${escapeHtml(
+                theme.accentColor
+              )};"></button>\n${indent}    <button type="button" class="lynk-row-dot" data-row-dot="1" aria-label="Slide tengah" style="--dot-accent: ${escapeHtml(
+                theme.accentColor
+              )};"></button>\n${indent}    <button type="button" class="lynk-row-dot" data-row-dot="2" aria-label="Slide akhir" style="--dot-accent: ${escapeHtml(
+                theme.accentColor
+              )};"></button>\n${indent}  </div>`
+            : '';
+        return `${indent}<div${hoverCls} data-row-mode="horizontal" data-row-slider style="${css}">\n${indent}  <div data-row-track class="lynk-row-track" style="display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: ${rowGap}px; align-items: stretch; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">\n${cols}\n${indent}  </div>${dotsHtml}\n${indent}</div>`;
+      }
+
+      if (rowMode === 'vertical') {
+        const cols = rowChildren
+          .map(
+            (child) =>
+              `${indent}  <div style="width: 100%; min-width: 0;${minHStyle} display: flex; flex-direction: column;">\n${renderBlockHtml(
                 child,
                 theme,
                 advance,
@@ -341,10 +475,10 @@ ${indent}</div>`;
               )}\n${indent}  </div>`
           )
           .join('\n');
-        return `${indent}<div${hoverCls} data-row-mode="horizontal" style="${css}; display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: ${rowGap}px; align-items: stretch; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">\n${cols}\n${indent}</div>`;
+        return `${indent}<div${hoverCls} data-row-mode="vertical" style="${css}; display: flex; flex-direction: column; gap: ${rowGap}px; align-items: stretch;">\n${cols}\n${indent}</div>`;
       }
 
-      const cols = (block.children ?? [])
+      const cols = rowChildren
         .map(
           (child) =>
             `${indent}  <div style="min-width: 0;${minHStyle} display: flex; flex-direction: column;">\n${renderBlockHtml(

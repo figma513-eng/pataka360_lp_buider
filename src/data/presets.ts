@@ -730,6 +730,7 @@ export const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   hero_profile: 'Hero Profil',
   fnb_catalog: 'Katalog F&B',
   category_tabs: 'Tombol Kategori',
+  menu_icon: 'Menu Icon',
 };
 
 export function createCatalogBlock(
@@ -1287,6 +1288,55 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
             style: {
               ...mapsChild.style,
               marginBottom: 0,
+            },
+          },
+        ],
+      };
+    }
+
+    case 'menu_icon': {
+      const sampleText = createBlock('text', theme);
+      return {
+        id: createId('mico'),
+        type: 'menu_icon',
+        label: 'Menu Icon',
+        style: {
+          ...baseStyle,
+          minHeight: 64,
+          padding: 4,
+          backgroundColor: 'transparent',
+          borderWidth: 0,
+          shadow: 'none',
+          align: 'center',
+        },
+        content: {
+          menuIconImage: '',
+          menuIconShape: 'circle',
+          menuIconRadius: 14,
+          menuIconSize: 64,
+          menuIconImageFit: 'cover',
+          menuIconLabel: 'Menu Icon',
+          menuIconShowLabel: true,
+          menuIconAction: 'sheet',
+          menuIconSheetPosition: 'bottom',
+          menuIconTargetBlockId: '',
+          menuIconBg: theme.accentColor,
+          menuIconTextColor: theme.textColor,
+          sheetTitle: 'Menu Panel',
+        },
+        children: [
+          {
+            ...sampleText,
+            label: 'Isi Panel Menu',
+            style: {
+              ...sampleText.style,
+              align: 'left',
+              marginBottom: 0,
+            },
+            content: {
+              text: 'Tambahkan informasi, tombol, atau katalog di dalam panel Menu Icon ini.',
+              variant: 'body',
+              fontWeight: 'normal',
             },
           },
         ],

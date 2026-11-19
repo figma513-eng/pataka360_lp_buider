@@ -486,12 +486,14 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
           ? c.categoryScrollMode
           : c.categoryScrollMode,
       rowLayoutMode:
-        c.rowLayoutMode === 'horizontal' || c.rowLayoutMode === 'grid'
+        c.rowLayoutMode === 'horizontal' ||
+        c.rowLayoutMode === 'vertical' ||
+        c.rowLayoutMode === 'grid'
           ? c.rowLayoutMode
           : c.rowLayoutMode,
       rowColumns:
         typeof c.rowColumns === 'number' && Number.isFinite(c.rowColumns)
-          ? Math.max(1, Math.min(6, Math.round(c.rowColumns)))
+          ? Math.max(1, Math.min(20, Math.round(c.rowColumns)))
           : c.rowColumns,
       rowColumnWidth:
         typeof c.rowColumnWidth === 'number' && Number.isFinite(c.rowColumnWidth)
@@ -505,6 +507,40 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.rowGap === 'number' && Number.isFinite(c.rowGap)
           ? Math.max(0, Math.min(32, Math.round(c.rowGap)))
           : c.rowGap,
+      menuIconImage: c.menuIconImage ? sanitizeImageOrMediaUrl(c.menuIconImage) : c.menuIconImage,
+      menuIconShape:
+        c.menuIconShape === 'circle' ||
+        c.menuIconShape === 'rounded' ||
+        c.menuIconShape === 'square'
+          ? c.menuIconShape
+          : c.menuIconShape,
+      menuIconRadius:
+        typeof c.menuIconRadius === 'number' && Number.isFinite(c.menuIconRadius)
+          ? Math.max(0, Math.min(48, Math.round(c.menuIconRadius)))
+          : c.menuIconRadius,
+      menuIconSize:
+        typeof c.menuIconSize === 'number' && Number.isFinite(c.menuIconSize)
+          ? Math.max(36, Math.min(160, Math.round(c.menuIconSize)))
+          : c.menuIconSize,
+      menuIconImageFit:
+        c.menuIconImageFit === 'cover' || c.menuIconImageFit === 'contain'
+          ? c.menuIconImageFit
+          : c.menuIconImageFit,
+      menuIconAction:
+        c.menuIconAction === 'sheet' || c.menuIconAction === 'card'
+          ? c.menuIconAction
+          : c.menuIconAction,
+      menuIconSheetPosition:
+        c.menuIconSheetPosition === 'bottom' ||
+        c.menuIconSheetPosition === 'right' ||
+        c.menuIconSheetPosition === 'left' ||
+        c.menuIconSheetPosition === 'top'
+          ? c.menuIconSheetPosition
+          : c.menuIconSheetPosition,
+      menuIconBg: c.menuIconBg ? sanitizeCssColor(c.menuIconBg, '#F0F5FA') : c.menuIconBg,
+      menuIconTextColor: c.menuIconTextColor
+        ? sanitizeCssColor(c.menuIconTextColor, '#17243D')
+        : c.menuIconTextColor,
     },
     children: Array.isArray(block.children)
       ? block.children.map(sanitizeBlockTree)

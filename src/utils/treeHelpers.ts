@@ -168,7 +168,8 @@ export function insertChildIntoContainer(
       (block.type === 'container' ||
         block.type === 'row' ||
         block.type === 'toggle_container' ||
-        block.type === 'bottom_sheet')
+        block.type === 'bottom_sheet' ||
+        block.type === 'menu_icon')
     ) {
       return {
         ...block,
@@ -230,7 +231,8 @@ export function insertBlocksAtTarget(
         (block.type === 'container' ||
           block.type === 'row' ||
           block.type === 'toggle_container' ||
-          block.type === 'bottom_sheet')
+          block.type === 'bottom_sheet' ||
+          block.type === 'menu_icon')
       ) {
         return { ...block, children: [...(block.children ?? []), ...toInsert] };
       }

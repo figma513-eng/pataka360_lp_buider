@@ -24,6 +24,7 @@ import {
   CategoryScrollMode,
   FloatingCartPosition,
   HeroProfileVariant,
+  MenuIconShape,
   PageTheme,
   ShadowPreset,
 } from '../../types/builder';
@@ -554,7 +555,7 @@ export function BlockDesignTab({
 
       case 'row': {
         const rowMode = c.rowLayoutMode ?? 'grid';
-        const rowCols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
+        const rowCols = Math.max(1, Math.min(20, c.rowColumns ?? 2));
         const rowColWidth = Math.max(80, Math.min(340, c.rowColumnWidth ?? 156));
         const rowColMinH = Math.max(0, Math.min(360, c.rowColumnMinHeight ?? 0));
         const rowGap = Math.max(0, Math.min(32, c.rowGap ?? 12));
@@ -563,23 +564,24 @@ export function BlockDesignTab({
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
-                {label('desain.field.layoutRow', 'Mode Susunan Kolom')}
+                {label('desain.field.layoutRow', 'Mode Susunan Kolom / Slide')}
               </label>
-              <SegmentedControl<'horizontal' | 'grid'>
-                columns={2}
+              <SegmentedControl<'horizontal' | 'vertical' | 'grid'>
+                columns={3}
                 value={rowMode}
                 onChange={(m) => updateContent({ rowLayoutMode: m })}
                 options={[
-                  { id: 'horizontal', label: 'Slide Horizontal' },
-                  { id: 'grid', label: 'Grid (1–6 Kolom)' },
+                  { id: 'horizontal', label: 'Horizontal' },
+                  { id: 'vertical', label: 'Vertikal' },
+                  { id: 'grid', label: 'Grid' },
                 ]}
               />
             </div>
 
-            {rowMode === 'horizontal' ? (
+            {rowMode === 'horizontal' && (
               <div className="space-y-2 pt-1">
                 <SliderRow
-                  label={label('desain.field.lebarKolom', 'Ukuran Lebar Tiap Kolom')}
+                  label={label('desain.field.lebarKolom', 'Ukuran Lebar Tiap Slide')}
                   value={`${rowColWidth}px`}
                   min={80}
                   max={340}
@@ -607,19 +609,29 @@ export function BlockDesignTab({
                     </button>
                   ))}
                 </div>
+                <p className="text-[10.5px] text-[#8FA4BF]">
+                  Slide horizontal menampilkan indikator progress 3 titik secara otomatis.
+                </p>
               </div>
-            ) : (
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                  {label('desain.field.jumlahKolomGrid', 'Jumlah Kolom per Baris (Grid)')} ({rowCols})
-                </label>
+            )}
+
+            {rowMode === 'grid' && (
+              <div className="space-y-2">
+                <SliderRow
+                  label={label('desain.field.jumlahKolomGrid', 'Jumlah Kolom per Baris (1–20)')}
+                  value={`${rowCols}`}
+                  min={1}
+                  max={20}
+                  current={rowCols}
+                  onChange={(val) => updateContent({ rowColumns: val })}
+                />
                 <div className="grid grid-cols-6 gap-1">
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => updateContent({ rowColumns: n })}
-                      className={`py-1.5 rounded-md text-xs font-bold border cursor-pointer ${
+                      className={`py-1 rounded-md text-[11px] font-bold border cursor-pointer ${
                         rowCols === n
                           ? 'bg-[#17243D] text-white border-[#17243D]'
                           : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
@@ -633,7 +645,7 @@ export function BlockDesignTab({
             )}
 
             <SliderRow
-              label={label('desain.field.tinggiKolom', 'Tinggi Minimal Kolom')}
+              label={label('desain.field.tinggiKolom', 'Tinggi Minimal Kolom / Slide')}
               value={rowColMinH === 0 ? 'Auto' : `${rowColMinH}px`}
               min={0}
               max={360}
@@ -641,7 +653,7 @@ export function BlockDesignTab({
               onChange={(val) => updateContent({ rowColumnMinHeight: val })}
             />
             <SliderRow
-              label={label('desain.field.jarakKolom', 'Jarak Antar Kolom')}
+              label={label('desain.field.jarakKolom', 'Jarak Antar Kolom / Slide')}
               value={`${rowGap}px`}
               min={0}
               max={32}
@@ -928,6 +940,105 @@ export function BlockDesignTab({
                   type="color"
                   value={c.sheetTriggerText ?? '#FFFFFF'}
                   onChange={(e) => updateContent({ sheetTriggerText: e.target.value })}
+                  className="w-full h-8 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      case 'menu_icon': {
+        const shape: MenuIconShape = c.menuIconShape ?? 'circle';
+        const radius = Math.max(0, Math.min(48, c.menuIconRadius ?? 14));
+        const size = Math.max(36, Math.min(160, c.menuIconSize ?? 64));
+        const fit = c.menuIconImageFit ?? 'cover';
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
+                Bentuk Menu Icon
+              </label>
+              <SegmentedControl<MenuIconShape>
+                columns={3}
+                value={shape}
+                onChange={(nextShape) => updateContent({ menuIconShape: nextShape })}
+                options={[
+                  { id: 'circle', label: 'Bulat' },
+                  { id: 'rounded', label: 'Segi Empat' },
+                  { id: 'square', label: 'Kotak' },
+                ]}
+              />
+            </div>
+
+            {shape === 'rounded' && (
+              <SliderRow
+                label="Lengkungan Sudut"
+                value={`${radius}px`}
+                min={0}
+                max={48}
+                step={1}
+                current={radius}
+                onChange={(val) => updateContent({ menuIconRadius: val })}
+              />
+            )}
+
+            <SliderRow
+              label="Ukuran Ikon"
+              value={`${size}px`}
+              min={36}
+              max={160}
+              step={2}
+              current={size}
+              onChange={(val) => updateContent({ menuIconSize: val })}
+            />
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
+                Tampilan Gambar
+              </label>
+              <SegmentedControl<'cover' | 'contain'>
+                columns={2}
+                value={fit}
+                onChange={(nextFit) => updateContent({ menuIconImageFit: nextFit })}
+                options={[
+                  { id: 'cover', label: 'Penuh (Cover)' },
+                  { id: 'contain', label: 'Utuh (Contain)' },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-0.5">
+              <span className="text-[11px] font-semibold text-[#17243D]">
+                Tampilkan Label Teks
+              </span>
+              <ToggleSwitch
+                label="Tampilkan Label Teks"
+                checked={c.menuIconShowLabel !== false}
+                onChange={(checked) => updateContent({ menuIconShowLabel: checked })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-medium text-[#8FA4BF] mb-1">
+                  Warna Latar Ikon
+                </label>
+                <input
+                  type="color"
+                  value={c.menuIconBg || theme.accentColor}
+                  onChange={(e) => updateAccentContent({ menuIconBg: e.target.value })}
+                  className="w-full h-8 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-[#8FA4BF] mb-1">
+                  Warna Label
+                </label>
+                <input
+                  type="color"
+                  value={c.menuIconTextColor || theme.textColor}
+                  onChange={(e) => updateContent({ menuIconTextColor: e.target.value })}
                   className="w-full h-8 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
                 />
               </div>

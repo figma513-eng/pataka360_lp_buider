@@ -72,6 +72,7 @@ export const UI_LABEL_CATALOG: UiLabelCatalogItem[] = [
   { key: 'alat.tool.container', category: 'alat', defaultLabel: 'Kotak / Wadah', scopeNote: 'Item Alat' },
   { key: 'alat.tool.toggle_container', category: 'alat', defaultLabel: 'Wadah Show / Hide', scopeNote: 'Item Alat' },
   { key: 'alat.tool.bottom_sheet', category: 'alat', defaultLabel: 'Bottom Sheet', scopeNote: 'Item Alat' },
+  { key: 'alat.tool.menu_icon', category: 'alat', defaultLabel: 'Menu Icon', scopeNote: 'Item Alat' },
   { key: 'alat.tool.catalog_physical', category: 'alat', defaultLabel: 'Katalog Produk Fisik', scopeNote: 'Item Alat' },
   { key: 'alat.tool.catalog_digital', category: 'alat', defaultLabel: 'Katalog Produk Digital', scopeNote: 'Item Alat' },
   { key: 'alat.tool.training_catalog', category: 'alat', defaultLabel: 'Katalog Produk Pelatihan', scopeNote: 'Item Alat' },
@@ -141,6 +142,7 @@ export const UI_LABEL_CATALOG: UiLabelCatalogItem[] = [
   { key: 'komponen.type.hero_profile', category: 'komponen', defaultLabel: 'Hero Profil', scopeNote: 'Nama Tipe Komponen' },
   { key: 'komponen.type.fnb_catalog', category: 'komponen', defaultLabel: 'Katalog F&B', scopeNote: 'Nama Tipe Komponen' },
   { key: 'komponen.type.category_tabs', category: 'komponen', defaultLabel: 'Tombol Kategori', scopeNote: 'Nama Tipe Komponen' },
+  { key: 'komponen.type.menu_icon', category: 'komponen', defaultLabel: 'Menu Icon', scopeNote: 'Nama Tipe Komponen' },
 
   // ============================================================
   // 4. HOME (Inspektor Kanan -> Home & Pengaturan Halaman)

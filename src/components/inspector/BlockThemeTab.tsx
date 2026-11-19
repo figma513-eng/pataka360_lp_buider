@@ -43,6 +43,8 @@ function getBlockAccentField(block: BuilderBlock): {
       return { key: 'toggleButtonBg', label: 'Warna Tombol Buka/Tutup', value: c.toggleButtonBg || '' };
     case 'bottom_sheet':
       return { key: 'sheetTriggerBg', label: 'Warna Tombol Sheet', value: c.sheetTriggerBg || '' };
+    case 'menu_icon':
+      return { key: 'menuIconBg', label: 'Warna Latar Menu Icon', value: c.menuIconBg || '' };
     case 'social':
     case 'social_follower':
       return { key: 'socialColor', label: 'Warna Aksen Sosmed', value: c.socialColor || '' };

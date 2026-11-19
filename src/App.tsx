@@ -270,6 +270,9 @@ export default function App() {
   const [inspectorMode, setInspectorMode] = useState<'element' | 'navbar'>('element');
   const [activeNavItemId, setActiveNavItemId] = useState<string>('nav_galeri');
   const [pendingCreatedIds, setPendingCreatedIds] = useState<string[]>([]);
+  const [undoStackByProject, setUndoStackByProject] = useState<
+    Record<string, BuilderProject[]>
+  >({});
 
   const effectivePermissions = useMemo(
     () => resolveEffectivePermissions(accessSettings, authUser),
@@ -328,6 +331,9 @@ export default function App() {
   const hasUnsavedChanges = activeRecord
     ? activeRecord.updatedAt > (activeRecord.lastSavedAt ?? 0)
     : false;
+  const canUndo = Boolean(
+    activeRecord && (undoStackByProject[activeRecord.id]?.length ?? 0) > 0
+  );
 
   const remotePeers = useMemo(
     () => roomPeers.filter((peer) => peer.connectionId !== collabSelfConnId),
@@ -437,21 +443,8 @@ export default function App() {
     };
   }, [hydrateWorkspaceAndSettings]);
 
-  useEffect(() => {
-    if (!isHydratedRef.current) return;
-    let active = true;
-    void saveWorkspaceScoped(workspace, authUser?.id).then((res) => {
-      if (!active) return;
-      if (!res.ok && res.error) {
-        setStorageError(res.error);
-      } else if (res.ok) {
-        setStorageError(null);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [workspace, authUser?.id]);
+  // Manual Save mode: do not auto-save workspace mutations to localStorage or server.
+  // Persistence only occurs when the user explicitly clicks Save (or publishes/manages projects).
 
   const handleAuthSuccess = async (user: AuthUser) => {
     hasUserMutatedBeforeHydrationRef.current = false;
@@ -512,6 +505,17 @@ export default function App() {
     if (!isHydratedRef.current) {
       hasUserMutatedBeforeHydrationRef.current = true;
     }
+    const currentSnapshot = workspaceRef.current.projects.find(
+      (p) => p.id === activeRecord.id
+    )?.project;
+    if (currentSnapshot) {
+      const pid = activeRecord.id;
+      setUndoStackByProject((prev) => {
+        const stack = prev[pid] ?? [];
+        const nextStack = [...stack.slice(-59), currentSnapshot];
+        return { ...prev, [pid]: nextStack };
+      });
+    }
     const editedAt = Date.now();
     latestProjectUpdatedAtRef.current[activeRecord.id] = editedAt;
     retryBackoffRef.current = 5000;
@@ -538,6 +542,54 @@ export default function App() {
       };
     });
   };
+
+  const handleUndo = useCallback(() => {
+    if (!activeRecord) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Mode baca saja: akun Anda tidak memiliki izin mengubah kanvas.');
+      return;
+    }
+    const pid = activeRecord.id;
+    const stack = undoStackByProject[pid] ?? [];
+    if (stack.length === 0) return;
+
+    const previousProject = stack[stack.length - 1];
+    setUndoStackByProject((prev) => ({
+      ...prev,
+      [pid]: (prev[pid] ?? []).slice(0, -1),
+    }));
+
+    const editedAt = Date.now();
+    latestProjectUpdatedAtRef.current[pid] = editedAt;
+    if (syncState !== 'conflict' && syncState !== 'syncing') {
+      setSyncState('pending');
+      setSyncError(null);
+    }
+
+    setWorkspace((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) =>
+        p.id === pid
+          ? {
+              ...p,
+              project: previousProject,
+              updatedAt: editedAt,
+            }
+          : p
+      ),
+    }));
+
+    if (selectedIdRef.current) {
+      const targetSel = selectedIdRef.current;
+      const prevNav = resolveBottomNavbar(previousProject);
+      const stillExists =
+        Boolean(findBlockById(previousProject.blocks, targetSel)) ||
+        prevNav.items.some((it) => Boolean(findBlockById(it.children, targetSel)));
+      if (!stillExists) {
+        setSelectedId(previousProject.blocks[0]?.id ?? null);
+      }
+    }
+  }, [activeRecord, effectivePermissions.editor, showSaveToast, syncState, undoStackByProject]);
 
   const handleSelectProject = (id: string) => {
     if (activeRecord && id === activeRecord.id) return;
@@ -1115,6 +1167,11 @@ export default function App() {
       if (!res.ok) {
         setIsSaving(false);
         const isAuthOrForbidden = res.status === 401 || res.status === 403 || res.status === 409;
+        if (!isAuthOrForbidden) {
+          void saveWorkspaceScoped(workspaceRef.current, authUser?.id).then((localRes) => {
+            if (!localRes.ok && localRes.error) setStorageError(localRes.error);
+          });
+        }
         setSyncState(isAuthOrForbidden ? 'error' : 'local_saved');
         setSyncError(res.error || 'Sinkronisasi server tertunda; tersimpan lokal.');
         return { ok: false, error: res.error };
@@ -1143,10 +1200,10 @@ export default function App() {
         },
       };
 
-      setWorkspace((prev) => {
-        const nextProjects = prev.projects.map((p) => {
+      const nextWorkspaceSnapshot = {
+        ...workspaceRef.current,
+        projects: workspaceRef.current.projects.map((p) => {
           if (p.id !== targetRecord.id) return p;
-          // Preserve edits made while this save request was in flight
           if (p.updatedAt > targetRecord.updatedAt) {
             return {
               ...p,
@@ -1165,11 +1222,16 @@ export default function App() {
             };
           }
           return syncedRecord;
-        });
-        return {
-          ...prev,
-          projects: nextProjects,
-        };
+        }),
+      };
+
+      setWorkspace(nextWorkspaceSnapshot);
+      void saveWorkspaceScoped(nextWorkspaceSnapshot, authUser?.id).then((localRes) => {
+        if (!localRes.ok && localRes.error) {
+          setStorageError(localRes.error);
+        } else if (localRes.ok) {
+          setStorageError(null);
+        }
       });
 
       if (
@@ -1442,40 +1504,30 @@ export default function App() {
     client.selectBlock(activeRecord.id, selectedId);
   }, [authUser?.id, activeRecord?.id, selectedId]);
 
-  // Debounced autosave (450ms online) + retry backoff on network failure
+  // Manual Save mode: mark pending state when edits exist, never auto-save to server.
   useEffect(() => {
     if (!isHydratedRef.current || !authUser || !effectivePermissions.editor) return;
     if (!activeRecord) return;
     if (syncState === 'conflict' || isSaving) return;
 
     const unsaved = activeRecord.updatedAt > (activeRecord.lastSavedAt ?? 0);
-    if (!unsaved) return;
-
-    if (syncState !== 'local_saved' && syncState !== 'pending') {
+    if (unsaved && syncState !== 'local_saved' && syncState !== 'pending') {
       setSyncState('pending');
     }
+  }, [activeRecord, authUser, effectivePermissions.editor, isSaving, syncState]);
 
-    const delay = syncState === 'local_saved' ? retryBackoffRef.current : 450;
-
-    const timer = window.setTimeout(() => {
-      retryBackoffRef.current = Math.min(30_000, retryBackoffRef.current * 2);
-      void persistActiveRecord(activeRecord, false);
-    }, delay);
-    retryTimerRef.current = timer;
-
-    return () => {
-      window.clearTimeout(timer);
+  // Warn before closing tab if there are unsaved changes (manual Save required)
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
     };
-  }, [
-    activeRecord,
-    authUser,
-    effectivePermissions.editor,
-    isSaving,
-    persistActiveRecord,
-    syncState,
-  ]);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedChanges]);
 
-  // Background & focus/visibility multi-user sync + keepalive flush on tab close/switch
+  // Background & focus/visibility multi-user sync (read-only refresh, never auto-saves edits)
   useEffect(() => {
     if (!authUser) return;
     const intervalId = window.setInterval(() => {
@@ -1488,162 +1540,55 @@ export default function App() {
       void syncFromServerQuietly(false);
     };
 
-    const flushUnsavedIfPossible = () => {
-      if (
-        isHydratedRef.current &&
-        effectivePermissions.editor &&
-        activeRecord &&
-        activeRecord.updatedAt > (activeRecord.lastSavedAt ?? 0) &&
-        !isSaving &&
-        syncState !== 'conflict'
-      ) {
-        if (retryTimerRef.current !== null) {
-          window.clearTimeout(retryTimerRef.current);
-          retryTimerRef.current = null;
-        }
-        void saveWorkspaceScoped(workspace, authUser.id);
-        const flushKey = `${activeRecord.id}:${activeRecord.updatedAt}`;
-        if (lastKeepaliveFlushRef.current === flushKey) {
-          return;
-        }
-        const snapshot = activeRecord;
-        const html = generateProjectHtml(snapshot.project, { projectId: snapshot.id });
-        const approxSize = html.length + JSON.stringify(snapshot).length;
-        if (approxSize < 56_000) {
-          lastKeepaliveFlushRef.current = flushKey;
-          void saveProjectToServer(snapshot, html, false, { keepalive: true }).then((res) => {
-            if (!mountedRef.current) return;
-            if (res.ok) {
-              const savedAt = res.savedAt || Date.now();
-              const nextRev = res.revision ?? snapshot.revision ?? 1;
-              const nextPublished =
-                typeof res.isPublished === 'boolean'
-                  ? res.isPublished
-                  : Boolean(snapshot.project.publishing?.isPublished);
-              setWorkspace((prev) => ({
-                ...prev,
-                projects: prev.projects.map((p) => {
-                  if (p.id !== snapshot.id) return p;
-                  if (p.updatedAt > snapshot.updatedAt) {
-                    return {
-                      ...p,
-                      revision: nextRev,
-                      lastSavedAt: savedAt,
-                      project: {
-                        ...p.project,
-                        publishing: {
-                          ...resolveProjectPublishing(p.project),
-                          slug: res.slug || resolveProjectPublishing(p.project).slug,
-                          isPublished: nextPublished,
-                        },
-                      },
-                    };
-                  }
-                  return {
-                    ...p,
-                    revision: nextRev,
-                    updatedAt: savedAt,
-                    lastSavedAt: savedAt,
-                    project: {
-                      ...p.project,
-                      publishing: {
-                        ...resolveProjectPublishing(p.project),
-                        slug: res.slug || resolveProjectPublishing(p.project).slug,
-                        isPublished: nextPublished,
-                      },
-                    },
-                  };
-                }),
-              }));
-              const editedDuringSave =
-                (latestProjectUpdatedAtRef.current[snapshot.id] ?? 0) > snapshot.updatedAt;
-              setSyncState(editedDuringSave ? 'pending' : 'server_saved');
-              setSyncError(null);
-            } else {
-              if (lastKeepaliveFlushRef.current === flushKey) {
-                lastKeepaliveFlushRef.current = '';
-              }
-              if (res.conflict) {
-                setSyncState('conflict');
-                setSyncError(res.error || 'Konflik revisi dengan versi server.');
-                setConflictState({
-                  localRecord: snapshot,
-                  serverRecord: res.serverRecord,
-                  currentRevision: res.currentRevision,
-                });
-              }
-            }
-          });
-        } else {
-          void persistActiveRecord(snapshot, false);
-        }
-      }
-    };
-
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushUnsavedIfPossible();
-      } else if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible') {
         void syncFromServerQuietly(false);
       }
     };
 
     window.addEventListener('focus', onFocus);
-    window.addEventListener('pagehide', flushUnsavedIfPossible);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
-      window.removeEventListener('pagehide', flushUnsavedIfPossible);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [
-    activeRecord,
-    authUser,
-    effectivePermissions.editor,
-    isSaving,
-    persistActiveRecord,
-    syncFromServerQuietly,
-    syncState,
-    workspace,
-  ]);
+  }, [authUser, syncFromServerQuietly]);
 
   useEffect(() => {
     const onOnline = () => {
-      if (
-        authUser &&
-        effectivePermissions.editor &&
-        activeRecord &&
-        activeRecord.updatedAt > (activeRecord.lastSavedAt ?? 0) &&
-        syncState !== 'conflict'
-      ) {
-        retryBackoffRef.current = 5000;
-        void persistActiveRecord(activeRecord, false);
-      } else if (authUser) {
+      if (authUser && !hasUnsavedChanges) {
         void syncFromServerQuietly(true);
       }
     };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
-  }, [
-    activeRecord,
-    authUser,
-    effectivePermissions.editor,
-    persistActiveRecord,
-    syncFromServerQuietly,
-    syncState,
-  ]);
+  }, [authUser, hasUnsavedChanges, syncFromServerQuietly]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void handleSaveProject();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toUpperCase();
+        const isEditable =
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          tag === 'SELECT' ||
+          Boolean(target?.isContentEditable);
+        if (!isEditable && canUndo) {
+          e.preventDefault();
+          handleUndo();
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSaveProject]);
+  }, [canUndo, handleSaveProject, handleUndo]);
 
   const handleApplyDomainAndAds = async (
     nextPublishing: ProjectPublishingConfig,
@@ -2047,6 +1992,8 @@ export default function App() {
           inspectorMode={inspectorMode}
           selectedId={selectedId}
           remotePeersByBlock={remotePeersByBlock}
+          canUndo={canUndo}
+          onUndo={handleUndo}
           onOpenPreview={() => setShowPreview(true)}
           onSelectBlock={handleCanvasSelectBlock}
           onOpenNavbarSettings={handleOpenNavbarSettings}
@@ -2073,6 +2020,7 @@ export default function App() {
 
         <RightInspector
           selectedBlock={selectedBlock}
+          allBlocks={project.blocks}
           theme={project.theme}
           advanceOptions={project.advanceOptions}
           selectedParentNavId={selectedParentNavId}

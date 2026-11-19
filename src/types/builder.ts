@@ -21,7 +21,12 @@ export type BlockType =
   | 'training_catalog'
   | 'hero_profile'
   | 'fnb_catalog'
-  | 'category_tabs';
+  | 'category_tabs'
+  | 'menu_icon';
+
+export type MenuIconShape = 'circle' | 'rounded' | 'square';
+export type MenuIconAction = 'sheet' | 'card';
+export type MenuIconSheetPosition = 'bottom' | 'right' | 'left' | 'top';
 
 export type HeroProfileVariant = 'compact' | 'banner';
 export type FloatingCartPosition =
@@ -523,12 +528,25 @@ export interface BlockContent {
   categoryGap?: number;
   categoryActiveId?: string;
   categoryFilterFnbOnClick?: boolean;
-  // Kolom / Row Dinamis (Grid 1-6 Kolom atau Slide Horizontal 4+ Kolom)
-  rowLayoutMode?: 'grid' | 'horizontal';
+  // Kolom / Row Dinamis (1-20 Kolom, Grid / Slide Horizontal 3 Titik / Slide Vertikal)
+  rowLayoutMode?: 'grid' | 'horizontal' | 'vertical';
   rowColumns?: number;
   rowColumnWidth?: number;
   rowColumnMinHeight?: number;
   rowGap?: number;
+  // Menu Icon (Upload/URL gambar, Bulat/Segi Empat/Kotak, Sheet 4 Arah / Menuju Card Lain)
+  menuIconImage?: string;
+  menuIconShape?: MenuIconShape;
+  menuIconRadius?: number;
+  menuIconSize?: number;
+  menuIconImageFit?: 'cover' | 'contain';
+  menuIconLabel?: string;
+  menuIconShowLabel?: boolean;
+  menuIconAction?: MenuIconAction;
+  menuIconSheetPosition?: MenuIconSheetPosition;
+  menuIconTargetBlockId?: string;
+  menuIconBg?: string;
+  menuIconTextColor?: string;
 }
 
 export interface BuilderBlock {

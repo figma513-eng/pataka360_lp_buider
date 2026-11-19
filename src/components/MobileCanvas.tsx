@@ -12,9 +12,11 @@ import {
   Monitor,
   PanelBottomOpen,
   Plus,
+  Shapes,
   ShoppingCart,
   Smartphone,
   Trash2,
+  Undo2,
   X,
 } from 'lucide-react';
 import {
@@ -59,6 +61,8 @@ interface MobileCanvasProps {
   inspectorMode: 'element' | 'navbar';
   selectedId: string | null;
   remotePeersByBlock?: Record<string, CollabPeer[]>;
+  canUndo?: boolean;
+  onUndo?: () => void;
   onOpenPreview: () => void;
   onSelectBlock: (id: string | null) => void;
   onOpenNavbarSettings: (itemId?: string) => void;
@@ -91,6 +95,8 @@ export function MobileCanvas({
   inspectorMode,
   selectedId,
   remotePeersByBlock = {},
+  canUndo = false,
+  onUndo,
   onOpenPreview,
   onSelectBlock,
   onOpenNavbarSettings,
@@ -120,6 +126,8 @@ export function MobileCanvas({
   const [openNavSheetId, setOpenNavSheetId] = useState<string | null>(null);
   const [activeCategoryTabIds, setActiveCategoryTabIds] = useState<Record<string, string>>({});
   const [fnbPreviewQtys, setFnbPreviewQtys] = useState<Record<string, number>>({});
+  const [rowActiveDots, setRowActiveDots] = useState<Record<string, number>>({});
+  const rowTrackRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const canvasFrameRef = useRef<HTMLDivElement>(null);
   const canvasRootRef = useRef<HTMLDivElement>(null);
@@ -321,6 +329,7 @@ export function MobileCanvas({
         )}
 
         <div
+          data-block-id={block.id}
           draggable
           onDragStart={(e) => {
             e.stopPropagation();
@@ -342,7 +351,8 @@ export function MobileCanvas({
               block.type === 'container' ||
               block.type === 'row' ||
               block.type === 'toggle_container' ||
-              block.type === 'bottom_sheet'
+              block.type === 'bottom_sheet' ||
+              block.type === 'menu_icon'
             ) {
               if (relY < rect.height * 0.25) pos = 'before';
               else if (relY > rect.height * 0.75) pos = 'after';
@@ -767,9 +777,171 @@ export function MobileCanvas({
             );
           })()}
 
+          {block.type === 'menu_icon' && (() => {
+            const shape = block.content.menuIconShape ?? 'circle';
+            const radius =
+              shape === 'circle'
+                ? '9999px'
+                : shape === 'square'
+                ? '0px'
+                : `${Math.max(0, Math.min(48, block.content.menuIconRadius ?? 14))}px`;
+            const size = Math.max(36, Math.min(160, block.content.menuIconSize ?? 64));
+            const fit = block.content.menuIconImageFit ?? 'cover';
+            const imgSrc = (block.content.menuIconImage ?? '').trim();
+            const showLabel = block.content.menuIconShowLabel !== false;
+            const iconLabel = block.content.menuIconLabel ?? 'Menu Icon';
+            const bgColor = block.content.menuIconBg || theme.accentColor;
+            const labelColor = block.content.menuIconTextColor || resolvedTextColor;
+            const action = block.content.menuIconAction ?? 'sheet';
+            const sheetPos = block.content.menuIconSheetPosition ?? 'bottom';
+            const targetId = (block.content.menuIconTargetBlockId ?? '').trim();
+            const sheetTitle = block.content.sheetTitle ?? 'Menu Panel';
+            const childCount = (block.children ?? []).length;
+            const hasSelectedChild =
+              selectedId !== null && selectedId !== block.id && hasDescendantId(block, selectedId);
+            const isDragInside = isDropTarget && dragState.position === 'inside';
+            const isOpen =
+              action === 'sheet' &&
+              (Boolean(openSheets[block.id]) || hasSelectedChild || isDragInside);
+            const posLabelMap: Record<string, string> = {
+              bottom: 'Bawah',
+              right: 'Kanan',
+              left: 'Kiri',
+              top: 'Atas',
+            };
+            const justifyClass =
+              s.align === 'left'
+                ? 'justify-start'
+                : s.align === 'right'
+                ? 'justify-end'
+                : 'justify-center';
+
+            return (
+              <div>
+                <div className={`flex ${justifyClass}`}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectBlock(block.id);
+                      if (action === 'sheet') {
+                        setOpenSheets((prev) => ({ ...prev, [block.id]: !isOpen }));
+                      } else if (targetId && canvasRootRef.current) {
+                        const targetEl = canvasRootRef.current.querySelector<HTMLElement>(
+                          `[data-block-id="${CSS.escape(targetId)}"]`
+                        );
+                        if (targetEl) {
+                          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }
+                    }}
+                    className="inline-flex flex-col items-center gap-1.5 cursor-pointer group/mico"
+                  >
+                    <span
+                      style={{
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        borderRadius: radius,
+                        backgroundColor: bgColor,
+                      }}
+                      className="flex items-center justify-center overflow-hidden shadow-md transition-transform group-hover/mico:scale-105"
+                    >
+                      {imgSrc && !brokenImages[`mico_${block.id}`] ? (
+                        <img
+                          src={imgSrc}
+                          alt={iconLabel}
+                          referrerPolicy="no-referrer"
+                          onError={() =>
+                            setBrokenImages((prev) => ({ ...prev, [`mico_${block.id}`]: true }))
+                          }
+                          style={{ objectFit: fit }}
+                          className="w-full h-full block"
+                        />
+                      ) : (
+                        <Shapes
+                          style={{
+                            width: `${Math.round(size * 0.44)}px`,
+                            height: `${Math.round(size * 0.44)}px`,
+                            color: '#FFFFFF',
+                          }}
+                        />
+                      )}
+                    </span>
+                    {showLabel && iconLabel.trim() && (
+                      <span
+                        style={{ color: labelColor }}
+                        className="text-xs font-semibold leading-tight text-center"
+                      >
+                        {iconLabel}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <div className="mt-1.5 text-[10px] text-slate-400 text-center select-none">
+                  {action === 'sheet'
+                    ? isOpen
+                      ? `Sheet (${posLabelMap[sheetPos] || 'Bawah'}) terbuka · Klik ikon untuk tutup`
+                      : `Sheet ${posLabelMap[sheetPos] || 'Bawah'} (${childCount} elemen) · Klik ikon untuk edit isi`
+                    : targetId
+                    ? 'Aksi: Menuju card tujuan · Klik ikon untuk uji lompat'
+                    : 'Aksi: Menuju card lain (pilih tujuan di panel Konten)'}
+                </div>
+
+                {isOpen && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      if (block.children && block.children.length > 0) return;
+                      handleBlockDrop(e, block.id, 'inside');
+                    }}
+                    style={{
+                      backgroundColor: theme.cardBg,
+                      borderColor: theme.borderColor,
+                      color: theme.textColor,
+                    }}
+                    className="mt-3 rounded-2xl border shadow-lg overflow-hidden"
+                  >
+                    <div
+                      className="pt-2 pb-2 px-3.5 border-b flex items-center justify-between gap-2"
+                      style={{ borderColor: theme.borderColor }}
+                    >
+                      <span className="text-xs font-bold truncate">
+                        {sheetTitle || 'Menu Panel'} · {posLabelMap[sheetPos] || 'Bawah'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenSheets((prev) => ({ ...prev, [block.id]: false }));
+                        }}
+                        title="Tutup preview sheet di editor"
+                        className="p-1 rounded-lg hover:bg-slate-200/60 opacity-70 hover:opacity-100 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="p-3">
+                      {block.children && block.children.length > 0 ? (
+                        block.children.map((child) =>
+                          renderBlockContent(child, depth + 1, nextInheritedTextColor)
+                        )
+                      ) : (
+                        <div className="py-5 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg">
+                          Panel Menu Icon kosong — tarik elemen ke sini atau tambah dari panel kanan
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         {block.type === 'row' && (() => {
           const rowMode = block.content.rowLayoutMode ?? 'grid';
-          const rowCols = Math.max(1, Math.min(6, block.content.rowColumns ?? 2));
+          const rowCols = Math.max(1, Math.min(20, block.content.rowColumns ?? 2));
           const rowColWidth = Math.max(80, Math.min(340, block.content.rowColumnWidth ?? 156));
           const rowColMinH = Math.max(0, Math.min(360, block.content.rowColumnMinHeight ?? 0));
           const rowGap = Math.max(0, Math.min(32, block.content.rowGap ?? 12));
@@ -782,32 +954,104 @@ export function MobileCanvas({
                 onDrop={(e) => handleBlockDrop(e, block.id, 'inside')}
                 className="py-5 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg"
               >
-                Row kosong — tambah kolom lewat panel kanan atau tarik elemen ke sini
+                Row kosong — tambah kolom / slide lewat panel kanan atau tarik elemen ke sini
               </div>
             );
           }
 
           if (rowMode === 'horizontal') {
+            const activeDot = rowActiveDots[block.id] ?? 0;
+            return (
+              <div>
+                <div
+                  ref={(el) => {
+                    rowTrackRefs.current[block.id] = el;
+                  }}
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    const maxScroll = Math.max(1, el.scrollWidth - el.clientWidth);
+                    const ratio = el.scrollLeft / maxScroll;
+                    const nextDot = ratio < 0.33 ? 0 : ratio <= 0.67 ? 1 : 2;
+                    setRowActiveDots((prev) =>
+                      prev[block.id] === nextDot ? prev : { ...prev, [block.id]: nextDot }
+                    );
+                  }}
+                  style={{
+                    gap: `${rowGap}px`,
+                    WebkitOverflowScrolling: 'touch',
+                    scrollSnapType: 'x proximity',
+                  }}
+                  className="flex flex-row flex-nowrap items-stretch overflow-x-auto pb-1.5 touch-pan-x no-scrollbar"
+                >
+                  {rowChildren.map((child) => (
+                    <div
+                      key={child.id}
+                      style={{
+                        flex: `0 0 ${rowColWidth}px`,
+                        width: `${rowColWidth}px`,
+                        minWidth: `${rowColWidth}px`,
+                        minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined,
+                        scrollSnapAlign: 'start',
+                      }}
+                      className="flex flex-col [&>*]:flex-1"
+                    >
+                      {renderBlockContent(child, depth + 1, nextInheritedTextColor)}
+                    </div>
+                  ))}
+                </div>
+                {rowChildren.length > 1 && (
+                  <div
+                    data-row-dots="3"
+                    className="flex items-center justify-center gap-1.5 pt-2"
+                    aria-label="Indikator progress slide"
+                  >
+                    {[0, 1, 2].map((dotIdx) => {
+                      const isActive = activeDot === dotIdx;
+                      return (
+                        <button
+                          key={dotIdx}
+                          type="button"
+                          aria-label={`Slide posisi ${dotIdx + 1}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const track = rowTrackRefs.current[block.id];
+                            if (!track) return;
+                            const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+                            const targetLeft =
+                              dotIdx === 0 ? 0 : dotIdx === 1 ? maxScroll / 2 : maxScroll;
+                            track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+                            setRowActiveDots((prev) => ({ ...prev, [block.id]: dotIdx }));
+                          }}
+                          style={{
+                            width: isActive ? '18px' : '6px',
+                            height: '6px',
+                            backgroundColor: isActive ? theme.accentColor : '#CBD5E1',
+                          }}
+                          className="rounded-full transition-all duration-200 cursor-pointer"
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          if (rowMode === 'vertical') {
             return (
               <div
                 style={{
                   gap: `${rowGap}px`,
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
                 }}
-                className="flex flex-row flex-nowrap items-stretch overflow-x-auto pb-1.5 touch-pan-x"
+                className="flex flex-col items-stretch"
               >
                 {rowChildren.map((child) => (
                   <div
                     key={child.id}
                     style={{
-                      flex: `0 0 ${rowColWidth}px`,
-                      width: `${rowColWidth}px`,
-                      minWidth: `${rowColWidth}px`,
                       minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined,
-                      scrollSnapAlign: 'start',
                     }}
-                    className="flex flex-col [&>*]:flex-1"
+                    className="w-full min-w-0 flex flex-col [&>*]:flex-1"
                   >
                     {renderBlockContent(child, depth + 1, nextInheritedTextColor)}
                   </div>
@@ -1587,6 +1831,25 @@ export function MobileCanvas({
             <Monitor className={`w-3.5 h-3.5 ${isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
             <span>Mobile 576 px</span>
           </button>
+
+          <div className="ml-3 pl-3 border-l border-[#DCE5EF] flex items-center shrink-0">
+            <button
+              type="button"
+              data-toolbar-undo="1"
+              disabled={!canUndo || !onUndo}
+              onClick={() => onUndo?.()}
+              title={canUndo ? 'Urungkan perubahan terakhir (Ctrl+Z)' : 'Belum ada riwayat Undo'}
+              aria-label="Undo"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                canUndo && onUndo
+                  ? 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA] hover:border-[#8FA4BF] cursor-pointer'
+                  : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'
+              }`}
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>Undo</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0" role="group" aria-label="Zoom Canvas">

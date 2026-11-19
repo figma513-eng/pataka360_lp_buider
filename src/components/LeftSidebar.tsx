@@ -19,6 +19,7 @@ import {
   PanelBottomOpen,
   PanelTop,
   Search,
+  Shapes,
   Share2,
   ShoppingBag,
   Sparkles,
@@ -106,7 +107,7 @@ export const TOOL_ITEMS: ToolPaletteItem[] = [
     key: 'row',
     type: 'row',
     label: 'Kolom / Row Dinamis',
-    desc: '2–6+ kolom grid atau slide horizontal',
+    desc: '1–20 kolom grid, slide horizontal (3 titik) & vertikal',
     icon: <Columns2 className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
@@ -129,6 +130,13 @@ export const TOOL_ITEMS: ToolPaletteItem[] = [
     label: 'Bottom Sheet',
     desc: 'Klik ikon/tombol buka panel bawah (Maps, dll)',
     icon: <PanelBottomOpen className="w-4 h-4" strokeWidth={1.85} />,
+  },
+  {
+    key: 'menu_icon',
+    type: 'menu_icon',
+    label: 'Menu Icon',
+    desc: 'Upload/URL gambar · Buka sheet 4 arah atau ke card lain',
+    icon: <Shapes className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'catalog_physical',

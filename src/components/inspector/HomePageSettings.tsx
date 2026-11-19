@@ -210,7 +210,8 @@ export function HomePageSettings({
       blk.type === 'container' ||
       blk.type === 'toggle_container' ||
       blk.type === 'row' ||
-      blk.type === 'bottom_sheet';
+      blk.type === 'bottom_sheet' ||
+      blk.type === 'menu_icon';
     const isOver = dragOverInfo?.id === blk.id;
 
     return (

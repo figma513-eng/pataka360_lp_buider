@@ -21,6 +21,7 @@ import { BlockDesignTab } from './inspector/BlockDesignTab';
 
 interface RightInspectorProps {
   selectedBlock: BuilderBlock | null;
+  allBlocks?: BuilderBlock[];
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   selectedParentNavId: string | null;
@@ -38,6 +39,7 @@ type ComponentInspectorTab = 'konten' | 'desain';
 
 export function RightInspector({
   selectedBlock,
+  allBlocks = [],
   theme,
   advanceOptions,
   selectedParentNavId,
@@ -191,6 +193,7 @@ export function RightInspector({
           {inspectorTab === 'konten' && (
             <BlockContentTab
               selectedBlock={selectedBlock}
+              allBlocks={allBlocks}
               theme={theme}
               advanceOptions={advanceOptions}
               onUpdateAdvanceOptions={onUpdateAdvanceOptions}

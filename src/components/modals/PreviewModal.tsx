@@ -13,6 +13,7 @@ import {
   Minus,
   PanelBottomOpen,
   Plus,
+  Shapes,
   ShoppingBag,
   ShoppingCart,
   Trash2,
@@ -25,6 +26,7 @@ import {
   CatalogItem,
   CategoryJumpItem,
   FnbMenuItem,
+  MenuIconSheetPosition,
 } from '../../types/builder';
 import { resolveBottomNavbar, resolveNavbarMetrics } from '../../data/presets';
 import { generateProjectHtml, resolveBlockTextColor, shadowToCss } from '../../utils/htmlExporter';
@@ -239,16 +241,30 @@ export function PreviewModal({
     [activeNavSheetId, bottomNavbar.items]
   );
 
-  const activeSheetContent = activeSheetBlock
+  const [rowActiveDots, setRowActiveDots] = useState<Record<string, number>>({});
+  const rowTrackRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const activeSheetContent: {
+    title: string;
+    children: BuilderBlock[];
+    position: MenuIconSheetPosition;
+  } | null = activeSheetBlock
     ? {
-        title: activeSheetBlock.content.sheetTitle?.trim() || 'Bottom Sheet',
+        title:
+          activeSheetBlock.content.sheetTitle?.trim() ||
+          (activeSheetBlock.type === 'menu_icon' ? 'Menu Panel' : 'Bottom Sheet'),
         children: activeSheetBlock.children ?? [],
+        position:
+          activeSheetBlock.type === 'menu_icon'
+            ? activeSheetBlock.content.menuIconSheetPosition ?? 'bottom'
+            : 'bottom',
       }
     : activeNavSheetItem
     ? {
         title:
           activeNavSheetItem.sheetTitle?.trim() || activeNavSheetItem.label || 'Menu',
         children: activeNavSheetItem.children,
+        position: 'bottom',
       }
     : null;
 
@@ -304,6 +320,28 @@ export function PreviewModal({
     if (partial) {
       partial.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  const jumpToBlockId = (targetBlockId: string) => {
+    const cleanId = targetBlockId.trim();
+    if (!cleanId) return;
+    closeBottomSheet();
+    setSubPage({ type: 'home' });
+    window.setTimeout(() => {
+      if (!scrollBodyRef.current) return;
+      const targetEl = scrollBodyRef.current.querySelector<HTMLElement>(
+        `[data-block-id="${CSS.escape(cleanId)}"]`
+      );
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.style.outline = `2px solid ${project.theme.accentColor}`;
+        targetEl.style.outlineOffset = '3px';
+        window.setTimeout(() => {
+          targetEl.style.outline = '';
+          targetEl.style.outlineOffset = '';
+        }, 1200);
+      }
+    }, 30);
   };
 
   const showToast = (msg: string) => {
@@ -419,6 +457,20 @@ export function PreviewModal({
   });
 
   const renderPreviewBlock = (
+    block: BuilderBlock,
+    depth = 0,
+    inheritedTextColor?: string
+  ): React.ReactNode => {
+    const rendered = renderPreviewBlockInner(block, depth, inheritedTextColor);
+    if (React.isValidElement(rendered)) {
+      return React.cloneElement(rendered as React.ReactElement<Record<string, unknown>>, {
+        'data-block-id': block.id,
+      });
+    }
+    return rendered;
+  };
+
+  const renderPreviewBlockInner = (
     block: BuilderBlock,
     depth = 0,
     inheritedTextColor?: string
@@ -657,41 +709,190 @@ export function PreviewModal({
       );
     }
 
+    if (block.type === 'menu_icon') {
+      const shape = block.content.menuIconShape ?? 'circle';
+      const radius =
+        shape === 'circle'
+          ? '9999px'
+          : shape === 'square'
+          ? '0px'
+          : `${Math.max(0, Math.min(48, block.content.menuIconRadius ?? 14))}px`;
+      const size = Math.max(36, Math.min(160, block.content.menuIconSize ?? 64));
+      const fit = block.content.menuIconImageFit ?? 'cover';
+      const imgSrc = (block.content.menuIconImage ?? '').trim();
+      const showLabel = block.content.menuIconShowLabel !== false;
+      const iconLabel = block.content.menuIconLabel ?? 'Menu Icon';
+      const bgColor = block.content.menuIconBg || project.theme.accentColor;
+      const labelColor = block.content.menuIconTextColor || resolvedTextColor;
+      const action = block.content.menuIconAction ?? 'sheet';
+      const targetId = (block.content.menuIconTargetBlockId ?? '').trim();
+      const justifyClass =
+        s.align === 'left'
+          ? 'justify-start'
+          : s.align === 'right'
+          ? 'justify-end'
+          : 'justify-center';
+
+      return (
+        <div key={block.id} style={style} className={`flex ${justifyClass}`}>
+          <button
+            type="button"
+            onClick={() => {
+              if (action === 'card') {
+                if (targetId) jumpToBlockId(targetId);
+              } else {
+                openBottomSheet(block.id);
+              }
+            }}
+            className="inline-flex flex-col items-center gap-1.5 cursor-pointer group"
+          >
+            <span
+              style={{
+                width: `${size}px`,
+                height: `${size}px`,
+                borderRadius: radius,
+                backgroundColor: bgColor,
+              }}
+              className="flex items-center justify-center overflow-hidden shadow-md transition-transform group-hover:scale-105"
+            >
+              {imgSrc ? (
+                <img
+                  src={imgSrc}
+                  alt={iconLabel}
+                  referrerPolicy="no-referrer"
+                  style={{ objectFit: fit }}
+                  className="w-full h-full block"
+                />
+              ) : (
+                <Shapes
+                  style={{
+                    width: `${Math.round(size * 0.44)}px`,
+                    height: `${Math.round(size * 0.44)}px`,
+                    color: '#FFFFFF',
+                  }}
+                />
+              )}
+            </span>
+            {showLabel && iconLabel.trim() && (
+              <span
+                style={{ color: labelColor }}
+                className="text-xs font-semibold leading-tight text-center"
+              >
+                {iconLabel}
+              </span>
+            )}
+          </button>
+        </div>
+      );
+    }
+
     if (block.type === 'row') {
       const rowMode = block.content.rowLayoutMode ?? 'grid';
-      const rowCols = Math.max(1, Math.min(6, block.content.rowColumns ?? 2));
+      const rowCols = Math.max(1, Math.min(20, block.content.rowColumns ?? 2));
       const rowColWidth = Math.max(80, Math.min(340, block.content.rowColumnWidth ?? 156));
       const rowColMinH = Math.max(0, Math.min(360, block.content.rowColumnMinHeight ?? 0));
       const rowGap = Math.max(0, Math.min(32, block.content.rowGap ?? 12));
+      const rowChildren = block.children ?? [];
 
       if (rowMode === 'horizontal') {
+        const activeDot = rowActiveDots[block.id] ?? 0;
+        return (
+          <div key={block.id} style={style}>
+            <div
+              ref={(el) => {
+                rowTrackRefs.current[block.id] = el;
+              }}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const maxScroll = Math.max(1, el.scrollWidth - el.clientWidth);
+                const ratio = el.scrollLeft / maxScroll;
+                const nextDot = ratio < 0.33 ? 0 : ratio <= 0.67 ? 1 : 2;
+                setRowActiveDots((prev) =>
+                  prev[block.id] === nextDot ? prev : { ...prev, [block.id]: nextDot }
+                );
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                flexWrap: 'nowrap',
+                overflowX: 'auto',
+                gap: `${rowGap}px`,
+                alignItems: 'stretch',
+                scrollSnapType: 'x proximity',
+                WebkitOverflowScrolling: 'touch',
+              }}
+              className="pb-1.5 touch-pan-x no-scrollbar"
+            >
+              {rowChildren.map((child) => (
+                <div
+                  key={child.id}
+                  style={{
+                    flex: `0 0 ${rowColWidth}px`,
+                    width: `${rowColWidth}px`,
+                    minWidth: `${rowColWidth}px`,
+                    minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined,
+                    scrollSnapAlign: 'start',
+                  }}
+                  className="flex flex-col [&>*]:h-full"
+                >
+                  {renderPreviewBlock(child, depth + 1, nextInheritedTextColor)}
+                </div>
+              ))}
+            </div>
+            {rowChildren.length > 1 && (
+              <div
+                data-row-dots="3"
+                className="flex items-center justify-center gap-1.5 pt-2"
+                aria-label="Indikator progress slide"
+              >
+                {[0, 1, 2].map((dotIdx) => {
+                  const isActive = activeDot === dotIdx;
+                  return (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      aria-label={`Slide posisi ${dotIdx + 1}`}
+                      onClick={() => {
+                        const track = rowTrackRefs.current[block.id];
+                        if (!track) return;
+                        const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+                        const targetLeft =
+                          dotIdx === 0 ? 0 : dotIdx === 1 ? maxScroll / 2 : maxScroll;
+                        track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+                        setRowActiveDots((prev) => ({ ...prev, [block.id]: dotIdx }));
+                      }}
+                      style={{
+                        width: isActive ? '18px' : '6px',
+                        height: '6px',
+                        backgroundColor: isActive ? project.theme.accentColor : '#CBD5E1',
+                      }}
+                      className="rounded-full transition-all duration-200 cursor-pointer"
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (rowMode === 'vertical') {
         return (
           <div
             key={block.id}
             style={{
               ...style,
               display: 'flex',
-              flexDirection: 'row',
-              flexWrap: 'nowrap',
-              overflowX: 'auto',
+              flexDirection: 'column',
               gap: `${rowGap}px`,
               alignItems: 'stretch',
-              scrollSnapType: 'x proximity',
-              WebkitOverflowScrolling: 'touch',
             }}
-            className="pb-1.5 touch-pan-x"
           >
-            {(block.children ?? []).map((child) => (
+            {rowChildren.map((child) => (
               <div
                 key={child.id}
-                style={{
-                  flex: `0 0 ${rowColWidth}px`,
-                  width: `${rowColWidth}px`,
-                  minWidth: `${rowColWidth}px`,
-                  minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined,
-                  scrollSnapAlign: 'start',
-                }}
-                className="flex flex-col [&>*]:h-full"
+                style={{ minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined }}
+                className="w-full min-w-0 flex flex-col [&>*]:h-full"
               >
                 {renderPreviewBlock(child, depth + 1, nextInheritedTextColor)}
               </div>
@@ -711,7 +912,7 @@ export function PreviewModal({
             alignItems: 'stretch',
           }}
         >
-          {(block.children ?? []).map((child) => (
+          {rowChildren.map((child) => (
             <div
               key={child.id}
               style={{ minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined }}
@@ -2697,55 +2898,85 @@ export function PreviewModal({
           )}
           </div>
 
-          {activeSheetContent && (
-            <div
-              onClick={closeBottomSheet}
-              className={`absolute inset-0 z-30 flex flex-col justify-end transition-colors duration-200 ${
-                sheetEntered ? 'bg-slate-950/55 backdrop-blur-[2px]' : 'bg-slate-950/0'
-              }`}
-            >
+          {activeSheetContent && (() => {
+            const pos = activeSheetContent.position;
+            const backdropAlign =
+              pos === 'top'
+                ? 'items-start justify-center'
+                : pos === 'right'
+                ? 'items-stretch justify-end'
+                : pos === 'left'
+                ? 'items-stretch justify-start'
+                : 'items-end justify-center';
+            const panelShape =
+              pos === 'top'
+                ? 'w-full max-h-[84%] rounded-b-[22px] border-b'
+                : pos === 'right'
+                ? 'w-[86%] max-w-[360px] h-full rounded-l-[22px] border-l'
+                : pos === 'left'
+                ? 'w-[86%] max-w-[360px] h-full rounded-r-[22px] border-r'
+                : 'w-full max-h-[84%] rounded-t-[22px] border-t';
+            const panelTransform = sheetEntered
+              ? 'translate-x-0 translate-y-0'
+              : pos === 'top'
+              ? '-translate-y-full'
+              : pos === 'right'
+              ? 'translate-x-full'
+              : pos === 'left'
+              ? '-translate-x-full'
+              : 'translate-y-full';
+
+            return (
               <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  backgroundColor: project.theme.cardBg,
-                  color: project.theme.textColor,
-                  borderColor: project.theme.borderColor,
-                }}
-                className={`w-full max-h-[84%] rounded-t-[22px] border-t shadow-2xl flex flex-col overflow-hidden transition-transform duration-200 ease-out ${
-                  sheetEntered ? 'translate-y-0' : 'translate-y-full'
+                onClick={closeBottomSheet}
+                data-preview-sheet-pos={pos}
+                className={`absolute inset-0 z-30 flex ${backdropAlign} transition-colors duration-200 ${
+                  sheetEntered ? 'bg-slate-950/55 backdrop-blur-[2px]' : 'bg-slate-950/0'
                 }`}
               >
                 <div
-                  className="pt-2.5 pb-2.5 px-4 border-b flex flex-col items-center gap-2 shrink-0"
-                  style={{ borderColor: project.theme.borderColor }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    backgroundColor: project.theme.cardBg,
+                    color: project.theme.textColor,
+                    borderColor: project.theme.borderColor,
+                  }}
+                  className={`${panelShape} shadow-2xl flex flex-col overflow-hidden transition-transform duration-200 ease-out ${panelTransform}`}
                 >
-                  <div className="w-10 h-1 rounded-full bg-slate-300/80" />
-                  <div className="w-full flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-bold truncate">{activeSheetContent.title}</h3>
-                    <button
-                      type="button"
-                      onClick={closeBottomSheet}
-                      aria-label="Tutup Bottom Sheet"
-                      className="p-1.5 rounded-full hover:bg-slate-200/60 opacity-70 hover:opacity-100 cursor-pointer transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div
+                    className="pt-2.5 pb-2.5 px-4 border-b flex flex-col items-center gap-2 shrink-0"
+                    style={{ borderColor: project.theme.borderColor }}
+                  >
+                    {(pos === 'bottom' || pos === 'top') && (
+                      <div className="w-10 h-1 rounded-full bg-slate-300/80" />
+                    )}
+                    <div className="w-full flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold truncate">{activeSheetContent.title}</h3>
+                      <button
+                        type="button"
+                        onClick={closeBottomSheet}
+                        aria-label="Tutup Panel"
+                        className="p-1.5 rounded-full hover:bg-slate-200/60 opacity-70 hover:opacity-100 cursor-pointer transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4">
+                    {activeSheetContent.children.length > 0 ? (
+                      activeSheetContent.children.map((child) =>
+                        renderPreviewBlock(child, 1)
+                      )
+                    ) : (
+                      <div className="py-8 text-center text-xs opacity-60">
+                        Belum ada konten di dalam panel ini.
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4">
-                  {activeSheetContent.children.length > 0 ? (
-                    activeSheetContent.children.map((child) =>
-                      renderPreviewBlock(child, 1)
-                    )
-                  ) : (
-                    <div className="py-8 text-center text-xs opacity-60">
-                      Belum ada konten di dalam Bottom Sheet ini.
-                    </div>
-                  )}
-                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Floating / Pinned Bottom Navbar */}
           {bottomNavbar.enabled && enabledNavItems.length > 0 && (() => {
