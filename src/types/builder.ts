@@ -24,7 +24,8 @@ export type BlockType =
   | 'category_tabs'
   | 'menu_icon'
   | 'cart_button'
-  | 'showcase_card';
+  | 'showcase_card'
+  | 'back_button';
 
 export type ShowcaseCardVariant =
   | 'quote_banner'
@@ -52,8 +53,9 @@ export type PrebuiltSectionCategory =
 
 export type MenuIconShape = 'circle' | 'rounded' | 'square' | 'pill';
 export type BlockShapePreset = 'circle' | 'rounded' | 'square' | 'pill';
-export type MenuIconAction = 'sheet' | 'card';
+export type MenuIconAction = 'sheet' | 'card' | 'page' | 'url' | 'back';
 export type MenuIconSheetPosition = 'bottom' | 'right' | 'left' | 'top';
+export type UniversalActionType = 'none' | 'url' | 'sheet' | 'page' | 'card' | 'back';
 
 export type HeroProfileVariant = 'compact' | 'banner';
 export type FloatingCartPosition =
@@ -329,6 +331,7 @@ export interface BlockStyle {
   align: TextAlign;
   widthPercent: number;
   minHeight: number;
+  maxHeight?: number;
   borderRadius: number;
   shadow: ShadowPreset;
   shadowColor?: string;
@@ -347,6 +350,9 @@ export interface BlockStyle {
   fontSize?: number;
   fontWeightCss?: '400' | '500' | '600' | '700' | '800';
   lineHeight?: number;
+  letterSpacing?: number;
+  paragraphGap?: number;
+  maxLines?: 0 | 1 | 2 | 3 | 4;
   shapePreset?: BlockShapePreset;
   shadowSize?: number;
   padding: number;
@@ -630,6 +636,47 @@ export interface BlockContent {
   cardShowPlayIcon?: boolean;
   cardEnableCart?: boolean;
   cardWhatsappNumber?: string;
+  // Pengaturan Ukuran Box Foto, Zoom Foto, & Tipografi Kartu Dinamis
+  cardMediaSize?: number;
+  cardMediaHeight?: number;
+  cardImageZoom?: number;
+  cardImageFit?: 'cover' | 'contain';
+  cardImageRadius?: number;
+  cardTitleSize?: number;
+  cardSubtitleSize?: number;
+  cardTitleLines?: 0 | 1 | 2 | 3;
+  cardSubtitleLines?: 0 | 1 | 2 | 3;
+  cardTextGap?: number;
+  cardLineHeight?: number;
+  cardLetterSpacing?: number;
+  // Aksi Universal (Berlaku pada semua lapisan: Link, Sheet 4 Arah, Halaman Baru, Card Lain, Back)
+  actionType?: UniversalActionType;
+  actionUrl?: string;
+  actionSheetPosition?: MenuIconSheetPosition;
+  actionSheetTitle?: string;
+  actionSheetBlocks?: BuilderBlock[];
+  actionTargetPageId?: string;
+  actionTargetBlockId?: string;
+  // Fungsi Keranjang Universal (Dapat diaktifkan pada semua lapisan card)
+  universalCartEnabled?: boolean;
+  universalCartName?: string;
+  universalCartPrice?: string;
+  universalCartUnitSold?: number;
+  universalCartShowUnitSold?: boolean;
+  universalCartButtonLabel?: string;
+  universalCartAccentColor?: string;
+  universalCartImage?: string;
+  universalCartWhatsappNumber?: string;
+  universalCartStoreName?: string;
+  universalCartFloatingEnabled?: boolean;
+  universalCartFloatingLabel?: string;
+  universalCartFloatingBg?: string;
+  universalCartFloatingPosition?: FloatingCartPosition;
+  // Tombol Kembali (Back Button)
+  backButtonLabel?: string;
+  backButtonBg?: string;
+  backButtonText?: string;
+  backTargetPageId?: string;
 }
 
 export interface BuilderBlock {
@@ -708,10 +755,19 @@ export interface AnalyticsEventRecord {
   createdAt: number;
 }
 
+export interface BuilderSubPage {
+  id: string;
+  title: string;
+  showBackButton?: boolean;
+  backButtonLabel?: string;
+  blocks: BuilderBlock[];
+}
+
 export interface BuilderProject {
   title: string;
   theme: PageTheme;
   blocks: BuilderBlock[];
+  pages?: BuilderSubPage[];
   advanceOptions: AdvanceOptions;
   bottomNavbar?: BottomNavbarConfig;
   publishing?: ProjectPublishingConfig;

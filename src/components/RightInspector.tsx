@@ -12,6 +12,7 @@ import {
   AdvanceOptions,
   BlockType,
   BuilderBlock,
+  BuilderSubPage,
   PageTheme,
 } from '../types/builder';
 import { BLOCK_TYPE_NAMES } from '../data/presets';
@@ -23,6 +24,11 @@ import { BlockDesignTab } from './inspector/BlockDesignTab';
 interface RightInspectorProps {
   selectedBlock: BuilderBlock | null;
   allBlocks?: BuilderBlock[];
+  pages?: BuilderSubPage[];
+  activeSubPageId?: string | null;
+  onSelectSubPage?: (pageId: string | null) => void;
+  onAddSubPage?: () => string | null;
+  onAddChildToActionSheet?: (ownerId: string, type: BlockType) => void;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   selectedParentNavId: string | null;
@@ -41,6 +47,11 @@ type ComponentInspectorTab = 'konten' | 'desain';
 export function RightInspector({
   selectedBlock,
   allBlocks = [],
+  pages = [],
+  activeSubPageId = null,
+  onSelectSubPage,
+  onAddSubPage,
+  onAddChildToActionSheet,
   theme,
   advanceOptions,
   selectedParentNavId,
@@ -215,6 +226,11 @@ export function RightInspector({
             <BlockContentTab
               selectedBlock={selectedBlock}
               allBlocks={allBlocks}
+              pages={pages}
+              activeSubPageId={activeSubPageId}
+              onSelectSubPage={onSelectSubPage}
+              onAddSubPage={onAddSubPage}
+              onAddChildToActionSheet={onAddChildToActionSheet}
               theme={theme}
               advanceOptions={advanceOptions}
               onUpdateAdvanceOptions={onUpdateAdvanceOptions}

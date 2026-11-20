@@ -19,6 +19,7 @@ import {
   BottomNavbarConfig,
   BuilderBlock,
   BuilderProject,
+  BuilderSubPage,
   PageTheme,
   ProjectAdsConfig,
   ProjectPublishingConfig,
@@ -33,12 +34,15 @@ import {
   PrebuiltSection,
   createBlock,
   createId,
+  createSubPage,
   resolveBottomNavbar,
 } from './data/presets';
 import {
+  cloneBlockDeep,
   deleteBlockById,
   duplicateBlockById,
   findBlockById,
+  insertBlockIntoActionSheet,
   insertBlocksAtTarget,
   insertChildIntoContainer,
   moveBlockInTree,
@@ -260,6 +264,7 @@ export default function App() {
   const [systemSubTab, setSystemSubTab] = useState<SystemTabId>('daftar_usaha');
   const [navbarFocusNonce, setNavbarFocusNonce] = useState<number>(0);
   const [contentFocusNonce, setContentFocusNonce] = useState<number>(0);
+  const [layerFocusNonce, setLayerFocusNonce] = useState<number>(0);
   const [accessSettings, setAccessSettings] = useState<AccessSettingsConfig>(() =>
     createDefaultAccessSettings()
   );
@@ -269,6 +274,7 @@ export default function App() {
   });
   const [inspectorMode, setInspectorMode] = useState<'element' | 'navbar'>('element');
   const [activeNavItemId, setActiveNavItemId] = useState<string>('nav_galeri');
+  const [activeSubPageId, setActiveSubPageId] = useState<string | null>(null);
   const [pendingCreatedIds, setPendingCreatedIds] = useState<string[]>([]);
   const [undoStackByProject, setUndoStackByProject] = useState<
     Record<string, BuilderProject[]>
@@ -326,6 +332,12 @@ export default function App() {
   authUserRef.current = authUser;
   workspaceRef.current = workspace;
   const project = activeRecord?.project ?? null;
+  const subPages = project?.pages ?? [];
+  const activeSubPage =
+    activeSubPageId && project?.pages
+      ? project.pages.find((pg) => pg.id === activeSubPageId) ?? null
+      : null;
+  const currentCanvasBlocks = activeSubPage ? activeSubPage.blocks : project?.blocks ?? [];
   const bottomNavbar = project ? resolveBottomNavbar(project) : null;
   const activePublishing = project ? resolveProjectPublishing(project) : null;
   const hasUnsavedChanges = activeRecord
@@ -487,6 +499,7 @@ export default function App() {
   };
 
   const syncSelectionForProject = (targetProj: BuilderProject) => {
+    setActiveSubPageId(null);
     setSelectedId(targetProj.blocks[0]?.id ?? null);
     setInspectorMode('element');
     const nav = resolveBottomNavbar(targetProj);
@@ -584,6 +597,7 @@ export default function App() {
       const prevNav = resolveBottomNavbar(previousProject);
       const stillExists =
         Boolean(findBlockById(previousProject.blocks, targetSel)) ||
+        (previousProject.pages ?? []).some((pg) => Boolean(findBlockById(pg.blocks, targetSel))) ||
         prevNav.items.some((it) => Boolean(findBlockById(it.children, targetSel)));
       if (!stillExists) {
         setSelectedId(previousProject.blocks[0]?.id ?? null);
@@ -743,6 +757,7 @@ export default function App() {
 
   const handleCanvasSelectBlock = (id: string | null) => {
     handleSelectBlock(id);
+    setLayerFocusNonce((n) => n + 1);
     if (id) {
       setContentFocusNonce((n) => n + 1);
     }
@@ -762,6 +777,105 @@ export default function App() {
     }));
   };
 
+  const handleSelectSubPage = (pageId: string | null) => {
+    if (!project) return;
+    setActiveSubPageId(pageId);
+    if (!pageId) {
+      setSelectedId(project.blocks[0]?.id ?? null);
+    } else {
+      const targetPg = (project.pages ?? []).find((pg) => pg.id === pageId);
+      setSelectedId(targetPg?.blocks[0]?.id ?? null);
+    }
+    setInspectorMode('element');
+  };
+
+  const handleAddSubPage = (): string | null => {
+    if (!project) return null;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah halaman.');
+      return null;
+    }
+    const nextIndex = (project.pages?.length ?? 0) + 2;
+    const created = createSubPage(nextIndex, project.theme);
+    commitProject((prev) => ({
+      ...prev,
+      pages: [...(prev.pages ?? []), created],
+    }));
+    setActiveSubPageId(created.id);
+    setSelectedId(created.blocks[0]?.id ?? null);
+    setInspectorMode('element');
+    return created.id;
+  };
+
+  const handleUpdateSubPage = (pageId: string, patch: Partial<BuilderSubPage>) => {
+    commitProject((prev) => ({
+      ...prev,
+      pages: (prev.pages ?? []).map((pg) => (pg.id === pageId ? { ...pg, ...patch } : pg)),
+    }));
+  };
+
+  const handleDuplicateSubPage = (pageId: string) => {
+    if (!project) return;
+    const source = (project.pages ?? []).find((pg) => pg.id === pageId);
+    if (!source) return;
+    const clone: BuilderSubPage = {
+      ...source,
+      id: createId('pg'),
+      title: `${source.title} (Salinan)`,
+      blocks: source.blocks.map(cloneBlockDeep),
+    };
+    commitProject((prev) => ({
+      ...prev,
+      pages: [...(prev.pages ?? []), clone],
+    }));
+    setActiveSubPageId(clone.id);
+    setSelectedId(clone.blocks[0]?.id ?? null);
+  };
+
+  const handleDeleteSubPage = (pageId: string) => {
+    commitProject((prev) => ({
+      ...prev,
+      pages: (prev.pages ?? []).filter((pg) => pg.id !== pageId),
+    }));
+    if (activeSubPageId === pageId) {
+      setActiveSubPageId(null);
+      setSelectedId(project?.blocks[0]?.id ?? null);
+    }
+  };
+
+  const handleAddChildToActionSheet = (ownerId: string, type: BlockType) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah elemen.');
+      return;
+    }
+    const newChild = createBlock(type, project.theme);
+    commitProject((prev) => {
+      const curNav = prev.bottomNavbar;
+      return {
+        ...prev,
+        blocks: insertBlockIntoActionSheet(prev.blocks, ownerId, newChild),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: insertBlockIntoActionSheet(pg.blocks, ownerId, newChild),
+            }))
+          : prev.pages,
+        bottomNavbar: curNav
+          ? {
+              ...curNav,
+              items: curNav.items.map((it) => ({
+                ...it,
+                children: insertBlockIntoActionSheet(it.children, ownerId, newChild),
+              })),
+            }
+          : curNav,
+      };
+    });
+    setSelectedId(newChild.id);
+    setInspectorMode('element');
+  };
+
   const handleAddBlock = (
     type: BlockType,
     targetId?: string,
@@ -773,6 +887,7 @@ export default function App() {
       return;
     }
     const newBlock = createBlock(type, project.theme);
+    const activePageTargetId = activeSubPage?.id ?? null;
     commitProject((prev) => {
       const curNav = resolveBottomNavbar(prev);
       const isNavTarget = targetId && curNav.items.some((it) => it.id === targetId);
@@ -786,6 +901,18 @@ export default function App() {
             ),
           },
         };
+      }
+      if (activePageTargetId && prev.pages?.some((pg) => pg.id === activePageTargetId)) {
+        const nextPages = prev.pages.map((pg) => {
+          if (pg.id !== activePageTargetId) return pg;
+          const nextPgBlocks = targetId
+            ? position === 'inside'
+              ? insertChildIntoContainer(pg.blocks, targetId, newBlock)
+              : insertBlocksAtTarget(pg.blocks, [newBlock], targetId, position)
+            : [...pg.blocks, newBlock];
+          return { ...pg, blocks: nextPgBlocks };
+        });
+        return { ...prev, pages: nextPages };
       }
       const nextBlocks = targetId
         ? position === 'inside'
@@ -822,12 +949,30 @@ export default function App() {
       return;
     }
     const created = section.createBlocks(project.theme);
-    commitProject((prev) => ({
-      ...prev,
-      blocks: targetId
-        ? insertBlocksAtTarget(prev.blocks, created, targetId, position)
-        : [...prev.blocks, ...created],
-    }));
+    const activePageTargetId = activeSubPage?.id ?? null;
+    commitProject((prev) => {
+      if (activePageTargetId && prev.pages?.some((pg) => pg.id === activePageTargetId)) {
+        return {
+          ...prev,
+          pages: prev.pages.map((pg) =>
+            pg.id === activePageTargetId
+              ? {
+                  ...pg,
+                  blocks: targetId
+                    ? insertBlocksAtTarget(pg.blocks, created, targetId, position)
+                    : [...pg.blocks, ...created],
+                }
+              : pg
+          ),
+        };
+      }
+      return {
+        ...prev,
+        blocks: targetId
+          ? insertBlocksAtTarget(prev.blocks, created, targetId, position)
+          : [...prev.blocks, ...created],
+      };
+    });
     if (created[0]) {
       setSelectedId(created[0].id);
       setInspectorMode('element');
@@ -855,6 +1000,12 @@ export default function App() {
       return {
         ...prev,
         blocks: reorderBlockInTree(prev.blocks, draggedId, targetId, position),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: reorderBlockInTree(pg.blocks, draggedId, targetId, position),
+            }))
+          : prev.pages,
         bottomNavbar: curNav
           ? {
               ...curNav,
@@ -983,6 +1134,12 @@ export default function App() {
         ...prev,
         theme,
         blocks: remapBlocksForTheme(prev.blocks, prev.theme, theme),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: remapBlocksForTheme(pg.blocks, prev.theme, theme),
+            }))
+          : prev.pages,
         bottomNavbar: {
           ...curNav,
           barBg: eq(curNav.barBg, prev.theme.cardBg) ? theme.cardBg : curNav.barBg,
@@ -1018,6 +1175,12 @@ export default function App() {
       return {
         ...prev,
         blocks: updateBlockById(prev.blocks, id, updater),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: updateBlockById(pg.blocks, id, updater),
+            }))
+          : prev.pages,
         bottomNavbar: curNav
           ? {
               ...curNav,
@@ -1037,6 +1200,12 @@ export default function App() {
       return {
         ...prev,
         blocks: moveBlockInTree(prev.blocks, id, dir),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: moveBlockInTree(pg.blocks, id, dir),
+            }))
+          : prev.pages,
         bottomNavbar: curNav
           ? {
               ...curNav,
@@ -1062,6 +1231,22 @@ export default function App() {
       setSelectedId(topRes.clonedId);
       return;
     }
+    if (project.pages?.length) {
+      let pageClonedId: string | null = null;
+      const nextPages = project.pages.map((pg) => {
+        const res = duplicateBlockById(pg.blocks, id);
+        if (res.clonedId) pageClonedId = res.clonedId;
+        return { ...pg, blocks: res.nextBlocks };
+      });
+      if (pageClonedId) {
+        commitProject((prev) => ({
+          ...prev,
+          pages: nextPages,
+        }));
+        setSelectedId(pageClonedId);
+        return;
+      }
+    }
     const curNav = resolveBottomNavbar(project);
     let navClonedId: string | null = null;
     const nextNavItems = curNav.items.map((it) => {
@@ -1084,6 +1269,12 @@ export default function App() {
       return {
         ...prev,
         blocks: deleteBlockById(prev.blocks, id),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: deleteBlockById(pg.blocks, id),
+            }))
+          : prev.pages,
         bottomNavbar: curNav
           ? {
               ...curNav,
@@ -1772,6 +1963,10 @@ export default function App() {
     if (!project || !bottomNavbar) return { block: null, navItemId: null, navItemLabel: null };
     const topFound = findBlockById(project.blocks, selectedId);
     if (topFound) return { block: topFound, navItemId: null, navItemLabel: null };
+    for (const pg of project.pages ?? []) {
+      const pgFound = findBlockById(pg.blocks, selectedId);
+      if (pgFound) return { block: pgFound, navItemId: null, navItemLabel: null };
+    }
     for (const navItem of bottomNavbar.items) {
       const childFound = findBlockById(navItem.children, selectedId);
       if (childFound) {
@@ -1969,13 +2164,21 @@ export default function App() {
         <LeftSidebar
           onAddBlock={(type) => handleAddBlock(type)}
           onAddSection={(section) => handleAddSection(section)}
-          blocks={project.blocks}
+          blocks={currentCanvasBlocks}
+          pages={subPages}
+          activeSubPageId={activeSubPage?.id ?? null}
+          onSelectSubPage={handleSelectSubPage}
+          onAddSubPage={handleAddSubPage}
+          onUpdateSubPage={handleUpdateSubPage}
+          onDuplicateSubPage={handleDuplicateSubPage}
+          onDeleteSubPage={handleDeleteSubPage}
           selectedId={selectedBlock?.id ?? null}
           theme={project.theme}
           advanceOptions={project.advanceOptions}
           bottomNavbar={bottomNavbar}
           activeNavItemId={activeNavItemId}
           navbarFocusNonce={navbarFocusNonce}
+          layerFocusNonce={layerFocusNonce}
           onSelectTheme={handleSelectTheme}
           onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
           onUpdateBottomNavbar={handleUpdateBottomNavbar}
@@ -1989,7 +2192,11 @@ export default function App() {
         />
 
         <MobileCanvas
-          blocks={project.blocks}
+          blocks={currentCanvasBlocks}
+          pages={subPages}
+          activeSubPageId={activeSubPage?.id ?? null}
+          onSelectSubPage={handleSelectSubPage}
+          onAddSubPage={handleAddSubPage}
           theme={project.theme}
           advanceOptions={project.advanceOptions}
           bottomNavbar={bottomNavbar}
@@ -2024,7 +2231,12 @@ export default function App() {
 
         <RightInspector
           selectedBlock={selectedBlock}
-          allBlocks={project.blocks}
+          allBlocks={currentCanvasBlocks}
+          pages={subPages}
+          activeSubPageId={activeSubPage?.id ?? null}
+          onSelectSubPage={handleSelectSubPage}
+          onAddSubPage={handleAddSubPage}
+          onAddChildToActionSheet={handleAddChildToActionSheet}
           theme={project.theme}
           advanceOptions={project.advanceOptions}
           selectedParentNavId={selectedParentNavId}

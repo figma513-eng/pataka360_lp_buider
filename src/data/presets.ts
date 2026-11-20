@@ -6,6 +6,7 @@ import type {
   BottomNavbarItem,
   BuilderBlock,
   BuilderProject,
+  BuilderSubPage,
   CarouselItem,
   CatalogItem,
   CategoryJumpItem,
@@ -735,6 +736,7 @@ export const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   menu_icon: 'Menu Icon',
   cart_button: 'Tombol Keranjang',
   showcase_card: 'Kartu Dinamis',
+  back_button: 'Tombol Kembali',
 };
 
 export function createCatalogBlock(
@@ -1556,7 +1558,75 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
           cardWhatsappNumber: '6281234567890',
         },
       };
+
+    case 'back_button':
+      return {
+        id: createId('bck'),
+        type: 'back_button',
+        label: 'Tombol Kembali',
+        style: {
+          ...baseStyle,
+          minHeight: 40,
+          padding: 0,
+          borderRadius: 12,
+          borderWidth: 0,
+          backgroundColor: 'transparent',
+          textColor: theme.textColor,
+          shadow: 'none',
+          align: 'left',
+          marginBottom: 10,
+        },
+        content: {
+          backButtonLabel: 'Kembali',
+          backButtonBg: theme.cardBg,
+          backButtonText: theme.textColor,
+          backTargetPageId: '',
+        },
+      };
   }
+}
+
+export function createSubPage(index: number, theme: PageTheme = THEMES[0]): BuilderSubPage {
+  const heading = createBlock('text', theme);
+  const body = createBlock('text', theme);
+  return {
+    id: createId('pg'),
+    title: `Halaman ${index}`,
+    showBackButton: true,
+    backButtonLabel: 'Kembali',
+    blocks: [
+      {
+        ...heading,
+        label: `Judul Halaman ${index}`,
+        style: {
+          ...heading.style,
+          align: 'left',
+          marginBottom: 6,
+        },
+        content: {
+          ...heading.content,
+          text: `Halaman ${index}`,
+          variant: 'h1',
+          fontWeight: 'bold',
+        },
+      },
+      {
+        ...body,
+        label: 'Deskripsi Halaman',
+        style: {
+          ...body.style,
+          align: 'left',
+          marginBottom: 14,
+        },
+        content: {
+          ...body.content,
+          text: 'Tambahkan kartu, katalog, gambar, tombol keranjang, atau form sesuai kebutuhan halaman ini.',
+          variant: 'body',
+          fontWeight: 'normal',
+        },
+      },
+    ],
+  };
 }
 
 export function createDefaultBottomNavbar(

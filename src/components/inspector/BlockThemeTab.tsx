@@ -41,6 +41,8 @@ function getBlockAccentField(block: BuilderBlock): {
       return { key: 'buttonBg', label: 'Warna Tombol Utama', value: c.buttonBg || '' };
     case 'cart_button':
       return { key: 'cartAccentColor', label: 'Warna Tombol Keranjang', value: c.cartAccentColor || '' };
+    case 'back_button':
+      return { key: 'backButtonBg', label: 'Warna Tombol Kembali', value: c.backButtonBg || '' };
     case 'showcase_card':
       return { key: 'cardAccentColor', label: 'Warna Aksen Kartu', value: c.cardAccentColor || '' };
     case 'toggle_container':

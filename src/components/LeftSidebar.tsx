@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   Award,
   BadgeCheck,
   CalendarDays,
@@ -46,6 +47,7 @@ import {
   BlockType,
   BottomNavbarConfig,
   BuilderBlock,
+  BuilderSubPage,
   PageTheme,
   PrebuiltSectionCategory,
 } from '../types/builder';
@@ -64,12 +66,20 @@ interface LeftSidebarProps {
   onAddBlock: (type: BlockType) => void;
   onAddSection: (section: PrebuiltSection) => void;
   blocks: BuilderBlock[];
+  pages?: BuilderSubPage[];
+  activeSubPageId?: string | null;
+  onSelectSubPage?: (pageId: string | null) => void;
+  onAddSubPage?: () => string | null;
+  onUpdateSubPage?: (pageId: string, patch: Partial<BuilderSubPage>) => void;
+  onDuplicateSubPage?: (pageId: string) => void;
+  onDeleteSubPage?: (pageId: string) => void;
   selectedId: string | null;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   bottomNavbar: BottomNavbarConfig;
   activeNavItemId: string;
   navbarFocusNonce?: number;
+  layerFocusNonce?: number;
   onSelectTheme: (next: PageTheme) => void;
   onUpdateAdvanceOptions: (patch: Partial<AdvanceOptions>) => void;
   onUpdateBottomNavbar: (updater: (prev: BottomNavbarConfig) => BottomNavbarConfig) => void;
@@ -128,6 +138,13 @@ export const TOOL_ITEMS: ToolPaletteItem[] = [
     label: 'Tombol Keranjang',
     desc: 'Bisa diletakkan di card mana pun · - 1 + & label mengambang',
     icon: <ShoppingCart className="w-4 h-4" strokeWidth={1.85} />,
+  },
+  {
+    key: 'back_button',
+    type: 'back_button',
+    label: 'Tombol Kembali',
+    desc: 'Navigasi Back ke halaman sebelumnya / Beranda',
+    icon: <ArrowLeft className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'menu_icon',
@@ -277,12 +294,20 @@ export function LeftSidebar({
   onAddBlock,
   onAddSection,
   blocks,
+  pages = [],
+  activeSubPageId = null,
+  onSelectSubPage,
+  onAddSubPage,
+  onUpdateSubPage,
+  onDuplicateSubPage,
+  onDeleteSubPage,
   selectedId,
   theme,
   advanceOptions,
   bottomNavbar,
   activeNavItemId,
   navbarFocusNonce = 0,
+  layerFocusNonce = 0,
   onSelectTheme,
   onUpdateAdvanceOptions,
   onUpdateBottomNavbar,
@@ -306,6 +331,12 @@ export function LeftSidebar({
       setActiveTab('tema');
     }
   }, [navbarFocusNonce]);
+
+  useEffect(() => {
+    if (layerFocusNonce > 0) {
+      setActiveTab('tema');
+    }
+  }, [layerFocusNonce]);
 
   const filteredTools = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -422,12 +453,20 @@ export function LeftSidebar({
       {activeTab === 'tema' ? (
         <HomePageSettings
           blocks={blocks}
+          pages={pages}
+          activeSubPageId={activeSubPageId}
+          onSelectSubPage={onSelectSubPage}
+          onAddSubPage={onAddSubPage}
+          onUpdateSubPage={onUpdateSubPage}
+          onDuplicateSubPage={onDuplicateSubPage}
+          onDeleteSubPage={onDeleteSubPage}
           selectedId={selectedId}
           theme={theme}
           advanceOptions={advanceOptions}
           bottomNavbar={bottomNavbar}
           activeNavItemId={activeNavItemId}
           navbarFocusNonce={navbarFocusNonce}
+          layerFocusNonce={layerFocusNonce}
           onSelectTheme={onSelectTheme}
           onUpdateAdvanceOptions={onUpdateAdvanceOptions}
           onUpdateBottomNavbar={onUpdateBottomNavbar}

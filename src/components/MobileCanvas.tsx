@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowLeftRight,
   ArrowUp,
   Check,
   ChevronDown,
   Copy,
   Eye,
+  FilePlus2,
   GripVertical,
   ImageOff,
   Minus,
@@ -25,6 +27,7 @@ import {
   BlockType,
   BottomNavbarConfig,
   BuilderBlock,
+  BuilderSubPage,
   CategoryJumpItem,
   FnbMenuItem,
   PageTheme,
@@ -33,10 +36,15 @@ import { BLOCK_TYPE_NAMES, resolveNavbarMetrics } from '../data/presets';
 import { resolveBlockTextColor, shadowToCss } from '../utils/htmlExporter';
 import { SOCIAL_PLATFORMS, resolveSocialMetrics } from '../utils/socialIcons';
 import { resolveButtonIcon, sanitizeIconUrl } from '../utils/buttonIcons';
-import { resolveCartButtonMetrics } from '../utils/cartHelpers';
+import { formatRupiah, resolveCartButtonMetrics } from '../utils/cartHelpers';
 import { resolveCssFontFamily } from '../utils/fontHelpers';
 import { buildLinearGradientCss, resolveBackgroundInlineProps } from '../utils/gradientHelpers';
 import { clampDimension } from '../utils/devicePresets';
+import {
+  buildLineClampStyle,
+  getActionBadgeLabel,
+  resolveUniversalCartMeta,
+} from '../utils/universalLayerHelpers';
 import { ButtonGlyph } from './ButtonIcon';
 import { CleanVideoEmbed } from './CleanVideoEmbed';
 import {
@@ -57,6 +65,10 @@ import { CollabPeer } from '../utils/collabClient';
 
 interface MobileCanvasProps {
   blocks: BuilderBlock[];
+  pages?: BuilderSubPage[];
+  activeSubPageId?: string | null;
+  onSelectSubPage?: (pageId: string | null) => void;
+  onAddSubPage?: () => string | null;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   bottomNavbar: BottomNavbarConfig;
@@ -91,6 +103,10 @@ interface MobileCanvasProps {
 
 export function MobileCanvas({
   blocks,
+  pages = [],
+  activeSubPageId = null,
+  onSelectSubPage,
+  onAddSubPage,
   theme,
   advanceOptions,
   bottomNavbar,
@@ -110,6 +126,9 @@ export function MobileCanvas({
   onDropSection,
   onReorderBlock,
 }: MobileCanvasProps) {
+  const activeSubPage = activeSubPageId
+    ? pages.find((p) => p.id === activeSubPageId) ?? null
+    : null;
   const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({
     width: 440,
     height: 844,
@@ -267,6 +286,8 @@ export function MobileCanvas({
     const inlineStyle: React.CSSProperties = {
       width: `${s.widthPercent}%`,
       minHeight: isEmptyText || isCircleImage ? '0px' : `${s.minHeight}px`,
+      maxHeight: !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : undefined,
+      overflow: !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0 ? 'hidden' : undefined,
       borderRadius: resolvedRadius,
       padding: isEmptyText
         ? isSelected
@@ -284,6 +305,7 @@ export function MobileCanvas({
       fontSize: s.fontSize ? `${s.fontSize}px` : undefined,
       fontWeight: s.fontWeightCss ? Number(s.fontWeightCss) : undefined,
       lineHeight: s.lineHeight ? String(s.lineHeight) : undefined,
+      letterSpacing: s.letterSpacing ? `${s.letterSpacing}px` : undefined,
       borderWidth: isEmptyText || isCircleImage || isHeroBanner ? '0px' : `${s.borderWidth}px`,
       borderStyle:
         !isEmptyText && !isCircleImage && !isHeroBanner && s.borderWidth > 0 ? 'solid' : 'none',
@@ -1171,6 +1193,8 @@ export function MobileCanvas({
                 fontFamily: resolvedFontFamily,
                 fontWeight: s.fontWeightCss ? Number(s.fontWeightCss) : undefined,
                 lineHeight: s.lineHeight ? String(s.lineHeight) : undefined,
+                letterSpacing: s.letterSpacing ? `${s.letterSpacing}px` : undefined,
+                ...buildLineClampStyle(s.maxLines),
               }}
               className={`leading-relaxed break-words whitespace-pre-line ${
                 !s.fontSize
@@ -1190,7 +1214,15 @@ export function MobileCanvas({
                   : ''
               }`}
             >
-              {block.content.text}
+              {s.paragraphGap && s.paragraphGap > 0 && (block.content.text ?? '').includes('\n') ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: `${s.paragraphGap}px` }}>
+                  {(block.content.text ?? '').split('\n').map((line, i) => (
+                    <span key={i}>{line || '\u00A0'}</span>
+                  ))}
+                </div>
+              ) : (
+                block.content.text
+              )}
             </div>
           )
         )}
@@ -1244,37 +1276,42 @@ export function MobileCanvas({
                 </div>
               </div>
             );
-          })() : (
-            <div
-              className="overflow-hidden w-full h-full flex items-center justify-center bg-slate-100/70"
-              style={{
-                borderRadius: `${s.borderRadius}px`,
-                aspectRatio:
-                  block.content.aspectRatio && block.content.aspectRatio !== 'auto'
-                    ? block.content.aspectRatio
-                    : undefined,
-              }}
-            >
-              {!block.content.src || brokenImages[block.id] ? (
-                <div className="flex flex-col items-center justify-center gap-1.5 py-6 px-4 text-slate-400 text-xs">
-                  <ImageOff className="w-5 h-5" />
-                  <span>{block.content.alt || 'Gambar belum dimuat'}</span>
-                </div>
-              ) : (
-                <img
-                  src={block.content.src}
-                  alt={block.content.alt || 'Gambar'}
-                  referrerPolicy="no-referrer"
-                  onError={() => setBrokenImages((prev) => ({ ...prev, [block.id]: true }))}
-                  className="w-full h-full block"
-                  style={{
-                    objectFit: block.content.objectFit ?? 'cover',
-                    borderRadius: `${s.borderRadius}px`,
-                  }}
-                />
-              )}
-            </div>
-          ))}
+          })() : (() => {
+            const rectZoom = Math.max(50, Math.min(250, block.content.imageZoom ?? 100));
+            return (
+              <div
+                className="overflow-hidden w-full h-full flex items-center justify-center bg-slate-100/70"
+                style={{
+                  borderRadius: `${s.borderRadius}px`,
+                  aspectRatio:
+                    block.content.aspectRatio && block.content.aspectRatio !== 'auto'
+                      ? block.content.aspectRatio
+                      : undefined,
+                }}
+              >
+                {!block.content.src || brokenImages[block.id] ? (
+                  <div className="flex flex-col items-center justify-center gap-1.5 py-6 px-4 text-slate-400 text-xs">
+                    <ImageOff className="w-5 h-5" />
+                    <span>{block.content.alt || 'Gambar belum dimuat'}</span>
+                  </div>
+                ) : (
+                  <img
+                    src={block.content.src}
+                    alt={block.content.alt || 'Gambar'}
+                    referrerPolicy="no-referrer"
+                    onError={() => setBrokenImages((prev) => ({ ...prev, [block.id]: true }))}
+                    className="w-full h-full block"
+                    style={{
+                      objectFit: block.content.objectFit ?? 'cover',
+                      borderRadius: `${s.borderRadius}px`,
+                      transform: rectZoom !== 100 ? `scale(${rectZoom / 100})` : undefined,
+                      transformOrigin: 'center center',
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })())}
 
         {block.type === 'button' && (() => {
           const btnLabel = block.content.label || 'Tombol Link';
@@ -1986,9 +2023,124 @@ export function MobileCanvas({
             content={block.content}
             theme={theme}
             borderRadius={s.borderRadius}
+            blockStyle={s}
             isEditor
           />
         )}
+
+        {block.type === 'back_button' && (
+          <div
+            className="w-full flex"
+            style={{
+              justifyContent:
+                s.align === 'center' ? 'center' : s.align === 'right' ? 'flex-end' : 'flex-start',
+            }}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectBlock(block.id);
+              }}
+              style={{
+                backgroundColor: block.content.backButtonBg || '#F1F5F9',
+                color: block.content.backButtonText || '#0F172A',
+                borderRadius: `${Math.max(8, Math.min(28, s.borderRadius))}px`,
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold border border-black/10 shadow-xs cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+              <span>{block.content.backButtonLabel || 'Kembali'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Universal Cart Overlay on ANY Card/Layer when universalCartEnabled is active */}
+        {(() => {
+          const uc = resolveUniversalCartMeta(block, theme);
+          if (!uc) return null;
+          const qty = fnbPreviewQtys[uc.compositeKey] ?? 0;
+          return (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="mt-2 pt-2 border-t border-black/10 flex flex-wrap items-center justify-between gap-1.5 px-1"
+            >
+              <div className="min-w-0 text-left">
+                <div className="text-xs font-extrabold tabular-nums" style={{ color: uc.accentColor }}>
+                  {uc.price}
+                </div>
+                {uc.showUnitSold && (
+                  <div className="text-[10px] opacity-70 tabular-nums">
+                    {uc.unitSold} terjual
+                  </div>
+                )}
+              </div>
+              {qty > 0 ? (
+                <div
+                  style={{ borderColor: uc.accentColor }}
+                  className="inline-flex items-center gap-1 rounded-full border bg-white px-1 py-0.5 text-[#0F172A] shadow-xs"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFnbPreviewQtys((prev) => ({
+                        ...prev,
+                        [uc.compositeKey]: Math.max(0, (prev[uc.compositeKey] ?? 0) - 1),
+                      }))
+                    }
+                    className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-[11px] font-bold min-w-[16px] text-center tabular-nums">
+                    {qty}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFnbPreviewQtys((prev) => ({
+                        ...prev,
+                        [uc.compositeKey]: (prev[uc.compositeKey] ?? 0) + 1,
+                      }))
+                    }
+                    style={{ backgroundColor: uc.accentColor }}
+                    className="w-5 h-5 rounded-full text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFnbPreviewQtys((prev) => ({
+                      ...prev,
+                      [uc.compositeKey]: (prev[uc.compositeKey] ?? 0) + 1,
+                    }))
+                  }
+                  style={{ backgroundColor: uc.accentColor }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white shadow-xs cursor-pointer"
+                >
+                  <ShoppingCart className="w-3 h-3" />
+                  <span>{uc.buttonLabel}</span>
+                </button>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Subtle editor action indicator when Universal Action is configured */}
+        {(() => {
+          const badge = getActionBadgeLabel(block);
+          if (!badge || (!isSelected && hoveredBlockId !== block.id)) return null;
+          return (
+            <div className="mt-1.5 flex justify-end pointer-events-none">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#17243D]/85 text-white text-[9.5px] font-semibold">
+                {badge}
+              </span>
+            </div>
+          );
+        })()}
         </div>
 
         {isDropTarget && dragState.position === 'after' && (
@@ -2003,41 +2155,102 @@ export function MobileCanvas({
       onClick={() => onSelectBlock(null)}
       className="flex-1 bg-[#F0F5FA] flex flex-col overflow-hidden relative"
     >
-      {/* Workspace Toolbar: Preview Mobile (440px / 576px) & Zoom Canvas */}
+      {/* Workspace Toolbar: Kiri (Beranda + Site) | Tengah (Icon Mobile, Icon PC, Undo) | Kanan (50%/75%/100% + Zoom Slider) */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="min-h-12 px-4 py-1.5 bg-white border-b border-[#DCE5EF] flex items-center justify-between gap-2 text-[13px] text-[#17243D] shrink-0 overflow-x-auto no-scrollbar"
+        data-canvas-toolbar="1"
+        className="min-h-12 px-3 py-1.5 bg-white border-b border-[#DCE5EF] flex items-center justify-between gap-2 text-[13px] text-[#17243D] shrink-0 overflow-x-auto no-scrollbar"
       >
-        <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="Preview Mobile">
+        {/* Kiri: Beranda, Sub-Halaman, + Site */}
+        <div
+          data-canvas-page-bar="1"
+          role="group"
+          aria-label="Navigasi Halaman"
+          className="flex items-center gap-1 min-w-0 max-w-[38%] overflow-x-auto no-scrollbar shrink"
+        >
           <button
             type="button"
+            onClick={() => onSelectSubPage?.(null)}
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              activeSubPageId === null
+                ? 'bg-[#17243D] text-white border-[#17243D]'
+                : 'bg-white text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+            }`}
+          >
+            Beranda
+          </button>
+          {pages.map((pg) => (
+            <button
+              key={pg.id}
+              type="button"
+              onClick={() => onSelectSubPage?.(pg.id)}
+              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeSubPageId === pg.id
+                  ? 'bg-[#17243D] text-white border-[#17243D]'
+                  : 'bg-white text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+              }`}
+            >
+              {pg.title}
+            </button>
+          ))}
+          {onAddSubPage && (
+            <button
+              type="button"
+              data-add-site-btn="1"
+              onClick={() => onAddSubPage()}
+              title="Tambah Halaman / Site Baru"
+              aria-label="Tambah Site"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-[#00C98A] bg-[#ECFDF6] text-[#0F766E] text-[11px] font-bold hover:bg-[#D1FAE5] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
+              <span>+ Site</span>
+            </button>
+          )}
+        </div>
+
+        {/* Tengah: Icon Mobile (440px), Icon PC (576px), Undo */}
+        <div
+          className="flex items-center gap-1.5 shrink-0"
+          role="group"
+          aria-label="Preview Mobile & Undo"
+        >
+          <button
+            type="button"
+            data-viewport-preset="mobile-440"
             onClick={() => handleSelectPresetWidth('mobile-440')}
             aria-pressed={!isWideViewport}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            title="Mobile 440 px"
+            aria-label="Mobile 440 px"
+            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg border transition-colors shrink-0 cursor-pointer ${
               !isWideViewport
-                ? 'bg-[#17243D] border-[#17243D] text-white'
+                ? 'bg-[#17243D] border-[#17243D] text-white shadow-xs'
                 : 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA]'
             }`}
           >
-            <Smartphone className={`w-3.5 h-3.5 ${!isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
-            <span>Mobile 440 px</span>
+            <Smartphone
+              className={`w-4 h-4 ${!isWideViewport ? 'text-[#00C98A]' : 'text-[#5B708B]'}`}
+            />
           </button>
 
           <button
             type="button"
+            data-viewport-preset="mobile-576"
             onClick={() => handleSelectPresetWidth('mobile-576')}
             aria-pressed={isWideViewport}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            title="Mobile 576 px"
+            aria-label="Mobile 576 px"
+            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg border transition-colors shrink-0 cursor-pointer ${
               isWideViewport
-                ? 'bg-[#17243D] border-[#17243D] text-white'
+                ? 'bg-[#17243D] border-[#17243D] text-white shadow-xs'
                 : 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA]'
             }`}
           >
-            <Monitor className={`w-3.5 h-3.5 ${isWideViewport ? 'text-[#00C98A]' : 'text-[#8FA4BF]'}`} />
-            <span>Mobile 576 px</span>
+            <Monitor
+              className={`w-4 h-4 ${isWideViewport ? 'text-[#00C98A]' : 'text-[#5B708B]'}`}
+            />
           </button>
 
-          <div className="ml-3 pl-3 border-l border-[#DCE5EF] flex items-center shrink-0">
+          <div className="ml-1.5 pl-2 border-l border-[#DCE5EF] flex items-center shrink-0">
             <button
               type="button"
               data-toolbar-undo="1"
@@ -2045,7 +2258,7 @@ export function MobileCanvas({
               onClick={() => onUndo?.()}
               title={canUndo ? 'Urungkan perubahan terakhir (Ctrl+Z)' : 'Belum ada riwayat Undo'}
               aria-label="Undo"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 canUndo && onUndo
                   ? 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA] hover:border-[#8FA4BF] cursor-pointer'
                   : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'
@@ -2057,10 +2270,8 @@ export function MobileCanvas({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0" role="group" aria-label="Zoom Canvas">
-          <span className="hidden xl:inline text-[11px] text-[#8FA4BF] font-mono tabular-nums">
-            {frameWidth}×{frameHeight}px
-          </span>
+        {/* Kanan: 50%, 75%, 100% dan Slider Zoom */}
+        <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="Zoom Canvas">
           <div className="flex items-center gap-0.5 bg-[#F0F5FA] border border-[#DCE5EF] rounded-lg p-0.5">
             {([0.5, 0.75, 1] as const).map((z) => {
               const active = Math.abs(zoom - z) < 0.005;
@@ -2100,9 +2311,9 @@ export function MobileCanvas({
                   style={{
                     background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${sliderFill}%, #E2E8F0 ${sliderFill}%, #E2E8F0 100%)`,
                   }}
-                  className="w-20 sm:w-24 cursor-pointer"
+                  className="w-16 sm:w-20 cursor-pointer"
                 />
-                <span className="text-[10.5px] font-mono font-semibold text-[#17243D] tabular-nums w-9 text-right">
+                <span className="text-[10.5px] font-mono font-semibold text-[#17243D] tabular-nums w-8 text-right">
                   {zoomPct}%
                 </span>
               </div>
@@ -2259,6 +2470,26 @@ export function MobileCanvas({
                   );
                 })()}
 
+                {/* Sub-page automatic Back Header Bar preview */}
+                {activeSubPage && activeSubPage.showBackButton !== false && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-4 py-2.5 border-b border-black/10 flex items-center justify-between gap-2 bg-white/80 backdrop-blur-xs shrink-0"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSelectSubPage?.(null)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#0F172A] text-xs font-bold cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>{activeSubPage.backButtonLabel || 'Kembali'}</span>
+                    </button>
+                    <span className="text-xs font-bold truncate opacity-80">
+                      {activeSubPage.title}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex-1 pb-6">
                   {blocks.length === 0 ? (
                     <div className="w-full max-w-[576px] mx-auto px-4">
@@ -2283,6 +2514,9 @@ export function MobileCanvas({
                     list.forEach((b) => {
                       acc.push(b);
                       if (b.children?.length) acc.push(...collectNested(b.children));
+                      if (b.content.actionSheetBlocks?.length) {
+                        acc.push(...collectNested(b.content.actionSheetBlocks));
+                      }
                     });
                     return acc;
                   };
@@ -2294,14 +2528,26 @@ export function MobileCanvas({
                   const firstCartBtn = cartBtnBlocks.find(
                     (b) => b.content.cartFloatingEnabled !== false
                   );
+                  const universalCartBlocks = allFlat.filter(
+                    (b) => resolveUniversalCartMeta(b, theme) !== null
+                  );
+                  const firstUniversalFloat = universalCartBlocks.find(
+                    (b) => b.content.universalCartFloatingEnabled !== false
+                  );
 
-                  const floatSource = firstFnbBlock ?? firstCartBtn;
+                  const floatSource = firstFnbBlock ?? firstCartBtn ?? firstUniversalFloat;
                   if (!floatSource) return null;
 
                   const pos =
                     floatSource.type === 'fnb_catalog'
                       ? floatSource.content.fnbFloatingCartPosition ?? 'bottom-floating'
-                      : floatSource.content.cartFloatingPosition ?? 'bottom-floating';
+                      : floatSource.type === 'cart_button'
+                      ? floatSource.content.cartFloatingPosition ?? 'bottom-floating'
+                      : floatSource.content.universalCartFloatingPosition === 'bottom-right'
+                      ? 'bottom-floating'
+                      : floatSource.content.universalCartFloatingPosition === 'bottom-left'
+                      ? 'bottom-floating'
+                      : 'bottom-floating';
                   if (pos === 'top-floating') return null;
 
                   const fnbItems = firstFnbBlock?.content.fnbItems ?? [];
@@ -2313,7 +2559,11 @@ export function MobileCanvas({
                     (sum, cb) => sum + (fnbPreviewQtys[`cb_${cb.id}`] ?? 0),
                     0
                   );
-                  const activeCount = fnbCount + cbCount;
+                  const ucCount = universalCartBlocks.reduce(
+                    (sum, ub) => sum + (fnbPreviewQtys[`uc_${ub.id}`] ?? 0),
+                    0
+                  );
+                  const activeCount = fnbCount + cbCount + ucCount;
 
                   const pricedEntries: Array<{ price: string; qty: number }> = [
                     ...fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 })),
@@ -2321,13 +2571,18 @@ export function MobileCanvas({
                       price: cb.content.cartProductPrice || '0',
                       qty: fnbPreviewQtys[`cb_${cb.id}`] ?? 0,
                     })),
+                    ...universalCartBlocks.map((ub) => ({
+                      price: String(resolveUniversalCartMeta(ub, theme)?.price ?? 0),
+                      qty: fnbPreviewQtys[`uc_${ub.id}`] ?? 0,
+                    })),
                   ];
                   const activeAmount = fnbPriceSum(pricedEntries);
 
                   const isPosPreview =
                     activeCount === 0 &&
                     ((firstFnbBlock && selectedId === firstFnbBlock.id && fnbItems.length > 0) ||
-                      (firstCartBtn && selectedId === firstCartBtn.id));
+                      (firstCartBtn && selectedId === firstCartBtn.id) ||
+                      (firstUniversalFloat && selectedId === firstUniversalFloat.id));
 
                   const displayCount = activeCount > 0 ? activeCount : isPosPreview ? 1 : 0;
                   const displayAmount =
@@ -2339,7 +2594,9 @@ export function MobileCanvas({
                             price:
                               floatSource.type === 'fnb_catalog'
                                 ? fnbItems[0]?.price || '0'
-                                : floatSource.content.cartProductPrice || '0',
+                                : floatSource.type === 'cart_button'
+                                ? floatSource.content.cartProductPrice || '0'
+                                : String(resolveUniversalCartMeta(floatSource, theme)?.price ?? 0),
                             qty: 1,
                           },
                         ])
@@ -2360,14 +2617,20 @@ export function MobileCanvas({
                           ? floatSource.content.fnbFloatingCartBg ||
                             floatSource.content.fnbAccentColor ||
                             theme.accentColor
-                          : floatSource.content.cartFloatingBg ||
+                          : floatSource.type === 'cart_button'
+                          ? floatSource.content.cartFloatingBg ||
                             floatSource.content.cartAccentColor ||
                             theme.accentColor
+                          : floatSource.content.universalCartFloatingBg ||
+                            floatSource.content.universalCartAccentColor ||
+                            '#17243D'
                       }
                       actionLabel={
                         floatSource.type === 'fnb_catalog'
                           ? floatSource.content.fnbFloatingCartLabel || 'Lanjut'
-                          : floatSource.content.cartFloatingLabel || 'Lihat Keranjang'
+                          : floatSource.type === 'cart_button'
+                          ? floatSource.content.cartFloatingLabel || 'Lihat Keranjang'
+                          : floatSource.content.universalCartFloatingLabel || 'Lihat Keranjang'
                       }
                       onClick={onOpenPreview}
                     />

@@ -15,6 +15,7 @@ import {
   Plus,
   RotateCcw,
   Settings2,
+  ShoppingBag,
   SlidersHorizontal,
   Trash2,
   Type,
@@ -27,6 +28,7 @@ import {
   BlockStyle,
   BlockType,
   BuilderBlock,
+  BuilderSubPage,
   CarouselItem,
   CatalogCustomerField,
   CatalogItem,
@@ -48,6 +50,7 @@ import {
   TrainingCustomBox,
   TrainingMediaItem,
   TrainingProgramItem,
+  UniversalActionType,
 } from '../../types/builder';
 import {
   BLOCK_TYPE_NAMES,
@@ -76,6 +79,7 @@ import { readVideoFileSafe, uploadCompressedImageOrFallback } from '../../utils/
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import { cloneBlockDeep } from '../../utils/treeHelpers';
 import { removeSelectedItemByIdOrIndex } from '../../utils/itemListHelpers';
+import { supportsUniversalCart } from '../../utils/universalLayerHelpers';
 import { RichTextEditor } from '../RichTextEditor';
 import { SocialGlyph } from '../SocialIcon';
 import { useUiLabel } from '../../contexts/UiLabelsContext';
@@ -93,12 +97,17 @@ import {
 interface BlockContentTabProps {
   selectedBlock: BuilderBlock;
   allBlocks?: BuilderBlock[];
+  pages?: BuilderSubPage[];
+  activeSubPageId?: string | null;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   onUpdateAdvanceOptions: (patch: Partial<AdvanceOptions>) => void;
   onUpdateBlock: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
   onDuplicateBlock: (id: string) => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
+  onAddChildToActionSheet?: (ownerId: string, type: BlockType) => void;
+  onSelectSubPage?: (pageId: string | null) => void;
+  onAddSubPage?: () => string | null;
   onSelectBlock?: (id: string) => void;
   onSetUploadError: (msg: string | null) => void;
 }
@@ -152,12 +161,17 @@ function flattenTargetBlocks(
 export function BlockContentTab({
   selectedBlock,
   allBlocks = [],
+  pages = [],
+  activeSubPageId = null,
   theme,
   advanceOptions,
   onUpdateAdvanceOptions,
   onUpdateBlock,
   onDuplicateBlock,
   onAddChildToContainer,
+  onAddChildToActionSheet,
+  onSelectSubPage,
+  onAddSubPage,
   onSelectBlock,
   onSetUploadError,
 }: BlockContentTabProps) {
@@ -418,6 +432,88 @@ export function BlockContentTab({
           style={rangeProgressStyle(s.lineHeight ?? 1.5, 1.0, 2.4)}
           className="w-full cursor-pointer"
         />
+      </div>
+
+      {/* Jarak Antar Huruf (Letter Spacing) */}
+      <div>
+        <div className="flex items-center justify-between text-[11px] mb-1">
+          <span className="font-medium text-[#17243D]">Jarak Antar Huruf</span>
+          <div className="flex items-center gap-1.5">
+            {s.letterSpacing !== undefined && s.letterSpacing !== 0 && (
+              <button
+                type="button"
+                onClick={() => updateStyle({ letterSpacing: undefined })}
+                className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
+              >
+                0px
+              </button>
+            )}
+            <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
+              {s.letterSpacing ? `${s.letterSpacing.toFixed(1)}px` : '0px'}
+            </span>
+          </div>
+        </div>
+        <input
+          type="range"
+          min={-1}
+          max={6}
+          step={0.5}
+          value={s.letterSpacing ?? 0}
+          onChange={(e) => updateStyle({ letterSpacing: Number(e.target.value) })}
+          style={rangeProgressStyle(s.letterSpacing ?? 0, -1, 6)}
+          className="w-full cursor-pointer"
+        />
+      </div>
+
+      {/* Jarak Antar Paragraf / Teks */}
+      <div>
+        <div className="flex items-center justify-between text-[11px] mb-1">
+          <span className="font-medium text-[#17243D]">Jarak Antar Teks / Paragraf</span>
+          <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
+            {s.paragraphGap !== undefined ? `${s.paragraphGap}px` : 'Auto'}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={24}
+          step={1}
+          value={s.paragraphGap ?? 6}
+          onChange={(e) => updateStyle({ paragraphGap: Number(e.target.value) })}
+          style={rangeProgressStyle(s.paragraphGap ?? 6, 0, 24)}
+          className="w-full cursor-pointer"
+        />
+      </div>
+
+      {/* Batas Baris / Paragraf */}
+      <div>
+        <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+          Batas Baris Teks (1 / 2 Paragraf)
+        </label>
+        <div className="grid grid-cols-5 gap-1">
+          {(
+            [
+              { val: 0, label: 'Auto' },
+              { val: 1, label: '1 Baris' },
+              { val: 2, label: '2 Baris' },
+              { val: 3, label: '3 Baris' },
+              { val: 4, label: '4 Baris' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.val}
+              type="button"
+              onClick={() => updateStyle({ maxLines: opt.val })}
+              className={`py-1 rounded border text-[10px] font-semibold cursor-pointer ${
+                (s.maxLines ?? 0) === opt.val
+                  ? 'bg-[#17243D] text-white border-[#17243D]'
+                  : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Warna Teks */}
@@ -1647,22 +1743,18 @@ export function BlockContentTab({
               />
             </div>
 
-            {(variant === 'quote_banner' ||
-              variant === 'activity_post' ||
-              variant === 'badge_tile' ||
-              variant === 'event_poster') && (
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  {variant === 'activity_post' ? 'Jabatan / Subjudul' : 'Subjudul / Keterangan'}
-                </label>
-                <input
-                  type="text"
-                  value={c.cardSubtitle ?? ''}
-                  onChange={(e) => updateContent({ cardSubtitle: e.target.value })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                {variant === 'activity_post' ? 'Jabatan / Subjudul' : 'Subjudul / Keterangan (Opsional)'}
+              </label>
+              <input
+                type="text"
+                value={c.cardSubtitle ?? ''}
+                placeholder="Tambahkan keterangan atau paragraf ke-2..."
+                onChange={(e) => updateContent({ cardSubtitle: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
 
             {(variant === 'quote_banner' || variant === 'activity_post') && (
               <div>
@@ -1710,6 +1802,228 @@ export function BlockContentTab({
                 onClear={c.cardImage ? () => updateContent({ cardImage: '' }) : undefined}
               />
             )}
+
+            {/* Ukuran Box Foto & Perbesar/Perkecil Foto di Dalam Card */}
+            {hasMainImage && (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  Ukuran Box Foto &amp; Zoom Foto
+                </div>
+                {(variant === 'badge_tile' ||
+                  variant === 'store_card' ||
+                  variant === 'quote_banner' ||
+                  variant === 'activity_post') && (
+                  <SliderRow
+                    label={
+                      variant === 'activity_post'
+                        ? 'Ukuran Foto Profil'
+                        : variant === 'quote_banner'
+                        ? 'Lebar Box Foto'
+                        : 'Ukuran Box Foto / Ikon'
+                    }
+                    value={`${c.cardMediaSize ?? (variant === 'badge_tile' ? 56 : variant === 'store_card' ? 80 : variant === 'quote_banner' ? 112 : 42)}px`}
+                    min={32}
+                    max={200}
+                    step={2}
+                    current={
+                      c.cardMediaSize ??
+                      (variant === 'badge_tile'
+                        ? 56
+                        : variant === 'store_card'
+                        ? 80
+                        : variant === 'quote_banner'
+                        ? 112
+                        : 42)
+                    }
+                    onChange={(val) => updateContent({ cardMediaSize: val })}
+                  />
+                )}
+                {(variant === 'news_banner' ||
+                  variant === 'event_poster' ||
+                  variant === 'quote_banner' ||
+                  variant === 'activity_post') && (
+                  <SliderRow
+                    label={
+                      variant === 'activity_post'
+                        ? 'Tinggi Foto Galeri'
+                        : 'Tinggi Box Foto / Kartu'
+                    }
+                    value={`${c.cardMediaHeight ?? (variant === 'news_banner' ? 156 : variant === 'event_poster' ? 190 : variant === 'quote_banner' ? 132 : 84)}px`}
+                    min={64}
+                    max={360}
+                    step={4}
+                    current={
+                      c.cardMediaHeight ??
+                      (variant === 'news_banner'
+                        ? 156
+                        : variant === 'event_poster'
+                        ? 190
+                        : variant === 'quote_banner'
+                        ? 132
+                        : 84)
+                    }
+                    onChange={(val) => updateContent({ cardMediaHeight: val })}
+                  />
+                )}
+                <div>
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="font-medium text-[#17243D]">Perbesar / Perkecil Foto</span>
+                    <div className="flex items-center gap-1.5">
+                      {(c.cardImageZoom ?? 100) !== 100 && (
+                        <button
+                          type="button"
+                          onClick={() => updateContent({ cardImageZoom: 100 })}
+                          className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] cursor-pointer"
+                        >
+                          100%
+                        </button>
+                      )}
+                      <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
+                        {c.cardImageZoom ?? 100}%
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={250}
+                    step={5}
+                    value={c.cardImageZoom ?? 100}
+                    onChange={(e) => updateContent({ cardImageZoom: Number(e.target.value) })}
+                    style={rangeProgressStyle(c.cardImageZoom ?? 100, 50, 250)}
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#51637D] mb-1">
+                      Penyesuaian Foto
+                    </label>
+                    <SegmentedControl<'cover' | 'contain'>
+                      columns={2}
+                      value={c.cardImageFit ?? (variant === 'badge_tile' || variant === 'store_card' ? 'contain' : 'cover')}
+                      onChange={(fit) => updateContent({ cardImageFit: fit })}
+                      options={[
+                        { id: 'cover', label: 'Cover' },
+                        { id: 'contain', label: 'Utuh' },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <SliderRow
+                      label="Lengkung Foto"
+                      value={`${c.cardImageRadius ?? 12}px`}
+                      min={0}
+                      max={48}
+                      current={c.cardImageRadius ?? 12}
+                      onChange={(val) => updateContent({ cardImageRadius: val })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tipografi & Baris Teks Kartu */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Ukuran Teks Judul &amp; Paragraf Kartu
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <SliderRow
+                  label="Ukuran Judul"
+                  value={c.cardTitleSize ? `${c.cardTitleSize}px` : 'Auto'}
+                  min={9}
+                  max={30}
+                  current={c.cardTitleSize ?? 13}
+                  onChange={(val) => updateContent({ cardTitleSize: val })}
+                />
+                <SliderRow
+                  label="Ukuran Subjudul"
+                  value={c.cardSubtitleSize ? `${c.cardSubtitleSize}px` : 'Auto'}
+                  min={9}
+                  max={22}
+                  current={c.cardSubtitleSize ?? 11}
+                  onChange={(val) => updateContent({ cardSubtitleSize: val })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#51637D] mb-1">
+                    Baris Judul
+                  </label>
+                  <div className="grid grid-cols-4 gap-0.5">
+                    {(
+                      [
+                        { v: 0, l: 'Auto' },
+                        { v: 1, l: '1' },
+                        { v: 2, l: '2' },
+                        { v: 3, l: '3' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => updateContent({ cardTitleLines: opt.v })}
+                        className={`py-1 rounded border text-[10px] font-semibold cursor-pointer ${
+                          (c.cardTitleLines ?? 0) === opt.v
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#51637D] mb-1">
+                    Baris Subjudul
+                  </label>
+                  <div className="grid grid-cols-4 gap-0.5">
+                    {(
+                      [
+                        { v: 0, l: 'Auto' },
+                        { v: 1, l: '1' },
+                        { v: 2, l: '2' },
+                        { v: 3, l: '3' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => updateContent({ cardSubtitleLines: opt.v })}
+                        className={`py-1 rounded border text-[10px] font-semibold cursor-pointer ${
+                          (c.cardSubtitleLines ?? 0) === opt.v
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <SliderRow
+                  label="Jarak Antar Teks"
+                  value={`${c.cardTextGap ?? 4}px`}
+                  min={0}
+                  max={20}
+                  current={c.cardTextGap ?? 4}
+                  onChange={(val) => updateContent({ cardTextGap: val })}
+                />
+                <SliderRow
+                  label="Jarak Huruf"
+                  value={`${(c.cardLetterSpacing ?? 0).toFixed(1)}px`}
+                  min={-1}
+                  max={5}
+                  step={0.5}
+                  current={c.cardLetterSpacing ?? 0}
+                  onChange={(val) => updateContent({ cardLetterSpacing: val })}
+                />
+              </div>
+            </div>
 
             {variant === 'store_card' && (
               <div className="space-y-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
@@ -1985,6 +2299,65 @@ export function BlockContentTab({
           </div>
         );
       }
+
+      case 'back_button':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Label Tombol Kembali
+              </label>
+              <input
+                type="text"
+                value={c.backButtonLabel ?? 'Kembali'}
+                onChange={(e) => updateContent({ backButtonLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Tujuan Saat Diklik
+              </label>
+              <select
+                value={c.backTargetPageId ?? ''}
+                onChange={(e) => updateContent({ backTargetPageId: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D]"
+              >
+                <option value="">Otomatis Kembali ke Halaman Sebelumnya</option>
+                <option value="home">Kembali ke Beranda (Utama)</option>
+                {pages.map((pg) => (
+                  <option key={pg.id} value={pg.id}>
+                    Ke Halaman: {pg.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Warna Latar Tombol
+                </label>
+                <input
+                  type="color"
+                  value={c.backButtonBg ?? '#F1F5F9'}
+                  onChange={(e) => updateAccentContent({ backButtonBg: e.target.value })}
+                  className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Warna Teks &amp; Ikon
+                </label>
+                <input
+                  type="color"
+                  value={c.backButtonText ?? '#0F172A'}
+                  onChange={(e) => updateContent({ backButtonText: e.target.value })}
+                  className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+            </div>
+          </div>
+        );
 
       default:
         return null;
@@ -5612,6 +5985,9 @@ export function BlockContentTab({
                   [
                     { id: 'sheet' as const, label: 'Tampilkan Sheet' },
                     { id: 'card' as const, label: 'Menuju Card Lain' },
+                    { id: 'page' as const, label: 'Buka Halaman Baru' },
+                    { id: 'url' as const, label: 'Tautan Link URL' },
+                    { id: 'back' as const, label: 'Kembali (Back)' },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -5630,7 +6006,7 @@ export function BlockContentTab({
               </div>
             </div>
 
-            {action === 'sheet' ? (
+            {action === 'sheet' && (
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
                   Arah Muncul Sheet
@@ -5659,7 +6035,9 @@ export function BlockContentTab({
                   ))}
                 </div>
               </div>
-            ) : (
+            )}
+
+            {action === 'card' && (
               <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
                 <label className="block text-[11px] font-semibold text-[#17243D]">
                   Pilih Card / Komponen Tujuan
@@ -5677,11 +6055,65 @@ export function BlockContentTab({
                     </option>
                   ))}
                 </select>
-                {targetCandidates.length === 0 && (
-                  <p className="text-[10.5px] text-[#8FA4BF]">
-                    Tambahkan komponen/card lain di kanvas agar bisa dipilih sebagai tujuan.
-                  </p>
-                )}
+              </div>
+            )}
+
+            {action === 'page' && (
+              <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
+                <label className="block text-[11px] font-semibold text-[#17243D]">
+                  Pilih Halaman Tujuan
+                </label>
+                <select
+                  value={c.actionTargetPageId ?? ''}
+                  onChange={(e) => updateContent({ actionTargetPageId: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D]"
+                >
+                  <option value="">-- Pilih halaman --</option>
+                  <option value="home">Beranda (Utama)</option>
+                  {pages.map((pg) => (
+                    <option key={pg.id} value={pg.id}>
+                      {pg.title}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-1.5">
+                  {onAddSubPage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newId = onAddSubPage();
+                        if (newId) updateContent({ actionTargetPageId: newId });
+                      }}
+                      className="flex-1 py-1.5 px-2 rounded-lg border border-dashed border-[#00C98A] bg-[#ECFDF6] text-[11px] font-bold text-[#0F766E] cursor-pointer"
+                    >
+                      + Buat Halaman Baru
+                    </button>
+                  )}
+                  {c.actionTargetPageId && c.actionTargetPageId !== 'home' && onSelectSubPage && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectSubPage(c.actionTargetPageId || null)}
+                      className="py-1.5 px-2 rounded-lg border border-[#DCE5EF] bg-white text-[11px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      Edit Halaman
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {action === 'url' && (
+              <div className="space-y-1 pt-1 border-t border-[#DCE5EF]">
+                <label className="block text-[11px] font-semibold text-[#17243D]">
+                  URL Tautan Tujuan
+                </label>
+                <input
+                  type="url"
+                  value={c.actionUrl ?? ''}
+                  placeholder="https://..."
+                  onChange={(e) => updateContent({ actionUrl: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
               </div>
             )}
           </div>
@@ -6645,17 +7077,492 @@ export function BlockContentTab({
     );
   };
 
+  // --- UNIVERSAL CLICK ACTION CONTROLS (EVERY LAYER) ---
+  const renderUniversalActionControls = () => {
+    if (
+      selectedBlock.type === 'divider' ||
+      selectedBlock.type === 'back_button' ||
+      selectedBlock.type === 'menu_icon'
+    ) {
+      return null;
+    }
+    const actionType: UniversalActionType = c.actionType ?? 'none';
+    const sheetPos: MenuIconSheetPosition = c.actionSheetPosition ?? 'bottom';
+    const sheetBlocks = c.actionSheetBlocks ?? [];
+    const targetCandidates = flattenTargetBlocks(allBlocks, selectedBlock.id);
+
+    const sheetQuickTypes: { type: BlockType; label: string }[] = [
+      { type: 'text', label: '+ Teks' },
+      { type: 'image', label: '+ Gambar' },
+      { type: 'button', label: '+ Tombol' },
+      { type: 'showcase_card', label: '+ Kartu' },
+      { type: 'cart_button', label: '+ Keranjang' },
+      { type: 'form', label: '+ Formulir' },
+      { type: 'maps_place', label: '+ Maps' },
+      { type: 'back_button', label: '+ Back' },
+    ];
+
+    return (
+      <div className="space-y-2.5 pt-2 border-t border-[#DCE5EF] first:border-t-0 first:pt-0">
+        <div>
+          <label className="block text-[11px] font-bold text-[#17243D] mb-1">
+            Aksi Saat Lapisan / Kartu Diklik
+          </label>
+          <select
+            value={actionType}
+            onChange={(e) => {
+              const nextAction = e.target.value as UniversalActionType;
+              updateContent({
+                actionType: nextAction,
+                ...(nextAction === 'sheet' && !c.actionSheetPosition
+                  ? { actionSheetPosition: 'bottom' }
+                  : {}),
+                ...(nextAction === 'sheet' && !c.actionSheetTitle
+                  ? { actionSheetTitle: c.cardTitle || selectedBlock.label || 'Detail Panel' }
+                  : {}),
+              });
+            }}
+            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-semibold text-[#17243D]"
+          >
+            <option value="none">Tidak Ada Aksi Tambahan</option>
+            <option value="url">Buka Tautan Link (URL)</option>
+            <option value="sheet">Buka Sheet (Bawah / Kanan / Kiri / Atas)</option>
+            <option value="page">Buka Halaman Baru / Halaman Lain</option>
+            <option value="card">Gulir ke Card / Lapisan Lain</option>
+            <option value="back">Tombol Kembali (Back)</option>
+          </select>
+        </div>
+
+        {actionType === 'url' && (
+          <div>
+            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+              URL Tujuan
+            </label>
+            <input
+              type="url"
+              value={c.actionUrl ?? ''}
+              placeholder="https://..."
+              onChange={(e) => updateContent({ actionUrl: e.target.value })}
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+            />
+          </div>
+        )}
+
+        {actionType === 'sheet' && (
+          <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Arah Muncul Sheet
+              </label>
+              <div className="grid grid-cols-4 gap-1">
+                {(
+                  [
+                    { id: 'bottom' as const, label: 'Bawah' },
+                    { id: 'right' as const, label: 'Kanan' },
+                    { id: 'left' as const, label: 'Kiri' },
+                    { id: 'top' as const, label: 'Atas' },
+                  ] as const
+                ).map((pos) => (
+                  <button
+                    key={pos.id}
+                    type="button"
+                    onClick={() => updateContent({ actionSheetPosition: pos.id })}
+                    className={`py-1 rounded text-[10.5px] font-semibold border cursor-pointer ${
+                      sheetPos === pos.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                    }`}
+                  >
+                    {pos.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Judul Panel Sheet
+              </label>
+              <input
+                type="text"
+                value={c.actionSheetTitle ?? ''}
+                placeholder="Judul panel sheet..."
+                onChange={(e) => updateContent({ actionSheetTitle: e.target.value })}
+                className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white"
+              />
+            </div>
+
+            <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-bold text-[#17243D]">
+                  Isi Komponen Sheet ({sheetBlocks.length})
+                </span>
+              </div>
+              {sheetBlocks.length === 0 ? (
+                <p className="text-[10px] text-[#8FA4BF]">
+                  Belum ada isi di panel sheet. Tambahkan elemen di bawah ini:
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {sheetBlocks.map((child) => (
+                    <div
+                      key={child.id}
+                      className="flex items-center justify-between gap-1.5 px-2 py-1 rounded bg-white border border-[#DCE5EF]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectBlock?.(child.id)}
+                        className="flex-1 text-left truncate text-[11px] font-semibold text-[#17243D] hover:text-[#00A873] cursor-pointer"
+                      >
+                        {child.label || BLOCK_TYPE_NAMES[child.type]}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateContent({
+                            actionSheetBlocks: sheetBlocks.filter((b) => b.id !== child.id),
+                          })
+                        }
+                        className="p-0.5 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                        title="Hapus elemen sheet"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {onAddChildToActionSheet && (
+                <div className="grid grid-cols-2 gap-1 pt-1">
+                  {sheetQuickTypes.map((qt) => (
+                    <button
+                      key={qt.type}
+                      type="button"
+                      onClick={() => onAddChildToActionSheet(selectedBlock.id, qt.type)}
+                      className="py-1 px-2 rounded border border-dashed border-[#00C98A] bg-white hover:bg-[#ECFDF6] text-[10.5px] font-semibold text-[#17243D] cursor-pointer text-left"
+                    >
+                      {qt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {actionType === 'page' && (
+          <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+            <label className="block text-[10.5px] font-semibold text-[#17243D]">
+              Pilih Halaman Tujuan
+            </label>
+            <select
+              value={c.actionTargetPageId ?? ''}
+              onChange={(e) => updateContent({ actionTargetPageId: e.target.value })}
+              className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white text-[#17243D]"
+            >
+              <option value="">-- Pilih Halaman --</option>
+              <option value="home">Beranda (Halaman Utama)</option>
+              {pages.map((pg) => (
+                <option key={pg.id} value={pg.id}>
+                  {pg.title} {activeSubPageId === pg.id ? '(Sedang Dibuka)' : ''}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-1.5">
+              {onAddSubPage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const createdId = onAddSubPage();
+                    if (createdId) updateContent({ actionTargetPageId: createdId });
+                  }}
+                  className="flex-1 py-1.5 px-2 rounded-lg border border-dashed border-[#00C98A] bg-[#ECFDF6] text-[10.5px] font-bold text-[#0F766E] cursor-pointer"
+                >
+                  + Buat Halaman Baru
+                </button>
+              )}
+              {c.actionTargetPageId && c.actionTargetPageId !== 'home' && onSelectSubPage && (
+                <button
+                  type="button"
+                  onClick={() => onSelectSubPage(c.actionTargetPageId || null)}
+                  className="py-1.5 px-2 rounded-lg border border-[#DCE5EF] bg-white text-[10.5px] font-semibold text-[#17243D] cursor-pointer"
+                >
+                  Edit Halaman
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {actionType === 'card' && (
+          <div className="space-y-1">
+            <label className="block text-[11px] font-semibold text-[#17243D]">
+              Pilih Card / Komponen Tujuan
+            </label>
+            <select
+              value={c.actionTargetBlockId ?? ''}
+              onChange={(e) => updateContent({ actionTargetBlockId: e.target.value })}
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D]"
+            >
+              <option value="">-- Pilih card / blok tujuan --</option>
+              {targetCandidates.map((cand, idx) => (
+                <option key={cand.id} value={cand.id}>
+                  {cand.depth > 0 ? '↳ '.repeat(cand.depth) : `${idx + 1}. `}
+                  {cand.label} ({BLOCK_TYPE_NAMES[cand.type]})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {actionType === 'back' && (
+          <p className="text-[10.5px] text-[#51637D] bg-[#F0F5FA] p-2 rounded-lg border border-[#DCE5EF]">
+            Saat diklik, pengunjung otomatis kembali ke halaman sebelumnya (atau Beranda).
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  // --- UNIVERSAL CART MODE CONTROLS (ALL CARD/BLOCK LAYERS) ---
+  const renderUniversalCartControls = () => {
+    if (!supportsUniversalCart(selectedBlock.type)) return null;
+    const enabled = Boolean(c.universalCartEnabled);
+    const defaultName = c.cardTitle || c.cartProductName || selectedBlock.label || 'Produk';
+    return (
+      <div className="space-y-2.5 pt-2 border-t border-[#DCE5EF] first:border-t-0 first:pt-0">
+        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/40">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <ShoppingBag className="w-3.5 h-3.5 text-[#00A873] shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Aktifkan Fungsi Keranjang
+              </div>
+              <div className="text-[9.5px] text-[#51637D]">
+                Harga, terjual, tambah - 1 +, &amp; info keranjang mengambang
+              </div>
+            </div>
+          </div>
+          <ToggleSwitch
+            checked={enabled}
+            onChange={(checked) =>
+              updateContent({
+                universalCartEnabled: checked,
+                ...(checked && !c.universalCartName ? { universalCartName: defaultName } : {}),
+                ...(checked && !c.universalCartPrice ? { universalCartPrice: c.cardPrice || 'Rp 50.000' } : {}),
+                ...(checked && c.universalCartFloatingEnabled === undefined
+                  ? { universalCartFloatingEnabled: true }
+                  : {}),
+              })
+            }
+            label="Aktifkan Fungsi Keranjang"
+          />
+        </div>
+
+        {enabled && (
+          <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Nama Produk di Keranjang
+              </label>
+              <input
+                type="text"
+                value={c.universalCartName ?? defaultName}
+                onChange={(e) => updateContent({ universalCartName: e.target.value })}
+                className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Harga (Rp)
+                </label>
+                <input
+                  type="text"
+                  value={c.universalCartPrice ?? c.cardPrice ?? 'Rp 50.000'}
+                  placeholder="Rp 50.000"
+                  onChange={(e) =>
+                    updateContent({ universalCartPrice: e.target.value })
+                  }
+                  className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Jumlah Terjual
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={c.universalCartUnitSold ?? 0}
+                  onChange={(e) =>
+                    updateContent({ universalCartUnitSold: Math.max(0, Number(e.target.value) || 0) })
+                  }
+                  className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-[#17243D]">
+                Tampilkan Label Jumlah Terjual
+              </span>
+              <ToggleSwitch
+                checked={c.universalCartShowUnitSold !== false}
+                onChange={(checked) => updateContent({ universalCartShowUnitSold: checked })}
+                label="Tampilkan Jumlah Terjual"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Label Tombol Tambah
+                </label>
+                <input
+                  type="text"
+                  value={c.universalCartButtonLabel ?? 'Tambah'}
+                  onChange={(e) => updateContent({ universalCartButtonLabel: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Warna Tombol
+                </label>
+                <input
+                  type="color"
+                  value={c.universalCartAccentColor ?? theme.accentColor ?? '#EA580C'}
+                  onChange={(e) => updateContent({ universalCartAccentColor: e.target.value })}
+                  className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  No. WhatsApp Checkout
+                </label>
+                <input
+                  type="text"
+                  value={c.universalCartWhatsappNumber ?? '6281234567890'}
+                  onChange={(e) => updateContent({ universalCartWhatsappNumber: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Nama Toko
+                </label>
+                <input
+                  type="text"
+                  value={c.universalCartStoreName ?? ''}
+                  placeholder="Otomatis nama halaman"
+                  onChange={(e) => updateContent({ universalCartStoreName: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Info Keranjang Mengambang */}
+            <div className="pt-2 border-t border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#17243D]">
+                  Info Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={c.universalCartFloatingEnabled !== false}
+                  onChange={(checked) => updateContent({ universalCartFloatingEnabled: checked })}
+                  label="Info Keranjang Mengambang"
+                />
+              </div>
+              {c.universalCartFloatingEnabled !== false && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-[#51637D] mb-1">
+                        Label Bar Mengambang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.universalCartFloatingLabel ?? 'Lihat Keranjang'}
+                        onChange={(e) =>
+                          updateContent({ universalCartFloatingLabel: e.target.value })
+                        }
+                        className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-[#51637D] mb-1">
+                        Warna Bar
+                      </label>
+                      <input
+                        type="color"
+                        value={c.universalCartFloatingBg ?? '#17243D'}
+                        onChange={(e) => updateContent({ universalCartFloatingBg: e.target.value })}
+                        className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                      />
+                    </div>
+                  </div>
+                  <SegmentedControl<'bottom-floating' | 'bottom-right' | 'bottom-left'>
+                    columns={3}
+                    value={
+                      c.universalCartFloatingPosition === 'bottom-right' ||
+                      c.universalCartFloatingPosition === 'bottom-left'
+                        ? c.universalCartFloatingPosition
+                        : 'bottom-floating'
+                    }
+                    onChange={(pos) => updateContent({ universalCartFloatingPosition: pos })}
+                    options={[
+                      { id: 'bottom-floating', label: 'Bawah Penuh' },
+                      { id: 'bottom-right', label: 'Kanan Bawah' },
+                      { id: 'bottom-left', label: 'Kiri Bawah' },
+                    ]}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const rowSpecialContent = renderRowSettings();
   const mainContent = renderMainContent();
   const itemsInfo = renderDataItemsSection();
-  const navContent = renderNavSection();
-  const actionsContent = renderActionsSection();
+  const specificNavContent = renderNavSection();
+  const universalActionContent = renderUniversalActionControls();
+  const navContent =
+    specificNavContent || universalActionContent ? (
+      <div className="space-y-3">
+        {specificNavContent}
+        {universalActionContent}
+      </div>
+    ) : null;
+
+  const specificActionsContent = renderActionsSection();
+  const universalCartContent = renderUniversalCartControls();
+  const actionsContent =
+    specificActionsContent || universalCartContent ? (
+      <div className="space-y-3">
+        {specificActionsContent}
+        {universalCartContent}
+      </div>
+    ) : null;
+
   const extraContent = renderExtraSection();
 
   const showTypographyAccordion =
     selectedBlock.type === 'text' ||
     selectedBlock.type === 'button' ||
     selectedBlock.type === 'cart_button' ||
+    selectedBlock.type === 'back_button' ||
+    selectedBlock.type === 'showcase_card' ||
+    selectedBlock.type === 'container' ||
+    selectedBlock.type === 'row' ||
+    selectedBlock.type === 'image' ||
     selectedBlock.type === 'hero_profile' ||
     selectedBlock.type === 'catalog' ||
     selectedBlock.type === 'fnb_catalog' ||

@@ -23,6 +23,7 @@ import {
   resolveShadowSizePx,
   shadowToCss,
 } from './exporterBlocks.ts';
+import { findFirstFloatingCartConfig } from './universalLayerHelpers.ts';
 
 export { extractYouTubeId, resolveBlockTextColor, resolveShadowSizePx, shadowToCss };
 
@@ -234,6 +235,12 @@ export function generateProjectHtml(
       collectCatalogData(navItem.children, catalogMap);
     }
   });
+  const subPages = Array.isArray(project.pages) ? project.pages : [];
+  subPages.forEach((pg) => {
+    if (pg.blocks?.length) {
+      collectCatalogData(pg.blocks, catalogMap);
+    }
+  });
 
   const bottomNavbarSheetsHtml = showBottomNavbar
     ? enabledNavItems
@@ -335,6 +342,10 @@ ${enabledNavItems
 
   const firstFnbBlk = findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items);
   const firstCartBtnBlk = findFirstCartButtonFloatBlock(project.blocks, bottomNavbar.items);
+  const fallbackFloat =
+    !firstFnbBlk && !firstCartBtnBlk
+      ? findFirstFloatingCartConfig(project.blocks, bottomNavbar.items, subPages)
+      : null;
   const fnbFloatConfig =
     firstFnbBlk && firstFnbBlk.content.fnbFloatingCartEnabled !== false
       ? {
@@ -357,6 +368,13 @@ ${enabledNavItems
             project.theme.accentColor ||
             '#059669',
           actionLabel: firstCartBtnBlk.content.cartFloatingLabel || 'Lihat Keranjang',
+        }
+      : fallbackFloat
+      ? {
+          position: fallbackFloat.position,
+          offsetY: Math.max(0, Math.min(120, fallbackFloat.offsetY ?? 16)),
+          bgColor: fallbackFloat.bg || project.theme.accentColor || '#059669',
+          actionLabel: fallbackFloat.label || 'Lihat Keranjang',
         }
       : null;
   const googleFontsHref = buildGoogleFontsHref(collectProjectFontIds(project));
@@ -396,6 +414,38 @@ ${enabledNavItems
       return `    <div class="${block.style.fullBleed ? 'page-full' : 'page-pad'}">\n${rendered}\n    </div>`;
     })
     .filter(Boolean)
+    .join('\n');
+
+  const subPagesHtml = subPages
+    .map((pg) => {
+      const pgBlocksHtml = (pg.blocks ?? [])
+        .map((block) => {
+          const rendered = renderBlockHtml(block, project.theme, adv, '      ');
+          if (!rendered) return '';
+          return `    <div class="${block.style.fullBleed ? 'page-full' : 'page-pad'}">\n${rendered}\n    </div>`;
+        })
+        .filter(Boolean)
+        .join('\n');
+      const backBarHtml =
+        pg.showBackButton !== false
+          ? `    <div class="page-pad" style="padding-top: 10px; padding-bottom: 10px; border-bottom: 1px solid ${project.theme.borderColor}; background: ${project.theme.cardBg}; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 40;">
+      <button type="button" data-page-back="1" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; border: 1px solid ${project.theme.borderColor}; background: transparent; color: ${project.theme.textColor}; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;">&larr; ${escapeHtml(
+              pg.backButtonLabel || 'Kembali'
+            )}</button>
+      <div style="font-size: 14px; font-weight: 700; color: ${project.theme.textColor}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(
+              pg.title || 'Halaman'
+            )}</div>
+    </div>\n`
+          : '';
+      return `    <section class="lynk-custom-page page-shell" data-custom-page="${escapeHtml(
+        pg.id
+      )}" style="display: none;">
+${backBarHtml}${
+        pgBlocksHtml ||
+        `    <div class="page-pad" style="padding-top: 32px; padding-bottom: 32px; text-align: center; font-size: 13px; opacity: 0.65;">Belum ada komponen di halaman ini.</div>`
+      }
+    </section>`;
+    })
     .join('\n');
 
   return `<!doctype html>
@@ -630,19 +680,23 @@ ${enabledNavItems
     .lynk-sheet-backdrop.is-open .lynk-sheet-panel {
       transform: translate(0, 0);
     }
-    .lynk-sheet-pos-top {
+    .lynk-sheet-pos-top,
+    .lynk-sheet-backdrop[data-sheet-pos="top"] {
       align-items: flex-start;
       justify-content: center;
     }
-    .lynk-sheet-pos-top .lynk-sheet-panel {
+    .lynk-sheet-pos-top .lynk-sheet-panel,
+    .lynk-sheet-backdrop[data-sheet-pos="top"] .lynk-sheet-panel {
       border-radius: 0 0 22px 22px;
       transform: translateY(-100%);
     }
-    .lynk-sheet-pos-right {
+    .lynk-sheet-pos-right,
+    .lynk-sheet-backdrop[data-sheet-pos="right"] {
       align-items: stretch;
       justify-content: flex-end;
     }
-    .lynk-sheet-pos-right .lynk-sheet-panel {
+    .lynk-sheet-pos-right .lynk-sheet-panel,
+    .lynk-sheet-backdrop[data-sheet-pos="right"] .lynk-sheet-panel {
       width: min(86vw, 380px);
       max-width: 380px;
       height: 100%;
@@ -650,11 +704,13 @@ ${enabledNavItems
       border-radius: 22px 0 0 22px;
       transform: translateX(100%);
     }
-    .lynk-sheet-pos-left {
+    .lynk-sheet-pos-left,
+    .lynk-sheet-backdrop[data-sheet-pos="left"] {
       align-items: stretch;
       justify-content: flex-start;
     }
-    .lynk-sheet-pos-left .lynk-sheet-panel {
+    .lynk-sheet-pos-left .lynk-sheet-panel,
+    .lynk-sheet-backdrop[data-sheet-pos="left"] .lynk-sheet-panel {
       width: min(86vw, 380px);
       max-width: 380px;
       height: 100%;
@@ -668,6 +724,37 @@ ${enabledNavItems
       flex-direction: column;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    }
+    .lynk-sheet-header-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .lynk-sheet-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lynk-sheet-close {
+      width: 30px;
+      height: 30px;
+      border-radius: 9999px;
+      border: 0;
+      background: rgba(148, 163, 184, 0.16);
+      color: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       flex-shrink: 0;
     }
     .lynk-sheet-handle {
@@ -724,7 +811,7 @@ ${enabledNavItems
   <div class="app-container">
     <main id="lynk-main-view" class="page-shell">
 ${bodyBlocks}
-    </main>
+    </main>${subPagesHtml ? '\n' + subPagesHtml : ''}
     <section id="lynk-subpage-detail" class="page-pad" style="display: none; padding-bottom: 108px;"></section>
     <section id="lynk-subpage-cart" class="page-pad" style="display: none; padding-bottom: 100px;"></section>
   </div>${waAddonHtml}${bottomNavbarHtml}${bottomNavbarSheetsHtml ? '\n' + bottomNavbarSheetsHtml : ''}
@@ -1428,8 +1515,15 @@ ${bodyBlocks}
         document.body.style.overflow = '';
         if (typeof window.__lynkSyncCart === 'function') window.__lynkSyncCart();
       }
+      function isInnerInteractiveClick(el, target) {
+        if (!target || !target.closest) return false;
+        if (!el || !el.hasAttribute || !el.hasAttribute('data-universal-layer')) return false;
+        var hit = target.closest('button, a, input, textarea, select, [data-universal-cart-box], [data-fnb-add], [data-fnb-stepper], [data-fnb-inc], [data-fnb-dec], [data-quick-add]');
+        return Boolean(hit && hit !== el && el.contains(hit));
+      }
       document.querySelectorAll('[data-sheet-open]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
+          if (isInnerInteractiveClick(btn, e.target)) return;
           e.stopPropagation();
           var targetId = btn.getAttribute('data-sheet-open');
           var sheet = targetId ? document.getElementById(targetId) : null;
@@ -1440,6 +1534,50 @@ ${bodyBlocks}
             sheet.classList.add('is-open');
             document.body.style.overflow = 'hidden';
             if (typeof window.__lynkSyncCart === 'function') window.__lynkSyncCart();
+          }
+        });
+      });
+      document.querySelectorAll('[data-action-url]').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          if (isInnerInteractiveClick(el, e.target)) return;
+          var url = (el.getAttribute('data-action-url') || '').trim();
+          if (!url || !/^https?:\\/\\//i.test(url)) return;
+          e.stopPropagation();
+          var a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          if (a.parentNode) a.parentNode.removeChild(a);
+        });
+      });
+      document.querySelectorAll('[data-open-page]').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          if (isInnerInteractiveClick(el, e.target)) return;
+          var targetPageId = (el.getAttribute('data-open-page') || '').trim();
+          if (!targetPageId) return;
+          e.stopPropagation();
+          closeAllBottomSheets();
+          if (targetPageId === 'home') {
+            if (typeof window.__lynkGoHome === 'function') window.__lynkGoHome();
+            return;
+          }
+          if (typeof window.__lynkOpenPage === 'function') {
+            window.__lynkOpenPage(targetPageId, true);
+          }
+        });
+      });
+      document.querySelectorAll('[data-page-back]').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          if (isInnerInteractiveClick(el, e.target)) return;
+          e.stopPropagation();
+          closeAllBottomSheets();
+          var targetBack = (el.getAttribute('data-back-target') || '').trim();
+          if (typeof window.__lynkBackPage === 'function') {
+            window.__lynkBackPage(targetBack);
+          } else if (typeof window.__lynkGoHome === 'function') {
+            window.__lynkGoHome();
           }
         });
       });
@@ -1462,6 +1600,7 @@ ${bodyBlocks}
 
       document.querySelectorAll('[data-jump-block]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
+          if (isInnerInteractiveClick(btn, e.target)) return;
           e.stopPropagation();
           var targetId = btn.getAttribute('data-jump-block');
           if (!targetId) return;
@@ -2522,9 +2661,24 @@ ${bodyBlocks}
             });
           }
 
+          var pageHistory = ['home'];
+          function findCustomPageEl(pageId) {
+            if (!pageId) return null;
+            var nodes = document.querySelectorAll('[data-custom-page]');
+            for (var i = 0; i < nodes.length; i++) {
+              if (nodes[i].getAttribute('data-custom-page') === pageId) return nodes[i];
+            }
+            return null;
+          }
+          function hideAllCustomPages() {
+            document.querySelectorAll('[data-custom-page]').forEach(function (pgEl) {
+              pgEl.style.display = 'none';
+            });
+          }
           function applyView(route, pushHash) {
             activeRoute = route;
             if (typeof closeAllBottomSheets === 'function') closeAllBottomSheets();
+            hideAllCustomPages();
             if (route.type === 'detail') {
               mainView.style.display = 'none';
               cartView.style.display = 'none';
@@ -2538,6 +2692,22 @@ ${bodyBlocks}
               cartView.style.display = 'block';
               renderCartPage();
               if (pushHash && location.hash !== '#keranjang') location.hash = '#keranjang';
+            } else if (route.type === 'page' && route.pageId) {
+              var pgNode = findCustomPageEl(route.pageId);
+              if (pgNode) {
+                mainView.style.display = 'none';
+                detailView.style.display = 'none';
+                cartView.style.display = 'none';
+                pgNode.style.display = 'block';
+                var targetPageHash = '#halaman-' + encodeURIComponent(route.pageId);
+                if (pushHash && location.hash !== targetPageHash) location.hash = targetPageHash;
+              } else {
+                activeRoute = { type: 'home', blockId: '', itemId: '' };
+                detailView.style.display = 'none';
+                cartView.style.display = 'none';
+                mainView.style.display = 'block';
+                if (pushHash && location.hash) history.replaceState(null, '', location.pathname + location.search);
+              }
             } else {
               detailView.style.display = 'none';
               cartView.style.display = 'none';
@@ -2550,9 +2720,42 @@ ${bodyBlocks}
             }
           }
           function goHome() {
+            pageHistory = ['home'];
             applyView({ type: 'home', blockId: '', itemId: '' }, true);
           }
+          function openCustomPage(pageId, pushHistory) {
+            if (!pageId || pageId === 'home') {
+              goHome();
+              return;
+            }
+            if (!findCustomPageEl(pageId)) return;
+            if (pushHistory !== false && pageHistory[pageHistory.length - 1] !== pageId) {
+              pageHistory.push(pageId);
+            }
+            applyView({ type: 'page', pageId: pageId, blockId: '', itemId: '' }, true);
+          }
+          function goBackCustomPage(explicitTarget) {
+            if (explicitTarget === 'home') {
+              goHome();
+              return;
+            }
+            if (explicitTarget && findCustomPageEl(explicitTarget)) {
+              openCustomPage(explicitTarget, true);
+              return;
+            }
+            if (pageHistory.length > 1) {
+              pageHistory.pop();
+            }
+            var prev = pageHistory[pageHistory.length - 1] || 'home';
+            if (prev === 'home') {
+              goHome();
+            } else {
+              applyView({ type: 'page', pageId: prev, blockId: '', itemId: '' }, true);
+            }
+          }
           window.__lynkGoHome = goHome;
+          window.__lynkOpenPage = openCustomPage;
+          window.__lynkBackPage = goBackCustomPage;
           function openCart() {
             applyView({ type: 'cart', blockId: '', itemId: '' }, true);
           }
@@ -2561,6 +2764,16 @@ ${bodyBlocks}
             if (h === '#keranjang') {
               if (activeRoute.type === 'cart') return;
               applyView({ type: 'cart', blockId: '', itemId: '' }, false);
+            } else if (h.indexOf('#halaman-') === 0) {
+              var pId = decodeURIComponent(h.slice('#halaman-'.length));
+              if (activeRoute.type === 'page' && activeRoute.pageId === pId) return;
+              if (findCustomPageEl(pId)) {
+                if (pageHistory[pageHistory.length - 1] !== pId) pageHistory.push(pId);
+                applyView({ type: 'page', pageId: pId, blockId: '', itemId: '' }, false);
+                return;
+              }
+              if (activeRoute.type === 'home') return;
+              applyView({ type: 'home', blockId: '', itemId: '' }, false);
             } else if (h.indexOf('#produk-') === 0) {
               var raw = h.slice('#produk-'.length);
               var sep = raw.indexOf('--');

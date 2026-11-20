@@ -1068,37 +1068,40 @@ export function BlockDesignTab({
                   current={circleSize}
                   onChange={(val) => updateContent({ circleSize: val })}
                 />
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-[#17243D]">Besar Foto di Dalam Lingkaran</span>
-                    <div className="flex items-center gap-1.5">
-                      {imageZoom !== 100 && (
-                        <button
-                          type="button"
-                          onClick={() => updateContent({ imageZoom: 100 })}
-                          className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] cursor-pointer"
-                        >
-                          100%
-                        </button>
-                      )}
-                      <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums">
-                        {imageZoom}%
-                      </span>
-                    </div>
-                  </div>
-                  <input
-                    type="range"
-                    min={50}
-                    max={220}
-                    step={5}
-                    value={imageZoom}
-                    onChange={(e) => updateContent({ imageZoom: Number(e.target.value) })}
-                    style={rangeProgressStyle(imageZoom, 50, 220)}
-                    className="w-full cursor-pointer"
-                  />
-                </div>
               </div>
             )}
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-[#17243D]">
+                  {isCircle ? 'Perbesar / Perkecil Foto (Lingkaran)' : 'Perbesar / Perkecil Foto (Zoom)'}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {imageZoom !== 100 && (
+                    <button
+                      type="button"
+                      onClick={() => updateContent({ imageZoom: 100 })}
+                      className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      100%
+                    </button>
+                  )}
+                  <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums">
+                    {imageZoom}%
+                  </span>
+                </div>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={250}
+                step={5}
+                value={imageZoom}
+                onChange={(e) => updateContent({ imageZoom: Number(e.target.value) })}
+                style={rangeProgressStyle(imageZoom, 50, 250)}
+                className="w-full cursor-pointer"
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               {!isCircle && (
@@ -2000,25 +2003,53 @@ export function BlockDesignTab({
           onChange={(val) => updateStyle({ marginBottom: val })}
         />
 
-        {/* Lebar Elemen & Tinggi Minimal */}
+        {/* Lebar Elemen, Tinggi Minimal & Tinggi Maksimal (Besar/Kecil Kartu & Box) */}
         <div className="pt-1.5 border-t border-[#DCE5EF] space-y-2">
-          <SliderRow
-            label={label('desain.field.lebarElemen', 'Lebar Elemen')}
-            value={`${s.widthPercent}%`}
-            min={30}
-            max={100}
-            current={s.widthPercent}
-            onChange={(val) =>
-              updateStyle({ widthPercent: val, fullBleed: val < 100 ? false : s.fullBleed })
-            }
-          />
+          <div className="space-y-1">
+            <SliderRow
+              label={label('desain.field.lebarElemen', 'Lebar Elemen / Kartu')}
+              value={`${s.widthPercent}%`}
+              min={20}
+              max={100}
+              current={s.widthPercent}
+              onChange={(val) =>
+                updateStyle({ widthPercent: val, fullBleed: val < 100 ? false : s.fullBleed })
+              }
+            />
+            <div className="grid grid-cols-4 gap-1">
+              {[50, 75, 90, 100].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() =>
+                    updateStyle({ widthPercent: pct, fullBleed: pct < 100 ? false : s.fullBleed })
+                  }
+                  className={`py-0.5 rounded border text-[10px] font-semibold cursor-pointer tabular-nums ${
+                    s.widthPercent === pct
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#17243D] border-[#DCE5EF]'
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+          </div>
           <SliderRow
             label={label('desain.field.tinggiMinimal', 'Tinggi Minimal')}
-            value={`${s.minHeight}px`}
+            value={s.minHeight > 0 ? `${s.minHeight}px` : 'Auto'}
             min={0}
-            max={420}
+            max={600}
             current={s.minHeight}
             onChange={(val) => updateStyle({ minHeight: val })}
+          />
+          <SliderRow
+            label="Tinggi Maksimal"
+            value={s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : 'Auto'}
+            min={0}
+            max={600}
+            current={s.maxHeight ?? 0}
+            onChange={(val) => updateStyle({ maxHeight: val > 0 ? val : undefined })}
           />
         </div>
       </AccordionSection>

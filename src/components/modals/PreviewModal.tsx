@@ -77,6 +77,14 @@ import { SocialFollowerList } from '../SocialFollowerList';
 import { SocialGlyph } from '../SocialIcon';
 import { ShowcaseCardView } from '../ShowcaseCardView';
 import { TrainingCatalogCard } from '../TrainingCatalogCard';
+import {
+  buildLineClampStyle,
+  findFirstFloatingCartConfig,
+  resolveBlockAction,
+  resolveUniversalCartMeta,
+  supportsUniversalCart,
+} from '../../utils/universalLayerHelpers';
+import type { BuilderSubPage } from '../../types/builder';
 
 type PreviewSubPage =
   | { type: 'home' }
@@ -86,12 +94,17 @@ type PreviewSubPage =
 function findBlockById(
   blocks: BuilderBlock[],
   id: string,
-  navItems?: BottomNavbarItem[]
+  navItems?: BottomNavbarItem[],
+  pages?: BuilderSubPage[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
     if (blk.id === id) return blk;
     if (blk.children?.length) {
       const found = findBlockById(blk.children, id);
+      if (found) return found;
+    }
+    if (blk.content.actionSheetBlocks?.length) {
+      const found = findBlockById(blk.content.actionSheetBlocks, id);
       if (found) return found;
     }
   }
@@ -101,12 +114,19 @@ function findBlockById(
       if (found) return found;
     }
   }
+  if (pages?.length) {
+    for (const pg of pages) {
+      const found = findBlockById(pg.blocks, id);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
 function findFirstCatalogBlock(
   blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[]
+  navItems?: BottomNavbarItem[],
+  pages?: BuilderSubPage[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
     if (
@@ -115,12 +135,17 @@ function findFirstCatalogBlock(
       blk.type === 'cart_button' ||
       (blk.type === 'showcase_card' &&
         blk.content.cardVariant === 'store_card' &&
-        Boolean(blk.content.cardEnableCart))
+        Boolean(blk.content.cardEnableCart)) ||
+      (supportsUniversalCart(blk.type) && Boolean(blk.content.universalCartEnabled))
     ) {
       return blk;
     }
     if (blk.children?.length) {
       const found = findFirstCatalogBlock(blk.children);
+      if (found) return found;
+    }
+    if (blk.content.actionSheetBlocks?.length) {
+      const found = findFirstCatalogBlock(blk.content.actionSheetBlocks);
       if (found) return found;
     }
   }
@@ -130,17 +155,28 @@ function findFirstCatalogBlock(
       if (found) return found;
     }
   }
+  if (pages?.length) {
+    for (const pg of pages) {
+      const found = findFirstCatalogBlock(pg.blocks);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
 function findFirstFnbCatalogBlock(
   blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[]
+  navItems?: BottomNavbarItem[],
+  pages?: BuilderSubPage[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
     if (blk.type === 'fnb_catalog' && blk.content.fnbFloatingCartEnabled !== false) return blk;
     if (blk.children?.length) {
       const found = findFirstFnbCatalogBlock(blk.children);
+      if (found) return found;
+    }
+    if (blk.content.actionSheetBlocks?.length) {
+      const found = findFirstFnbCatalogBlock(blk.content.actionSheetBlocks);
       if (found) return found;
     }
   }
@@ -150,12 +186,19 @@ function findFirstFnbCatalogBlock(
       if (found) return found;
     }
   }
+  if (pages?.length) {
+    for (const pg of pages) {
+      const found = findFirstFnbCatalogBlock(pg.blocks);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
 function findFirstCartButtonFloatBlock(
   blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[]
+  navItems?: BottomNavbarItem[],
+  pages?: BuilderSubPage[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
     if (blk.type === 'cart_button' && blk.content.cartFloatingEnabled !== false) return blk;
@@ -163,10 +206,20 @@ function findFirstCartButtonFloatBlock(
       const found = findFirstCartButtonFloatBlock(blk.children);
       if (found) return found;
     }
+    if (blk.content.actionSheetBlocks?.length) {
+      const found = findFirstCartButtonFloatBlock(blk.content.actionSheetBlocks);
+      if (found) return found;
+    }
   }
   if (navItems?.length) {
     for (const item of navItems) {
       const found = findFirstCartButtonFloatBlock(item.children);
+      if (found) return found;
+    }
+  }
+  if (pages?.length) {
+    for (const pg of pages) {
+      const found = findFirstCartButtonFloatBlock(pg.blocks);
       if (found) return found;
     }
   }
@@ -195,6 +248,7 @@ export function PreviewModal({
   const [activeNavSheetId, setActiveNavSheetId] = useState<string | null>(null);
   const [sheetEntered, setSheetEntered] = useState(false);
   const [subPage, setSubPage] = useState<PreviewSubPage>({ type: 'home' });
+  const [pageHistory, setPageHistory] = useState<string[]>(['home']);
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [activeCategoryTabs, setActiveCategoryTabs] = useState<Record<string, string>>({});
   const [detailVariant, setDetailVariant] = useState('');
@@ -258,12 +312,51 @@ export function PreviewModal({
     return () => cancelAnimationFrame(raf);
   }, [activeSheetBlockId, activeNavSheetId]);
 
+  const projectPages = project.pages ?? [];
+  const currentCustomPageId = pageHistory[pageHistory.length - 1] ?? 'home';
+  const currentCustomPage =
+    currentCustomPageId !== 'home'
+      ? projectPages.find((p) => p.id === currentCustomPageId) ?? null
+      : null;
+
+  const openCustomPage = (targetPageId: string) => {
+    const clean = (targetPageId || 'home').trim();
+    closeBottomSheet();
+    setSubPage({ type: 'home' });
+    if (clean === 'home') {
+      setPageHistory(['home']);
+    } else if (projectPages.some((p) => p.id === clean)) {
+      setPageHistory((prev) =>
+        prev[prev.length - 1] === clean ? prev : [...prev, clean]
+      );
+    }
+    setTimeout(scrollToTop, 10);
+  };
+
+  const goBackPage = (explicitTarget?: string) => {
+    closeBottomSheet();
+    setSubPage({ type: 'home' });
+    const target = (explicitTarget ?? '').trim();
+    if (target === 'home') {
+      setPageHistory(['home']);
+      setTimeout(scrollToTop, 10);
+      return;
+    }
+    if (target && projectPages.some((p) => p.id === target)) {
+      setPageHistory((prev) => [...prev, target]);
+      setTimeout(scrollToTop, 10);
+      return;
+    }
+    setPageHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : ['home']));
+    setTimeout(scrollToTop, 10);
+  };
+
   const activeSheetBlock = useMemo(
     () =>
       activeSheetBlockId
-        ? findBlockById(project.blocks, activeSheetBlockId, bottomNavbar.items)
+        ? findBlockById(project.blocks, activeSheetBlockId, bottomNavbar.items, projectPages)
         : null,
-    [activeSheetBlockId, project.blocks, bottomNavbar.items]
+    [activeSheetBlockId, project.blocks, bottomNavbar.items, projectPages]
   );
 
   const activeNavSheetItem = useMemo(
@@ -282,16 +375,26 @@ export function PreviewModal({
     children: BuilderBlock[];
     position: MenuIconSheetPosition;
   } | null = activeSheetBlock
-    ? {
-        title:
-          activeSheetBlock.content.sheetTitle?.trim() ||
-          (activeSheetBlock.type === 'menu_icon' ? 'Menu Panel' : 'Bottom Sheet'),
-        children: activeSheetBlock.children ?? [],
-        position:
-          activeSheetBlock.type === 'menu_icon'
-            ? activeSheetBlock.content.menuIconSheetPosition ?? 'bottom'
-            : 'bottom',
-      }
+    ? activeSheetBlock.type === 'bottom_sheet' || activeSheetBlock.type === 'menu_icon'
+      ? {
+          title:
+            activeSheetBlock.content.sheetTitle?.trim() ||
+            (activeSheetBlock.type === 'menu_icon' ? 'Menu Panel' : 'Bottom Sheet'),
+          children: activeSheetBlock.children ?? [],
+          position:
+            activeSheetBlock.type === 'menu_icon'
+              ? activeSheetBlock.content.menuIconSheetPosition ?? 'bottom'
+              : 'bottom',
+        }
+      : {
+          title:
+            activeSheetBlock.content.actionSheetTitle?.trim() ||
+            activeSheetBlock.content.cardTitle?.trim() ||
+            activeSheetBlock.label ||
+            'Detail Panel',
+          children: activeSheetBlock.content.actionSheetBlocks ?? [],
+          position: activeSheetBlock.content.actionSheetPosition ?? 'bottom',
+        }
     : activeNavSheetItem
     ? {
         title:
@@ -424,7 +527,7 @@ export function PreviewModal({
   };
 
   const addToCart = (blockId: string, item: CatalogItem, variant: string, qty: number) => {
-    const blk = findBlockById(project.blocks, blockId, bottomNavbar.items);
+    const blk = findBlockById(project.blocks, blockId, bottomNavbar.items, projectPages);
     const blockProductType = blk?.content.catalogProductType ?? 'physical';
     const entry = createCartEntry(blockId, item, variant, qty, blockProductType);
     setCart((prev) => {
@@ -458,16 +561,16 @@ export function PreviewModal({
   );
 
   const firstCatalog = useMemo(
-    () => findFirstCatalogBlock(project.blocks, bottomNavbar.items),
-    [project.blocks, bottomNavbar.items]
+    () => findFirstCatalogBlock(project.blocks, bottomNavbar.items, projectPages),
+    [project.blocks, bottomNavbar.items, projectPages]
   );
   const firstFnbCatalog = useMemo(
-    () => findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items),
-    [project.blocks, bottomNavbar.items]
+    () => findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items, projectPages),
+    [project.blocks, bottomNavbar.items, projectPages]
   );
   const firstCartButtonFloat = useMemo(
-    () => findFirstCartButtonFloatBlock(project.blocks, bottomNavbar.items),
-    [project.blocks, bottomNavbar.items]
+    () => findFirstCartButtonFloatBlock(project.blocks, bottomNavbar.items, projectPages),
+    [project.blocks, bottomNavbar.items, projectPages]
   );
   const floatingCartConfig = useMemo(() => {
     if (firstFnbCatalog) {
@@ -492,12 +595,26 @@ export function PreviewModal({
         actionLabel: firstCartButtonFloat.content.cartFloatingLabel || 'Lihat Keranjang',
       };
     }
+    const universalFloat = findFirstFloatingCartConfig(
+      project.blocks,
+      bottomNavbar.items,
+      projectPages
+    );
+    if (universalFloat) {
+      return {
+        position: universalFloat.position,
+        offsetY: universalFloat.offsetY,
+        bgColor: universalFloat.bg || project.theme.accentColor || '#059669',
+        actionLabel: universalFloat.label,
+      };
+    }
     return null;
-  }, [firstFnbCatalog, firstCartButtonFloat, project.theme.accentColor]);
+  }, [firstFnbCatalog, firstCartButtonFloat, project.blocks, bottomNavbar.items, projectPages, project.theme]);
   const hasCartFeature = Boolean(
     firstCatalog &&
       (firstCatalog.type === 'cart_button' ||
         firstCatalog.type === 'showcase_card' ||
+        Boolean(firstCatalog.content.universalCartEnabled) ||
         (firstCatalog.content.catalogCartEnabled ?? true))
   );
   const fnbCartQtyMap = useMemo(() => {
@@ -521,18 +638,136 @@ export function PreviewModal({
     unitSold: 0,
   });
 
+  const triggerUniversalBlockAction = (block: BuilderBlock, e?: React.MouseEvent) => {
+    const action = resolveBlockAction(block);
+    if (!action || action.type === 'none') return;
+    if (e) {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('button, a, input, textarea, select, [data-universal-cart-box]')) {
+        return;
+      }
+    }
+    if (action.type === 'url') {
+      const safe = sanitizeExternalUrl(action.url, '');
+      if (safe && safe !== '#') {
+        const a = document.createElement('a');
+        a.href = safe;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.click();
+      }
+    } else if (action.type === 'sheet') {
+      openBottomSheet(block.id);
+    } else if (action.type === 'page') {
+      openCustomPage(action.targetPageId);
+    } else if (action.type === 'card') {
+      jumpToBlockId(action.targetBlockId);
+    } else if (action.type === 'back') {
+      goBackPage(action.targetPageId);
+    }
+  };
+
   const renderPreviewBlock = (
     block: BuilderBlock,
     depth = 0,
     inheritedTextColor?: string
   ): React.ReactNode => {
     const rendered = renderPreviewBlockInner(block, depth, inheritedTextColor);
+    const rawAction =
+      block.type === 'menu_icon' || block.type === 'back_button'
+        ? null
+        : resolveBlockAction(block);
+    const action = rawAction && rawAction.type !== 'none' ? rawAction : null;
+    const uc = resolveUniversalCartMeta(block, project.theme);
+
+    let node: React.ReactNode = rendered;
     if (React.isValidElement(rendered)) {
-      return React.cloneElement(rendered as React.ReactElement<Record<string, unknown>>, {
+      node = React.cloneElement(rendered as React.ReactElement<Record<string, unknown>>, {
         'data-block-id': block.id,
       });
     }
-    return rendered;
+
+    if (!action && !uc) return node;
+
+    const ucQty = uc ? fnbCartQtyMap[uc.compositeKey] ?? 0 : 0;
+    const ucCatalogItem: CatalogItem | null = uc
+      ? {
+          id: uc.compositeKey,
+          title: uc.name,
+          subtitle: '',
+          description: '',
+          price: uc.price,
+          ctaLabel: uc.buttonLabel,
+          url: '',
+          image: uc.image,
+          unitSold: uc.unitSold,
+        }
+      : null;
+
+    return (
+      <div
+        key={block.id}
+        data-block-id={block.id}
+        onClick={action ? (e) => triggerUniversalBlockAction(block, e) : undefined}
+        className={action ? 'cursor-pointer' : undefined}
+      >
+        {node}
+        {uc && ucCatalogItem && (
+          <div
+            data-universal-cart-box="1"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: `${block.style.widthPercent}%` }}
+            className="mx-auto -mt-1 mb-2 px-2.5 py-2 rounded-b-xl border border-t-0 border-black/10 bg-white/95 text-[#0F172A] flex flex-wrap items-center justify-between gap-2 shadow-xs"
+          >
+            <div className="min-w-0 text-left">
+              <div className="text-xs font-extrabold tabular-nums" style={{ color: uc.accentColor }}>
+                {uc.price}
+              </div>
+              {uc.showUnitSold && (
+                <div className="text-[10px] text-slate-500 tabular-nums">
+                  {uc.unitSold} terjual
+                </div>
+              )}
+            </div>
+            {ucQty > 0 ? (
+              <div
+                style={{ borderColor: uc.accentColor }}
+                className="inline-flex items-center gap-1 rounded-full border bg-white px-1 py-0.5 shadow-xs"
+              >
+                <button
+                  type="button"
+                  onClick={() => updateCartQty(`${block.id}::${uc.compositeKey}::`, -1)}
+                  className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="text-xs font-bold min-w-[18px] text-center tabular-nums">
+                  {ucQty}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => addToCart(block.id, ucCatalogItem, '', 1)}
+                  style={{ backgroundColor: uc.accentColor }}
+                  className="w-6 h-6 rounded-full text-white flex items-center justify-center cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => addToCart(block.id, ucCatalogItem, '', 1)}
+                style={{ backgroundColor: uc.accentColor }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white shadow-xs cursor-pointer"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span>{uc.buttonLabel}</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderPreviewBlockInner = (
@@ -577,6 +812,8 @@ export function PreviewModal({
     const style: React.CSSProperties = {
       width: `${s.widthPercent}%`,
       minHeight: isCircleImage ? '0px' : `${s.minHeight}px`,
+      maxHeight: !isCircleImage && s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : undefined,
+      overflow: !isCircleImage && s.maxHeight && s.maxHeight > 0 ? 'hidden' : undefined,
       borderRadius: resolvedRadius,
       padding: isHeroBanner ? '0px' : `${padTop}px ${padRight}px ${padBottom}px ${padLeft}px`,
       marginTop: `${marginTop}px`,
@@ -588,6 +825,7 @@ export function PreviewModal({
       fontSize: s.fontSize ? `${s.fontSize}px` : undefined,
       fontWeight: s.fontWeightCss ? Number(s.fontWeightCss) : undefined,
       lineHeight: s.lineHeight ? String(s.lineHeight) : undefined,
+      letterSpacing: s.letterSpacing ? `${s.letterSpacing}px` : undefined,
       borderWidth: isCircleImage || isHeroBanner ? '0px' : `${s.borderWidth}px`,
       borderStyle: !isCircleImage && !isHeroBanner && s.borderWidth > 0 ? 'solid' : 'none',
       borderColor: s.borderColor,
@@ -842,6 +1080,19 @@ export function PreviewModal({
             onClick={() => {
               if (action === 'card') {
                 if (targetId) jumpToBlockId(targetId);
+              } else if (action === 'page') {
+                openCustomPage(block.content.actionTargetPageId || 'home');
+              } else if (action === 'url') {
+                const safe = sanitizeExternalUrl(block.content.actionUrl, '');
+                if (safe && safe !== '#') {
+                  const a = document.createElement('a');
+                  a.href = safe;
+                  a.target = '_blank';
+                  a.rel = 'noopener noreferrer';
+                  a.click();
+                }
+              } else if (action === 'back') {
+                goBackPage(block.content.backTargetPageId);
               } else {
                 openBottomSheet(block.id);
               }
@@ -1043,7 +1294,10 @@ export function PreviewModal({
         <div
           key={block.id}
           data-jump-title={(block.content.text ?? '').trim().toLowerCase()}
-          style={style}
+          style={{
+            ...style,
+            ...buildLineClampStyle(s.maxLines),
+          }}
           className={`leading-relaxed break-words whitespace-pre-line ${
             !s.fontSize
               ? block.content.variant === 'h1'
@@ -1062,7 +1316,15 @@ export function PreviewModal({
               : ''
           }`}
         >
-          {block.content.text}
+          {s.paragraphGap && s.paragraphGap > 0 && (block.content.text ?? '').includes('\n') ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: `${s.paragraphGap}px` }}>
+              {(block.content.text ?? '').split('\n').map((line, i) => (
+                <span key={i}>{line || '\u00A0'}</span>
+              ))}
+            </div>
+          ) : (
+            block.content.text
+          )}
         </div>
       );
     }
@@ -1111,6 +1373,7 @@ export function PreviewModal({
         );
       }
 
+      const rectZoom = Math.max(50, Math.min(250, block.content.imageZoom ?? 100));
       return (
         <div key={block.id} style={style} className="overflow-hidden">
           <img
@@ -1125,6 +1388,8 @@ export function PreviewModal({
                 block.content.aspectRatio && block.content.aspectRatio !== 'auto'
                   ? block.content.aspectRatio
                   : undefined,
+              transform: rectZoom !== 100 ? `scale(${rectZoom / 100})` : undefined,
+              transformOrigin: 'center center',
             }}
           />
         </div>
@@ -2059,6 +2324,7 @@ export function PreviewModal({
             content={block.content}
             theme={project.theme}
             borderRadius={s.borderRadius}
+            blockStyle={s}
             cartQty={cardQty}
             onAddCart={() => addToCart(block.id, cardItemObj, '', 1)}
             onIncCart={() => addToCart(block.id, cardItemObj, '', 1)}
@@ -2068,26 +2334,54 @@ export function PreviewModal({
       );
     }
 
+    if (block.type === 'back_button') {
+      return (
+        <div
+          key={block.id}
+          style={{
+            ...style,
+            display: 'flex',
+            justifyContent:
+              s.align === 'center' ? 'center' : s.align === 'right' ? 'flex-end' : 'flex-start',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => goBackPage(block.content.backTargetPageId)}
+            style={{
+              backgroundColor: block.content.backButtonBg || '#F1F5F9',
+              color: block.content.backButtonText || '#0F172A',
+              borderRadius: `${Math.max(8, Math.min(28, s.borderRadius))}px`,
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold border border-black/10 shadow-xs cursor-pointer hover:opacity-90"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+            <span>{block.content.backButtonLabel || 'Kembali'}</span>
+          </button>
+        </div>
+      );
+    }
+
     return null;
   };
 
   const detailContext = useMemo(() => {
     if (subPage.type !== 'detail') return null;
-    const blk = findBlockById(project.blocks, subPage.blockId, bottomNavbar.items);
+    const blk = findBlockById(project.blocks, subPage.blockId, bottomNavbar.items, projectPages);
     const item = blk?.content.catalogItems?.find((it) => it.id === subPage.itemId);
     if (!blk || !item) return null;
     return { block: blk, item };
-  }, [project.blocks, bottomNavbar.items, subPage]);
+  }, [project.blocks, bottomNavbar.items, projectPages, subPage]);
 
   const activeCartBlock = useMemo(() => {
     const refBlockId =
       (subPage.type === 'cart' ? subPage.blockId : undefined) ?? cart[0]?.blockId;
     if (refBlockId) {
-      const found = findBlockById(project.blocks, refBlockId, bottomNavbar.items);
+      const found = findBlockById(project.blocks, refBlockId, bottomNavbar.items, projectPages);
       if (found) return found;
     }
     return firstCatalog;
-  }, [subPage, cart, project.blocks, bottomNavbar.items, firstCatalog]);
+  }, [subPage, cart, project.blocks, bottomNavbar.items, projectPages, firstCatalog]);
 
   const activeWaPhone = activeCartBlock?.content.catalogWhatsappNumber;
   const activeStoreName =
@@ -2147,11 +2441,12 @@ export function PreviewModal({
     >();
 
     for (const entry of cart) {
-      const blk = findBlockById(project.blocks, entry.blockId, bottomNavbar.items) ?? firstCatalog;
+      const blk = findBlockById(project.blocks, entry.blockId, bottomNavbar.items, projectPages) ?? firstCatalog;
       const rawPhone =
         blk?.content.catalogWhatsappNumber ||
         blk?.content.cartWhatsappNumber ||
-        blk?.content.cardWhatsappNumber;
+        blk?.content.cardWhatsappNumber ||
+        blk?.content.universalCartWhatsappNumber;
       const normalizedPhone = normalizeWhatsappNumber(rawPhone);
       const existing = groupsMap.get(normalizedPhone);
       if (existing) {
@@ -2163,6 +2458,7 @@ export function PreviewModal({
           storeName:
             blk?.content.catalogStoreName?.trim() ||
             blk?.content.cartStoreName?.trim() ||
+            blk?.content.universalCartStoreName?.trim() ||
             project.title,
           intro: blk?.content.catalogWhatsappIntro,
           askCustomerInfo: blk?.content.catalogAskCustomerInfo ?? true,
@@ -2437,7 +2733,22 @@ export function PreviewModal({
 
           {subPage.type === 'home' && (
             <div className={`app-container w-full max-w-[576px] mx-auto box-border ${totalCartCount > 0 && hasCartFeature ? 'pb-16' : ''}`}>
-              {project.blocks.map((block) => (
+              {currentCustomPage && currentCustomPage.showBackButton !== false && (
+                <div className="px-4 py-2.5 mb-2 border-b border-black/10 flex items-center justify-between gap-2 bg-white/85 backdrop-blur-xs sticky top-0 z-10">
+                  <button
+                    type="button"
+                    onClick={() => goBackPage()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#0F172A] text-xs font-bold cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>{currentCustomPage.backButtonLabel || 'Kembali'}</span>
+                  </button>
+                  <span className="text-xs font-bold truncate opacity-80">
+                    {currentCustomPage.title}
+                  </span>
+                </div>
+              )}
+              {(currentCustomPage ? currentCustomPage.blocks : project.blocks).map((block) => (
                 <div
                   key={block.id}
                   className={

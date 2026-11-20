@@ -26,6 +26,7 @@ import { sanitizeExternalUrl } from './urlHelpers.ts';
 import {
   GOSEND_DEFAULT_CHECKLISTS,
   buildTrainingWhatsappUrl,
+  formatRupiah,
   normalizeWhatsappNumber,
   resolveCartButtonMetrics,
   resolveCatalogCustomerFields,
@@ -38,6 +39,12 @@ import { resolveBottomNavbar, resolveNavbarMetrics } from '../data/presets.ts';
 import { resolveCssFontFamily } from './fontHelpers.ts';
 import { buildLinearGradientCss } from './gradientHelpers.ts';
 import { sanitizeCssColor } from './htmlSanitizer.ts';
+import {
+  buildLineClampCss,
+  resolveBlockAction,
+  resolveUniversalCartMeta,
+  supportsUniversalCart,
+} from './universalLayerHelpers.ts';
 
 export { extractYouTubeId };
 
@@ -170,8 +177,15 @@ function styleObjectToCss(
   if (style.fontWeightCss) {
     parts.push(`font-weight: ${style.fontWeightCss}`);
   }
+  if (style.maxHeight && Number.isFinite(style.maxHeight) && style.maxHeight > 0) {
+    parts.push(`max-height: ${Math.max(40, Math.min(800, Math.round(style.maxHeight)))}px`);
+    parts.push(`overflow: hidden`);
+  }
   if (style.lineHeight && Number.isFinite(style.lineHeight)) {
     parts.push(`line-height: ${style.lineHeight}`);
+  }
+  if (style.letterSpacing && Number.isFinite(style.letterSpacing)) {
+    parts.push(`letter-spacing: ${style.letterSpacing}px`);
   }
 
   if (!options?.isHeroBanner) {
@@ -198,12 +212,111 @@ export function renderBlockHtml(
   indent = '      ',
   inheritedTextColor?: string
 ): string {
-  const html = renderBlockHtmlInner(block, theme, advance, indent, inheritedTextColor);
-  if (!html) return html;
-  return html.replace(
+  const rawHtml = renderBlockHtmlInner(block, theme, advance, indent, inheritedTextColor);
+  if (!rawHtml) return rawHtml;
+  const html = rawHtml.replace(
     /^(\s*<[a-zA-Z0-9-]+)/,
     `$1 data-block-id="${escapeHtml(block.id)}"`
   );
+
+  const rawAction =
+    block.type === 'menu_icon' || block.type === 'back_button'
+      ? null
+      : resolveBlockAction(block);
+  const action = rawAction && rawAction.type !== 'none' ? rawAction : null;
+  const uc = resolveUniversalCartMeta(block, theme);
+
+  if (!action && !uc) return html;
+
+  const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
+  let actionAttr = '';
+  let actionSheetModalHtml = '';
+
+  if (action) {
+    if (action.type === 'url') {
+      const safeUrl = sanitizeExternalUrl(action.url, '');
+      if (safeUrl) {
+        actionAttr = ` data-action-url="${escapeHtml(safeUrl)}" style="cursor: pointer;"`;
+      }
+    } else if (action.type === 'sheet') {
+      const sheetId = `sheet_act_${safeId}`;
+      actionAttr = ` data-sheet-open="${sheetId}" style="cursor: pointer;"`;
+      const pos = action.sheetPosition;
+      const sheetInner = action.sheetBlocks
+        .map((ch) => renderBlockHtml(ch, theme, advance, indent + '        ', theme.textColor))
+        .filter(Boolean)
+        .join('\n');
+      const handleHtml =
+        pos === 'bottom' || pos === 'top'
+          ? `${indent}        <div class="lynk-sheet-handle"></div>\n`
+          : '';
+      actionSheetModalHtml = `\n${indent}<div id="${sheetId}" data-bottom-sheet data-sheet-pos="${escapeHtml(
+        pos
+      )}" class="lynk-sheet-backdrop" role="dialog" aria-modal="true" aria-label="${escapeHtml(
+        action.sheetTitle
+      )}">
+${indent}  <div class="lynk-sheet-panel" style="background: ${theme.cardBg}; color: ${
+        theme.textColor
+      }; border-color: ${theme.borderColor};">
+${indent}    <div class="lynk-sheet-header" style="border-color: ${theme.borderColor};">
+${handleHtml}${indent}      <div class="lynk-sheet-header-row">
+${indent}        <h3 class="lynk-sheet-title">${escapeHtml(action.sheetTitle)}</h3>
+${indent}        <button type="button" data-sheet-close class="lynk-sheet-close" aria-label="Tutup">&times;</button>
+${indent}      </div>
+${indent}    </div>
+${indent}    <div class="lynk-sheet-body">
+${
+        sheetInner ||
+        `${indent}      <div style="padding: 20px 8px; text-align: center; font-size: 12px; opacity: 0.6;">Belum ada konten di panel ini.</div>`
+      }
+${indent}    </div>
+${indent}  </div>
+${indent}</div>`;
+    } else if (action.type === 'page') {
+      actionAttr = ` data-open-page="${escapeHtml(action.targetPageId)}" style="cursor: pointer;"`;
+    } else if (action.type === 'card') {
+      actionAttr = ` data-jump-block="${escapeHtml(action.targetBlockId)}" style="cursor: pointer;"`;
+    } else if (action.type === 'back') {
+      actionAttr = ` data-page-back="1" data-back-target="${escapeHtml(
+        action.targetPageId || ''
+      )}" style="cursor: pointer;"`;
+    }
+  }
+
+  let cartBarHtml = '';
+  if (uc) {
+    const itemKey = escapeHtml(uc.compositeKey);
+    const accent = sanitizeCssColor(uc.accentColor, theme.accentColor || '#EA580C');
+    const soldHtml = uc.showUnitSold
+      ? `<div style="font-size: 10px; color: #64748B; font-variant-numeric: tabular-nums;">${escapeHtml(
+          String(uc.unitSold)
+        )} terjual</div>`
+      : '';
+    cartBarHtml = `\n${indent}  <div data-universal-cart-box="1" style="width: ${
+      block.style.widthPercent
+    }%; margin: -4px auto 8px auto; padding: 8px 10px; border-radius: 0 0 12px 12px; border: 1px solid rgba(15,23,42,0.1); border-top: 0; background: rgba(255,255,255,0.96); color: #0F172A; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; box-sizing: border-box;">
+${indent}    <div style="min-width: 0; text-align: left;">
+${indent}      <div style="font-size: 12px; font-weight: 800; color: ${accent}; font-variant-numeric: tabular-nums;">${escapeHtml(
+      uc.price
+    )}</div>${soldHtml}
+${indent}    </div>
+${indent}    <div style="display: inline-flex; align-items: center;">
+${indent}      <button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 9999px; border: 0; background: ${accent}; color: #FFFFFF; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit;">+ ${escapeHtml(
+      uc.buttonLabel
+    )}</button>
+${indent}      <div data-fnb-stepper="${itemKey}" style="display: none; align-items: center; gap: 6px; padding: 2px 6px; border-radius: 9999px; border: 1px solid ${accent}; background: #FFFFFF; color: #0F172A;">
+${indent}        <button type="button" data-fnb-dec="${itemKey}" style="width: 22px; height: 22px; border-radius: 9999px; border: 0; background: #F1F5F9; color: #0F172A; font-weight: 700; cursor: pointer;">-</button>
+${indent}        <span data-fnb-qty="${itemKey}" style="min-width: 16px; text-align: center; font-size: 11px; font-weight: 700;">0</span>
+${indent}        <button type="button" data-fnb-inc="${itemKey}" style="width: 22px; height: 22px; border-radius: 9999px; border: 0; background: ${accent}; color: #FFFFFF; font-weight: 700; cursor: pointer;">+</button>
+${indent}      </div>
+${indent}    </div>
+${indent}  </div>`;
+  }
+
+  if (actionAttr || cartBarHtml) {
+    return `${indent}<div data-universal-layer="${escapeHtml(block.id)}"${actionAttr}>\n${html}${cartBarHtml}\n${indent}</div>${actionSheetModalHtml}`;
+  }
+  return html;
 }
 
 function renderBlockHtmlInner(
@@ -437,9 +550,16 @@ ${indent}</div>`;
             )}; text-align: ${align};">${escapeHtml(iconLabel)}</span>`
           : '';
 
+      const safeActionUrl = sanitizeExternalUrl(c.actionUrl, '');
       const triggerAttr =
         action === 'card'
           ? `data-jump-block="${escapeHtml(targetId)}"`
+          : action === 'page'
+          ? `data-open-page="${escapeHtml(c.actionTargetPageId || 'home')}"`
+          : action === 'url'
+          ? `data-action-url="${escapeHtml(safeActionUrl)}"`
+          : action === 'back'
+          ? `data-page-back="1" data-back-target="${escapeHtml(c.backTargetPageId || '')}"`
           : `data-sheet-open="${sheetId}"`;
 
       const iconWidthCss = shape === 'pill' ? `${Math.round(size * 1.45)}px` : `${size}px`;
@@ -449,7 +569,7 @@ ${indent}    <span style="width: ${iconWidthCss}; height: ${size}px; border-radi
       )}; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);">${visualHtml}</span>${labelHtml}
 ${indent}  </button>`;
 
-      if (action === 'card') {
+      if (action !== 'sheet') {
         return `${indent}<div style="${css}; display: flex; justify-content: ${justify};">
 ${indent}  ${triggerHtml}
 ${indent}</div>`;
@@ -576,11 +696,20 @@ ${indent}</div>`;
           ? '600'
           : '400');
       const lineHeight = block.style.lineHeight ? String(block.style.lineHeight) : '1.5';
+      const clampCss = buildLineClampCss(block.style.maxLines);
+      const paraGap = block.style.paragraphGap && block.style.paragraphGap > 0 ? block.style.paragraphGap : 0;
+      const bodyHtml =
+        paraGap > 0 && rawText.includes('\n')
+          ? `<span style="display: flex; flex-direction: column; gap: ${paraGap}px;">${rawText
+              .split('\n')
+              .map((line) => `<span>${line ? escapeHtml(line) : '&nbsp;'}</span>`)
+              .join('')}</span>`
+          : escapeHtml(rawText);
       return `${indent}<${tag}${hoverCls} data-jump-title="${escapeHtml(
         rawText.trim().toLowerCase()
-      )}" style="${css}; font-size: ${fontSize}; font-weight: ${weight}; line-height: ${lineHeight}; white-space: pre-line;">${escapeHtml(
-        rawText
-      )}</${tag}>`;
+      )}" style="${css}; font-size: ${fontSize}; font-weight: ${weight}; line-height: ${lineHeight}; white-space: pre-line;${
+        clampCss ? ` ${clampCss}` : ''
+      }">${bodyHtml}</${tag}>`;
     }
 
     case 'image': {
@@ -620,7 +749,12 @@ ${indent}</div>`;
         block.content.aspectRatio && block.content.aspectRatio !== 'auto'
           ? `aspect-ratio: ${block.content.aspectRatio};`
           : '';
-      return `${indent}<div style="${css}; overflow: hidden;">\n${indent}  <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; border-radius: ${block.style.borderRadius}px; ${ratioCss}" />\n${indent}</div>`;
+      const rectZoom = Math.max(50, Math.min(250, block.content.imageZoom ?? 100));
+      const zoomCss =
+        rectZoom !== 100
+          ? `transform: scale(${(rectZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
+      return `${indent}<div style="${css}; overflow: hidden;">\n${indent}  <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; border-radius: ${block.style.borderRadius}px; ${ratioCss} ${zoomCss}" />\n${indent}</div>`;
     }
 
     case 'button': {
@@ -2219,82 +2353,151 @@ ${indent}</div>`;
       const accent = sanitizeCssColor(c.cardAccentColor, theme.accentColor || '#2563EB');
       const fg = sanitizeCssColor(c.cardTextColor, '#FFFFFF');
       const radius = Math.max(8, block.style.borderRadius || 14);
-      const actionUrl = sanitizeExternalUrl(c.cardActionUrl, '');
+      const hasUniversalAction = Boolean(c.actionType && c.actionType !== 'none');
+      const actionUrl = hasUniversalAction ? '' : sanitizeExternalUrl(c.cardActionUrl, '');
       const wrapAnchor = (inner: string) =>
         actionUrl && variant !== 'store_card' && variant !== 'activity_post'
           ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer" style="display:block; text-decoration:none; color:inherit;">${inner}</a>`
           : inner;
 
+      const imgZoom = Math.max(50, Math.min(250, c.cardImageZoom ?? 100));
+      const imgFit = c.cardImageFit ?? (variant === 'badge_tile' || variant === 'store_card' ? 'contain' : 'cover');
+      const imgRadius = Math.max(0, Math.min(48, c.cardImageRadius ?? 12));
+      const imgTransformCss =
+        imgZoom !== 100
+          ? ` transform: scale(${(imgZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
+
+      const titleSize = c.cardTitleSize ?? block.style.fontSize;
+      const subtitleSize = c.cardSubtitleSize;
+      const titleClampCss = buildLineClampCss(c.cardTitleLines ?? block.style.maxLines);
+      const subClampCss = buildLineClampCss(c.cardSubtitleLines);
+      const textGap = Math.max(0, Math.min(20, c.cardTextGap ?? block.style.paragraphGap ?? 4));
+      const lh = c.cardLineHeight ?? block.style.lineHeight;
+      const ls = c.cardLetterSpacing ?? block.style.letterSpacing;
+      const typoExtra = `${lh ? ` line-height: ${lh};` : ''}${ls ? ` letter-spacing: ${ls}px;` : ''}`;
+
       let cardHtml = '';
       if (variant === 'quote_banner') {
         const isLeft = c.cardImagePosition === 'left';
+        const mediaW = Math.max(48, Math.min(180, c.cardMediaSize ?? 86));
+        const mediaH = Math.max(64, Math.min(260, c.cardMediaHeight ?? 104));
         const imgHtml = c.cardImage
-          ? `<div style="width:82px; height:94px; flex-shrink:0; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2); align-self:flex-end;"><img src="${escapeHtml(
+          ? `<div style="width:${mediaW}px; height:${mediaH}px; flex-shrink:0; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2); align-self:flex-end;"><img src="${escapeHtml(
               c.cardImage
-            )}" alt="${escapeHtml(c.cardTitle || 'Tokoh')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; object-position:top; display:block;" /></div>`
+            )}" alt="${escapeHtml(c.cardTitle || 'Tokoh')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; object-position:top; display:block;${imgTransformCss}" /></div>`
           : '';
         cardHtml = wrapAnchor(
           `<div style="background:linear-gradient(135deg, ${gradFrom}, ${gradTo}); border-radius:${radius}px; color:${fg}; display:flex; flex-direction:${
             isLeft ? 'row-reverse' : 'row'
-          }; align-items:flex-end; justify-content:space-between; gap:8px; padding:12px 14px 10px; min-height:118px; box-shadow:0 2px 8px rgba(15,23,42,0.1); text-align:${
+          }; align-items:flex-end; justify-content:space-between; gap:8px; padding:12px 14px 10px; min-height:${Math.max(
+            118,
+            block.style.minHeight || 0
+          )}px; box-shadow:0 2px 8px rgba(15,23,42,0.1); text-align:${
             isLeft ? 'right' : 'left'
-          };"><div style="flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">${
+          };"><div style="flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:${Math.max(
+            6,
+            textGap
+          )}px;">${
             c.cardQuote?.trim()
-              ? `<p style="margin:0; font-size:11px; line-height:1.38; font-weight:500;">${escapeHtml(
-                  c.cardQuote
-                )}</p>`
+              ? `<p style="margin:0; font-size:${subtitleSize ?? 11}px; line-height:${
+                  lh ?? 1.38
+                }; font-weight:500;${ls ? ` letter-spacing:${ls}px;` : ''}${
+                  subClampCss ? ` ${subClampCss}` : ''
+                }">${escapeHtml(c.cardQuote)}</p>`
               : ''
-          }<div>${
+          }<div style="display:flex; flex-direction:column; gap:${textGap}px;">${
             c.cardTitle?.trim()
-              ? `<div style="font-size:11.5px; font-weight:800; line-height:1.25;">${escapeHtml(
-                  c.cardTitle
-                )}</div>`
+              ? `<div style="font-size:${titleSize ?? 11.5}px; font-weight:800; line-height:${
+                  lh ?? 1.25
+                };${ls ? ` letter-spacing:${ls}px;` : ''}${
+                  titleClampCss ? ` ${titleClampCss}` : ''
+                }">${escapeHtml(c.cardTitle)}</div>`
               : ''
           }${
             c.cardSubtitle?.trim()
-              ? `<div style="font-size:9.5px; opacity:0.9; line-height:1.25; margin-top:2px;">${escapeHtml(
-                  c.cardSubtitle
-                )}</div>`
+              ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9; line-height:${
+                  lh ?? 1.25
+                };${ls ? ` letter-spacing:${ls}px;` : ''}${
+                  subClampCss ? ` ${subClampCss}` : ''
+                }">${escapeHtml(c.cardSubtitle)}</div>`
               : ''
           }</div></div>${imgHtml}</div>`
         );
       } else if (variant === 'news_banner') {
+        const boxHeightCss = c.cardMediaHeight
+          ? `height:${Math.max(90, Math.min(360, c.cardMediaHeight))}px;`
+          : 'aspect-ratio:16/9;';
         cardHtml = wrapAnchor(
-          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; aspect-ratio:16/9; background:#E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08);">${
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; ${boxHeightCss} background:#E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08);">${
             c.cardImage
               ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
                   c.cardTitle || 'Berita'
-                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
               : ''
-          }<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center;"><div style="font-size:11.5px; font-weight:700; line-height:1.35;">${escapeHtml(
-            c.cardTitle || 'Judul Informasi'
-          )}</div></div></div>`
+          }<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+            titleSize ?? 11.5
+          }px; font-weight:700;${typoExtra || ' line-height:1.35;'}${
+            titleClampCss ? ` ${titleClampCss}` : ''
+          }">${escapeHtml(c.cardTitle || 'Judul Informasi')}</div>${
+            c.cardSubtitle?.trim()
+              ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
+                  subClampCss ? ` ${subClampCss}` : ''
+                }">${escapeHtml(c.cardSubtitle)}</div>`
+              : ''
+          }</div></div>`
         );
       } else if (variant === 'event_poster') {
+        const boxHeightCss = c.cardMediaHeight
+          ? `height:${Math.max(100, Math.min(360, c.cardMediaHeight))}px;`
+          : 'aspect-ratio:3/4;';
         cardHtml = wrapAnchor(
-          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;"><div style="aspect-ratio:3/4; width:100%; background:#F1F5F9; overflow:hidden;">${
+          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;"><div style="${boxHeightCss} width:100%; background:#F1F5F9; overflow:hidden;">${
             c.cardImage
               ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
                   c.cardTitle || 'Event'
-                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
               : ''
-          }</div><div style="background:${accent}; color:${fg}; padding:8px; text-align:center; font-size:10.5px; font-weight:700; line-height:1.3;">${escapeHtml(
-            c.cardTitle || 'Nama Event / Promo'
-          )}</div></div>`
+          }</div><div style="background:${accent}; color:${fg}; padding:8px; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+            titleSize ?? 10.5
+          }px; font-weight:700;${typoExtra || ' line-height:1.3;'}${
+            titleClampCss ? ` ${titleClampCss}` : ''
+          }">${escapeHtml(c.cardTitle || 'Nama Event / Promo')}</div>${
+            c.cardSubtitle?.trim()
+              ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9;${typoExtra}${
+                  subClampCss ? ` ${subClampCss}` : ''
+                }">${escapeHtml(c.cardSubtitle)}</div>`
+              : ''
+          }</div></div>`
         );
       } else if (variant === 'badge_tile') {
+        const boxSize = Math.max(32, Math.min(200, c.cardMediaSize ?? 52));
         cardHtml = wrapAnchor(
-          `<div style="background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 8px; min-height:124px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${
+          `<div style="background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 8px; min-height:${Math.max(
+            124,
+            block.style.minHeight || 0
+          )}px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${
             c.cardImage
-              ? `<div style="width:48px; height:48px; border-radius:12px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25);"><img src="${escapeHtml(
+              ? `<div style="width:${boxSize}px; height:${boxSize}px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
                   c.cardImage
-                )}" alt="${escapeHtml(c.cardTitle || 'Badge')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" /></div>`
+                )}" alt="${escapeHtml(
+                  c.cardTitle || 'Badge'
+                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
               : ''
-          }<div style="font-size:11px; font-weight:700; line-height:1.25; white-space:pre-line;">${escapeHtml(
-            c.cardTitle || 'Sertifikasi'
-          )}</div></div>`
+          }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+            titleSize ?? 11
+          }px; font-weight:700; white-space:pre-line;${typoExtra || ' line-height:1.25;'}${
+            titleClampCss ? ` ${titleClampCss}` : ''
+          }">${escapeHtml(c.cardTitle || 'Sertifikasi')}</div>${
+            c.cardSubtitle?.trim()
+              ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9;${typoExtra}${
+                  subClampCss ? ` ${subClampCss}` : ''
+                }">${escapeHtml(c.cardSubtitle)}</div>`
+              : ''
+          }</div></div>`
         );
       } else if (variant === 'store_card') {
+        const boxSize = Math.max(36, Math.min(200, c.cardMediaSize ?? 72));
         const itemKey = `${escapeHtml(block.id)}::sc_${escapeHtml(block.id)}`;
         const playHtml =
           c.cardShowPlayIcon !== false
@@ -2303,22 +2506,39 @@ ${indent}</div>`;
         const cartHtml = c.cardEnableCart
           ? `<div style="width:100%; padding-top:4px; display:flex; justify-content:center;"><button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:9999px; border:0; background:#FFFFFF; color:#0F172A; font-size:10.5px; font-weight:700; cursor:pointer; font-family:inherit;">+ Tambah</button><div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:6px; padding:2px 6px; border-radius:9999px; background:#FFFFFF; color:#0F172A;"><button type="button" data-fnb-dec="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-weight:700; cursor:pointer;">-</button><span data-fnb-qty="${itemKey}" style="min-width:14px; text-align:center; font-size:11px; font-weight:700;">0</span><button type="button" data-fnb-inc="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#059669; color:#FFFFFF; font-weight:700; cursor:pointer;">+</button></div></div>`
           : '';
-        cardHtml = `<div style="position:relative; background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 10px; min-height:168px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${playHtml}${
+        cardHtml = `<div style="position:relative; background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 10px; min-height:${Math.max(
+          168,
+          block.style.minHeight || 0
+        )}px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${playHtml}${
           c.cardImage
-            ? `<div style="width:64px; height:64px; margin-top:8px; border-radius:12px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25);"><img src="${escapeHtml(
+            ? `<div style="width:${boxSize}px; height:${boxSize}px; margin-top:8px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
                 c.cardImage
-              )}" alt="${escapeHtml(c.cardTitle || 'Produk')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" /></div>`
+              )}" alt="${escapeHtml(
+                c.cardTitle || 'Produk'
+              )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
             : ''
-        }<div style="width:100%;"><div style="font-size:13px; font-weight:800; line-height:1.25;">${escapeHtml(
-          c.cardTitle || 'Nama Produk'
-        )}</div>${
+        }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+          titleSize ?? 13
+        }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
+          titleClampCss ? ` ${titleClampCss}` : ''
+        }">${escapeHtml(c.cardTitle || 'Nama Produk')}</div>${
+          c.cardSubtitle?.trim()
+            ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
+                subClampCss ? ` ${subClampCss}` : ''
+              }">${escapeHtml(c.cardSubtitle)}</div>`
+            : ''
+        }${
           c.cardPrice?.trim()
-            ? `<div style="font-size:11px; font-weight:600; opacity:0.95; margin-top:2px; font-variant-numeric:tabular-nums;">${escapeHtml(
+            ? `<div style="font-size:11px; font-weight:600; opacity:0.95; font-variant-numeric:tabular-nums;">${escapeHtml(
                 c.cardPrice
               )}</div>`
             : ''
         }</div>${cartHtml}</div>`;
       } else if (variant === 'activity_post') {
+        const avatarSize = Math.max(32, Math.min(96, c.cardMediaSize ?? 42));
+        const galH = c.cardMediaHeight
+          ? `height:${Math.max(56, Math.min(200, c.cardMediaHeight))}px;`
+          : 'aspect-ratio:1/1;';
         const gallery = (c.cardGalleryImages ?? []).filter(Boolean).slice(0, 6);
         const moreUrl = sanitizeExternalUrl(c.cardMoreUrl || c.cardActionUrl, '');
         const moreLabel = escapeHtml((c.cardMoreLabel || 'Selengkapnya').trim());
@@ -2326,9 +2546,9 @@ ${indent}</div>`;
           ? `<div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px;">${gallery
               .map(
                 (src, i) =>
-                  `<div style="aspect-ratio:1/1; border-radius:8px; overflow:hidden; background:#F1F5F9;"><img src="${escapeHtml(
+                  `<div style="${galH} border-radius:${imgRadius}px; overflow:hidden; background:#F1F5F9;"><img src="${escapeHtml(
                     src
-                  )}" alt="Foto ${i + 1}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" /></div>`
+                  )}" alt="Foto ${i + 1}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
               )
               .join('')}</div>`
           : '';
@@ -2336,15 +2556,17 @@ ${indent}</div>`;
           c.cardImage
             ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
                 c.cardTitle || 'Profil'
-              )}" referrerpolicy="no-referrer" style="width:40px; height:40px; border-radius:9999px; object-fit:cover; flex-shrink:0; border:1px solid #E2E8F0;" />`
+              )}" referrerpolicy="no-referrer" style="width:${avatarSize}px; height:${avatarSize}px; border-radius:9999px; object-fit:${imgFit}; flex-shrink:0; border:1px solid #E2E8F0;" />`
             : ''
-        }<div style="min-width:0; flex:1;"><div style="font-size:13px; font-weight:800; line-height:1.25;">${escapeHtml(
-          c.cardTitle || 'Nama Pengurus'
-        )}</div>${
+        }<div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+          titleSize ?? 13
+        }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
+          titleClampCss ? ` ${titleClampCss}` : ''
+        }">${escapeHtml(c.cardTitle || 'Nama Pengurus')}</div>${
           c.cardSubtitle?.trim()
-            ? `<div style="font-size:11px; opacity:0.7; margin-top:2px;">${escapeHtml(
-                c.cardSubtitle
-              )}</div>`
+            ? `<div style="font-size:${subtitleSize ?? 11}px; opacity:0.7;${typoExtra}${
+                subClampCss ? ` ${subClampCss}` : ''
+              }">${escapeHtml(c.cardSubtitle)}</div>`
             : ''
         }</div></div><div style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; opacity:0.75;"><span>${escapeHtml(
           c.cardHeaderTitle?.trim() || c.cardQuote?.trim() || 'Judul Kegiatan'
@@ -2384,13 +2606,44 @@ ${indent}</div>`;
           (c.cardTotalValue || c.cardPrice || 'Rp. 500.000,-').trim()
         );
         cardHtml = wrapAnchor(
-          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08); text-align:left;"><div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px;"><div style="text-align:center; color:#0284C7; font-size:13.5px; font-weight:800;">${escapeHtml(
-            c.cardTitle || 'Anggota Pratama'
-          )}</div>${feeRows}</div><div style="position:relative;"><span aria-hidden="true" style="position:absolute; left:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><span aria-hidden="true" style="position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><div style="background:${accent}; color:${fg}; padding:12px 16px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:13.5px; font-weight:800;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg><span>${totalLabel}</span><span style="font-variant-numeric:tabular-nums;">${totalValue}</span></div></div></div>`
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08); text-align:left;"><div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:${Math.max(
+            6,
+            textGap
+          )}px;"><div style="text-align:center; color:#0284C7; font-size:${
+            titleSize ?? 13.5
+          }px; font-weight:800;${typoExtra}${
+            titleClampCss ? ` ${titleClampCss}` : ''
+          }">${escapeHtml(c.cardTitle || 'Anggota Pratama')}</div>${
+            c.cardSubtitle?.trim()
+              ? `<div style="text-align:center; font-size:${
+                  subtitleSize ?? 11
+                }px; color:#64748B;${typoExtra}${
+                  subClampCss ? ` ${subClampCss}` : ''
+                }">${escapeHtml(c.cardSubtitle)}</div>`
+              : ''
+          }${feeRows}</div><div style="position:relative;"><span aria-hidden="true" style="position:absolute; left:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><span aria-hidden="true" style="position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><div style="background:${accent}; color:${fg}; padding:12px 16px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:13.5px; font-weight:800;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg><span>${totalLabel}</span><span style="font-variant-numeric:tabular-nums;">${totalValue}</span></div></div></div>`
         );
       }
 
       return `${indent}<div data-showcase-card="${escapeHtml(variant)}" style="${css}">${cardHtml}</div>`;
+    }
+
+    case 'back_button': {
+      const c = block.content;
+      const bg = sanitizeCssColor(c.backButtonBg, '#F1F5F9');
+      const fg = sanitizeCssColor(c.backButtonText, '#0F172A');
+      const label = escapeHtml((c.backButtonLabel || 'Kembali').trim());
+      const target = escapeHtml((c.backTargetPageId || '').trim());
+      const justify =
+        block.style.align === 'center'
+          ? 'center'
+          : block.style.align === 'right'
+          ? 'flex-end'
+          : 'flex-start';
+      const radius = Math.max(8, Math.min(28, block.style.borderRadius || 12));
+      return `${indent}<div style="${css}; display: flex; justify-content: ${justify};">
+${indent}  <button type="button" class="lynk-back-btn" data-page-back="1" data-back-target="${target}" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: ${radius}px; border: 1px solid rgba(15,23,42,0.1); background: ${bg}; color: ${fg}; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;">&larr; <span>${label}</span></button>
+${indent}</div>`;
     }
   }
 }
@@ -2499,7 +2752,8 @@ export function collectCatalogData(
     } else if (
       blk.type === 'showcase_card' &&
       blk.content.cardVariant === 'store_card' &&
-      Boolean(blk.content.cardEnableCart)
+      Boolean(blk.content.cardEnableCart) &&
+      !blk.content.universalCartEnabled
     ) {
       out[blk.id] = {
         productType: 'physical',
@@ -2530,8 +2784,57 @@ export function collectCatalogData(
         ],
       };
     }
+
+    if (supportsUniversalCart(blk.type) && Boolean(blk.content.universalCartEnabled)) {
+      const ucName =
+        blk.content.universalCartName?.trim() ||
+        blk.content.cardTitle?.trim() ||
+        blk.content.text?.trim() ||
+        blk.label?.trim() ||
+        'Produk Pilihan';
+      const ucPrice =
+        (typeof blk.content.universalCartPrice === 'string'
+          ? blk.content.universalCartPrice.trim()
+          : typeof blk.content.universalCartPrice === 'number'
+          ? formatRupiah(blk.content.universalCartPrice)
+          : '') ||
+        blk.content.cardPrice?.trim() ||
+        'Rp 50.000';
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber: blk.content.universalCartWhatsappNumber ?? '6281234567890',
+        storeName: blk.content.universalCartStoreName?.trim() || '',
+        whatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+        askCustomerInfo: true,
+        customerFields: resolveCatalogCustomerFields({ catalogProductType: 'physical' }),
+        shippingEnabled: true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya makanan / pesanan tidak termasuk biaya kirim (kurir).',
+        items: [
+          {
+            id: `uc_${blk.id}`,
+            title: ucName,
+            subtitle: blk.content.cardSubtitle?.trim() || '',
+            price: ucPrice,
+            unitSold: Math.max(0, Math.round(blk.content.universalCartUnitSold ?? 0)),
+            image: blk.content.universalCartImage || blk.content.cardImage || blk.content.src || '',
+            url: '#',
+            ctaLabel: blk.content.universalCartButtonLabel?.trim() || 'Tambah',
+            description: blk.content.cardSubtitle?.trim() || '',
+            productType: 'physical' as CatalogProductType,
+          },
+        ],
+      };
+    }
+
     if (blk.children?.length) {
       collectCatalogData(blk.children, out);
+    }
+    if (blk.content.actionSheetBlocks?.length) {
+      collectCatalogData(blk.content.actionSheetBlocks, out);
     }
   });
 }

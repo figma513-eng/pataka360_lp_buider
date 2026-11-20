@@ -9,6 +9,10 @@ export function findBlockById(blocks: BuilderBlock[], id: string | null): Builde
       const found = findBlockById(block.children, id);
       if (found) return found;
     }
+    if (block.content?.actionSheetBlocks?.length) {
+      const foundInSheet = findBlockById(block.content.actionSheetBlocks, id);
+      if (foundInSheet) return foundInSheet;
+    }
   }
   return null;
 }
@@ -22,24 +26,48 @@ export function updateBlockById(
     if (block.id === id) {
       return updater(block);
     }
+    let next = block;
     if (block.children) {
-      return {
-        ...block,
-        children: updateBlockById(block.children, id, updater),
-      };
+      const updatedChildren = updateBlockById(block.children, id, updater);
+      if (updatedChildren !== block.children) {
+        next = { ...next, children: updatedChildren };
+      }
     }
-    return block;
+    if (block.content?.actionSheetBlocks?.length) {
+      const updatedSheet = updateBlockById(block.content.actionSheetBlocks, id, updater);
+      if (updatedSheet !== block.content.actionSheetBlocks) {
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            actionSheetBlocks: updatedSheet,
+          },
+        };
+      }
+    }
+    return next;
   });
 }
 
 export function deleteBlockById(blocks: BuilderBlock[], id: string): BuilderBlock[] {
   return blocks
     .filter((block) => block.id !== id)
-    .map((block) =>
-      block.children
-        ? { ...block, children: deleteBlockById(block.children, id) }
-        : block
-    );
+    .map((block) => {
+      let next = block;
+      if (block.children) {
+        next = { ...next, children: deleteBlockById(block.children, id) };
+      }
+      if (block.content?.actionSheetBlocks?.length) {
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            actionSheetBlocks: deleteBlockById(block.content.actionSheetBlocks, id),
+          },
+        };
+      }
+      return next;
+    });
 }
 
 export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
@@ -115,6 +143,9 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
         ...it,
         id: createId('fee'),
       })),
+      actionSheetBlocks: block.content.actionSheetBlocks
+        ? block.content.actionSheetBlocks.map(cloneBlockDeep)
+        : undefined,
     },
     children: block.children ? block.children.map(cloneBlockDeep) : undefined,
   };
@@ -133,12 +164,25 @@ export function duplicateBlockById(blocks: BuilderBlock[], id: string): {
       clone.label = `${block.label} (Salinan)`;
       clonedId = clone.id;
       nextBlocks.push(block, clone);
-    } else if (block.children) {
-      const res = duplicateBlockById(block.children, id);
-      if (res.clonedId) clonedId = res.clonedId;
-      nextBlocks.push({ ...block, children: res.nextBlocks });
     } else {
-      nextBlocks.push(block);
+      let next = block;
+      if (block.children) {
+        const res = duplicateBlockById(block.children, id);
+        if (res.clonedId) clonedId = res.clonedId;
+        next = { ...next, children: res.nextBlocks };
+      }
+      if (block.content?.actionSheetBlocks?.length) {
+        const resSheet = duplicateBlockById(block.content.actionSheetBlocks, id);
+        if (resSheet.clonedId) clonedId = resSheet.clonedId;
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            actionSheetBlocks: resSheet.nextBlocks,
+          },
+        };
+      }
+      nextBlocks.push(next);
     }
   }
 
@@ -160,11 +204,22 @@ export function moveBlockInTree(
     return copy;
   }
 
-  return blocks.map((block) =>
-    block.children
-      ? { ...block, children: moveBlockInTree(block.children, id, direction) }
-      : block
-  );
+  return blocks.map((block) => {
+    let next = block;
+    if (block.children) {
+      next = { ...next, children: moveBlockInTree(block.children, id, direction) };
+    }
+    if (block.content?.actionSheetBlocks?.length) {
+      next = {
+        ...next,
+        content: {
+          ...next.content,
+          actionSheetBlocks: moveBlockInTree(block.content.actionSheetBlocks, id, direction),
+        },
+      };
+    }
+    return next;
+  });
 }
 
 export function insertChildIntoContainer(
@@ -186,20 +241,49 @@ export function insertChildIntoContainer(
         children: [...(block.children ?? []), newChild],
       };
     }
+    let next = block;
     if (block.children) {
-      return {
-        ...block,
+      next = {
+        ...next,
         children: insertChildIntoContainer(block.children, containerId, newChild),
       };
     }
-    return block;
+    if (block.content?.actionSheetBlocks?.length) {
+      next = {
+        ...next,
+        content: {
+          ...next.content,
+          actionSheetBlocks: insertChildIntoContainer(
+            block.content.actionSheetBlocks,
+            containerId,
+            newChild
+          ),
+        },
+      };
+    }
+    return next;
   });
+}
+
+export function insertBlockIntoActionSheet(
+  blocks: BuilderBlock[],
+  ownerId: string,
+  newChild: BuilderBlock
+): BuilderBlock[] {
+  return updateBlockById(blocks, ownerId, (block) => ({
+    ...block,
+    content: {
+      ...block.content,
+      actionSheetBlocks: [...(block.content.actionSheetBlocks ?? []), newChild],
+    },
+  }));
 }
 
 function containsBlockId(node: BuilderBlock, id: string): boolean {
   if (node.id === id) return true;
-  if (!node.children) return false;
-  return node.children.some((child) => containsBlockId(child, id));
+  if (node.children?.some((child) => containsBlockId(child, id))) return true;
+  if (node.content?.actionSheetBlocks?.some((child) => containsBlockId(child, id))) return true;
+  return false;
 }
 
 function extractBlockById(
@@ -214,15 +298,28 @@ function extractBlockById(
       extracted = block;
       continue;
     }
+    let next = block;
     if (block.children) {
       const childRes = extractBlockById(block.children, id);
       if (childRes.extracted) {
         extracted = childRes.extracted;
-        remaining.push({ ...block, children: childRes.remaining });
-        continue;
+        next = { ...next, children: childRes.remaining };
       }
     }
-    remaining.push(block);
+    if (!extracted && block.content?.actionSheetBlocks?.length) {
+      const sheetRes = extractBlockById(block.content.actionSheetBlocks, id);
+      if (sheetRes.extracted) {
+        extracted = sheetRes.extracted;
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            actionSheetBlocks: sheetRes.remaining,
+          },
+        };
+      }
+    }
+    remaining.push(next);
   }
 
   return { extracted, remaining };
@@ -246,13 +343,28 @@ export function insertBlocksAtTarget(
       ) {
         return { ...block, children: [...(block.children ?? []), ...toInsert] };
       }
+      let next = block;
       if (block.children) {
-        return {
-          ...block,
+        next = {
+          ...next,
           children: insertBlocksAtTarget(block.children, toInsert, targetId, position),
         };
       }
-      return block;
+      if (block.content?.actionSheetBlocks?.length) {
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            actionSheetBlocks: insertBlocksAtTarget(
+              block.content.actionSheetBlocks,
+              toInsert,
+              targetId,
+              position
+            ),
+          },
+        };
+      }
+      return next;
     });
   }
 
@@ -264,13 +376,29 @@ export function insertBlocksAtTarget(
       } else {
         next.push(block, ...toInsert);
       }
-    } else if (block.children) {
-      next.push({
-        ...block,
-        children: insertBlocksAtTarget(block.children, toInsert, targetId, position),
-      });
     } else {
-      next.push(block);
+      let updated = block;
+      if (block.children) {
+        updated = {
+          ...updated,
+          children: insertBlocksAtTarget(block.children, toInsert, targetId, position),
+        };
+      }
+      if (block.content?.actionSheetBlocks?.length) {
+        updated = {
+          ...updated,
+          content: {
+            ...updated.content,
+            actionSheetBlocks: insertBlocksAtTarget(
+              block.content.actionSheetBlocks,
+              toInsert,
+              targetId,
+              position
+            ),
+          },
+        };
+      }
+      next.push(updated);
     }
   }
   return next;

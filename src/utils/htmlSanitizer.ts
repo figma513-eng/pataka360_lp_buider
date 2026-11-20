@@ -418,6 +418,26 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof block.style?.paddingRight === 'number' && Number.isFinite(block.style.paddingRight)
           ? Math.max(0, Math.min(80, Math.round(block.style.paddingRight)))
           : block.style?.paddingRight,
+      maxHeight:
+        typeof block.style?.maxHeight === 'number' && Number.isFinite(block.style.maxHeight)
+          ? Math.max(0, Math.min(1200, Math.round(block.style.maxHeight)))
+          : block.style?.maxHeight,
+      letterSpacing:
+        typeof block.style?.letterSpacing === 'number' && Number.isFinite(block.style.letterSpacing)
+          ? Math.max(-2, Math.min(12, Math.round(block.style.letterSpacing * 10) / 10))
+          : block.style?.letterSpacing,
+      paragraphGap:
+        typeof block.style?.paragraphGap === 'number' && Number.isFinite(block.style.paragraphGap)
+          ? Math.max(0, Math.min(40, Math.round(block.style.paragraphGap)))
+          : block.style?.paragraphGap,
+      maxLines:
+        block.style?.maxLines === 0 ||
+        block.style?.maxLines === 1 ||
+        block.style?.maxLines === 2 ||
+        block.style?.maxLines === 3 ||
+        block.style?.maxLines === 4
+          ? block.style.maxLines
+          : block.style?.maxLines,
       marginTop:
         typeof block.style?.marginTop === 'number' && Number.isFinite(block.style.marginTop)
           ? Math.max(0, Math.min(80, Math.round(block.style.marginTop)))
@@ -567,7 +587,11 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
           ? c.menuIconImageFit
           : c.menuIconImageFit,
       menuIconAction:
-        c.menuIconAction === 'sheet' || c.menuIconAction === 'card'
+        c.menuIconAction === 'sheet' ||
+        c.menuIconAction === 'card' ||
+        c.menuIconAction === 'page' ||
+        c.menuIconAction === 'url' ||
+        c.menuIconAction === 'back'
           ? c.menuIconAction
           : c.menuIconAction,
       menuIconSheetPosition:
@@ -618,6 +642,117 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
             value: String(fi.value || '').slice(0, 60),
           }))
         : c.cardFeeItems,
+      cardMediaSize:
+        typeof c.cardMediaSize === 'number' && Number.isFinite(c.cardMediaSize)
+          ? Math.max(28, Math.min(260, Math.round(c.cardMediaSize)))
+          : c.cardMediaSize,
+      cardMediaHeight:
+        typeof c.cardMediaHeight === 'number' && Number.isFinite(c.cardMediaHeight)
+          ? Math.max(60, Math.min(480, Math.round(c.cardMediaHeight)))
+          : c.cardMediaHeight,
+      cardImageZoom:
+        typeof c.cardImageZoom === 'number' && Number.isFinite(c.cardImageZoom)
+          ? Math.max(50, Math.min(250, Math.round(c.cardImageZoom)))
+          : c.cardImageZoom,
+      cardImageFit:
+        c.cardImageFit === 'cover' || c.cardImageFit === 'contain'
+          ? c.cardImageFit
+          : c.cardImageFit,
+      cardImageRadius:
+        typeof c.cardImageRadius === 'number' && Number.isFinite(c.cardImageRadius)
+          ? Math.max(0, Math.min(999, Math.round(c.cardImageRadius)))
+          : c.cardImageRadius,
+      cardTitleSize:
+        typeof c.cardTitleSize === 'number' && Number.isFinite(c.cardTitleSize)
+          ? Math.max(9, Math.min(36, Math.round(c.cardTitleSize)))
+          : c.cardTitleSize,
+      cardSubtitleSize:
+        typeof c.cardSubtitleSize === 'number' && Number.isFinite(c.cardSubtitleSize)
+          ? Math.max(9, Math.min(28, Math.round(c.cardSubtitleSize)))
+          : c.cardSubtitleSize,
+      cardTitleLines:
+        c.cardTitleLines === 0 ||
+        c.cardTitleLines === 1 ||
+        c.cardTitleLines === 2 ||
+        c.cardTitleLines === 3
+          ? c.cardTitleLines
+          : c.cardTitleLines,
+      cardSubtitleLines:
+        c.cardSubtitleLines === 0 ||
+        c.cardSubtitleLines === 1 ||
+        c.cardSubtitleLines === 2 ||
+        c.cardSubtitleLines === 3
+          ? c.cardSubtitleLines
+          : c.cardSubtitleLines,
+      cardTextGap:
+        typeof c.cardTextGap === 'number' && Number.isFinite(c.cardTextGap)
+          ? Math.max(0, Math.min(32, Math.round(c.cardTextGap)))
+          : c.cardTextGap,
+      cardLineHeight:
+        typeof c.cardLineHeight === 'number' && Number.isFinite(c.cardLineHeight)
+          ? Math.max(1, Math.min(2.6, Math.round(c.cardLineHeight * 100) / 100))
+          : c.cardLineHeight,
+      cardLetterSpacing:
+        typeof c.cardLetterSpacing === 'number' && Number.isFinite(c.cardLetterSpacing)
+          ? Math.max(-2, Math.min(10, Math.round(c.cardLetterSpacing * 10) / 10))
+          : c.cardLetterSpacing,
+      actionType:
+        c.actionType === 'none' ||
+        c.actionType === 'url' ||
+        c.actionType === 'sheet' ||
+        c.actionType === 'page' ||
+        c.actionType === 'card' ||
+        c.actionType === 'back'
+          ? c.actionType
+          : c.actionType,
+      actionUrl: c.actionUrl ? sanitizeExternalUrl(c.actionUrl, '') : c.actionUrl,
+      actionSheetPosition:
+        c.actionSheetPosition === 'bottom' ||
+        c.actionSheetPosition === 'right' ||
+        c.actionSheetPosition === 'left' ||
+        c.actionSheetPosition === 'top'
+          ? c.actionSheetPosition
+          : c.actionSheetPosition,
+      actionSheetTitle:
+        typeof c.actionSheetTitle === 'string'
+          ? c.actionSheetTitle.slice(0, 120)
+          : c.actionSheetTitle,
+      actionSheetBlocks: Array.isArray(c.actionSheetBlocks)
+        ? c.actionSheetBlocks.map(sanitizeBlockTree)
+        : c.actionSheetBlocks,
+      actionTargetPageId:
+        typeof c.actionTargetPageId === 'string'
+          ? c.actionTargetPageId.replace(/[^\w-]/g, '').slice(0, 80)
+          : c.actionTargetPageId,
+      actionTargetBlockId:
+        typeof c.actionTargetBlockId === 'string'
+          ? c.actionTargetBlockId.replace(/[^\w-]/g, '').slice(0, 80)
+          : c.actionTargetBlockId,
+      universalCartImage: c.universalCartImage
+        ? sanitizeImageOrMediaUrl(c.universalCartImage)
+        : c.universalCartImage,
+      universalCartAccentColor: c.universalCartAccentColor
+        ? sanitizeCssColor(c.universalCartAccentColor, '#059669')
+        : c.universalCartAccentColor,
+      universalCartFloatingBg: c.universalCartFloatingBg
+        ? sanitizeCssColor(c.universalCartFloatingBg, '#059669')
+        : c.universalCartFloatingBg,
+      universalCartUnitSold:
+        typeof c.universalCartUnitSold === 'number' && Number.isFinite(c.universalCartUnitSold)
+          ? Math.max(0, Math.min(9999999, Math.round(c.universalCartUnitSold)))
+          : c.universalCartUnitSold,
+      backButtonLabel:
+        typeof c.backButtonLabel === 'string'
+          ? c.backButtonLabel.slice(0, 80)
+          : c.backButtonLabel,
+      backButtonBg: c.backButtonBg ? sanitizeCssColor(c.backButtonBg, '#FFFFFF') : c.backButtonBg,
+      backButtonText: c.backButtonText
+        ? sanitizeCssColor(c.backButtonText, '#0F172A')
+        : c.backButtonText,
+      backTargetPageId:
+        typeof c.backTargetPageId === 'string'
+          ? c.backTargetPageId.replace(/[^\w-]/g, '').slice(0, 80)
+          : c.backTargetPageId,
     },
     children: Array.isArray(block.children)
       ? block.children.map(sanitizeBlockTree)
@@ -701,11 +836,25 @@ export function sanitizeBuilderProject(raw: BuilderProject): BuilderProject {
       }
     : undefined;
 
+  const safePages = Array.isArray(raw.pages)
+    ? raw.pages.map((pg, idx) => ({
+        id: String(pg.id || `pg_${idx + 1}`).replace(/[^\w-]/g, '').slice(0, 64),
+        title: String(pg.title || `Halaman ${idx + 2}`).slice(0, 80),
+        showBackButton: pg.showBackButton !== false,
+        backButtonLabel:
+          typeof pg.backButtonLabel === 'string'
+            ? pg.backButtonLabel.slice(0, 60)
+            : 'Kembali',
+        blocks: Array.isArray(pg.blocks) ? pg.blocks.map(sanitizeBlockTree) : [],
+      }))
+    : undefined;
+
   return {
     ...raw,
     title: String(raw.title || 'Halaman Usaha').slice(0, 120),
     theme: sanitizeTheme(raw.theme),
     blocks: safeBlocks,
+    pages: safePages,
     bottomNavbar: safeNav,
     publishing,
     adsConfig: ads,

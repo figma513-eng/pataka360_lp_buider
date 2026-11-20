@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
   Check,
   Copy,
+  FilePlus2,
+  Files,
   GripVertical,
   Layers,
   Palette,
@@ -20,6 +22,7 @@ import {
   BottomNavbarItem,
   BottomNavbarItemAction,
   BuilderBlock,
+  BuilderSubPage,
   PageTheme,
   ShadowPreset,
 } from '../../types/builder';
@@ -38,12 +41,20 @@ import { AccordionSection, SliderRow, ToggleSwitch } from './InspectorPrimitives
 
 interface HomePageSettingsProps {
   blocks: BuilderBlock[];
+  pages?: BuilderSubPage[];
+  activeSubPageId?: string | null;
+  onSelectSubPage?: (pageId: string | null) => void;
+  onAddSubPage?: () => string | null;
+  onUpdateSubPage?: (pageId: string, patch: Partial<BuilderSubPage>) => void;
+  onDuplicateSubPage?: (pageId: string) => void;
+  onDeleteSubPage?: (pageId: string) => void;
   selectedId: string | null;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   bottomNavbar: BottomNavbarConfig;
   activeNavItemId: string;
   navbarFocusNonce?: number;
+  layerFocusNonce?: number;
   onSelectTheme: (next: PageTheme) => void;
   onUpdateAdvanceOptions: (patch: Partial<AdvanceOptions>) => void;
   onUpdateBottomNavbar: (updater: (prev: BottomNavbarConfig) => BottomNavbarConfig) => void;
@@ -60,16 +71,24 @@ interface HomePageSettingsProps {
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
 }
 
-type HomeSectionId = 'temaGlobal' | 'top' | 'body' | 'bottom';
+type HomeSectionId = 'temaGlobal' | 'pages' | 'top' | 'body' | 'bottom';
 
 export function HomePageSettings({
   blocks,
+  pages = [],
+  activeSubPageId = null,
+  onSelectSubPage,
+  onAddSubPage,
+  onUpdateSubPage,
+  onDuplicateSubPage,
+  onDeleteSubPage,
   selectedId,
   theme,
   advanceOptions,
   bottomNavbar,
   activeNavItemId,
   navbarFocusNonce = 0,
+  layerFocusNonce = 0,
   onSelectTheme,
   onUpdateAdvanceOptions,
   onUpdateBottomNavbar,
@@ -82,8 +101,10 @@ export function HomePageSettings({
   onAddChildToContainer,
 }: HomePageSettingsProps) {
   const { label } = useUiLabel();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [openSections, setOpenSections] = useState<Record<HomeSectionId, boolean>>({
     temaGlobal: false,
+    pages: false,
     top: false,
     body: true,
     bottom: false,
@@ -100,6 +121,29 @@ export function HomePageSettings({
       setOpenSections((prev) => ({ ...prev, bottom: true }));
     }
   }, [navbarFocusNonce]);
+
+  useEffect(() => {
+    if (layerFocusNonce > 0 || selectedId) {
+      setOpenSections((prev) => (prev.body ? prev : { ...prev, body: true }));
+    }
+    if (!selectedId) return;
+    const timer = window.setTimeout(() => {
+      const root = scrollContainerRef.current;
+      if (!root) return;
+      const nodes = root.querySelectorAll<HTMLElement>('[data-layer-item-id]');
+      for (let i = 0; i < nodes.length; i += 1) {
+        if (nodes[i].getAttribute('data-layer-item-id') === selectedId) {
+          nodes[i].scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest',
+          });
+          break;
+        }
+      }
+    }, 45);
+    return () => window.clearTimeout(timer);
+  }, [layerFocusNonce, selectedId]);
 
   const toggleSection = (id: HomeSectionId) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -189,7 +233,16 @@ export function HomePageSettings({
   };
 
   const countLayerTree = (nodes: BuilderBlock[]): number =>
-    nodes.reduce((sum, node) => sum + 1 + (Array.isArray(node.children) ? countLayerTree(node.children) : 0), 0);
+    nodes.reduce(
+      (sum, node) =>
+        sum +
+        1 +
+        (Array.isArray(node.children) ? countLayerTree(node.children) : 0) +
+        (Array.isArray(node.content?.actionSheetBlocks)
+          ? countLayerTree(node.content.actionSheetBlocks)
+          : 0),
+      0
+    );
 
   const navSheetLayers = bottomNavbar.items
     .filter((it) => Array.isArray(it.children) && it.children.length > 0)
@@ -220,6 +273,8 @@ export function HomePageSettings({
     return (
       <div key={blk.id} className="space-y-1">
         <div
+          data-layer-item-id={blk.id}
+          data-layer-selected={isSelected ? 'true' : 'false'}
           draggable
           onDragStart={(e) => {
             e.stopPropagation();
@@ -259,7 +314,7 @@ export function HomePageSettings({
           }}
           className={`group flex items-center gap-1 px-1.5 py-1 rounded-lg border text-[11px] transition-all ${
             isSelected
-              ? 'bg-[#ECFDF6] border-[#00C98A] text-[#17243D]'
+              ? 'bg-[#17243D] border-[#00C98A] border-l-4 text-white shadow-sm ring-2 ring-[#00C98A]/35'
               : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#8FA4BF]'
           } ${
             isOver && dragOverInfo.pos === 'before'
@@ -272,7 +327,9 @@ export function HomePageSettings({
           }`}
         >
           <span
-            className="text-[#8FA4BF] cursor-grab active:cursor-grabbing shrink-0"
+            className={`cursor-grab active:cursor-grabbing shrink-0 ${
+              isSelected ? 'text-[#00C98A]' : 'text-[#8FA4BF]'
+            }`}
             title="Seret untuk urutkan"
           >
             <GripVertical className="w-3 h-3" />
@@ -283,10 +340,18 @@ export function HomePageSettings({
             onClick={() => onSelectBlock(blk.id)}
             className="min-w-0 flex-1 text-left cursor-pointer"
           >
-            <div className="font-semibold truncate text-[11px] leading-tight">
+            <div
+              className={`truncate text-[11px] leading-tight ${
+                isSelected ? 'font-bold text-white' : 'font-semibold text-[#17243D]'
+              }`}
+            >
               {blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
             </div>
-            <div className="text-[9.5px] text-[#8FA4BF] truncate">
+            <div
+              className={`text-[9.5px] truncate ${
+                isSelected ? 'text-[#7AF0C7] font-medium' : 'text-[#8FA4BF]'
+              }`}
+            >
               {label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
             </div>
           </button>
@@ -300,7 +365,11 @@ export function HomePageSettings({
                 onMoveBlock(blk.id, 'up');
               }}
               title="Naikkan"
-              className="p-0.5 rounded hover:bg-[#F0F5FA] disabled:opacity-30 text-[#51637D] cursor-pointer"
+              className={`p-0.5 rounded disabled:opacity-30 cursor-pointer ${
+                isSelected
+                  ? 'text-white/80 hover:bg-white/15 hover:text-white'
+                  : 'text-[#51637D] hover:bg-[#F0F5FA]'
+              }`}
             >
               <ArrowUp className="w-3 h-3" />
             </button>
@@ -312,7 +381,11 @@ export function HomePageSettings({
                 onMoveBlock(blk.id, 'down');
               }}
               title="Turunkan"
-              className="p-0.5 rounded hover:bg-[#F0F5FA] disabled:opacity-30 text-[#51637D] cursor-pointer"
+              className={`p-0.5 rounded disabled:opacity-30 cursor-pointer ${
+                isSelected
+                  ? 'text-white/80 hover:bg-white/15 hover:text-white'
+                  : 'text-[#51637D] hover:bg-[#F0F5FA]'
+              }`}
             >
               <ArrowDown className="w-3 h-3" />
             </button>
@@ -325,7 +398,11 @@ export function HomePageSettings({
                 }}
                 title="Duplikat Lapisan"
                 aria-label="Duplikat Lapisan"
-                className="p-0.5 rounded hover:bg-[#ECFDF6] text-[#8FA4BF] hover:text-[#00A873] cursor-pointer"
+                className={`p-0.5 rounded cursor-pointer ${
+                  isSelected
+                    ? 'text-[#7AF0C7] hover:bg-white/15 hover:text-white'
+                    : 'text-[#8FA4BF] hover:bg-[#ECFDF6] hover:text-[#00A873]'
+                }`}
               >
                 <Copy className="w-3 h-3" />
               </button>
@@ -337,7 +414,11 @@ export function HomePageSettings({
                 onDeleteBlock(blk.id);
               }}
               title="Hapus Blok"
-              className="p-0.5 rounded hover:bg-red-50 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+              className={`p-0.5 rounded cursor-pointer ${
+                isSelected
+                  ? 'text-white/75 hover:bg-red-500/30 hover:text-red-200'
+                  : 'text-[#8FA4BF] hover:bg-red-50 hover:text-red-600'
+              }`}
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -351,12 +432,24 @@ export function HomePageSettings({
             )}
           </div>
         )}
+
+        {Array.isArray(blk.content?.actionSheetBlocks) &&
+          blk.content.actionSheetBlocks.length > 0 && (
+            <div className="space-y-1 border-l border-dashed border-[#00C98A]/60 ml-1.5 pl-1.5">
+              <div className="text-[9px] font-bold uppercase tracking-wide text-[#00A873] px-1">
+                Isi Sheet ({blk.content.actionSheetPosition || 'bottom'})
+              </div>
+              {blk.content.actionSheetBlocks.map((ch, cIdx) =>
+                renderLayerNode(ch, cIdx, blk.content.actionSheetBlocks!.length, depth + 1)
+              )}
+            </div>
+          )}
       </div>
     );
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-[#F0F5FA]/50">
+    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-[#F0F5FA]/50">
       {/* 1. Tema Global */}
       <AccordionSection
         id="temaGlobal"
@@ -473,6 +566,149 @@ export function HomePageSettings({
               </div>
             ))}
           </div>
+        </div>
+      </AccordionSection>
+
+      {/* 1b. Pengaturan Halaman (Multi-Page) */}
+      <AccordionSection
+        id="pages"
+        title={label('home.sec.pages', 'Halaman (Multi-Page)')}
+        icon={<Files className="w-3.5 h-3.5" />}
+        badge={`${pages.length + 1} hal`}
+        isOpen={openSections.pages}
+        onToggle={() => toggleSection('pages')}
+      >
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-[#51637D]">
+              Tambah halaman baru &amp; tombol Back otomatis.
+            </span>
+            {onAddSubPage && (
+              <button
+                type="button"
+                onClick={() => onAddSubPage()}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#00C98A] hover:bg-[#00B37B] text-white text-[10.5px] font-bold cursor-pointer shrink-0"
+              >
+                <FilePlus2 className="w-3 h-3" />
+                <span>Tambah</span>
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onSelectSubPage?.(null)}
+            className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors cursor-pointer ${
+              activeSubPageId === null
+                ? 'bg-[#ECFDF6] border-[#00C98A] text-[#17243D]'
+                : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#8FA4BF]'
+            }`}
+          >
+            <div>
+              <div className="text-[11.5px] font-bold">Beranda (Halaman Utama)</div>
+              <div className="text-[10px] text-[#8FA4BF]">Halaman pembuka publik</div>
+            </div>
+            {activeSubPageId === null && (
+              <span className="px-1.5 py-0.5 rounded bg-[#00C98A] text-white text-[9.5px] font-bold">
+                Aktif
+              </span>
+            )}
+          </button>
+
+          {pages.map((pg, idx) => {
+            const isActivePg = activeSubPageId === pg.id;
+            return (
+              <div
+                key={pg.id}
+                className={`p-2 rounded-lg border space-y-2 ${
+                  isActivePg
+                    ? 'bg-[#ECFDF6]/70 border-[#00C98A]'
+                    : 'bg-white border-[#DCE5EF]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onSelectSubPage?.(pg.id)}
+                    className="min-w-0 flex-1 text-left cursor-pointer"
+                  >
+                    <div className="text-[11.5px] font-bold text-[#17243D] truncate">
+                      {idx + 2}. {pg.title}
+                    </div>
+                    <div className="text-[9.5px] text-[#8FA4BF]">
+                      {pg.blocks.length} blok · {pg.showBackButton !== false ? 'Back Aktif' : 'Tanpa Back'}
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {onDuplicateSubPage && (
+                      <button
+                        type="button"
+                        onClick={() => onDuplicateSubPage(pg.id)}
+                        title="Duplikat Halaman"
+                        className="p-1 rounded hover:bg-white text-[#51637D] hover:text-[#00A873] cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    )}
+                    {onDeleteSubPage && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteSubPage(pg.id)}
+                        title="Hapus Halaman"
+                        className="p-1 rounded hover:bg-red-50 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {isActivePg && onUpdateSubPage && (
+                  <div className="pt-1.5 border-t border-[#00C98A]/30 space-y-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                        Nama Halaman
+                      </label>
+                      <input
+                        type="text"
+                        value={pg.title}
+                        onChange={(e) => onUpdateSubPage(pg.id, { title: e.target.value })}
+                        className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-medium text-[#17243D]">
+                        Tombol Back Otomatis
+                      </span>
+                      <ToggleSwitch
+                        checked={pg.showBackButton !== false}
+                        onChange={(checked) =>
+                          onUpdateSubPage(pg.id, { showBackButton: checked })
+                        }
+                        label="Tampilkan Tombol Back di Atas Halaman"
+                      />
+                    </div>
+                    {pg.showBackButton !== false && (
+                      <div>
+                        <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                          Label Tombol Back
+                        </label>
+                        <input
+                          type="text"
+                          value={pg.backButtonLabel ?? 'Kembali'}
+                          onChange={(e) =>
+                            onUpdateSubPage(pg.id, { backButtonLabel: e.target.value })
+                          }
+                          placeholder="Kembali"
+                          className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </AccordionSection>
 
