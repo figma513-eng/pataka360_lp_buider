@@ -614,7 +614,7 @@ describe('Security Suite (P0-A, SSRF, CSRF, Secrets, RateLimit, XSS)', () => {
 
     // Every inline executable <script> in published HTML must parse cleanly without SyntaxError
     const scriptMatches = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)].filter(
-      (m) => !/type=["']application\/json["']/i.test(m[1]) && !/\bsrc=/i.test(m[1])
+      (m) => !/type=["']application\/(?:ld\+)?json["']/i.test(m[1]) && !/\bsrc=/i.test(m[1])
     );
     assert.ok(scriptMatches.length >= 1, 'Expected inline interactive script in published page');
     for (const m of scriptMatches) {

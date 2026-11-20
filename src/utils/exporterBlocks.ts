@@ -645,15 +645,45 @@ ${indent}</div>`;
 
     case 'form': {
       const title = escapeHtml(block.content.formTitle ?? 'Formulir');
-      const namePh = escapeHtml(block.content.namePlaceholder ?? 'Nama');
-      const emailPh = escapeHtml(block.content.emailPlaceholder ?? 'Email');
+      const nameReq = block.content.formNameRequired !== false;
+      const emailReq = block.content.formEmailRequired !== false;
+      const namePh = escapeHtml(
+        `${block.content.namePlaceholder ?? 'Nama'}${nameReq ? ' *' : ' (Opsional)'}`
+      );
+      const emailPh = escapeHtml(
+        `${block.content.emailPlaceholder ?? 'Email'}${emailReq ? ' *' : ' (Opsional)'}`
+      );
       const btnLabel = escapeHtml(block.content.submitLabel ?? 'Kirim');
       const btnBg = block.content.buttonColor ?? '#2563EB';
       const successMsg = escapeHtml(block.content.successMessage ?? 'Terima kasih!');
-      return `${indent}<form onsubmit="event.preventDefault(); this.querySelector('.form-msg').style.display='block';" style="${css}">
+      const chkEnabled = Boolean(block.content.formChecklistEnabled);
+      const chkItems = (block.content.formChecklistItems ?? []).filter((x) => x.trim());
+      const chkReq = Boolean(block.content.formChecklistRequired);
+      const chkTitle = escapeHtml(
+        (block.content.formChecklistTitle ?? 'Persetujuan / Checklist').trim() +
+          (chkReq ? ' *' : '')
+      );
+      const chkHtml =
+        chkEnabled && chkItems.length > 0
+          ? `\n${indent}  <div data-form-chk-group data-form-chk-required="${
+              chkReq ? '1' : '0'
+            }" style="margin-bottom: 12px; padding: 10px; border: 1px solid #CBD5E1; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; text-align: left;">` +
+            `\n${indent}    <div style="font-size: 12px; font-weight: 700;">${chkTitle}</div>` +
+            chkItems
+              .map(
+                (itemText) =>
+                  `\n${indent}    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; cursor: pointer;"><input type="checkbox" data-form-chk style="margin-top: 2px; accent-color: #059669; cursor: pointer;" /><span>${escapeHtml(
+                    itemText
+                  )}</span></label>`
+              )
+              .join('') +
+            `\n${indent}  </div>`
+          : '';
+      return `${indent}<form data-lynk-form style="${css}">
 ${indent}  <div style="font-weight: 700; font-size: 15px; margin-bottom: 12px;">${title}</div>
-${indent}  <input type="text" required placeholder="${namePh}" style="width: 100%; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px;" />
-${indent}  <input type="text" required placeholder="${emailPh}" style="width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px;" />
+${indent}  <input type="text"${nameReq ? ' required' : ''} placeholder="${namePh}" style="width: 100%; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px;" />
+${indent}  <input type="text"${emailReq ? ' required' : ''} placeholder="${emailPh}" style="width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px;" />${chkHtml}
+${indent}  <div class="form-err" style="display: none; margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; background: #FFF1F2; border: 1px solid #FECDD3; font-size: 12px; color: #BE123C; font-weight: 600;"></div>
 ${indent}  <button type="submit" style="width: 100%; padding: 11px 16px; border: none; border-radius: 8px; background-color: ${btnBg}; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer;">${btnLabel}</button>
 ${indent}  <div class="form-msg" style="display: none; margin-top: 10px; font-size: 13px; color: #16A34A; font-weight: 500;">${successMsg}</div>
 ${indent}</form>`;
@@ -1431,6 +1461,8 @@ ${indent}</div>`;
           caption: m.caption,
         })),
         checklistItems,
+        checklistTitle,
+        checklistRequired: Boolean(block.content.trainingChecklistRequired),
         formFields,
       }).replace(/</g, '\\u003c');
 
@@ -1657,7 +1689,9 @@ ${indent}  </div>`
       const chkHtml = checklistItems.length
         ? `<div style="border:1px solid ${theme.borderColor}; border-radius:${innerRadius}px; padding:12px; display:flex; flex-direction:column; gap:8px;">
 ${indent}    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-${indent}      <div style="font-size:12px; font-weight:700;">${escapeHtml(checklistTitle)}</div>
+${indent}      <div style="font-size:12px; font-weight:700;">${escapeHtml(
+            checklistTitle + (block.content.trainingChecklistRequired ? ' *' : '')
+          )}</div>
 ${indent}      <span data-trn-chk-count style="font-size:10.5px; font-weight:600; opacity:0.7; font-variant-numeric:tabular-nums;">0/${checklistItems.length} siap</span>
 ${indent}    </div>
 ${indent}    <div style="display:flex; flex-direction:column; gap:6px;">
@@ -1700,6 +1734,7 @@ ${indent}    <div style="font-size:12px; font-weight:700;">${escapeHtml(formTitl
 ${indent}    <div style="display:flex; flex-direction:column; gap:8px;">
 ${fieldsHtml}
 ${indent}    </div>
+${indent}    <div data-trn-error style="display:none; padding:8px 10px; border-radius:8px; background:#FFF1F2; border:1px solid #FECDD3; color:#BE123C; font-size:11px; font-weight:600; line-height:1.4;"></div>
 ${indent}    <a data-trn-wa href="${escapeHtml(
         initialWaHref
       )}" target="_blank" rel="noopener noreferrer" style="width:100%; box-sizing:border-box; padding:10px 16px; border-radius:12px; background:#059669; color:#FFFFFF; font-size:12px; font-weight:700; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>${escapeHtml(
@@ -2133,6 +2168,230 @@ ${indent}  </div>
 ${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:16px; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
 ${indent}</div>`;
     }
+
+    case 'cart_button': {
+      const c = block.content;
+      const itemKey = `${escapeHtml(block.id)}::cb_${escapeHtml(block.id)}`;
+      const accent = sanitizeCssColor(c.cartAccentColor, theme.accentColor || '#059669');
+      const showInfo = c.cartShowProductInfo !== false;
+      const prodName = escapeHtml((c.cartProductName || 'Produk Pilihan').trim());
+      const prodDesc = escapeHtml((c.cartProductDesc || '').trim());
+      const prodPrice = escapeHtml((c.cartProductPrice || 'Rp 0').trim());
+      const btnLabel = escapeHtml((c.cartButtonLabel || 'Tambah').trim());
+      const imgHtml = c.cartProductImage
+        ? `<img src="${escapeHtml(
+            c.cartProductImage
+          )}" alt="${prodName}" referrerpolicy="no-referrer" style="width:44px; height:44px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(148,163,184,0.3);" />`
+        : '';
+      const infoHtml = showInfo
+        ? `<div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">${imgHtml}<div style="min-width:0; flex:1;"><div style="font-size:12.5px; font-weight:700; line-height:1.3;">${prodName}</div>${
+            prodDesc
+              ? `<div style="font-size:11px; opacity:0.72; line-height:1.35; margin-top:2px;">${prodDesc}</div>`
+              : ''
+          }<div style="font-size:12.5px; font-weight:800; color:${accent}; margin-top:3px; font-variant-numeric:tabular-nums;">${prodPrice}</div></div></div>`
+        : '';
+      const cartSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>`;
+      return `${indent}<div data-cart-button="${escapeHtml(
+        block.id
+      )}" style="${css}; display:flex; align-items:center; justify-content:${
+        showInfo ? 'space-between' : 'center'
+      }; gap:10px; text-align:left;">
+${infoHtml ? `${indent}  ${infoHtml}\n` : ''}${indent}  <div style="flex-shrink:0;${
+        showInfo ? '' : ' width:100%; display:flex; justify-content:center;'
+      }">
+${indent}    <button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" style="${
+        showInfo ? '' : 'width:100%; '
+      }display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 14px; border-radius:9999px; border:0; background:${accent}; color:#FFFFFF; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;">${cartSvg}<span>${btnLabel}</span></button>
+${indent}    <div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:8px; padding:4px 6px; border-radius:9999px; border:1px solid ${accent}; background:#FFFFFF;">
+${indent}      <button type="button" data-fnb-dec="${itemKey}" aria-label="Kurangi" style="width:24px; height:24px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">-</button>
+${indent}      <span data-fnb-qty="${itemKey}" style="min-width:18px; text-align:center; font-size:12px; font-weight:800; color:#0F172A; font-variant-numeric:tabular-nums;">0</span>
+${indent}      <button type="button" data-fnb-inc="${itemKey}" aria-label="Tambah" style="width:24px; height:24px; border-radius:9999px; border:0; background:${accent}; color:#FFFFFF; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">+</button>
+${indent}    </div>
+${indent}  </div>
+${indent}</div>`;
+    }
+
+    case 'showcase_card': {
+      const c = block.content;
+      const variant = c.cardVariant ?? 'news_banner';
+      const gradFrom = sanitizeCssColor(c.cardGradientFrom, '#F59E0B');
+      const gradTo = sanitizeCssColor(c.cardGradientTo, '#D97706');
+      const accent = sanitizeCssColor(c.cardAccentColor, theme.accentColor || '#2563EB');
+      const fg = sanitizeCssColor(c.cardTextColor, '#FFFFFF');
+      const radius = Math.max(8, block.style.borderRadius || 14);
+      const actionUrl = sanitizeExternalUrl(c.cardActionUrl, '');
+      const wrapAnchor = (inner: string) =>
+        actionUrl && variant !== 'store_card' && variant !== 'activity_post'
+          ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer" style="display:block; text-decoration:none; color:inherit;">${inner}</a>`
+          : inner;
+
+      let cardHtml = '';
+      if (variant === 'quote_banner') {
+        const isLeft = c.cardImagePosition === 'left';
+        const imgHtml = c.cardImage
+          ? `<div style="width:82px; height:94px; flex-shrink:0; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2); align-self:flex-end;"><img src="${escapeHtml(
+              c.cardImage
+            )}" alt="${escapeHtml(c.cardTitle || 'Tokoh')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; object-position:top; display:block;" /></div>`
+          : '';
+        cardHtml = wrapAnchor(
+          `<div style="background:linear-gradient(135deg, ${gradFrom}, ${gradTo}); border-radius:${radius}px; color:${fg}; display:flex; flex-direction:${
+            isLeft ? 'row-reverse' : 'row'
+          }; align-items:flex-end; justify-content:space-between; gap:8px; padding:12px 14px 10px; min-height:118px; box-shadow:0 2px 8px rgba(15,23,42,0.1); text-align:${
+            isLeft ? 'right' : 'left'
+          };"><div style="flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">${
+            c.cardQuote?.trim()
+              ? `<p style="margin:0; font-size:11px; line-height:1.38; font-weight:500;">${escapeHtml(
+                  c.cardQuote
+                )}</p>`
+              : ''
+          }<div>${
+            c.cardTitle?.trim()
+              ? `<div style="font-size:11.5px; font-weight:800; line-height:1.25;">${escapeHtml(
+                  c.cardTitle
+                )}</div>`
+              : ''
+          }${
+            c.cardSubtitle?.trim()
+              ? `<div style="font-size:9.5px; opacity:0.9; line-height:1.25; margin-top:2px;">${escapeHtml(
+                  c.cardSubtitle
+                )}</div>`
+              : ''
+          }</div></div>${imgHtml}</div>`
+        );
+      } else if (variant === 'news_banner') {
+        cardHtml = wrapAnchor(
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; aspect-ratio:16/9; background:#E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08);">${
+            c.cardImage
+              ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
+                  c.cardTitle || 'Berita'
+                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+              : ''
+          }<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center;"><div style="font-size:11.5px; font-weight:700; line-height:1.35;">${escapeHtml(
+            c.cardTitle || 'Judul Informasi'
+          )}</div></div></div>`
+        );
+      } else if (variant === 'event_poster') {
+        cardHtml = wrapAnchor(
+          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;"><div style="aspect-ratio:3/4; width:100%; background:#F1F5F9; overflow:hidden;">${
+            c.cardImage
+              ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
+                  c.cardTitle || 'Event'
+                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+              : ''
+          }</div><div style="background:${accent}; color:${fg}; padding:8px; text-align:center; font-size:10.5px; font-weight:700; line-height:1.3;">${escapeHtml(
+            c.cardTitle || 'Nama Event / Promo'
+          )}</div></div>`
+        );
+      } else if (variant === 'badge_tile') {
+        cardHtml = wrapAnchor(
+          `<div style="background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 8px; min-height:124px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${
+            c.cardImage
+              ? `<div style="width:48px; height:48px; border-radius:12px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25);"><img src="${escapeHtml(
+                  c.cardImage
+                )}" alt="${escapeHtml(c.cardTitle || 'Badge')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" /></div>`
+              : ''
+          }<div style="font-size:11px; font-weight:700; line-height:1.25; white-space:pre-line;">${escapeHtml(
+            c.cardTitle || 'Sertifikasi'
+          )}</div></div>`
+        );
+      } else if (variant === 'store_card') {
+        const itemKey = `${escapeHtml(block.id)}::sc_${escapeHtml(block.id)}`;
+        const playHtml =
+          c.cardShowPlayIcon !== false
+            ? `<span style="position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:9999px; background:rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; color:#FFFFFF;"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"/></svg></span>`
+            : '';
+        const cartHtml = c.cardEnableCart
+          ? `<div style="width:100%; padding-top:4px; display:flex; justify-content:center;"><button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:9999px; border:0; background:#FFFFFF; color:#0F172A; font-size:10.5px; font-weight:700; cursor:pointer; font-family:inherit;">+ Tambah</button><div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:6px; padding:2px 6px; border-radius:9999px; background:#FFFFFF; color:#0F172A;"><button type="button" data-fnb-dec="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-weight:700; cursor:pointer;">-</button><span data-fnb-qty="${itemKey}" style="min-width:14px; text-align:center; font-size:11px; font-weight:700;">0</span><button type="button" data-fnb-inc="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#059669; color:#FFFFFF; font-weight:700; cursor:pointer;">+</button></div></div>`
+          : '';
+        cardHtml = `<div style="position:relative; background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 10px; min-height:168px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${playHtml}${
+          c.cardImage
+            ? `<div style="width:64px; height:64px; margin-top:8px; border-radius:12px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25);"><img src="${escapeHtml(
+                c.cardImage
+              )}" alt="${escapeHtml(c.cardTitle || 'Produk')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" /></div>`
+            : ''
+        }<div style="width:100%;"><div style="font-size:13px; font-weight:800; line-height:1.25;">${escapeHtml(
+          c.cardTitle || 'Nama Produk'
+        )}</div>${
+          c.cardPrice?.trim()
+            ? `<div style="font-size:11px; font-weight:600; opacity:0.95; margin-top:2px; font-variant-numeric:tabular-nums;">${escapeHtml(
+                c.cardPrice
+              )}</div>`
+            : ''
+        }</div>${cartHtml}</div>`;
+      } else if (variant === 'activity_post') {
+        const gallery = (c.cardGalleryImages ?? []).filter(Boolean).slice(0, 6);
+        const moreUrl = sanitizeExternalUrl(c.cardMoreUrl || c.cardActionUrl, '');
+        const moreLabel = escapeHtml((c.cardMoreLabel || 'Selengkapnya').trim());
+        const galHtml = gallery.length
+          ? `<div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px;">${gallery
+              .map(
+                (src, i) =>
+                  `<div style="aspect-ratio:1/1; border-radius:8px; overflow:hidden; background:#F1F5F9;"><img src="${escapeHtml(
+                    src
+                  )}" alt="Foto ${i + 1}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" /></div>`
+              )
+              .join('')}</div>`
+          : '';
+        cardHtml = `<div style="border-radius:${radius}px; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; color:${theme.textColor}; padding:12px; display:flex; flex-direction:column; gap:10px; text-align:left; box-shadow:0 1px 4px rgba(15,23,42,0.06);"><div style="display:flex; align-items:center; gap:10px;">${
+          c.cardImage
+            ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
+                c.cardTitle || 'Profil'
+              )}" referrerpolicy="no-referrer" style="width:40px; height:40px; border-radius:9999px; object-fit:cover; flex-shrink:0; border:1px solid #E2E8F0;" />`
+            : ''
+        }<div style="min-width:0; flex:1;"><div style="font-size:13px; font-weight:800; line-height:1.25;">${escapeHtml(
+          c.cardTitle || 'Nama Pengurus'
+        )}</div>${
+          c.cardSubtitle?.trim()
+            ? `<div style="font-size:11px; opacity:0.7; margin-top:2px;">${escapeHtml(
+                c.cardSubtitle
+              )}</div>`
+            : ''
+        }</div></div><div style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; opacity:0.75;"><span>${escapeHtml(
+          c.cardHeaderTitle?.trim() || c.cardQuote?.trim() || 'Judul Kegiatan'
+        )}</span>${
+          c.cardDate?.trim()
+            ? `<span style="flex-shrink:0; font-variant-numeric:tabular-nums;">${escapeHtml(
+                c.cardDate
+              )}</span>`
+            : ''
+        }</div>${galHtml}<div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; padding-top:2px;">${
+          moreUrl
+            ? `<a href="${escapeHtml(
+                moreUrl
+              )}" target="_blank" rel="noopener noreferrer" style="color:${accent}; font-weight:600; text-decoration:none;">${moreLabel}</a>`
+            : `<span style="color:${accent}; font-weight:600;">${moreLabel}</span>`
+        }${
+          c.cardViews?.trim()
+            ? `<span style="display:inline-flex; align-items:center; gap:4px; opacity:0.65; font-variant-numeric:tabular-nums;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>${escapeHtml(
+                c.cardViews
+              )}</span></span>`
+            : ''
+        }</div></div>`;
+      } else {
+        // membership_ticket
+        const feeRows = (c.cardFeeItems ?? [])
+          .map(
+            (fee) =>
+              `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11.5px; font-weight:600; color:#0284C7;"><span>${escapeHtml(
+                fee.label
+              )}</span><span style="flex-shrink:0; font-variant-numeric:tabular-nums;">: ${escapeHtml(
+                fee.value
+              )}</span></div>`
+          )
+          .join('');
+        const totalLabel = escapeHtml((c.cardTotalLabel || 'Total :').trim());
+        const totalValue = escapeHtml(
+          (c.cardTotalValue || c.cardPrice || 'Rp. 500.000,-').trim()
+        );
+        cardHtml = wrapAnchor(
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08); text-align:left;"><div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px;"><div style="text-align:center; color:#0284C7; font-size:13.5px; font-weight:800;">${escapeHtml(
+            c.cardTitle || 'Anggota Pratama'
+          )}</div>${feeRows}</div><div style="position:relative;"><span aria-hidden="true" style="position:absolute; left:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><span aria-hidden="true" style="position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><div style="background:${accent}; color:${fg}; padding:12px 16px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:13.5px; font-weight:800;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg><span>${totalLabel}</span><span style="font-variant-numeric:tabular-nums;">${totalValue}</span></div></div></div>`
+        );
+      }
+
+      return `${indent}<div data-showcase-card="${escapeHtml(variant)}" style="${css}">${cardHtml}</div>`;
+    }
   }
 }
 
@@ -2207,6 +2466,68 @@ export function collectCatalogData(
           description: it.description,
           productType: 'physical' as CatalogProductType,
         })),
+      };
+    } else if (blk.type === 'cart_button') {
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber: blk.content.cartWhatsappNumber ?? '6281234567890',
+        storeName: blk.content.cartStoreName ?? '',
+        whatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+        askCustomerInfo: true,
+        customerFields: resolveCatalogCustomerFields({ catalogProductType: 'physical' }),
+        shippingEnabled: true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya makanan / pesanan tidak termasuk biaya kirim (kurir).',
+        items: [
+          {
+            id: `cb_${blk.id}`,
+            title: blk.content.cartProductName?.trim() || 'Produk Pilihan',
+            subtitle: blk.content.cartProductDesc?.trim() || '',
+            price: blk.content.cartProductPrice?.trim() || 'Rp 0',
+            unitSold: 0,
+            image: blk.content.cartProductImage || '',
+            url: '#',
+            ctaLabel: blk.content.cartButtonLabel?.trim() || 'Tambah',
+            description: blk.content.cartProductDesc?.trim() || '',
+            productType: 'physical' as CatalogProductType,
+          },
+        ],
+      };
+    } else if (
+      blk.type === 'showcase_card' &&
+      blk.content.cardVariant === 'store_card' &&
+      Boolean(blk.content.cardEnableCart)
+    ) {
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber: blk.content.cardWhatsappNumber ?? '6281234567890',
+        storeName: blk.content.cardHeaderTitle?.trim() || '',
+        whatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+        askCustomerInfo: true,
+        customerFields: resolveCatalogCustomerFields({ catalogProductType: 'physical' }),
+        shippingEnabled: true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya makanan / pesanan tidak termasuk biaya kirim (kurir).',
+        items: [
+          {
+            id: `sc_${blk.id}`,
+            title: blk.content.cardTitle?.trim() || 'Produk Store',
+            subtitle: blk.content.cardSubtitle?.trim() || '',
+            price: blk.content.cardPrice?.trim() || 'Rp 0',
+            unitSold: 0,
+            image: blk.content.cardImage || '',
+            url: blk.content.cardActionUrl || '#',
+            ctaLabel: 'Tambah',
+            description: blk.content.cardSubtitle?.trim() || '',
+            productType: 'physical' as CatalogProductType,
+          },
+        ],
       };
     }
     if (blk.children?.length) {

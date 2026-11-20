@@ -75,6 +75,7 @@ import { PhotoCarousel } from '../PhotoCarousel';
 import { SocialFeedCard } from '../SocialFeedCard';
 import { SocialFollowerList } from '../SocialFollowerList';
 import { SocialGlyph } from '../SocialIcon';
+import { ShowcaseCardView } from '../ShowcaseCardView';
 import { TrainingCatalogCard } from '../TrainingCatalogCard';
 
 type PreviewSubPage =
@@ -108,7 +109,16 @@ function findFirstCatalogBlock(
   navItems?: BottomNavbarItem[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
-    if (blk.type === 'catalog' || blk.type === 'fnb_catalog') return blk;
+    if (
+      blk.type === 'catalog' ||
+      blk.type === 'fnb_catalog' ||
+      blk.type === 'cart_button' ||
+      (blk.type === 'showcase_card' &&
+        blk.content.cardVariant === 'store_card' &&
+        Boolean(blk.content.cardEnableCart))
+    ) {
+      return blk;
+    }
     if (blk.children?.length) {
       const found = findFirstCatalogBlock(blk.children);
       if (found) return found;
@@ -128,7 +138,7 @@ function findFirstFnbCatalogBlock(
   navItems?: BottomNavbarItem[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
-    if (blk.type === 'fnb_catalog') return blk;
+    if (blk.type === 'fnb_catalog' && blk.content.fnbFloatingCartEnabled !== false) return blk;
     if (blk.children?.length) {
       const found = findFirstFnbCatalogBlock(blk.children);
       if (found) return found;
@@ -137,6 +147,26 @@ function findFirstFnbCatalogBlock(
   if (navItems?.length) {
     for (const item of navItems) {
       const found = findFirstFnbCatalogBlock(item.children);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function findFirstCartButtonFloatBlock(
+  blocks: BuilderBlock[],
+  navItems?: BottomNavbarItem[]
+): BuilderBlock | null {
+  for (const blk of blocks) {
+    if (blk.type === 'cart_button' && blk.content.cartFloatingEnabled !== false) return blk;
+    if (blk.children?.length) {
+      const found = findFirstCartButtonFloatBlock(blk.children);
+      if (found) return found;
+    }
+  }
+  if (navItems?.length) {
+    for (const item of navItems) {
+      const found = findFirstCartButtonFloatBlock(item.children);
       if (found) return found;
     }
   }
@@ -183,6 +213,9 @@ export function PreviewModal({
   });
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [checklistCheckedMap, setChecklistCheckedMap] = useState<Record<number, boolean>>({});
+  const [formChecklistMap, setFormChecklistMap] = useState<Record<string, Record<number, boolean>>>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [cartCheckoutError, setCartCheckoutError] = useState<string>('');
   const scrollBodyRef = useRef<HTMLDivElement>(null);
   const sheetCloseTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -432,8 +465,40 @@ export function PreviewModal({
     () => findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items),
     [project.blocks, bottomNavbar.items]
   );
+  const firstCartButtonFloat = useMemo(
+    () => findFirstCartButtonFloatBlock(project.blocks, bottomNavbar.items),
+    [project.blocks, bottomNavbar.items]
+  );
+  const floatingCartConfig = useMemo(() => {
+    if (firstFnbCatalog) {
+      return {
+        position: firstFnbCatalog.content.fnbFloatingCartPosition ?? 'bottom-floating',
+        offsetY: firstFnbCatalog.content.fnbFloatingCartOffsetY ?? 16,
+        bgColor:
+          firstFnbCatalog.content.fnbFloatingCartBg ||
+          firstFnbCatalog.content.fnbAccentColor ||
+          project.theme.accentColor,
+        actionLabel: firstFnbCatalog.content.fnbFloatingCartLabel || 'Lanjut',
+      };
+    }
+    if (firstCartButtonFloat) {
+      return {
+        position: firstCartButtonFloat.content.cartFloatingPosition ?? 'bottom-floating',
+        offsetY: 16,
+        bgColor:
+          firstCartButtonFloat.content.cartFloatingBg ||
+          firstCartButtonFloat.content.cartAccentColor ||
+          project.theme.accentColor,
+        actionLabel: firstCartButtonFloat.content.cartFloatingLabel || 'Lihat Keranjang',
+      };
+    }
+    return null;
+  }, [firstFnbCatalog, firstCartButtonFloat, project.theme.accentColor]);
   const hasCartFeature = Boolean(
-    firstCatalog && (firstCatalog.content.catalogCartEnabled ?? true)
+    firstCatalog &&
+      (firstCatalog.type === 'cart_button' ||
+        firstCatalog.type === 'showcase_card' ||
+        (firstCatalog.content.catalogCartEnabled ?? true))
   );
   const fnbCartQtyMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -1101,12 +1166,31 @@ export function PreviewModal({
 
     if (block.type === 'form') {
       const done = submittedForms[block.id];
+      const nameReq = block.content.formNameRequired !== false;
+      const emailReq = block.content.formEmailRequired !== false;
+      const chkEnabled = Boolean(block.content.formChecklistEnabled);
+      const chkItems = (block.content.formChecklistItems ?? []).filter((x) => x.trim());
+      const chkReq = Boolean(block.content.formChecklistRequired);
+      const blockChkMap = formChecklistMap[block.id] ?? {};
+      const blockErr = formErrors[block.id] ?? '';
+
       return (
         <form
           key={block.id}
           style={style}
           onSubmit={(e) => {
             e.preventDefault();
+            if (chkEnabled && chkReq && chkItems.length > 0) {
+              const allChecked = chkItems.every((_, idx) => Boolean(blockChkMap[idx]));
+              if (!allChecked) {
+                setFormErrors((prev) => ({
+                  ...prev,
+                  [block.id]: `Mohon centang seluruh checklist wajib (${block.content.formChecklistTitle?.trim() || 'Checklist'}).`,
+                }));
+                return;
+              }
+            }
+            setFormErrors((prev) => ({ ...prev, [block.id]: '' }));
             setSubmittedForms((prev) => ({ ...prev, [block.id]: true }));
             void trackAnalyticsEvent({
               projectId,
@@ -1122,16 +1206,49 @@ export function PreviewModal({
           <div className="font-bold text-sm">{block.content.formTitle}</div>
           <input
             type="text"
-            required
-            placeholder={block.content.namePlaceholder}
+            required={nameReq}
+            placeholder={`${block.content.namePlaceholder || 'Nama Lengkap'}${nameReq ? ' *' : ' (Opsional)'}`}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs outline-none focus:border-blue-500"
           />
           <input
             type="text"
-            required
-            placeholder={block.content.emailPlaceholder}
+            required={emailReq}
+            placeholder={`${block.content.emailPlaceholder || 'Email / WhatsApp'}${emailReq ? ' *' : ' (Opsional)'}`}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs outline-none focus:border-blue-500"
           />
+          {chkEnabled && chkItems.length > 0 && (
+            <div
+              style={{ borderColor: project.theme.borderColor }}
+              className="rounded-lg border p-2.5 space-y-1.5"
+            >
+              <div className="text-[11px] font-bold">
+                {block.content.formChecklistTitle?.trim() || 'Persetujuan / Checklist'}
+                {chkReq ? ' *' : ''}
+              </div>
+              {chkItems.map((itemText, idx) => (
+                <label key={`pchk_${idx}`} className="flex items-start gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(blockChkMap[idx])}
+                    onChange={(e) => {
+                      const nextChecked = e.target.checked;
+                      setFormChecklistMap((prev) => ({
+                        ...prev,
+                        [block.id]: { ...(prev[block.id] ?? {}), [idx]: nextChecked },
+                      }));
+                    }}
+                    className="mt-0.5 shrink-0 accent-emerald-600 cursor-pointer"
+                  />
+                  <span className="leading-snug">{itemText}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {blockErr && (
+            <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] font-semibold text-rose-700">
+              {blockErr}
+            </div>
+          )}
           <button
             type="submit"
             style={{ backgroundColor: block.content.buttonColor ?? project.theme.accentColor }}
@@ -1827,6 +1944,130 @@ export function PreviewModal({
       );
     }
 
+    if (block.type === 'cart_button') {
+      const itemId = `cb_${block.id}`;
+      const qty = fnbCartQtyMap[itemId] ?? 0;
+      const accent = block.content.cartAccentColor || project.theme.accentColor;
+      const showInfo = block.content.cartShowProductInfo !== false;
+      const prodName = block.content.cartProductName?.trim() || 'Produk Pilihan';
+      const prodDesc = block.content.cartProductDesc?.trim() || '';
+      const prodPrice = block.content.cartProductPrice?.trim() || 'Rp 0';
+      const btnLabel = block.content.cartButtonLabel?.trim() || 'Tambah';
+      const cartItemObj: CatalogItem = {
+        id: itemId,
+        title: prodName,
+        subtitle: prodDesc,
+        description: prodDesc,
+        price: prodPrice,
+        ctaLabel: btnLabel,
+        url: '',
+        image: block.content.cartProductImage || '',
+        unitSold: 0,
+      };
+      return (
+        <div key={block.id} style={style}>
+          <div className="flex items-center justify-between gap-2.5 text-left">
+            {showInfo && (
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {block.content.cartProductImage && (
+                  <img
+                    src={block.content.cartProductImage}
+                    alt={prodName}
+                    referrerPolicy="no-referrer"
+                    className="w-11 h-11 rounded-lg object-cover shrink-0 border border-slate-200/70"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold leading-snug truncate">{prodName}</div>
+                  {prodDesc && (
+                    <div className="text-[10.5px] opacity-70 leading-snug line-clamp-2">
+                      {prodDesc}
+                    </div>
+                  )}
+                  <div
+                    style={{ color: accent }}
+                    className="text-xs font-extrabold tabular-nums mt-0.5"
+                  >
+                    {prodPrice}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className={`shrink-0 flex items-center ${!showInfo ? 'w-full justify-center' : ''}`}>
+              {qty > 0 ? (
+                <div
+                  style={{ borderColor: accent }}
+                  className="inline-flex items-center gap-1.5 rounded-full border bg-white px-1.5 py-1 shadow-xs"
+                >
+                  <button
+                    type="button"
+                    onClick={() => updateCartQty(`${block.id}::${itemId}::`, -1)}
+                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center cursor-pointer"
+                    aria-label="Kurangi"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold text-slate-900 min-w-[18px] text-center tabular-nums">
+                    {qty}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => addToCart(block.id, cartItemObj, '', 1)}
+                    style={{ backgroundColor: accent }}
+                    className="w-6 h-6 rounded-full text-white flex items-center justify-center cursor-pointer"
+                    aria-label="Tambah"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => addToCart(block.id, cartItemObj, '', 1)}
+                  style={{ backgroundColor: accent }}
+                  className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-white text-xs font-bold shadow-xs cursor-pointer hover:opacity-95 ${
+                    !showInfo ? 'w-full' : ''
+                  }`}
+                >
+                  <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                  <span>{btnLabel}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (block.type === 'showcase_card') {
+      const cardItemId = `sc_${block.id}`;
+      const cardQty = fnbCartQtyMap[cardItemId] ?? 0;
+      const cardItemObj: CatalogItem = {
+        id: cardItemId,
+        title: block.content.cardTitle?.trim() || 'Produk Store',
+        subtitle: block.content.cardSubtitle?.trim() || '',
+        description: block.content.cardSubtitle?.trim() || '',
+        price: block.content.cardPrice?.trim() || 'Rp 0',
+        ctaLabel: 'Tambah',
+        url: block.content.cardActionUrl || '',
+        image: block.content.cardImage || '',
+        unitSold: 0,
+      };
+      return (
+        <div key={block.id} style={style}>
+          <ShowcaseCardView
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            cartQty={cardQty}
+            onAddCart={() => addToCart(block.id, cardItemObj, '', 1)}
+            onIncCart={() => addToCart(block.id, cardItemObj, '', 1)}
+            onDecCart={() => updateCartQty(`${block.id}::${cardItemId}::`, -1)}
+          />
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -1907,7 +2148,10 @@ export function PreviewModal({
 
     for (const entry of cart) {
       const blk = findBlockById(project.blocks, entry.blockId, bottomNavbar.items) ?? firstCatalog;
-      const rawPhone = blk?.content.catalogWhatsappNumber;
+      const rawPhone =
+        blk?.content.catalogWhatsappNumber ||
+        blk?.content.cartWhatsappNumber ||
+        blk?.content.cardWhatsappNumber;
       const normalizedPhone = normalizeWhatsappNumber(rawPhone);
       const existing = groupsMap.get(normalizedPhone);
       if (existing) {
@@ -1916,7 +2160,10 @@ export function PreviewModal({
         groupsMap.set(normalizedPhone, {
           normalizedPhone,
           rawPhone,
-          storeName: blk?.content.catalogStoreName?.trim() || project.title,
+          storeName:
+            blk?.content.catalogStoreName?.trim() ||
+            blk?.content.cartStoreName?.trim() ||
+            project.title,
           intro: blk?.content.catalogWhatsappIntro,
           askCustomerInfo: blk?.content.catalogAskCustomerInfo ?? true,
           customerFields: resolveCatalogCustomerFields(blk?.content),
@@ -2174,21 +2421,16 @@ export function PreviewModal({
           }}
         >
           {subPage.type === 'home' &&
-            firstFnbCatalog &&
-            firstFnbCatalog.content.fnbFloatingCartEnabled !== false &&
-            firstFnbCatalog.content.fnbFloatingCartPosition === 'top-floating' &&
+            floatingCartConfig &&
+            floatingCartConfig.position === 'top-floating' &&
             totalCartCount > 0 && (
               <FnbFloatingCartCapsule
                 count={totalCartCount}
                 totalAmount={totalCartAmount}
                 position="top-floating"
-                offsetY={firstFnbCatalog.content.fnbFloatingCartOffsetY ?? 16}
-                bgColor={
-                  firstFnbCatalog.content.fnbFloatingCartBg ||
-                  firstFnbCatalog.content.fnbAccentColor ||
-                  project.theme.accentColor
-                }
-                actionLabel={firstFnbCatalog.content.fnbFloatingCartLabel || 'Lanjut'}
+                offsetY={floatingCartConfig.offsetY}
+                bgColor={floatingCartConfig.bgColor}
+                actionLabel={floatingCartConfig.actionLabel}
                 onClick={() => openCartPage()}
               />
             )}
@@ -2211,21 +2453,16 @@ export function PreviewModal({
           )}
 
           {subPage.type === 'home' &&
-            firstFnbCatalog &&
-            firstFnbCatalog.content.fnbFloatingCartEnabled !== false &&
-            firstFnbCatalog.content.fnbFloatingCartPosition !== 'top-floating' &&
+            floatingCartConfig &&
+            floatingCartConfig.position !== 'top-floating' &&
             totalCartCount > 0 && (
               <FnbFloatingCartCapsule
                 count={totalCartCount}
                 totalAmount={totalCartAmount}
-                position={firstFnbCatalog.content.fnbFloatingCartPosition ?? 'bottom-floating'}
-                offsetY={firstFnbCatalog.content.fnbFloatingCartOffsetY ?? 16}
-                bgColor={
-                  firstFnbCatalog.content.fnbFloatingCartBg ||
-                  firstFnbCatalog.content.fnbAccentColor ||
-                  project.theme.accentColor
-                }
-                actionLabel={firstFnbCatalog.content.fnbFloatingCartLabel || 'Lanjut'}
+                position={floatingCartConfig.position}
+                offsetY={floatingCartConfig.offsetY}
+                bgColor={floatingCartConfig.bgColor}
+                actionLabel={floatingCartConfig.actionLabel}
                 onClick={() => openCartPage()}
               />
             )}
@@ -2752,6 +2989,7 @@ export function PreviewModal({
                                           <div>
                                             <label className="block text-[11px] font-semibold opacity-80 mb-1">
                                               {opt.arrivalTimeLabel || 'Waktu'}
+                                              {opt.arrivalTimeRequired ? ' *' : ''}
                                             </label>
                                             <input
                                               type="text"
@@ -2777,6 +3015,7 @@ export function PreviewModal({
                                           <div>
                                             <label className="block text-[11px] font-semibold opacity-80 mb-1">
                                               {opt.guestCountLabel || 'Jumlah Orang'}
+                                              {opt.guestCountRequired ? ' *' : ''}
                                             </label>
                                             <input
                                               type="text"
@@ -2803,6 +3042,11 @@ export function PreviewModal({
 
                                     {opt.checklistEnabled && optChecklists.length > 0 && (
                                       <div className="space-y-1.5">
+                                        {opt.checklistRequired && (
+                                          <div className="text-[10.5px] font-semibold text-rose-600">
+                                            Checklist Wajib Dicentang *
+                                          </div>
+                                        )}
                                         {optChecklists.map((chkText, cIdx) => {
                                           const checked = Boolean(checklistCheckedMap[cIdx]);
                                           return (
@@ -2884,60 +3128,122 @@ export function PreviewModal({
                         {totalCartAmount > 0 ? formatRupiah(totalCartAmount) : 'Sesuai konfirmasi WA'}
                       </span>
                     </div>
-                    {cartStoreGroups.length <= 1 ? (
-                      <a
-                        href={cartWaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        data-wa-tracked="1"
-                        onClick={() =>
-                          recordPreviewWaClick(
-                            `Keranjang WA (${totalCartCount} item)`,
-                            cartWaUrl,
-                            totalCartAmount
-                          )
-                        }
-                        className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        <span>Kirim Pesanan via WhatsApp</span>
-                      </a>
-                    ) : (
-                      <div className="space-y-2 pt-1">
-                        <div className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-snug">
-                          Keranjang berisi produk dari {cartStoreGroups.length} nomor WhatsApp berbeda. Kirim pesanan per toko di bawah ini:
-                        </div>
-                        {cartStoreGroups.map((grp) => {
-                          const grpCount = grp.entries.reduce((s, e) => s + e.qty, 0);
-                          const grpTotal = grp.entries.reduce(
-                            (s, e) => s + e.unitPrice * e.qty,
-                            0
-                          );
-                          return (
-                            <a
-                              key={grp.normalizedPhone}
-                              href={grp.waUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              data-wa-tracked="1"
-                              onClick={() =>
-                                recordPreviewWaClick(
-                                  `Keranjang ${grp.storeName} (${grpCount} item)`,
-                                  grp.waUrl,
-                                  grpTotal
-                                )
-                              }
-                              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors"
-                            >
-                              <MessageCircle className="w-4 h-4 shrink-0" />
-                              <span className="truncate">
-                                Kirim ke {grp.storeName} ({grpCount} item)
-                              </span>
-                            </a>
-                          );
-                        })}
+                    {cartCheckoutError && (
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-[11px] font-semibold text-rose-700 leading-snug">
+                        {cartCheckoutError}
                       </div>
                     )}
+                    {(() => {
+                      const validateCheckout = (): boolean => {
+                        if (activeAskCustomerInfo) {
+                          const missingField = activeCustomerFields.find(
+                            (f) => f.required && !(customFieldValues[f.id] ?? '').trim()
+                          );
+                          if (missingField) {
+                            setCartCheckoutError(`Mohon lengkapi kolom wajib: ${missingField.label}`);
+                            return false;
+                          }
+                        }
+                        if (shouldShowChoices && activeSelectedShipOpt) {
+                          if (
+                            activeSelectedShipOpt.askArrivalTime &&
+                            activeSelectedShipOpt.arrivalTimeRequired &&
+                            !(customer.arrivalTime ?? '').trim()
+                          ) {
+                            setCartCheckoutError(
+                              `Mohon lengkapi kolom wajib: ${activeSelectedShipOpt.arrivalTimeLabel || 'Waktu'}`
+                            );
+                            return false;
+                          }
+                          if (
+                            activeSelectedShipOpt.askGuestCount &&
+                            activeSelectedShipOpt.guestCountRequired &&
+                            !(customer.guestCount ?? '').trim()
+                          ) {
+                            setCartCheckoutError(
+                              `Mohon lengkapi kolom wajib: ${activeSelectedShipOpt.guestCountLabel || 'Jumlah Orang'}`
+                            );
+                            return false;
+                          }
+                          if (
+                            activeSelectedShipOpt.checklistEnabled &&
+                            activeSelectedShipOpt.checklistRequired
+                          ) {
+                            const reqItems = resolveShippingOptionChecklistItems(activeSelectedShipOpt);
+                            const allOk = reqItems.every((_, idx) => Boolean(checklistCheckedMap[idx]));
+                            if (reqItems.length > 0 && !allOk) {
+                              setCartCheckoutError('Mohon centang seluruh checklist wajib sebelum mengirim pesanan.');
+                              return false;
+                            }
+                          }
+                        }
+                        setCartCheckoutError('');
+                        return true;
+                      };
+
+                      return cartStoreGroups.length <= 1 ? (
+                        <a
+                          href={cartWaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-wa-tracked="1"
+                          onClick={(e) => {
+                            if (!validateCheckout()) {
+                              e.preventDefault();
+                              return;
+                            }
+                            recordPreviewWaClick(
+                              `Keranjang WA (${totalCartCount} item)`,
+                              cartWaUrl,
+                              totalCartAmount
+                            );
+                          }}
+                          className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          <span>Kirim Pesanan via WhatsApp</span>
+                        </a>
+                      ) : (
+                        <div className="space-y-2 pt-1">
+                          <div className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-snug">
+                            Keranjang berisi produk dari {cartStoreGroups.length} nomor WhatsApp berbeda. Kirim pesanan per toko di bawah ini:
+                          </div>
+                          {cartStoreGroups.map((grp) => {
+                            const grpCount = grp.entries.reduce((s, e) => s + e.qty, 0);
+                            const grpTotal = grp.entries.reduce(
+                              (s, e) => s + e.unitPrice * e.qty,
+                              0
+                            );
+                            return (
+                              <a
+                                key={grp.normalizedPhone}
+                                href={grp.waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-wa-tracked="1"
+                                onClick={(e) => {
+                                  if (!validateCheckout()) {
+                                    e.preventDefault();
+                                    return;
+                                  }
+                                  recordPreviewWaClick(
+                                    `Keranjang ${grp.storeName} (${grpCount} item)`,
+                                    grp.waUrl,
+                                    grpTotal
+                                  );
+                                }}
+                                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors"
+                              >
+                                <MessageCircle className="w-4 h-4 shrink-0" />
+                                <span className="truncate">
+                                  Kirim ke {grp.storeName} ({grpCount} item)
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </>
               )}

@@ -288,6 +288,26 @@ function resolveConfiguredAppOrigin(): string | undefined {
   return undefined;
 }
 
+function resolveRequestPublicOrigin(req: Request): string | undefined {
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '')
+    .split(',')[0]
+    .trim();
+  const rawHost = forwardedHost || String(req.headers.host || '').trim();
+  if (rawHost) {
+    const cleanHost = rawHost.replace(/[^a-zA-Z0-9.:-]/g, '');
+    if (cleanHost) {
+      const hostWithoutPort = cleanHost.split(':')[0]?.toLowerCase() ?? '';
+      const isLocalHost =
+        hostWithoutPort === 'localhost' ||
+        hostWithoutPort === '127.0.0.1' ||
+        hostWithoutPort === '::1';
+      const proto = isRequestHttps(req) ? 'https' : isLocalHost ? 'http' : 'https';
+      return `${proto}://${cleanHost}`;
+    }
+  }
+  return resolveConfiguredAppOrigin();
+}
+
 function getClientIp(req: Request): string {
   return resolveClientIp(req, { trustedProxy: isTrustedProxyRuntime() });
 }
@@ -1202,7 +1222,10 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         return res.status(404).json({ error: 'Media tidak ditemukan.' });
       }
       res.setHeader('Content-Type', loaded.mimeType);
+      res.setHeader('Content-Length', String(loaded.buffer.length));
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       return res.status(200).send(loaded.buffer);
     })
@@ -1253,10 +1276,18 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           matched.record.id,
         'unit-usaha'
       );
-      if (cleanPath === '' || cleanPath === slug) {
+      const isBrowserPath = cleanPath === '' || cleanPath === slug;
+      const isFullscreenPath = cleanPath === 'full' || cleanPath === `${slug}/full`;
+      if (isBrowserPath || isFullscreenPath) {
+        const publicOrigin = resolveRequestPublicOrigin(req) || `https://${reqHost}`;
+        const baseCanonicalPath =
+          cleanPath === slug || cleanPath === `${slug}/full` ? slug : '';
+        const canonicalUrl = baseCanonicalPath
+          ? `${publicOrigin}/${baseCanonicalPath}`
+          : publicOrigin;
         const freshHtml = generateProjectHtml(
           sanitizeBuilderProject(matched.record.project),
-          { projectId: matched.record.id }
+          { projectId: matched.record.id, publicOrigin, canonicalUrl }
         );
         const stored = publicPageCache.setByDomainPath(reqHost, cleanPath, {
           projectId: matched.record.id,
@@ -1393,12 +1424,19 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
               (isPublishedNow ? savedAt : undefined),
             seoTitle: sanitizedInputProject.publishing?.seoTitle,
             seoDescription: sanitizedInputProject.publishing?.seoDescription,
+            seoImage: sanitizedInputProject.publishing?.seoImage,
+            seoImageAlt: sanitizedInputProject.publishing?.seoImageAlt,
+            seoSiteName: sanitizedInputProject.publishing?.seoSiteName,
+            seoShareText: sanitizedInputProject.publishing?.seoShareText,
           },
         },
       };
 
       // Server generates authoritative HTML from sanitized project payload (F-22)
-      const authoritativeHtml = generateProjectHtml(updatedRecord.project, { projectId });
+      const authoritativeHtml = generateProjectHtml(updatedRecord.project, {
+        projectId,
+        publicOrigin: resolveRequestPublicOrigin(req),
+      });
 
       const expectedRevision =
         typeof body.baseRevision === 'number'
@@ -1540,11 +1578,18 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
             publishedAt: now,
             seoTitle: sanitizedInputProject.publishing?.seoTitle,
             seoDescription: sanitizedInputProject.publishing?.seoDescription,
+            seoImage: sanitizedInputProject.publishing?.seoImage,
+            seoImageAlt: sanitizedInputProject.publishing?.seoImageAlt,
+            seoSiteName: sanitizedInputProject.publishing?.seoSiteName,
+            seoShareText: sanitizedInputProject.publishing?.seoShareText,
           },
         },
       };
 
-      const authoritativeHtml = generateProjectHtml(updatedRecord.project, { projectId });
+      const authoritativeHtml = generateProjectHtml(updatedRecord.project, {
+        projectId,
+        publicOrigin: resolveRequestPublicOrigin(req),
+      });
       const expectedRevision =
         typeof body.baseRevision === 'number'
           ? body.baseRevision
@@ -2203,6 +2248,8 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           updatedAt: e.record.updatedAt,
           seoTitle: e.record.project.publishing?.seoTitle || e.record.project.title,
           seoDescription: e.record.project.publishing?.seoDescription || '',
+          seoImage: e.record.project.publishing?.seoImage || '',
+          seoSiteName: e.record.project.publishing?.seoSiteName || '',
         }));
       return res.json({ count: published.length, pages: published });
     })
@@ -2229,11 +2276,11 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
   );
 
   // ============================================================
-  // Published HTML Landing Page Route (Strict Preview Gate)
+  // Published HTML Landing Page Routes — Browser Mode (/p/:slug)
+  // & Fullscreen Mode (/p/:slug/full) serving the exact same page
   // ============================================================
-  app.get(
-    '/p/:slug',
-    asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const handlePublicSlugLandingPage = asyncHandler(
+    async (req: AuthenticatedRequest, res) => {
       const slug = normalizeServerSlug(req.params.slug || '', '');
       if (!slug) {
         return res
@@ -2244,9 +2291,10 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
       }
 
       const isPreviewRequest = req.query.preview === '1';
+      const requestOrigin = resolveRequestPublicOrigin(req);
 
       if (!isPreviewRequest) {
-        const cached = publicPageCache.getBySlug(slug);
+        const cached = publicPageCache.getBySlug(slug, requestOrigin);
         if (cached) {
           res.setHeader('Content-Security-Policy', PUBLIC_PAGE_CSP);
           res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
@@ -2304,16 +2352,24 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
 
       const freshHtml = generateProjectHtml(
         sanitizeBuilderProject(entry.record.project),
-        { projectId: entry.record.id }
+        {
+          projectId: entry.record.id,
+          publicOrigin: requestOrigin,
+          canonicalUrl: requestOrigin ? `${requestOrigin}/p/${slug}` : undefined,
+        }
       );
 
       if (entry.record.project.publishing?.isPublished && !isPreviewRequest) {
-        const stored = publicPageCache.setBySlug(slug, {
-          projectId: entry.record.id,
+        const stored = publicPageCache.setBySlug(
           slug,
-          revision: entry.record.revision ?? 1,
-          html: freshHtml,
-        });
+          {
+            projectId: entry.record.id,
+            slug,
+            revision: entry.record.revision ?? 1,
+            html: freshHtml,
+          },
+          requestOrigin
+        );
         res.setHeader('Content-Security-Policy', PUBLIC_PAGE_CSP);
         res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
         res.setHeader('ETag', stored.etag);
@@ -2334,8 +2390,11 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         .setHeader('Cache-Control', 'no-store, private')
         .setHeader('X-Cache', 'BYPASS')
         .send(freshHtml);
-    })
+    }
   );
+
+  app.get('/p/:slug', handlePublicSlugLandingPage);
+  app.get('/p/:slug/full', handlePublicSlugLandingPage);
 
   // ============================================================
   // Video Link Resolver (Strict SSRF Guard - F-03)

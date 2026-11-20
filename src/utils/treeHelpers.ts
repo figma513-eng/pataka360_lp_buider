@@ -105,6 +105,16 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
         ...it,
         id: createId('catbtn'),
       })),
+      formChecklistItems: block.content.formChecklistItems
+        ? [...block.content.formChecklistItems]
+        : undefined,
+      cardGalleryImages: block.content.cardGalleryImages
+        ? [...block.content.cardGalleryImages]
+        : undefined,
+      cardFeeItems: block.content.cardFeeItems?.map((it) => ({
+        ...it,
+        id: createId('fee'),
+      })),
     },
     children: block.children ? block.children.map(cloneBlockDeep) : undefined,
   };

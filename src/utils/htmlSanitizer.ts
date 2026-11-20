@@ -526,6 +526,10 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.rowColumns === 'number' && Number.isFinite(c.rowColumns)
           ? Math.max(1, Math.min(20, Math.round(c.rowColumns)))
           : c.rowColumns,
+      rowGridRows:
+        typeof c.rowGridRows === 'number' && Number.isFinite(c.rowGridRows)
+          ? Math.max(1, Math.min(10, Math.round(c.rowGridRows)))
+          : c.rowGridRows,
       rowColumnWidth:
         typeof c.rowColumnWidth === 'number' && Number.isFinite(c.rowColumnWidth)
           ? Math.max(80, Math.min(340, Math.round(c.rowColumnWidth)))
@@ -577,6 +581,43 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       menuIconTextColor: c.menuIconTextColor
         ? sanitizeCssColor(c.menuIconTextColor, '#17243D')
         : c.menuIconTextColor,
+      formChecklistItems: Array.isArray(c.formChecklistItems)
+        ? c.formChecklistItems.map((it) => String(it || '').slice(0, 240))
+        : c.formChecklistItems,
+      cartProductImage: c.cartProductImage
+        ? sanitizeImageOrMediaUrl(c.cartProductImage)
+        : c.cartProductImage,
+      cartAccentColor: c.cartAccentColor
+        ? sanitizeCssColor(c.cartAccentColor, '#EA580C')
+        : c.cartAccentColor,
+      cartFloatingBg: c.cartFloatingBg
+        ? sanitizeCssColor(c.cartFloatingBg, '#059669')
+        : c.cartFloatingBg,
+      cardImage: c.cardImage ? sanitizeImageOrMediaUrl(c.cardImage) : c.cardImage,
+      cardGalleryImages: Array.isArray(c.cardGalleryImages)
+        ? c.cardGalleryImages.map((g) => sanitizeImageOrMediaUrl(g))
+        : c.cardGalleryImages,
+      cardMoreUrl: c.cardMoreUrl ? sanitizeExternalUrl(c.cardMoreUrl, '') : c.cardMoreUrl,
+      cardActionUrl: c.cardActionUrl ? sanitizeExternalUrl(c.cardActionUrl, '') : c.cardActionUrl,
+      cardGradientFrom: c.cardGradientFrom
+        ? sanitizeCssColor(c.cardGradientFrom, '#F97316')
+        : c.cardGradientFrom,
+      cardGradientTo: c.cardGradientTo
+        ? sanitizeCssColor(c.cardGradientTo, '#EA580C')
+        : c.cardGradientTo,
+      cardAccentColor: c.cardAccentColor
+        ? sanitizeCssColor(c.cardAccentColor, '#2563EB')
+        : c.cardAccentColor,
+      cardTextColor: c.cardTextColor
+        ? sanitizeCssColor(c.cardTextColor, '#FFFFFF')
+        : c.cardTextColor,
+      cardFeeItems: Array.isArray(c.cardFeeItems)
+        ? c.cardFeeItems.map((fi) => ({
+            id: String(fi.id || 'fee'),
+            label: String(fi.label || '').slice(0, 80),
+            value: String(fi.value || '').slice(0, 60),
+          }))
+        : c.cardFeeItems,
     },
     children: Array.isArray(block.children)
       ? block.children.map(sanitizeBlockTree)
@@ -631,12 +672,42 @@ export function sanitizeBuilderProject(raw: BuilderProject): BuilderProject {
       }
     : undefined;
 
+  const publishing = raw.publishing
+    ? {
+        ...raw.publishing,
+        seoTitle:
+          typeof raw.publishing.seoTitle === 'string'
+            ? raw.publishing.seoTitle.trim().slice(0, 120)
+            : raw.publishing.seoTitle,
+        seoDescription:
+          typeof raw.publishing.seoDescription === 'string'
+            ? raw.publishing.seoDescription.trim().slice(0, 300)
+            : raw.publishing.seoDescription,
+        seoImage: raw.publishing.seoImage
+          ? sanitizeImageOrMediaUrl(raw.publishing.seoImage)
+          : '',
+        seoImageAlt:
+          typeof raw.publishing.seoImageAlt === 'string'
+            ? raw.publishing.seoImageAlt.trim().slice(0, 120)
+            : raw.publishing.seoImageAlt,
+        seoSiteName:
+          typeof raw.publishing.seoSiteName === 'string'
+            ? raw.publishing.seoSiteName.trim().slice(0, 80)
+            : raw.publishing.seoSiteName,
+        seoShareText:
+          typeof raw.publishing.seoShareText === 'string'
+            ? raw.publishing.seoShareText.trim().slice(0, 280)
+            : raw.publishing.seoShareText,
+      }
+    : undefined;
+
   return {
     ...raw,
     title: String(raw.title || 'Halaman Usaha').slice(0, 120),
     theme: sanitizeTheme(raw.theme),
     blocks: safeBlocks,
     bottomNavbar: safeNav,
+    publishing,
     adsConfig: ads,
   };
 }

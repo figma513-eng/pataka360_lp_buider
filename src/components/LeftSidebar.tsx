@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Award,
   BadgeCheck,
+  CalendarDays,
   ChevronsUpDown,
   Columns2,
   Columns3,
   FileText,
   GraduationCap,
+  Grid3X3,
   Image as ImageIcon,
   Images,
   LayoutGrid,
@@ -14,21 +17,26 @@ import {
   MapPin,
   Minus,
   MousePointerClick,
+  Newspaper,
   Package,
   Palette,
   PanelBottomOpen,
   PanelTop,
+  Quote,
   Search,
   Shapes,
   Share2,
   ShoppingBag,
+  ShoppingCart,
   Sparkles,
   Square,
   Store,
   Tag,
   Tags,
+  Ticket,
   Type,
   UserCheck,
+  Users,
   UtensilsCrossed,
   Video,
   Wrench,
@@ -39,8 +47,13 @@ import {
   BottomNavbarConfig,
   BuilderBlock,
   PageTheme,
+  PrebuiltSectionCategory,
 } from '../types/builder';
-import { PREBUILT_SECTIONS, PrebuiltSection } from '../data/presets';
+import {
+  PREBUILT_SECTION_CATEGORIES,
+  PREBUILT_SECTIONS,
+  PrebuiltSection,
+} from '../data/presets';
 import { useUiLabel } from '../contexts/UiLabelsContext';
 import { SocialGlyph } from './SocialIcon';
 import { HomePageSettings } from './inspector/HomePageSettings';
@@ -82,55 +95,39 @@ export interface ToolPaletteItem {
   icon: React.ReactNode;
 }
 
+/**
+ * ALAT = Komponen Mandiri (dapat disusun bebas ke dalam card/wadah/kolom mana pun).
+ * Template siap pakai (Hero Profil, Katalog F&B/Produk/Pelatihan, Kartu Kutipan/Berita/Tiket, dll.)
+ * dipisahkan ke tab BLOK agar terstruktur rapi per kategori.
+ */
 export const TOOL_ITEMS: ToolPaletteItem[] = [
   {
-    key: 'hero_profile',
-    type: 'hero_profile',
-    label: 'Hero Profil Usaha',
-    desc: 'Kartu profil kompak atau banner full atas',
-    icon: <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'text',
+    type: 'text',
+    label: 'Teks Biasa',
+    desc: 'Judul, subjudul, atau paragraf mandiri',
+    icon: <Type className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'category_tabs',
-    type: 'category_tabs',
-    label: 'Tombol Kategori',
-    desc: 'Favorit, makanan, minuman & lompat ke judul',
-    icon: <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'image',
+    type: 'image',
+    label: 'Gambar',
+    desc: 'Foto, logo, poster, atau ilustrasi',
+    icon: <ImageIcon className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'fnb_catalog',
-    type: 'fnb_catalog',
-    label: 'Katalog F&B',
-    desc: 'Menu makanan/minuman & keranjang mengambang',
-    icon: <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'button',
+    type: 'button',
+    label: 'Tombol Link',
+    desc: 'Tautan CTA interaktif mandiri',
+    icon: <MousePointerClick className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'row',
-    type: 'row',
-    label: 'Kolom / Row Dinamis',
-    desc: '1–20 kolom grid, slide horizontal (3 titik) & vertikal',
-    icon: <Columns2 className="w-4 h-4" strokeWidth={1.85} />,
-  },
-  {
-    key: 'container',
-    type: 'container',
-    label: 'Kotak / Wadah',
-    desc: 'Pembungkus elemen & latar gradasi',
-    icon: <Square className="w-4 h-4" strokeWidth={1.85} />,
-  },
-  {
-    key: 'toggle_container',
-    type: 'toggle_container',
-    label: 'Wadah Show / Hide',
-    desc: 'Buka-tutup elemen (default hide)',
-    icon: <ChevronsUpDown className="w-4 h-4" strokeWidth={1.85} />,
-  },
-  {
-    key: 'bottom_sheet',
-    type: 'bottom_sheet',
-    label: 'Bottom Sheet',
-    desc: 'Klik ikon/tombol buka panel bawah (Maps, dll)',
-    icon: <PanelBottomOpen className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'cart_button',
+    type: 'cart_button',
+    label: 'Tombol Keranjang',
+    desc: 'Bisa diletakkan di card mana pun · - 1 + & label mengambang',
+    icon: <ShoppingCart className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'menu_icon',
@@ -140,62 +137,67 @@ export const TOOL_ITEMS: ToolPaletteItem[] = [
     icon: <Shapes className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'catalog_physical',
-    type: 'catalog',
-    sectionId: 'katalog-produk-fisik',
-    label: 'Katalog Produk Fisik',
-    desc: 'Produk fisik, data pemesan dinamis, pilihan kirim & WA',
-    icon: <Package className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'row',
+    type: 'row',
+    label: 'Kolom / Grid / Row',
+    desc: 'Tambah kolom & baris grid (1–20), slide horizontal/vertikal',
+    icon: <Columns2 className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'catalog_digital',
-    type: 'catalog',
-    sectionId: 'katalog-produk-digital',
-    label: 'Katalog Produk Digital',
-    desc: 'Produk digital, data pemesan dinamis & kirim via WA',
-    icon: <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'container',
+    type: 'container',
+    label: 'Kotak / Wadah',
+    desc: 'Pembungkus elemen, card custom & latar gradasi',
+    icon: <Square className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'training_catalog',
-    type: 'training_catalog',
-    label: 'Katalog Produk Pelatihan',
-    desc: 'Deskripsi, foto/postingan, harga/cashback, berkas, form & WA',
-    icon: <GraduationCap className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'toggle_container',
+    type: 'toggle_container',
+    label: 'Wadah Show / Hide',
+    desc: 'Buka-tutup elemen secara dinamis (default hide)',
+    icon: <ChevronsUpDown className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'text',
-    type: 'text',
-    label: 'Teks Biasa',
-    desc: 'Judul atau paragraf',
-    icon: <Type className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'bottom_sheet',
+    type: 'bottom_sheet',
+    label: 'Bottom Sheet',
+    desc: 'Klik ikon/tombol buka panel mengambang',
+    icon: <PanelBottomOpen className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
-    key: 'image',
-    type: 'image',
-    label: 'Gambar',
-    desc: 'Foto, logo, ilustrasi',
-    icon: <ImageIcon className="w-4 h-4" strokeWidth={1.85} />,
-  },
-  {
-    key: 'button',
-    type: 'button',
-    label: 'Tombol Link',
-    desc: 'Tautan CTA interaktif',
-    icon: <MousePointerClick className="w-4 h-4" strokeWidth={1.85} />,
+    key: 'category_tabs',
+    type: 'category_tabs',
+    label: 'Tombol Kategori',
+    desc: 'Filter kategori atau lompat ke bagian tertentu',
+    icon: <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'form',
     type: 'form',
     label: 'Form Isian',
-    desc: 'Kumpulkan nama & kontak',
+    desc: 'Form & checklist dengan opsi wajib isi / tidak wajib',
     icon: <FileText className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'divider',
     type: 'divider',
     label: 'Garis Pembatas',
-    desc: 'Pemisah antar bagian',
+    desc: 'Pemisah antar bagian halaman',
     icon: <Minus className="w-4 h-4" strokeWidth={1.85} />,
+  },
+  {
+    key: 'maps_place',
+    type: 'maps_place',
+    label: 'Lokasi Maps',
+    desc: 'Kartu alamat, rating & tombol Google Maps',
+    icon: <MapPin className="w-4 h-4" strokeWidth={1.85} />,
+  },
+  {
+    key: 'social',
+    type: 'social',
+    label: 'Ikon Sosmed',
+    desc: 'Baris ikon link seluruh sosial media',
+    icon: <Share2 className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'youtube',
@@ -225,23 +227,17 @@ export const TOOL_ITEMS: ToolPaletteItem[] = [
     desc: 'Embed IG bersih + Play/Pause/Volume',
     icon: <SocialGlyph platform="instagram" className="w-4 h-4" />,
   },
-  {
-    key: 'social',
-    type: 'social',
-    label: 'Sosial Media',
-    desc: 'Ikon link seluruh sosial media',
-    icon: <Share2 className="w-4 h-4" strokeWidth={1.85} />,
-  },
-  {
-    key: 'social_follower',
-    type: 'social_follower',
-    label: 'Sosial Media + Follower',
-    desc: 'Kartu profil & jumlah follower seluruh sosmed',
-    icon: <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
-  },
 ];
 
 export const SECTION_ICONS: Record<string, React.ReactNode> = {
+  'kartu-kutipan-tokoh': <Quote className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-informasi-nasional': <Newspaper className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-even-promo': <CalendarDays className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-sertifikasi': <Award className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-store-gradasi': <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-feed-kegiatan': <Users className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-tarif-keanggotaan': <Ticket className="w-4 h-4" strokeWidth={1.85} />,
+  'menu-grid-spesial': <Grid3X3 className="w-4 h-4" strokeWidth={1.85} />,
   'hero-profil-kompak': <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
   'hero-profil-banner': <PanelTop className="w-4 h-4" strokeWidth={1.85} />,
   'tombol-kategori-scroll': <Tags className="w-4 h-4" strokeWidth={1.85} />,
@@ -252,6 +248,7 @@ export const SECTION_ICONS: Record<string, React.ReactNode> = {
   'bottom-sheet-maps': <PanelBottomOpen className="w-4 h-4" strokeWidth={1.85} />,
   'lokasi-maps': <MapPin className="w-4 h-4" strokeWidth={1.85} />,
   'sosmed-postingan': <Share2 className="w-4 h-4" strokeWidth={1.85} />,
+  'sosmed-follower-cards': <UserCheck className="w-4 h-4" strokeWidth={1.85} />,
   'foto-carousel': <Images className="w-4 h-4" strokeWidth={1.85} />,
   'katalog-produk-pelatihan': <GraduationCap className="w-4 h-4" strokeWidth={1.85} />,
   'katalog-produk-fisik': <Package className="w-4 h-4" strokeWidth={1.85} />,
@@ -265,6 +262,16 @@ export const SECTION_ICONS: Record<string, React.ReactNode> = {
 export function getSectionIcon(sectionId: string): React.ReactNode {
   return SECTION_ICONS[sectionId] ?? <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />;
 }
+
+const CATEGORY_LABEL_MAP: Record<PrebuiltSectionCategory, string> = {
+  kartu_info: 'Kartu & Info',
+  katalog_store: 'Katalog & Store',
+  event_kegiatan: 'Event & Kegiatan',
+  tarif_paket: 'Tarif & Paket',
+  hero_profil: 'Hero & Profil',
+  menu_layout: 'Menu & Grid',
+  kontak_medsos: 'Medsos & Kontak',
+};
 
 export function LeftSidebar({
   onAddBlock,
@@ -290,6 +297,9 @@ export function LeftSidebar({
   const { label } = useUiLabel();
   const [activeTab, setActiveTab] = useState<SidebarTab>('alat');
   const [query, setQuery] = useState('');
+  const [selectedBlockCategory, setSelectedBlockCategory] = useState<
+    'semua' | PrebuiltSectionCategory
+  >('semua');
 
   useEffect(() => {
     if (navbarFocusNonce > 0) {
@@ -313,16 +323,21 @@ export function LeftSidebar({
 
   const filteredSections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return PREBUILT_SECTIONS;
     return PREBUILT_SECTIONS.filter((sec) => {
+      if (selectedBlockCategory !== 'semua' && sec.category !== selectedBlockCategory) {
+        return false;
+      }
+      if (!q) return true;
       const displayTitle = label(`blok.sec.${sec.id}`, sec.title);
+      const catLabel = CATEGORY_LABEL_MAP[sec.category] ?? '';
       return (
         displayTitle.toLowerCase().includes(q) ||
         sec.title.toLowerCase().includes(q) ||
-        sec.description.toLowerCase().includes(q)
+        sec.description.toLowerCase().includes(q) ||
+        catLabel.toLowerCase().includes(q)
       );
     });
-  }, [query, label]);
+  }, [query, selectedBlockCategory, label]);
 
   return (
     <aside className="w-64 xl:w-[19%] min-w-[240px] max-w-[300px] bg-white border-r border-[#DCE5EF] flex flex-col shrink-0 h-full overflow-hidden">
@@ -362,7 +377,7 @@ export function LeftSidebar({
 
       {/* Quick Filter (Alat & Blok only) */}
       {activeTab !== 'tema' && (
-        <div className="px-2.5 pt-2.5 pb-1.5 shrink-0">
+        <div className="px-2.5 pt-2.5 pb-1.5 shrink-0 space-y-2">
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -371,13 +386,35 @@ export function LeftSidebar({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={
                 activeTab === 'alat'
-                  ? label('alat.search', 'Cari alat...')
-                  : label('blok.search', 'Cari blok siap pakai...')
+                  ? label('alat.search', 'Cari alat mandiri...')
+                  : label('blok.search', 'Cari template blok / card...')
               }
               aria-label={activeTab === 'alat' ? label('alat.search', 'Cari alat') : label('blok.search', 'Cari blok')}
               className="w-full pl-8 pr-2.5 py-1.5 text-[12px] rounded-lg border border-[#DCE5EF] bg-[#F0F5FA]/50 text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:bg-white focus:border-[#00C98A] transition-colors"
             />
           </div>
+
+          {activeTab === 'blok' && (
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Kategori Blok">
+              {PREBUILT_SECTION_CATEGORIES.map((cat) => {
+                const active = selectedBlockCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedBlockCategory(cat.id)}
+                    className={`px-2 py-1 rounded-md text-[10.5px] font-semibold border transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-[#F8FAFC] text-[#5B708B] border-[#DCE5EF] hover:border-[#00C98A] hover:text-[#17243D]'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -406,8 +443,9 @@ export function LeftSidebar({
       <div className="flex-1 overflow-y-auto px-2.5 pb-4 pt-1">
         {activeTab === 'alat' && (
           <div className="space-y-2">
-            <div className="px-0.5 text-[10.5px] font-semibold text-[#8FA4BF]">
-              {label('alat.header', 'Komponen')} ({filteredTools.length})
+            <div className="px-0.5 flex items-center justify-between text-[10.5px] font-semibold text-[#8FA4BF]">
+              <span>{label('alat.header', 'Alat Mandiri')} ({filteredTools.length})</span>
+              <span className="text-[9.5px] font-medium text-[#94A3B8]">Seret / Klik</span>
             </div>
             {filteredTools.length === 0 ? (
               <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
@@ -459,8 +497,8 @@ export function LeftSidebar({
 
         {activeTab === 'blok' && (
           <div className="space-y-2">
-            <div className="px-0.5 text-[10.5px] font-semibold text-[#8FA4BF]">
-              {label('blok.header', 'Blok Siap Pakai')} ({filteredSections.length})
+            <div className="px-0.5 flex items-center justify-between text-[10.5px] font-semibold text-[#8FA4BF]">
+              <span>{label('blok.header', 'Template Blok & Card')} ({filteredSections.length})</span>
             </div>
             {filteredSections.length === 0 ? (
               <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
@@ -470,6 +508,7 @@ export function LeftSidebar({
               <div className="flex flex-col gap-1.5">
                 {filteredSections.map((section) => {
                   const displayTitle = label(`blok.sec.${section.id}`, section.title);
+                  const catLabel = CATEGORY_LABEL_MAP[section.category];
                   return (
                     <button
                       key={section.id}
@@ -487,12 +526,19 @@ export function LeftSidebar({
                         {getSectionIcon(section.id)}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[12px] font-semibold text-[#17243D] truncate">
-                          {displayTitle}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[12px] font-semibold text-[#17243D] truncate">
+                            {displayTitle}
+                          </span>
                         </div>
                         <div className="text-[10.5px] text-[#8FA4BF] truncate">
                           {section.description}
                         </div>
+                        {selectedBlockCategory === 'semua' && catLabel && (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-[#F0F5FA] text-[9.5px] font-semibold text-[#5B708B]">
+                            {catLabel}
+                          </span>
+                        )}
                       </div>
                     </button>
                   );

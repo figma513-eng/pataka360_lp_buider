@@ -9,6 +9,7 @@ import {
   Eye,
   GripVertical,
   ImageOff,
+  Minus,
   Monitor,
   PanelBottomOpen,
   Plus,
@@ -50,6 +51,7 @@ import { PhotoCarousel } from './PhotoCarousel';
 import { SocialFeedCard } from './SocialFeedCard';
 import { SocialFollowerList } from './SocialFollowerList';
 import { SocialGlyph } from './SocialIcon';
+import { ShowcaseCardView } from './ShowcaseCardView';
 import { TrainingCatalogCard } from './TrainingCatalogCard';
 import { CollabPeer } from '../utils/collabClient';
 
@@ -1302,23 +1304,52 @@ export function MobileCanvas({
           );
         })()}
 
-        {block.type === 'form' && (
-          <div className="space-y-2.5 text-left">
-            <div className="font-bold text-sm">{block.content.formTitle || 'Formulir'}</div>
-            <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs">
-              {block.content.namePlaceholder || 'Nama Lengkap'}
+        {block.type === 'form' && (() => {
+          const nameReq = block.content.formNameRequired !== false;
+          const emailReq = block.content.formEmailRequired !== false;
+          const chkEnabled = Boolean(block.content.formChecklistEnabled);
+          const chkItems = (block.content.formChecklistItems ?? []).filter((x) => x.trim());
+          const chkReq = Boolean(block.content.formChecklistRequired);
+          return (
+            <div className="space-y-2.5 text-left">
+              <div className="font-bold text-sm">{block.content.formTitle || 'Formulir'}</div>
+              <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs flex items-center justify-between gap-2">
+                <span className="truncate">{block.content.namePlaceholder || 'Nama Lengkap'}</span>
+                <span className={`text-[9.5px] font-semibold shrink-0 ${nameReq ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {nameReq ? 'Wajib *' : 'Opsional'}
+                </span>
+              </div>
+              <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs flex items-center justify-between gap-2">
+                <span className="truncate">{block.content.emailPlaceholder || 'Email / WhatsApp'}</span>
+                <span className={`text-[9.5px] font-semibold shrink-0 ${emailReq ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {emailReq ? 'Wajib *' : 'Opsional'}
+                </span>
+              </div>
+              {chkEnabled && chkItems.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-white/75 p-2 space-y-1">
+                  <div className="text-[11px] font-semibold text-slate-700 flex items-center justify-between">
+                    <span>{block.content.formChecklistTitle?.trim() || 'Persetujuan / Checklist'}</span>
+                    <span className={`text-[9.5px] font-semibold ${chkReq ? 'text-rose-500' : 'text-slate-400'}`}>
+                      {chkReq ? 'Wajib *' : 'Opsional'}
+                    </span>
+                  </div>
+                  {chkItems.map((itemText, idx) => (
+                    <div key={`fchk_${idx}`} className="flex items-start gap-1.5 text-[11px] text-slate-600">
+                      <span className="w-3.5 h-3.5 mt-0.5 rounded border border-slate-300 bg-white shrink-0" />
+                      <span className="leading-snug">{itemText}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div
+                className="w-full py-2.5 px-4 rounded-lg text-white text-xs font-semibold text-center"
+                style={{ backgroundColor: block.content.buttonColor ?? theme.accentColor }}
+              >
+                {block.content.submitLabel || 'Kirim Data'}
+              </div>
             </div>
-            <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs">
-              {block.content.emailPlaceholder || 'Email / WhatsApp'}
-            </div>
-            <div
-              className="w-full py-2.5 px-4 rounded-lg text-white text-xs font-semibold text-center"
-              style={{ backgroundColor: block.content.buttonColor ?? theme.accentColor }}
-            >
-              {block.content.submitLabel || 'Kirim Data'}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {block.type === 'divider' && (
           <div className="w-full flex items-center py-1">
@@ -1848,6 +1879,116 @@ export function MobileCanvas({
             }}
           />
         )}
+
+        {block.type === 'cart_button' && (() => {
+          const itemKey = `cb_${block.id}`;
+          const qty = fnbPreviewQtys[itemKey] ?? 0;
+          const accent = block.content.cartAccentColor || theme.accentColor;
+          const showInfo = block.content.cartShowProductInfo !== false;
+          const prodName = block.content.cartProductName?.trim() || 'Produk Pilihan';
+          const prodDesc = block.content.cartProductDesc?.trim() || '';
+          const prodPrice = block.content.cartProductPrice?.trim() || 'Rp 0';
+          const btnLabel = block.content.cartButtonLabel?.trim() || 'Tambah';
+          return (
+            <div className="flex items-center justify-between gap-2.5 text-left">
+              {showInfo && (
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  {block.content.cartProductImage && (
+                    <img
+                      src={block.content.cartProductImage}
+                      alt={prodName}
+                      referrerPolicy="no-referrer"
+                      className="w-11 h-11 rounded-lg object-cover shrink-0 border border-slate-200/70"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold leading-snug truncate">{prodName}</div>
+                    {prodDesc && (
+                      <div className="text-[10.5px] opacity-70 leading-snug line-clamp-2">
+                        {prodDesc}
+                      </div>
+                    )}
+                    <div
+                      style={{ color: accent }}
+                      className="text-xs font-extrabold tabular-nums mt-0.5"
+                    >
+                      {prodPrice}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div
+                className={`shrink-0 flex items-center ${!showInfo ? 'w-full justify-center' : ''}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {qty > 0 ? (
+                  <div
+                    style={{ borderColor: accent }}
+                    className="inline-flex items-center gap-1.5 rounded-full border bg-white px-1.5 py-1 shadow-xs"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFnbPreviewQtys((prev) => ({
+                          ...prev,
+                          [itemKey]: Math.max(0, (prev[itemKey] ?? 0) - 1),
+                        }))
+                      }
+                      className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center cursor-pointer"
+                      aria-label="Kurangi"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-xs font-bold text-slate-900 min-w-[18px] text-center tabular-nums">
+                      {qty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFnbPreviewQtys((prev) => ({
+                          ...prev,
+                          [itemKey]: (prev[itemKey] ?? 0) + 1,
+                        }))
+                      }
+                      style={{ backgroundColor: accent }}
+                      className="w-6 h-6 rounded-full text-white flex items-center justify-center cursor-pointer"
+                      aria-label="Tambah"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFnbPreviewQtys((prev) => ({
+                        ...prev,
+                        [itemKey]: (prev[itemKey] ?? 0) + 1,
+                      }))
+                    }
+                    style={{ backgroundColor: accent }}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-white text-xs font-bold shadow-xs cursor-pointer hover:opacity-95 ${
+                      !showInfo ? 'w-full' : ''
+                    }`}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                    <span>{btnLabel}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {block.type === 'showcase_card' && (
+          <ShowcaseCardView
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+          />
+        )}
         </div>
 
         {isDropTarget && dragState.position === 'after' && (
@@ -2137,30 +2278,71 @@ export function MobileCanvas({
                 </div>
 
                 {(() => {
-                  const firstFnbBlock = blocks.find((b) => b.type === 'fnb_catalog');
-                  if (!firstFnbBlock || firstFnbBlock.content.fnbFloatingCartEnabled === false) {
-                    return null;
-                  }
-                  const pos = firstFnbBlock.content.fnbFloatingCartPosition ?? 'bottom-floating';
+                  const collectNested = (list: BuilderBlock[]): BuilderBlock[] => {
+                    const acc: BuilderBlock[] = [];
+                    list.forEach((b) => {
+                      acc.push(b);
+                      if (b.children?.length) acc.push(...collectNested(b.children));
+                    });
+                    return acc;
+                  };
+                  const allFlat = collectNested(blocks);
+                  const firstFnbBlock = allFlat.find(
+                    (b) => b.type === 'fnb_catalog' && b.content.fnbFloatingCartEnabled !== false
+                  );
+                  const cartBtnBlocks = allFlat.filter((b) => b.type === 'cart_button');
+                  const firstCartBtn = cartBtnBlocks.find(
+                    (b) => b.content.cartFloatingEnabled !== false
+                  );
+
+                  const floatSource = firstFnbBlock ?? firstCartBtn;
+                  if (!floatSource) return null;
+
+                  const pos =
+                    floatSource.type === 'fnb_catalog'
+                      ? floatSource.content.fnbFloatingCartPosition ?? 'bottom-floating'
+                      : floatSource.content.cartFloatingPosition ?? 'bottom-floating';
                   if (pos === 'top-floating') return null;
-                  const fnbItems = firstFnbBlock.content.fnbItems ?? [];
-                  const activeCount = fnbItems.reduce(
+
+                  const fnbItems = firstFnbBlock?.content.fnbItems ?? [];
+                  const fnbCount = fnbItems.reduce(
                     (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
                     0
                   );
-                  const activeAmount = fnbPriceSum(
-                    fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 }))
+                  const cbCount = cartBtnBlocks.reduce(
+                    (sum, cb) => sum + (fnbPreviewQtys[`cb_${cb.id}`] ?? 0),
+                    0
                   );
+                  const activeCount = fnbCount + cbCount;
+
+                  const pricedEntries: Array<{ price: string; qty: number }> = [
+                    ...fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 })),
+                    ...cartBtnBlocks.map((cb) => ({
+                      price: cb.content.cartProductPrice || '0',
+                      qty: fnbPreviewQtys[`cb_${cb.id}`] ?? 0,
+                    })),
+                  ];
+                  const activeAmount = fnbPriceSum(pricedEntries);
+
                   const isPosPreview =
-                    selectedId === firstFnbBlock.id &&
                     activeCount === 0 &&
-                    fnbItems.length > 0;
+                    ((firstFnbBlock && selectedId === firstFnbBlock.id && fnbItems.length > 0) ||
+                      (firstCartBtn && selectedId === firstCartBtn.id));
+
                   const displayCount = activeCount > 0 ? activeCount : isPosPreview ? 1 : 0;
                   const displayAmount =
                     activeCount > 0
                       ? activeAmount
                       : isPosPreview
-                      ? fnbPriceSum([{ price: fnbItems[0].price, qty: 1 }])
+                      ? fnbPriceSum([
+                          {
+                            price:
+                              floatSource.type === 'fnb_catalog'
+                                ? fnbItems[0]?.price || '0'
+                                : floatSource.content.cartProductPrice || '0',
+                            qty: 1,
+                          },
+                        ])
                       : 0;
                   if (displayCount <= 0) return null;
                   return (
@@ -2168,13 +2350,25 @@ export function MobileCanvas({
                       count={displayCount}
                       totalAmount={displayAmount}
                       position={pos}
-                      offsetY={firstFnbBlock.content.fnbFloatingCartOffsetY ?? 16}
-                      bgColor={
-                        firstFnbBlock.content.fnbFloatingCartBg ||
-                        firstFnbBlock.content.fnbAccentColor ||
-                        theme.accentColor
+                      offsetY={
+                        floatSource.type === 'fnb_catalog'
+                          ? floatSource.content.fnbFloatingCartOffsetY ?? 16
+                          : 16
                       }
-                      actionLabel={firstFnbBlock.content.fnbFloatingCartLabel || 'Lanjut'}
+                      bgColor={
+                        floatSource.type === 'fnb_catalog'
+                          ? floatSource.content.fnbFloatingCartBg ||
+                            floatSource.content.fnbAccentColor ||
+                            theme.accentColor
+                          : floatSource.content.cartFloatingBg ||
+                            floatSource.content.cartAccentColor ||
+                            theme.accentColor
+                      }
+                      actionLabel={
+                        floatSource.type === 'fnb_catalog'
+                          ? floatSource.content.fnbFloatingCartLabel || 'Lanjut'
+                          : floatSource.content.cartFloatingLabel || 'Lihat Keranjang'
+                      }
                       onClick={onOpenPreview}
                     />
                   );

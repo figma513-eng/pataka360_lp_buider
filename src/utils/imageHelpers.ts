@@ -3,6 +3,7 @@ import { uploadMediaAsset } from './authClient';
 export interface ImageCompressionOptions {
   maxDimension?: number;
   quality?: number;
+  format?: 'webp' | 'jpeg' | 'png';
 }
 
 const MAX_RAW_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -46,6 +47,7 @@ export async function readAndCompressImage(
 
   const maxDimension = options.maxDimension ?? 1080;
   const quality = options.quality ?? 0.82;
+  const preferredFormat = options.format;
   const originalDataUrl = await readFileAsDataUrl(file);
 
   // Preserve vector SVGs, animated GIFs, or already-tiny files without re-encoding
@@ -55,7 +57,10 @@ export async function readAndCompressImage(
     originalDataUrl.startsWith('data:image/svg+xml') ||
     originalDataUrl.startsWith('data:image/gif');
 
-  if (isSvgOrGif || file.size <= SKIP_COMPRESS_BYTES) {
+  const needsFormatConvert =
+    preferredFormat === 'jpeg' && !originalDataUrl.startsWith('data:image/jpeg');
+
+  if (isSvgOrGif || (!needsFormatConvert && file.size <= SKIP_COMPRESS_BYTES)) {
     return originalDataUrl;
   }
 
@@ -77,7 +82,18 @@ export async function readAndCompressImage(
     const ctx = canvas.getContext('2d');
     if (!ctx) return originalDataUrl;
 
+    if (preferredFormat === 'jpeg') {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, targetW, targetH);
+    }
     ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    if (preferredFormat === 'jpeg') {
+      return canvas.toDataURL('image/jpeg', quality);
+    }
+    if (preferredFormat === 'png') {
+      return canvas.toDataURL('image/png');
+    }
 
     // Prefer WebP for smaller size & alpha support; fall back to JPEG/PNG if unsupported
     let compressed = canvas.toDataURL('image/webp', quality);

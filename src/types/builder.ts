@@ -22,7 +22,33 @@ export type BlockType =
   | 'hero_profile'
   | 'fnb_catalog'
   | 'category_tabs'
-  | 'menu_icon';
+  | 'menu_icon'
+  | 'cart_button'
+  | 'showcase_card';
+
+export type ShowcaseCardVariant =
+  | 'quote_banner'
+  | 'news_banner'
+  | 'event_poster'
+  | 'badge_tile'
+  | 'store_card'
+  | 'activity_post'
+  | 'membership_ticket';
+
+export interface ShowcaseFeeItem {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export type PrebuiltSectionCategory =
+  | 'kartu_info'
+  | 'katalog_store'
+  | 'event_kegiatan'
+  | 'tarif_paket'
+  | 'hero_profil'
+  | 'menu_layout'
+  | 'kontak_medsos';
 
 export type MenuIconShape = 'circle' | 'rounded' | 'square' | 'pill';
 export type BlockShapePreset = 'circle' | 'rounded' | 'square' | 'pill';
@@ -226,12 +252,15 @@ export interface CatalogShippingOptionConfig {
   enabled: boolean;
   label: string;
   askArrivalTime?: boolean;
+  arrivalTimeRequired?: boolean;
   arrivalTimeLabel?: string;
   arrivalTimePlaceholder?: string;
   askGuestCount?: boolean;
+  guestCountRequired?: boolean;
   guestCountLabel?: string;
   guestCountPlaceholder?: string;
   checklistEnabled?: boolean;
+  checklistRequired?: boolean;
   checklistText?: string;
   checklistItems?: string[];
   noteTitle?: string;
@@ -363,6 +392,12 @@ export interface BlockContent {
   formTitle?: string;
   namePlaceholder?: string;
   emailPlaceholder?: string;
+  formNameRequired?: boolean;
+  formEmailRequired?: boolean;
+  formChecklistEnabled?: boolean;
+  formChecklistTitle?: string;
+  formChecklistItems?: string[];
+  formChecklistRequired?: boolean;
   submitLabel?: string;
   successMessage?: string;
   buttonColor?: string;
@@ -409,6 +444,7 @@ export interface BlockContent {
   trainingMediaRatio?: CarouselAspectRatio;
   trainingChecklistTitle?: string;
   trainingChecklistItems?: string[];
+  trainingChecklistRequired?: boolean;
   trainingFormTitle?: string;
   trainingFormFields?: CatalogCustomerField[];
   trainingWaNumber?: string;
@@ -534,9 +570,10 @@ export interface BlockContent {
   categoryGap?: number;
   categoryActiveId?: string;
   categoryFilterFnbOnClick?: boolean;
-  // Kolom / Row Dinamis (1-20 Kolom, Grid / Slide Horizontal 3 Titik / Slide Vertikal)
+  // Kolom / Row Dinamis (1-20 Kolom, Grid Baris x Kolom / Slide Horizontal 3 Titik / Slide Vertikal)
   rowLayoutMode?: 'grid' | 'horizontal' | 'vertical';
   rowColumns?: number;
+  rowGridRows?: number;
   rowColumnWidth?: number;
   rowColumnMinHeight?: number;
   rowGap?: number;
@@ -554,6 +591,45 @@ export interface BlockContent {
   menuIconTargetBlockId?: string;
   menuIconBg?: string;
   menuIconTextColor?: string;
+  // Tombol Keranjang Mandiri (bisa diletakkan di card manapun)
+  cartProductName?: string;
+  cartProductDesc?: string;
+  cartProductPrice?: string;
+  cartProductImage?: string;
+  cartButtonLabel?: string;
+  cartShowProductInfo?: boolean;
+  cartAccentColor?: string;
+  cartWhatsappNumber?: string;
+  cartStoreName?: string;
+  cartFloatingEnabled?: boolean;
+  cartFloatingLabel?: string;
+  cartFloatingBg?: string;
+  cartFloatingPosition?: FloatingCartPosition;
+  // Kartu Dinamis (Quote Banner, Berita/Info, Even/Promo, Sertifikasi, Store, Feed Kegiatan, Tiket Keanggotaan)
+  cardVariant?: ShowcaseCardVariant;
+  cardHeaderTitle?: string;
+  cardMoreLabel?: string;
+  cardMoreUrl?: string;
+  cardTitle?: string;
+  cardSubtitle?: string;
+  cardQuote?: string;
+  cardDate?: string;
+  cardViews?: string;
+  cardImage?: string;
+  cardImagePosition?: 'left' | 'right';
+  cardGalleryImages?: string[];
+  cardGradientFrom?: string;
+  cardGradientTo?: string;
+  cardAccentColor?: string;
+  cardTextColor?: string;
+  cardPrice?: string;
+  cardTotalLabel?: string;
+  cardTotalValue?: string;
+  cardFeeItems?: ShowcaseFeeItem[];
+  cardActionUrl?: string;
+  cardShowPlayIcon?: boolean;
+  cardEnableCart?: boolean;
+  cardWhatsappNumber?: string;
 }
 
 export interface BuilderBlock {
@@ -590,6 +666,10 @@ export interface ProjectPublishingConfig {
   publishedAt?: number;
   seoTitle?: string;
   seoDescription?: string;
+  seoImage?: string;
+  seoImageAlt?: string;
+  seoSiteName?: string;
+  seoShareText?: string;
 }
 
 export interface ProjectAdsConfig {

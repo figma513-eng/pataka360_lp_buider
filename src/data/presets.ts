@@ -11,7 +11,9 @@ import type {
   CategoryJumpItem,
   FnbMenuItem,
   PageTheme,
+  PrebuiltSectionCategory,
   ShadowPreset,
+  ShowcaseCardVariant,
   SocialFollowerAccount,
   SocialLinkItem,
   SocialPostItem,
@@ -731,6 +733,8 @@ export const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   fnb_catalog: 'Katalog F&B',
   category_tabs: 'Tombol Kategori',
   menu_icon: 'Menu Icon',
+  cart_button: 'Tombol Keranjang',
+  showcase_card: 'Kartu Dinamis',
 };
 
 export function createCatalogBlock(
@@ -972,6 +976,12 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
           formTitle: 'Dapatkan Update Terbaru',
           namePlaceholder: 'Nama Lengkap',
           emailPlaceholder: 'Alamat Email / WhatsApp',
+          formNameRequired: true,
+          formEmailRequired: true,
+          formChecklistEnabled: false,
+          formChecklistTitle: 'Persetujuan / Checklist',
+          formChecklistItems: ['Saya setuju data digunakan untuk keperluan konsultasi'],
+          formChecklistRequired: false,
           submitLabel: 'Kirim Data',
           successMessage: 'Terima kasih! Data Anda telah terkirim.',
           buttonColor: theme.accentColor,
@@ -1459,6 +1469,93 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
           categoryFilterFnbOnClick: true,
         },
       };
+
+    case 'cart_button':
+      return {
+        id: createId('crt'),
+        type: 'cart_button',
+        label: 'Tombol Keranjang',
+        style: {
+          ...baseStyle,
+          minHeight: 54,
+          padding: 12,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: theme.borderColor,
+          backgroundColor: theme.cardBg,
+          textColor: theme.textColor,
+          shadow: 'sm',
+          align: 'left',
+          marginBottom: 10,
+        },
+        content: {
+          cartProductName: 'Produk Pilihan',
+          cartProductDesc: 'Keterangan singkat produk atau varian',
+          cartProductPrice: 'Rp 80.000',
+          cartProductImage: PRODUCT_CARD_SVG,
+          cartButtonLabel: 'Tambah',
+          cartShowProductInfo: true,
+          cartAccentColor: theme.accentColor,
+          cartWhatsappNumber: '6281234567890',
+          cartStoreName: 'Toko Resmi',
+          cartFloatingEnabled: true,
+          cartFloatingLabel: 'Lihat Keranjang',
+          cartFloatingBg: '#059669',
+          cartFloatingPosition: 'bottom-floating',
+        },
+      };
+
+    case 'showcase_card':
+      return {
+        id: createId('crd'),
+        type: 'showcase_card',
+        label: 'Kartu Dinamis',
+        style: {
+          ...baseStyle,
+          minHeight: 120,
+          padding: 0,
+          borderRadius: 16,
+          borderWidth: 0,
+          backgroundColor: 'transparent',
+          textColor: theme.textColor,
+          shadow: 'sm',
+          align: 'left',
+          marginBottom: 12,
+        },
+        content: {
+          cardVariant: 'news_banner',
+          cardHeaderTitle: '',
+          cardMoreLabel: 'Selengkapnya',
+          cardMoreUrl: '',
+          cardTitle: 'Judul Berita atau Informasi Utama',
+          cardSubtitle: 'Keterangan singkat kartu dinamis',
+          cardQuote: '',
+          cardDate: '18/02/2026',
+          cardViews: '200',
+          cardImage: CAROUSEL_SAMPLE_1_SVG,
+          cardImagePosition: 'right',
+          cardGalleryImages: [
+            CAROUSEL_SAMPLE_1_SVG,
+            CAROUSEL_SAMPLE_2_SVG,
+            CAROUSEL_SAMPLE_3_SVG,
+          ],
+          cardGradientFrom: '#F59E0B',
+          cardGradientTo: '#D97706',
+          cardAccentColor: '#2563EB',
+          cardTextColor: '#FFFFFF',
+          cardPrice: 'Rp. 80.000,-',
+          cardTotalLabel: 'Total :',
+          cardTotalValue: 'Rp. 500.000,-',
+          cardFeeItems: [
+            { id: createId('fee'), label: 'Pendaftaran', value: 'Rp. 100.000' },
+            { id: createId('fee'), label: 'Iuran Anggota', value: 'Rp. 400.000' },
+          ],
+          cardActionUrl: '',
+          cardShowPlayIcon: true,
+          cardEnableCart: false,
+          cardWhatsappNumber: '6281234567890',
+        },
+      };
   }
 }
 
@@ -1677,20 +1774,639 @@ export function resolveNavbarMetrics(nav: BottomNavbarConfig): ResolvedNavbarMet
 
 export interface PrebuiltSection {
   id: string;
+  category: PrebuiltSectionCategory;
   title: string;
   description: string;
   createBlocks: (theme: PageTheme) => BuilderBlock[];
 }
 
+export const PREBUILT_SECTION_CATEGORIES: Array<{
+  id: 'semua' | PrebuiltSectionCategory;
+  label: string;
+}> = [
+  { id: 'semua', label: 'Semua' },
+  { id: 'kartu_info', label: 'Kartu & Info' },
+  { id: 'katalog_store', label: 'Katalog & Store' },
+  { id: 'event_kegiatan', label: 'Event & Kegiatan' },
+  { id: 'tarif_paket', label: 'Tarif & Paket' },
+  { id: 'hero_profil', label: 'Hero & Profil' },
+  { id: 'menu_layout', label: 'Menu & Grid' },
+  { id: 'kontak_medsos', label: 'Medsos & Kontak' },
+];
+
+function makeShowcaseCardBlock(
+  label: string,
+  variant: ShowcaseCardVariant,
+  theme: PageTheme,
+  patch: Partial<BuilderBlock['content']>,
+  stylePatch?: Partial<BlockStyle>
+): BuilderBlock {
+  const base = createBlock('showcase_card', theme);
+  return {
+    ...base,
+    label,
+    style: {
+      ...base.style,
+      marginBottom: 0,
+      ...stylePatch,
+    },
+    content: {
+      ...base.content,
+      cardVariant: variant,
+      ...patch,
+    },
+  };
+}
+
+function makeSectionHeaderRow(
+  title: string,
+  moreLabel: string,
+  theme: PageTheme,
+  moreUrl = ''
+): BuilderBlock {
+  return {
+    id: createId('hdr'),
+    type: 'row',
+    label: `Header ${title}`,
+    style: {
+      ...DEFAULT_STYLE,
+      padding: 2,
+      marginBottom: 6,
+      minHeight: 24,
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+    },
+    content: {
+      rowLayoutMode: 'grid',
+      rowColumns: 2,
+      rowGridRows: 1,
+      rowGap: 8,
+    },
+    children: [
+      {
+        id: createId('txt'),
+        type: 'text',
+        label: 'Judul Bagian',
+        style: {
+          ...DEFAULT_STYLE,
+          align: 'left',
+          padding: 0,
+          marginBottom: 0,
+          minHeight: 20,
+          fontSize: 15,
+          textColor: theme.textColor,
+          useThemeTextColor: true,
+        },
+        content: { text: title, variant: 'h2', fontWeight: 'bold' },
+      },
+      {
+        id: createId('btn'),
+        type: 'button',
+        label: moreLabel,
+        style: {
+          ...DEFAULT_STYLE,
+          align: 'right',
+          padding: 0,
+          marginBottom: 0,
+          minHeight: 20,
+          borderRadius: 6,
+          backgroundColor: 'transparent',
+          fontSize: 11,
+          fontWeightCss: '600',
+        },
+        content: {
+          label: moreLabel,
+          url: moreUrl || '#selengkapnya',
+          buttonBg: 'transparent',
+          buttonText: '#0284C7',
+          buttonIcon: 'none',
+        },
+      },
+    ],
+  };
+}
+
 export const PREBUILT_SECTIONS: PrebuiltSection[] = [
+  // === KARTU DINAMIS KATEGORI PORTAL & KOMUNITAS ===
+  {
+    id: 'kartu-kutipan-tokoh',
+    category: 'kartu_info',
+    title: 'Banner Kutipan Tokoh (Slide)',
+    description: 'Kartu gradasi warna-warni dengan kutipan, nama tokoh, jabatan & foto potret (bisa digeser)',
+    createBlocks: (theme) => [
+      {
+        id: createId('row'),
+        type: 'row',
+        label: 'Slide Kutipan Tokoh',
+        style: {
+          ...DEFAULT_STYLE,
+          padding: 4,
+          marginBottom: 14,
+          minHeight: 110,
+          backgroundColor: 'transparent',
+          borderWidth: 0,
+        },
+        content: {
+          rowLayoutMode: 'horizontal',
+          rowColumns: 3,
+          rowColumnWidth: 264,
+          rowColumnMinHeight: 122,
+          rowGap: 10,
+        },
+        children: [
+          makeShowcaseCardBlock('Kutipan Tokoh 1', 'quote_banner', theme, {
+            cardQuote: '".. Profesi yang dijalankan dengan integritas adalah profesi yang mulia.."',
+            cardTitle: 'Ir. H. Tokoh Nasional',
+            cardSubtitle: '(Pembina Kehormatan)',
+            cardImage: HERO_LOGO_FOOD_SVG,
+            cardImagePosition: 'right',
+            cardGradientFrom: '#F59E0B',
+            cardGradientTo: '#D97706',
+            cardTextColor: '#FFFFFF',
+          }),
+          makeShowcaseCardBlock('Kutipan Tokoh 2', 'quote_banner', theme, {
+            cardQuote: '"..Jangan merasa kecil, terus berkembang maju dan profesional ke depan.."',
+            cardTitle: 'Prof. Dr. Pembina Utama',
+            cardSubtitle: '(Dewan Penasehat)',
+            cardImage: CAROUSEL_SAMPLE_1_SVG,
+            cardImagePosition: 'right',
+            cardGradientFrom: '#1D4ED8',
+            cardGradientTo: '#3B82F6',
+            cardTextColor: '#FFFFFF',
+          }),
+          makeShowcaseCardBlock('Kutipan Tokoh 3', 'quote_banner', theme, {
+            cardQuote: '"..Sinergi dan kolaborasi menjadi kunci layanan yang aman dan terpercaya.."',
+            cardTitle: 'Ketua Umum Asosiasi',
+            cardSubtitle: '(Periode 2024–2029)',
+            cardImage: CAROUSEL_SAMPLE_2_SVG,
+            cardImagePosition: 'left',
+            cardGradientFrom: '#22C55E',
+            cardGradientTo: '#16A34A',
+            cardTextColor: '#FFFFFF',
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kartu-informasi-nasional',
+    category: 'kartu_info',
+    title: 'Kartu Informasi & Berita (Slide)',
+    description: 'Header + Selengkapnya + kartu foto berita lebar dengan strip judul berwarna di bawah',
+    createBlocks: (theme) => [
+      {
+        id: createId('cnt'),
+        type: 'container',
+        label: 'Informasi Nasional',
+        style: {
+          ...DEFAULT_STYLE,
+          backgroundColor: theme.cardBg,
+          borderColor: theme.borderColor,
+          borderWidth: 1,
+          borderRadius: 16,
+          padding: 12,
+          shadow: 'sm',
+          align: 'left',
+        },
+        content: {},
+        children: [
+          makeSectionHeaderRow('Informasi Nasional', 'Selengkapnya', theme),
+          {
+            id: createId('row'),
+            type: 'row',
+            label: 'Daftar Berita',
+            style: { ...DEFAULT_STYLE, padding: 0, marginBottom: 0, minHeight: 130 },
+            content: {
+              rowLayoutMode: 'horizontal',
+              rowColumns: 2,
+              rowColumnWidth: 256,
+              rowColumnMinHeight: 146,
+              rowGap: 10,
+            },
+            children: [
+              makeShowcaseCardBlock('Berita 1', 'news_banner', theme, {
+                cardTitle: 'Sinergi Program Strategis Nasional Tahun Ini',
+                cardImage: CAROUSEL_SAMPLE_1_SVG,
+                cardAccentColor: '#2563EB',
+                cardTextColor: '#FFFFFF',
+              }),
+              makeShowcaseCardBlock('Berita 2', 'news_banner', theme, {
+                cardTitle: 'Rapat Kerja Nasional & Peluncuran Layanan Baru',
+                cardImage: CAROUSEL_SAMPLE_2_SVG,
+                cardAccentColor: '#1D4ED8',
+                cardTextColor: '#FFFFFF',
+              }),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kartu-even-promo',
+    category: 'event_kegiatan',
+    title: 'Kartu Even & Promo (Poster)',
+    description: 'Header + Selengkapnya + kartu poster potret dengan strip judul warna di bawah',
+    createBlocks: (theme) => [
+      {
+        id: createId('cnt'),
+        type: 'container',
+        label: 'Even dan Promo',
+        style: {
+          ...DEFAULT_STYLE,
+          backgroundColor: theme.cardBg,
+          borderColor: theme.borderColor,
+          borderWidth: 1,
+          borderRadius: 16,
+          padding: 12,
+          shadow: 'sm',
+          align: 'left',
+        },
+        content: {},
+        children: [
+          makeSectionHeaderRow('Even dan Promo', 'Selengkapnya', theme),
+          {
+            id: createId('row'),
+            type: 'row',
+            label: 'Grid Poster Even',
+            style: { ...DEFAULT_STYLE, padding: 0, marginBottom: 0, minHeight: 160 },
+            content: {
+              rowLayoutMode: 'grid',
+              rowColumns: 2,
+              rowGridRows: 1,
+              rowGap: 10,
+            },
+            children: [
+              makeShowcaseCardBlock('Poster Even 1', 'event_poster', theme, {
+                cardTitle: '" Security Device Knowledge "',
+                cardImage: CAROUSEL_SAMPLE_3_SVG,
+                cardAccentColor: '#EA580C',
+                cardTextColor: '#FFFFFF',
+              }),
+              makeShowcaseCardBlock('Poster Even 2', 'event_poster', theme, {
+                cardTitle: '" Manajemen Tanggap Darurat "',
+                cardImage: CAROUSEL_SAMPLE_1_SVG,
+                cardAccentColor: '#3B82F6',
+                cardTextColor: '#FFFFFF',
+              }),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kartu-sertifikasi',
+    category: 'kartu_info',
+    title: 'Kartu Informasi Sertifikasi (Badge)',
+    description: 'Header + Selengkapnya + 3 kartu emblem/sertifikasi berwarna solid dengan judul putih',
+    createBlocks: (theme) => [
+      {
+        id: createId('cnt'),
+        type: 'container',
+        label: 'Informasi Sertifikasi',
+        style: {
+          ...DEFAULT_STYLE,
+          backgroundColor: theme.cardBg,
+          borderColor: theme.borderColor,
+          borderWidth: 1,
+          borderRadius: 16,
+          padding: 12,
+          shadow: 'sm',
+          align: 'left',
+        },
+        content: {},
+        children: [
+          makeSectionHeaderRow('Informasi Sertifikasi', 'Selengkapnya', theme),
+          {
+            id: createId('row'),
+            type: 'row',
+            label: 'Grid Sertifikasi',
+            style: { ...DEFAULT_STYLE, padding: 0, marginBottom: 0, minHeight: 110 },
+            content: {
+              rowLayoutMode: 'grid',
+              rowColumns: 3,
+              rowGridRows: 1,
+              rowGap: 8,
+            },
+            children: [
+              makeShowcaseCardBlock('Sertifikasi Pratama', 'badge_tile', theme, {
+                cardTitle: 'Sertifikasi Pelaksana',
+                cardImage: HERO_LOGO_FOOD_SVG,
+                cardGradientFrom: '#3B82F6',
+                cardGradientTo: '#2563EB',
+                cardTextColor: '#FFFFFF',
+              }),
+              makeShowcaseCardBlock('Sertifikasi Madya', 'badge_tile', theme, {
+                cardTitle: 'Sertifikasi Supervisor',
+                cardImage: HERO_LOGO_FOOD_SVG,
+                cardGradientFrom: '#F59E0B',
+                cardGradientTo: '#FB923C',
+                cardTextColor: '#FFFFFF',
+              }),
+              makeShowcaseCardBlock('Sertifikasi Utama', 'badge_tile', theme, {
+                cardTitle: 'Sertifikasi Manajer',
+                cardImage: HERO_LOGO_FOOD_SVG,
+                cardGradientFrom: '#EF4444',
+                cardGradientTo: '#DC2626',
+                cardTextColor: '#FFFFFF',
+              }),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kartu-store-gradasi',
+    category: 'katalog_store',
+    title: 'Kartu Store Gradasi + Keranjang',
+    description: 'Kartu produk gradasi warna-warni (foto, judul, harga, ikon aksi) siap tambah ke keranjang',
+    createBlocks: (theme) => [
+      {
+        id: createId('cnt'),
+        type: 'container',
+        label: 'Store Produk Pilihan',
+        style: {
+          ...DEFAULT_STYLE,
+          backgroundColor: theme.cardBg,
+          borderColor: theme.borderColor,
+          borderWidth: 1,
+          borderRadius: 16,
+          padding: 12,
+          shadow: 'sm',
+          align: 'left',
+        },
+        content: {},
+        children: [
+          makeSectionHeaderRow('Store Resmi', 'Selengkapnya', theme),
+          {
+            id: createId('row'),
+            type: 'row',
+            label: 'Slide Produk Store',
+            style: { ...DEFAULT_STYLE, padding: 0, marginBottom: 0, minHeight: 160 },
+            content: {
+              rowLayoutMode: 'horizontal',
+              rowColumns: 4,
+              rowColumnWidth: 136,
+              rowColumnMinHeight: 176,
+              rowGap: 10,
+            },
+            children: [
+              makeShowcaseCardBlock('Produk Store 1', 'store_card', theme, {
+                cardTitle: 'Topi Resmi',
+                cardPrice: 'Rp. 80.000,-',
+                cardImage: PRODUCT_CARD_SVG,
+                cardGradientFrom: '#FDBA74',
+                cardGradientTo: '#EA580C',
+                cardTextColor: '#FFFFFF',
+                cardShowPlayIcon: true,
+                cardEnableCart: true,
+              }),
+              makeShowcaseCardBlock('Produk Store 2', 'store_card', theme, {
+                cardTitle: 'Buku Panduan',
+                cardPrice: 'Rp. 150.000,-',
+                cardImage: STARTER_ILLUSTRATION_SVG,
+                cardGradientFrom: '#34D399',
+                cardGradientTo: '#0D9488',
+                cardTextColor: '#FFFFFF',
+                cardShowPlayIcon: true,
+                cardEnableCart: true,
+              }),
+              makeShowcaseCardBlock('Produk Store 3', 'store_card', theme, {
+                cardTitle: 'Badge Resmi',
+                cardPrice: 'Rp. 20.000,-',
+                cardImage: HERO_LOGO_FOOD_SVG,
+                cardGradientFrom: '#60A5FA',
+                cardGradientTo: '#2563EB',
+                cardTextColor: '#FFFFFF',
+                cardShowPlayIcon: true,
+                cardEnableCart: true,
+              }),
+              makeShowcaseCardBlock('Produk Store 4', 'store_card', theme, {
+                cardTitle: 'Pin Eksklusif',
+                cardPrice: 'Rp. 100.000,-',
+                cardImage: CAROUSEL_SAMPLE_1_SVG,
+                cardGradientFrom: '#94A3B8',
+                cardGradientTo: '#475569',
+                cardTextColor: '#FFFFFF',
+                cardShowPlayIcon: true,
+                cardEnableCart: true,
+              }),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kartu-feed-kegiatan',
+    category: 'event_kegiatan',
+    title: 'Kartu Feed Kegiatan (3 Foto)',
+    description: 'Avatar penulis, jabatan, judul & tanggal kegiatan, galeri 3 foto sejajar, link Selengkapnya & views',
+    createBlocks: (theme) => [
+      makeShowcaseCardBlock(
+        'Feed Kegiatan',
+        'activity_post',
+        theme,
+        {
+          cardTitle: 'Said Azis',
+          cardSubtitle: 'Ketua Umum',
+          cardQuote: 'Judul Kegiatan Komunitas',
+          cardDate: '18/02/2026',
+          cardViews: '200',
+          cardMoreLabel: 'Selengkapnya',
+          cardImage: HERO_LOGO_FOOD_SVG,
+          cardGalleryImages: [
+            CAROUSEL_SAMPLE_1_SVG,
+            CAROUSEL_SAMPLE_2_SVG,
+            CAROUSEL_SAMPLE_3_SVG,
+          ],
+          cardAccentColor: '#0284C7',
+          cardTextColor: theme.textColor,
+        },
+        {
+          backgroundColor: theme.cardBg,
+          borderWidth: 1,
+          borderColor: theme.borderColor,
+          padding: 14,
+          marginBottom: 12,
+        }
+      ),
+    ],
+  },
+  {
+    id: 'kartu-tarif-keanggotaan',
+    category: 'tarif_paket',
+    title: 'Kartu Tiket Tarif & Keanggotaan',
+    description: 'Kartu tiket dengan cekungan sisi, rincian biaya dinamis & strip total berwarna + ikon dompet',
+    createBlocks: (theme) => [
+      {
+        id: createId('row'),
+        type: 'row',
+        label: 'Slide Paket Keanggotaan',
+        style: {
+          ...DEFAULT_STYLE,
+          padding: 4,
+          marginBottom: 14,
+          minHeight: 150,
+          backgroundColor: 'transparent',
+          borderWidth: 0,
+        },
+        content: {
+          rowLayoutMode: 'horizontal',
+          rowColumns: 3,
+          rowColumnWidth: 256,
+          rowColumnMinHeight: 158,
+          rowGap: 12,
+        },
+        children: [
+          makeShowcaseCardBlock('Anggota Pratama', 'membership_ticket', theme, {
+            cardTitle: 'Anggota Pratama',
+            cardFeeItems: [
+              { id: createId('fee'), label: 'Pendaftaran', value: 'Rp. 100.000' },
+              { id: createId('fee'), label: 'Iuran Anggota', value: 'Rp. 400.000' },
+            ],
+            cardTotalLabel: 'Total :',
+            cardTotalValue: 'Rp. 500.000,-',
+            cardAccentColor: '#EF4444',
+            cardTextColor: '#FFFFFF',
+          }),
+          makeShowcaseCardBlock('Anggota Madya', 'membership_ticket', theme, {
+            cardTitle: 'Anggota Madya',
+            cardFeeItems: [
+              { id: createId('fee'), label: 'Pendaftaran', value: 'Rp. 25.000' },
+              { id: createId('fee'), label: 'Iuran Anggota', value: 'Rp. 100.000' },
+            ],
+            cardTotalLabel: 'Total :',
+            cardTotalValue: 'Rp. 125.000,-',
+            cardAccentColor: '#FACC15',
+            cardTextColor: '#1E3A8A',
+          }),
+          makeShowcaseCardBlock('Anggota Utama', 'membership_ticket', theme, {
+            cardTitle: 'Anggota Utama',
+            cardFeeItems: [
+              { id: createId('fee'), label: 'Pendaftaran', value: 'Rp. 20.000' },
+              { id: createId('fee'), label: 'Iuran Anggota', value: 'Rp. 80.000' },
+            ],
+            cardTotalLabel: 'Total :',
+            cardTotalValue: 'Rp. 100.000',
+            cardAccentColor: '#0284C7',
+            cardTextColor: '#FFFFFF',
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: 'menu-grid-spesial',
+    category: 'menu_layout',
+    title: 'Menu Grid 3x3 (Spesial Untuk Anda)',
+    description: 'Kartu grid 3 kolom x 3 baris berisi 9 Menu Icon dinamis (bisa tambah kolom/baris & atur aksi sheet)',
+    createBlocks: (theme) => {
+      const menuDefs = [
+        { label: 'Regulasi', bg: '#EFF6FF' },
+        { label: 'Informasi', bg: '#F5F3FF' },
+        { label: 'Konsultasi', bg: '#FDF2F8' },
+        { label: 'Edukasi', bg: '#EEF2FF' },
+        { label: 'Pelatihan', bg: '#FFFBEB' },
+        { label: 'Sertifikasi', bg: '#EFF6FF' },
+        { label: 'Store', bg: '#ECFEFF' },
+        { label: 'Artikel', bg: '#F0FDF4' },
+        { label: 'Media', bg: '#FFF7ED' },
+      ];
+      return [
+        {
+          id: createId('cnt'),
+          type: 'container',
+          label: 'Spesial Untuk Anda',
+          style: {
+            ...DEFAULT_STYLE,
+            backgroundColor: theme.cardBg,
+            borderColor: theme.borderColor,
+            borderWidth: 1,
+            borderRadius: 18,
+            padding: 14,
+            shadow: 'sm',
+            align: 'left',
+          },
+          content: {},
+          children: [
+            {
+              id: createId('txt'),
+              type: 'text',
+              label: 'Judul Menu Grid',
+              style: {
+                ...DEFAULT_STYLE,
+                align: 'left',
+                padding: 2,
+                marginBottom: 10,
+                minHeight: 22,
+                fontSize: 15,
+                textColor: theme.textColor,
+              },
+              content: { text: 'Spesial Untuk Anda', variant: 'h2', fontWeight: 'bold' },
+            },
+            {
+              id: createId('row'),
+              type: 'row',
+              label: 'Grid 3x3 Menu',
+              style: {
+                ...DEFAULT_STYLE,
+                padding: 2,
+                marginBottom: 0,
+                minHeight: 160,
+                backgroundColor: 'transparent',
+                borderWidth: 0,
+              },
+              content: {
+                rowLayoutMode: 'grid',
+                rowColumns: 3,
+                rowGridRows: 3,
+                rowGap: 10,
+              },
+              children: menuDefs.map((m) => {
+                const iconBlk = createBlock('menu_icon', theme);
+                return {
+                  ...iconBlk,
+                  label: m.label,
+                  style: {
+                    ...iconBlk.style,
+                    padding: 4,
+                    marginBottom: 0,
+                    minHeight: 68,
+                    fontSize: 11,
+                    fontWeightCss: '600',
+                  },
+                  content: {
+                    ...iconBlk.content,
+                    menuIconLabel: m.label,
+                    menuIconShape: 'rounded',
+                    menuIconRadius: 14,
+                    menuIconSize: 52,
+                    menuIconBg: m.bg,
+                    menuIconTextColor: '#0284C7',
+                    sheetTitle: m.label,
+                  },
+                };
+              }),
+            },
+          ],
+        },
+      ];
+    },
+  },
+  // === BLOK TEMPLATE BAWAAN (TERKATEGORI) ===
   {
     id: 'hero-profil-kompak',
+    category: 'hero_profil',
     title: 'Hero Profil Kompak (Status & Jam)',
     description: 'Kartu profil usaha dengan logo bulat/monogram, badge Buka sekarang, lokasi & jam buka',
     createBlocks: (theme) => [createBlock('hero_profile', theme)],
   },
   {
     id: 'hero-profil-banner',
+    category: 'hero_profil',
     title: 'Hero Profil Banner Full Atas',
     description: 'Cover foto full di atas dengan kartu putih/gradasi overlap, logo bulat, rating & alamat',
     createBlocks: (theme) => {
@@ -1735,14 +2451,16 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'tombol-kategori-scroll',
+    category: 'menu_layout',
     title: 'Tombol Kategori (Slide Horizontal / Vertikal)',
     description: 'Tombol Favorit, Makanan, Minuman yang bisa ditambah, slide horizontal atau vertikal & lompat ke judul',
     createBlocks: (theme) => [createBlock('category_tabs', theme)],
   },
   {
     id: 'row-slide-horizontal',
+    category: 'menu_layout',
     title: 'Row 5 Kolom Slide Horizontal',
-    description: 'Deretan 5 kotak kolom geser samping (bisa tambah >4 kolom, atur lebar kolom & kotak wadah)',
+    description: 'Deretan 5 kotak kolom geser samping (bisa tambah 1–20 kolom, atur lebar kolom & kotak wadah)',
     createBlocks: (theme) => {
       const colData = [
         { title: 'Paket Hemat', sub: 'Mulai Rp 18rb', bg: '#FFF7ED', border: '#FED7AA', accent: '#EA580C' },
@@ -1835,12 +2553,14 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'katalog-fnb',
+    category: 'katalog_store',
     title: 'Katalog F&B + Keranjang Mengambang',
     description: 'Menu makanan/minuman, upload/link foto, atur harga, & kotak pilih item mengambang',
     createBlocks: (theme) => [createBlock('fnb_catalog', theme)],
   },
   {
     id: 'kotak-outlet-dinamis',
+    category: 'kontak_medsos',
     title: 'Kotak Info Outlet & Google Maps',
     description: 'Kartu alamat dinamis dengan ikon bulat, jam buka beraksen, dan tombol outline Maps',
     createBlocks: (theme) => [
@@ -1897,6 +2617,7 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'kotak-promo-gradasi',
+    category: 'kartu_info',
     title: 'Kotak Promo CTA Gradasi Dinamis',
     description: 'Kartu promo berlatar gradasi warna yang sudut derajatnya bisa diatur bebas + tombol CTA',
     createBlocks: (theme) => [
@@ -1950,48 +2671,63 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'bottom-sheet-maps',
+    category: 'kontak_medsos',
     title: 'Icon Maps → Bottom Sheet',
     description: 'Klik ikon Maps untuk buka Bottom Sheet lokasi & ulasan',
     createBlocks: (theme) => [createBlock('bottom_sheet', theme)],
   },
   {
     id: 'lokasi-maps',
+    category: 'kontak_medsos',
     title: 'Lokasi Maps & Ulasan',
     description: 'Kartu foto lokasi, rating bintang & Google Maps',
     createBlocks: (theme) => [createBlock('maps_place', theme)],
   },
   {
     id: 'sosmed-postingan',
+    category: 'kontak_medsos',
     title: 'Sosmed & Postingan Carousel',
     description: 'Profil akun sosmed & slide postingan foto/video',
     createBlocks: (theme) => [createBlock('social_feed', theme)],
   },
   {
+    id: 'sosmed-follower-cards',
+    category: 'kontak_medsos',
+    title: 'Sosial Media + Follower Cards',
+    description: 'Kartu profil akun & jumlah follower seluruh sosial media',
+    createBlocks: (theme) => [createBlock('social_follower', theme)],
+  },
+  {
     id: 'foto-carousel',
+    category: 'kartu_info',
     title: 'Galeri Foto Carousel',
     description: 'Slide galeri foto geser dengan keterangan',
     createBlocks: (theme) => [createBlock('carousel', theme)],
   },
   {
     id: 'katalog-produk-pelatihan',
+    category: 'tarif_paket',
     title: 'Katalog Produk Pelatihan',
     description: 'Deskripsi, foto & postingan, harga/potongan/cashback, syarat berkas, form & konsultasi WA',
     createBlocks: (theme) => [createBlock('training_catalog', theme)],
   },
   {
     id: 'katalog-produk-fisik',
+    category: 'katalog_store',
     title: 'Katalog Produk Fisik',
     description: 'Produk, data pemesan dinamis, pilihan kirim/ambil & kirim via WA',
     createBlocks: (theme) => [createCatalogBlock('physical', theme)],
   },
   {
     id: 'katalog-produk-digital',
+    category: 'katalog_store',
     title: 'Katalog Produk Digital',
     description: 'Produk digital, data pemesan dinamis & kirim langsung via WA',
     createBlocks: (theme) => [createCatalogBlock('digital', theme)],
   },
   {
     id: 'hero-profile',
+    category: 'hero_profil',
     title: 'Hero Profil Kreator',
     description: 'Kartu pembuka dengan logo, judul & bio',
     createBlocks: (theme) => [
@@ -2075,6 +2811,7 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'link-stack',
+    category: 'menu_layout',
     title: 'Daftar Tautan Utama',
     description: '3 tombol tautan utama bertumpuk',
     createBlocks: (theme) => [
@@ -2112,6 +2849,7 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'digital-product',
+    category: 'katalog_store',
     title: 'Kartu Produk Unggulan',
     description: 'Kartu promo satu produk & tombol beli',
     createBlocks: (theme) => [
@@ -2166,8 +2904,9 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   },
   {
     id: 'contact-lead',
+    category: 'kontak_medsos',
     title: 'Formulir Kontak & Newsletter',
-    description: 'Form pengumpulan nama, email & WhatsApp',
+    description: 'Form pengumpulan nama, email & checklist konfirmasi',
     createBlocks: (theme) => [createBlock('form', theme)],
   },
 ];

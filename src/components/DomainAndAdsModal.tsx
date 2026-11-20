@@ -372,47 +372,158 @@ export function DomainAndAdsModal({
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-medium text-slate-500">Tautan Live Bawaan</div>
-                    <a
-                      href={`${urls.internalUrl}?preview=1`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate"
-                    >
-                      {urls.internalUrl}
-                    </a>
+                {pub.isPublished ? (
+                  <div className="space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Tautan Live Bawaan
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                            Browser Mode
+                          </span>
+                        </div>
+                        <a
+                          href={
+                            isVirtualAiStudioHost && serverAppUrl
+                              ? urls.internalUrl
+                              : urls.internalPath
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                        >
+                          {urls.internalUrl}
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('live_url', urls.internalUrl)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {copiedKey === 'live_url' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          <span>{copiedKey === 'live_url' ? 'Tersalin' : 'Salin'}</span>
+                        </button>
+                        <a
+                          href={
+                            isVirtualAiStudioHost && serverAppUrl
+                              ? urls.internalUrl
+                              : urls.internalPath
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Buka Live</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Tautan Lihat Penuh
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                            Fullscreen Mode
+                          </span>
+                        </div>
+                        <a
+                          href={
+                            isVirtualAiStudioHost && serverAppUrl
+                              ? urls.internalFullUrl
+                              : urls.internalFullPath
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                        >
+                          {urls.internalFullUrl}
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('live_full_url', urls.internalFullUrl)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {copiedKey === 'live_full_url' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          <span>{copiedKey === 'live_full_url' ? 'Tersalin' : 'Salin'}</span>
+                        </button>
+                        <a
+                          href={
+                            isVirtualAiStudioHost && serverAppUrl
+                              ? urls.internalFullUrl
+                              : urls.internalFullPath
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Buka</span>
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy('live_url', urls.internalUrl)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
-                    >
-                      {copiedKey === 'live_url' ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                      <span>{copiedKey === 'live_url' ? 'Tersalin' : 'Salin'}</span>
-                    </button>
-                    <a
-                      href={
-                        isVirtualAiStudioHost && serverAppUrl
-                          ? `${urls.internalUrl}?preview=1`
-                          : `${urls.internalPath}?preview=1`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Buka Live</span>
-                    </a>
+                ) : (
+                  <div className="space-y-2.5">
+                    <div className="p-3 rounded-xl bg-slate-50/70 border border-dashed border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                            Tautan Live Bawaan
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-500">
+                            Browser Mode
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-[10px] font-semibold text-slate-600">
+                          Draft · Nonaktif
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-slate-400 truncate select-all">
+                        {urls.internalUrl}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50/70 border border-dashed border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                            Tautan Lihat Penuh
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-500">
+                            Fullscreen Mode
+                          </span>
+                        </div>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-[10px] font-semibold text-slate-600">
+                          Draft · Nonaktif
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-slate-400 truncate select-all">
+                        {urls.internalFullUrl}
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500">
+                      Publikasi sedang nonaktif. Aktifkan <span className="font-semibold text-slate-700">Tayang Publik</span> lalu simpan untuk mengaktifkan tautan live Browser Mode &amp; Fullscreen Mode.
+                    </p>
                   </div>
-                </div>
-                {isVirtualAiStudioHost && (
+                )}
+                {isVirtualAiStudioHost && pub.isPublished && (
                   <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
                     Domain virtual <span className="font-mono font-semibold">lynk-builder.ai.studio</span> hanya label contoh di editor. Gunakan URL publik aktif di atas (<span className="font-mono">{urls.internalUrl}</span>) saat membagikan atau mengetes di tab baru.
                   </div>
@@ -466,6 +577,98 @@ export function DomainAndAdsModal({
                     </p>
                   )}
                 </div>
+
+                {pub.useCustomDomain && cleanDomain && domainValid && pub.isPublished && urls.customUrl && urls.customFullUrl && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Tautan Domain Kustom
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                            Browser Mode
+                          </span>
+                        </div>
+                        <a
+                          href={urls.customUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                        >
+                          {urls.customUrl}
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('custom_url', urls.customUrl || '')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {copiedKey === 'custom_url' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          <span>{copiedKey === 'custom_url' ? 'Tersalin' : 'Salin'}</span>
+                        </button>
+                        <a
+                          href={urls.customUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Buka Live</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Tautan Lihat Penuh (Domain Kustom)
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                            Fullscreen Mode
+                          </span>
+                        </div>
+                        <a
+                          href={urls.customFullUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                        >
+                          {urls.customFullUrl}
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('custom_full_url', urls.customFullUrl || '')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {copiedKey === 'custom_full_url' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          <span>{copiedKey === 'custom_full_url' ? 'Tersalin' : 'Salin'}</span>
+                        </button>
+                        <a
+                          href={urls.customFullUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Buka</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {cleanDomain && domainValid && (
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-[11px] text-slate-600">

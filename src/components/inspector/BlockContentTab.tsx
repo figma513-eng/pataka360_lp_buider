@@ -39,6 +39,8 @@ import {
   MenuIconSheetPosition,
   PageTheme,
   ShippingMethodId,
+  ShowcaseCardVariant,
+  ShowcaseFeeItem,
   SocialFollowerAccount,
   SocialLinkItem,
   SocialPlatform,
@@ -175,6 +177,7 @@ export function BlockContentTab({
   const [catalogSubList, setCatalogSubList] = useState<'products' | 'customer' | 'shipping'>(
     'products'
   );
+  const [fnbSubList, setFnbSubList] = useState<'menu' | 'customer' | 'shipping'>('menu');
   const [trainingSubList, setTrainingSubList] = useState<
     'programs' | 'boxes' | 'media' | 'checklist' | 'form'
   >('programs');
@@ -1191,20 +1194,138 @@ export function BlockContentTab({
           </div>
         );
 
-      case 'form':
+      case 'form': {
+        const formChecklistItems = c.formChecklistItems ?? [
+          'Saya menyetujui syarat & ketentuan layanan',
+        ];
         return (
-          <div>
-            <label className="block text-xs font-semibold text-[#17243D] mb-1">
-              {label('konten.field.judulForm', 'Judul Form')}
-            </label>
-            <input
-              type="text"
-              value={c.formTitle ?? ''}
-              onChange={(e) => updateContent({ formTitle: e.target.value })}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
-            />
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                {label('konten.field.judulForm', 'Judul Form')}
+              </label>
+              <input
+                type="text"
+                value={c.formTitle ?? ''}
+                onChange={(e) => updateContent({ formTitle: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">Pengaturan Wajib Isi Kolom</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-[#17243D]">Kolom Nama Lengkap</span>
+                <button
+                  type="button"
+                  onClick={() => updateContent({ formNameRequired: c.formNameRequired === false })}
+                  className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                    c.formNameRequired !== false
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                  }`}
+                >
+                  {c.formNameRequired !== false ? 'Wajib Isi' : 'Tidak Wajib'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-[#17243D]">Kolom Email / No. WA</span>
+                <button
+                  type="button"
+                  onClick={() => updateContent({ formEmailRequired: c.formEmailRequired === false })}
+                  className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                    c.formEmailRequired !== false
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                  }`}
+                >
+                  {c.formEmailRequired !== false ? 'Wajib Isi' : 'Tidak Wajib'}
+                </button>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#17243D]">Aktifkan Checklist Form</span>
+                <ToggleSwitch
+                  checked={Boolean(c.formChecklistEnabled)}
+                  onChange={(checked) => updateContent({ formChecklistEnabled: checked })}
+                  label="Aktifkan Checklist Form"
+                />
+              </div>
+              {c.formChecklistEnabled && (
+                <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                      Judul Checklist
+                    </label>
+                    <input
+                      type="text"
+                      value={c.formChecklistTitle ?? 'Konfirmasi Checklist'}
+                      onChange={(e) => updateContent({ formChecklistTitle: e.target.value })}
+                      className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-[#17243D]">Status Checklist</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateContent({ formChecklistRequired: !c.formChecklistRequired })
+                      }
+                      className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                        c.formChecklistRequired
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                      }`}
+                    >
+                      {c.formChecklistRequired ? 'Wajib Dicentang' : 'Tidak Wajib'}
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {formChecklistItems.map((chkItem, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={chkItem}
+                          onChange={(e) => {
+                            const next = [...formChecklistItems];
+                            next[idx] = e.target.value;
+                            updateContent({ formChecklistItems: next });
+                          }}
+                          className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateContent({
+                              formChecklistItems: formChecklistItems.filter((_, i) => i !== idx),
+                            })
+                          }
+                          className="p-1 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateContent({
+                          formChecklistItems: [...formChecklistItems, 'Pernyataan checklist baru'],
+                        })
+                      }
+                      className="w-full py-1 rounded border border-dashed border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      + Tambah Item Checklist
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
+      }
 
       case 'youtube':
       case 'facebook_video':
@@ -1378,6 +1499,488 @@ export function BlockContentTab({
             {/* Inline Tipografi controls matching Gambar 1 top-right */}
             <div className="pt-2 border-t border-[#DCE5EF]">
               {renderTypographyControls({ showVariantAndWeight: true, syncMenuIconColor: true })}
+            </div>
+          </div>
+        );
+      }
+
+      case 'cart_button':
+        return (
+          <div className="space-y-2.5">
+            <MediaSourceInput
+              label="Foto Produk (Opsional)"
+              value={c.cartProductImage ?? ''}
+              placeholder="https://..."
+              onChangeUrl={(url) => updateContent({ cartProductImage: url })}
+              onUploadFile={(f) =>
+                handleCompressAndSet(f, { maxDimension: 640, quality: 0.84 }, (blk, url) => ({
+                  ...blk,
+                  content: { ...blk.content, cartProductImage: url },
+                }))
+              }
+              onClear={c.cartProductImage ? () => updateContent({ cartProductImage: '' }) : undefined}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Nama Produk
+                </label>
+                <input
+                  type="text"
+                  value={c.cartProductName ?? 'Produk Pilihan'}
+                  onChange={(e) => updateContent({ cartProductName: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Harga
+                </label>
+                <input
+                  type="text"
+                  value={c.cartProductPrice ?? 'Rp 50.000'}
+                  onChange={(e) => updateContent({ cartProductPrice: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Keterangan Produk
+              </label>
+              <textarea
+                rows={2}
+                value={c.cartProductDesc ?? ''}
+                placeholder="Deskripsi singkat produk..."
+                onChange={(e) => updateContent({ cartProductDesc: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white resize-y"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Label Tombol Tambah
+                </label>
+                <input
+                  type="text"
+                  value={c.cartButtonLabel ?? 'Tambah'}
+                  onChange={(e) => updateContent({ cartButtonLabel: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Warna Tombol
+                </label>
+                <input
+                  type="color"
+                  value={c.cartAccentColor || theme.accentColor || '#059669'}
+                  onChange={(e) => updateContent({ cartAccentColor: e.target.value })}
+                  className="w-full h-8 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-xs font-medium text-[#17243D]">
+                Tampilkan Info Produk & Harga
+              </span>
+              <ToggleSwitch
+                checked={c.cartShowProductInfo !== false}
+                onChange={(val) => updateContent({ cartShowProductInfo: val })}
+                label="Tampilkan Info Produk"
+              />
+            </div>
+          </div>
+        );
+
+      case 'showcase_card': {
+        const variant: ShowcaseCardVariant = c.cardVariant ?? 'quote_banner';
+        const galleryImages = c.cardGalleryImages ?? [];
+        const feeItems: ShowcaseFeeItem[] = c.cardFeeItems ?? [
+          { id: 'fee_1', label: 'Pendaftaran', value: 'Rp. 100.000' },
+          { id: 'fee_2', label: 'Iuran Anggota', value: 'Rp. 400.000' },
+        ];
+        const hasMainImage =
+          variant === 'quote_banner' ||
+          variant === 'news_banner' ||
+          variant === 'event_poster' ||
+          variant === 'badge_tile' ||
+          variant === 'store_card' ||
+          variant === 'activity_post';
+
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Jenis Tampilan Kartu
+              </label>
+              <select
+                value={variant}
+                onChange={(e) =>
+                  updateContent({ cardVariant: e.target.value as ShowcaseCardVariant })
+                }
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-semibold text-[#17243D]"
+              >
+                <option value="quote_banner">Kutipan Tokoh (Banner Gradasi)</option>
+                <option value="news_banner">Berita / Informasi Nasional</option>
+                <option value="event_poster">Poster Even & Promo</option>
+                <option value="badge_tile">Kartu Sertifikasi / Badge</option>
+                <option value="store_card">Kartu Store Gradasi + Harga</option>
+                <option value="activity_post">Feed Kegiatan + Galeri</option>
+                <option value="membership_ticket">Kartu Tarif / Tiket Anggota</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                {variant === 'quote_banner'
+                  ? 'Nama Tokoh'
+                  : variant === 'activity_post'
+                  ? 'Nama Penulis / Pejabat'
+                  : 'Judul Kartu'}
+              </label>
+              <input
+                type="text"
+                value={c.cardTitle ?? ''}
+                onChange={(e) => updateContent({ cardTitle: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+
+            {(variant === 'quote_banner' ||
+              variant === 'activity_post' ||
+              variant === 'badge_tile' ||
+              variant === 'event_poster') && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  {variant === 'activity_post' ? 'Jabatan / Subjudul' : 'Subjudul / Keterangan'}
+                </label>
+                <input
+                  type="text"
+                  value={c.cardSubtitle ?? ''}
+                  onChange={(e) => updateContent({ cardSubtitle: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
+            )}
+
+            {(variant === 'quote_banner' || variant === 'activity_post') && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  {variant === 'quote_banner' ? 'Teks Kutipan' : 'Judul Kegiatan'}
+                </label>
+                <textarea
+                  rows={2}
+                  value={c.cardQuote ?? ''}
+                  onChange={(e) => updateContent({ cardQuote: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white resize-y"
+                />
+              </div>
+            )}
+
+            {variant === 'quote_banner' && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Posisi Foto Tokoh
+                </label>
+                <SegmentedControl<'left' | 'right'>
+                  columns={2}
+                  value={c.cardImagePosition ?? 'right'}
+                  onChange={(pos) => updateContent({ cardImagePosition: pos })}
+                  options={[
+                    { id: 'left', label: 'Kiri' },
+                    { id: 'right', label: 'Kanan' },
+                  ]}
+                />
+              </div>
+            )}
+
+            {hasMainImage && (
+              <MediaSourceInput
+                label={variant === 'activity_post' ? 'Foto Profil Penulis' : 'Gambar / Foto Kartu'}
+                value={c.cardImage ?? ''}
+                placeholder="https://..."
+                onChangeUrl={(url) => updateContent({ cardImage: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(f, { maxDimension: 960, quality: 0.85 }, (blk, url) => ({
+                    ...blk,
+                    content: { ...blk.content, cardImage: url },
+                  }))
+                }
+                onClear={c.cardImage ? () => updateContent({ cardImage: '' }) : undefined}
+              />
+            )}
+
+            {variant === 'store_card' && (
+              <div className="space-y-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga Produk
+                  </label>
+                  <input
+                    type="text"
+                    value={c.cardPrice ?? 'Rp. 80.000,-'}
+                    onChange={(e) => updateContent({ cardPrice: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">
+                    Ikon Play Pojok Kanan
+                  </span>
+                  <ToggleSwitch
+                    checked={c.cardShowPlayIcon !== false}
+                    onChange={(val) => updateContent({ cardShowPlayIcon: val })}
+                    label="Ikon Play"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">
+                    Tombol Keranjang (- 1 +)
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(c.cardEnableCart)}
+                    onChange={(val) => updateContent({ cardEnableCart: val })}
+                    label="Aktifkan Keranjang"
+                  />
+                </div>
+                {c.cardEnableCart && (
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                      No. WhatsApp Checkout
+                    </label>
+                    <input
+                      type="text"
+                      value={c.cardWhatsappNumber ?? '6281234567890'}
+                      onChange={(e) => updateContent({ cardWhatsappNumber: e.target.value })}
+                      className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {variant === 'activity_post' && (
+              <div className="space-y-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                      Tanggal
+                    </label>
+                    <input
+                      type="text"
+                      value={c.cardDate ?? '18/02/2026'}
+                      onChange={(e) => updateContent({ cardDate: e.target.value })}
+                      className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                      Jumlah Views
+                    </label>
+                    <input
+                      type="text"
+                      value={c.cardViews ?? '200'}
+                      onChange={(e) => updateContent({ cardViews: e.target.value })}
+                      className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
+                  <div className="text-[11px] font-bold text-[#17243D]">
+                    Galeri Foto ({galleryImages.length})
+                  </div>
+                  {galleryImages.map((imgUrl, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <input
+                        type="url"
+                        value={imgUrl}
+                        placeholder="URL gambar..."
+                        onChange={(e) => {
+                          const next = [...galleryImages];
+                          next[idx] = e.target.value;
+                          updateContent({ cardGalleryImages: next });
+                        }}
+                        className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateContent({
+                            cardGalleryImages: galleryImages.filter((_, i) => i !== idx),
+                          })
+                        }
+                        className="p-1 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        cardGalleryImages: [
+                          ...galleryImages,
+                          SAMPLE_CAROUSEL_IMAGES[galleryImages.length % SAMPLE_CAROUSEL_IMAGES.length],
+                        ],
+                      })
+                    }
+                    className="w-full py-1 rounded border border-dashed border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
+                  >
+                    + Tambah Foto Galeri
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {variant === 'membership_ticket' && (
+              <div className="space-y-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <div className="text-[11px] font-bold text-[#17243D]">Rincian Biaya</div>
+                {feeItems.map((fee, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={fee.label}
+                      placeholder="Label"
+                      onChange={(e) => {
+                        const next = feeItems.map((it, i) =>
+                          i === idx ? { ...it, label: e.target.value } : it
+                        );
+                        updateContent({ cardFeeItems: next });
+                      }}
+                      className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={fee.value}
+                      placeholder="Rp. 100.000"
+                      onChange={(e) => {
+                        const next = feeItems.map((it, i) =>
+                          i === idx ? { ...it, value: e.target.value } : it
+                        );
+                        updateContent({ cardFeeItems: next });
+                      }}
+                      className="w-24 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white tabular-nums"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateContent({ cardFeeItems: feeItems.filter((_, i) => i !== idx) })
+                      }
+                      className="p-1 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateContent({
+                      cardFeeItems: [
+                        ...feeItems,
+                        { id: createId('fee'), label: 'Biaya Lain', value: 'Rp. 50.000' },
+                      ],
+                    })
+                  }
+                  className="w-full py-1 rounded border border-dashed border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
+                >
+                  + Tambah Baris Biaya
+                </button>
+                <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-[#DCE5EF]">
+                  <input
+                    type="text"
+                    value={c.cardTotalLabel ?? 'Total'}
+                    placeholder="Label Total"
+                    onChange={(e) => updateContent({ cardTotalLabel: e.target.value })}
+                    className="px-2 py-1 text-[11px] font-semibold rounded border border-[#DCE5EF] bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={c.cardTotalValue ?? 'Rp. 500.000,-'}
+                    placeholder="Nilai Total"
+                    onChange={(e) => updateContent({ cardTotalValue: e.target.value })}
+                    className="px-2 py-1 text-[11px] font-bold rounded border border-[#DCE5EF] bg-white tabular-nums"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">Warna & Gradasi Kartu</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#8FA4BF] mb-0.5">
+                    Gradasi Awal / Utama
+                  </label>
+                  <input
+                    type="color"
+                    value={c.cardGradientFrom ?? '#F59E0B'}
+                    onChange={(e) => updateContent({ cardGradientFrom: e.target.value })}
+                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#8FA4BF] mb-0.5">
+                    Gradasi Akhir
+                  </label>
+                  <input
+                    type="color"
+                    value={c.cardGradientTo ?? '#D97706'}
+                    onChange={(e) => updateContent({ cardGradientTo: e.target.value })}
+                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#8FA4BF] mb-0.5">
+                    Warna Aksen / Strip
+                  </label>
+                  <input
+                    type="color"
+                    value={c.cardAccentColor ?? '#2563EB'}
+                    onChange={(e) => updateContent({ cardAccentColor: e.target.value })}
+                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#8FA4BF] mb-0.5">
+                    Warna Teks
+                  </label>
+                  <input
+                    type="color"
+                    value={c.cardTextColor ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ cardTextColor: e.target.value })}
+                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Label Tautan
+                </label>
+                <input
+                  type="text"
+                  value={c.cardMoreLabel ?? 'Selengkapnya'}
+                  onChange={(e) => updateContent({ cardMoreLabel: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  URL Tautan (Opsional)
+                </label>
+                <input
+                  type="url"
+                  value={c.cardActionUrl ?? ''}
+                  placeholder="https://..."
+                  onChange={(e) => updateContent({ cardActionUrl: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
             </div>
           </div>
         );
@@ -1810,21 +2413,39 @@ export function BlockContentTab({
                   />
                 </div>
                 {opt.askArrivalTime && (
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <input
-                      type="text"
-                      value={opt.arrivalTimeLabel ?? ''}
-                      placeholder="Label"
-                      onChange={(e) => updateOpt({ arrivalTimeLabel: e.target.value })}
-                      className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                    />
-                    <input
-                      type="text"
-                      value={opt.arrivalTimePlaceholder ?? ''}
-                      placeholder="18:30 WIB"
-                      onChange={(e) => updateOpt({ arrivalTimePlaceholder: e.target.value })}
-                      className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                    />
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        value={opt.arrivalTimeLabel ?? ''}
+                        placeholder="Label"
+                        onChange={(e) => updateOpt({ arrivalTimeLabel: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={opt.arrivalTimePlaceholder ?? ''}
+                        placeholder="18:30 WIB"
+                        onChange={(e) => updateOpt({ arrivalTimePlaceholder: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-medium text-[#64748B]">
+                        Status Kolom Waktu
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOpt({ arrivalTimeRequired: !opt.arrivalTimeRequired })}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                          opt.arrivalTimeRequired
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.arrivalTimeRequired ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1840,21 +2461,39 @@ export function BlockContentTab({
                   />
                 </div>
                 {opt.askGuestCount && (
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <input
-                      type="text"
-                      value={opt.guestCountLabel ?? ''}
-                      placeholder="Label"
-                      onChange={(e) => updateOpt({ guestCountLabel: e.target.value })}
-                      className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                    />
-                    <input
-                      type="text"
-                      value={opt.guestCountPlaceholder ?? ''}
-                      placeholder="4 orang"
-                      onChange={(e) => updateOpt({ guestCountPlaceholder: e.target.value })}
-                      className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                    />
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        value={opt.guestCountLabel ?? ''}
+                        placeholder="Label"
+                        onChange={(e) => updateOpt({ guestCountLabel: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={opt.guestCountPlaceholder ?? ''}
+                        placeholder="4 orang"
+                        onChange={(e) => updateOpt({ guestCountPlaceholder: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-medium text-[#64748B]">
+                        Status Kolom Jumlah Orang
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOpt({ guestCountRequired: !opt.guestCountRequired })}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                          opt.guestCountRequired
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.guestCountRequired ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1871,6 +2510,22 @@ export function BlockContentTab({
                 </div>
                 {opt.checklistEnabled && (
                   <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 pb-1">
+                      <span className="text-[10.5px] font-medium text-[#64748B]">
+                        Status Checklist
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOpt({ checklistRequired: !opt.checklistRequired })}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                          opt.checklistRequired
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.checklistRequired ? 'Wajib Dicentang' : 'Tidak Wajib'}
+                      </button>
+                    </div>
                     {currentChecklistItems.map((chkTxt, cIdx) => (
                       <div key={cIdx} className="flex items-start gap-1.5">
                         <textarea
@@ -2120,19 +2775,38 @@ export function BlockContentTab({
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <input
-                      type="text"
-                      value={field.placeholder}
-                      placeholder="Placeholder..."
-                      onChange={(e) =>
-                        updateContent({
-                          catalogCustomerFields: customerFields.map((it, i) =>
-                            i === fIdx ? { ...it, placeholder: e.target.value } : it
-                          ),
-                        })
-                      }
-                      className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={field.placeholder}
+                        placeholder="Placeholder..."
+                        onChange={(e) =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.map((it, i) =>
+                              i === fIdx ? { ...it, placeholder: e.target.value } : it
+                            ),
+                          })
+                        }
+                        className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.map((it, i) =>
+                              i === fIdx ? { ...it, required: !it.required } : it
+                            ),
+                          })
+                        }
+                        className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold border cursor-pointer transition-colors ${
+                          field.required
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {field.required ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2189,6 +2863,8 @@ export function BlockContentTab({
     // --- FNB CATALOG ---
     if (selectedBlock.type === 'fnb_catalog') {
       const items = c.fnbItems ?? [];
+      const customerFields = resolveCatalogCustomerFields(c);
+      const shippingOpts = resolveCatalogShippingOptions(c);
       const updateFnbItem = (id: string, patch: Partial<FnbMenuItem>) => {
         updateContent({
           fnbItems: items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
@@ -2313,84 +2989,504 @@ export function BlockContentTab({
         };
       }
 
+      if (editingItemKey?.startsWith('fnb_ship:')) {
+        const optId = editingItemKey.slice('fnb_ship:'.length) as ShippingMethodId;
+        const opt = shippingOpts.find((o) => o.id === optId);
+        if (!opt) {
+          return { badge: items.length, body: renderDrillHeader('Opsi Pengiriman') };
+        }
+        const updateOpt = (patch: Partial<CatalogShippingOptionConfig>) => {
+          updateContent({
+            catalogShippingOptions: shippingOpts.map((o) =>
+              o.id === opt.id ? { ...o, ...patch } : o
+            ),
+          });
+        };
+        const currentChecklistItems = resolveShippingOptionChecklistItems(opt);
+        const saveChecklists = (nextList: string[]) => {
+          updateOpt({
+            checklistItems: nextList,
+            checklistText: nextList.join('\n'),
+          });
+        };
+        return {
+          badge: items.length,
+          body: (
+            <div className="space-y-3">
+              {renderDrillHeader(opt.label)}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <span className="text-xs font-bold text-[#17243D]">Aktifkan Pilihan Ini</span>
+                <ToggleSwitch
+                  checked={opt.enabled !== false}
+                  onChange={(checked) => updateOpt({ enabled: checked })}
+                  label={`Aktifkan ${opt.label}`}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Nama Pilihan
+                </label>
+                <input
+                  type="text"
+                  value={opt.label}
+                  onChange={(e) => updateOpt({ label: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                />
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Tambahkan Waktu / Jam
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(opt.askArrivalTime)}
+                    onChange={(checked) => updateOpt({ askArrivalTime: checked })}
+                    label="Tambahkan input waktu"
+                  />
+                </div>
+                {opt.askArrivalTime && (
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        value={opt.arrivalTimeLabel ?? ''}
+                        placeholder="Label"
+                        onChange={(e) => updateOpt({ arrivalTimeLabel: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={opt.arrivalTimePlaceholder ?? ''}
+                        placeholder="18:30 WIB"
+                        onChange={(e) => updateOpt({ arrivalTimePlaceholder: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-medium text-[#64748B]">
+                        Status Kolom Waktu
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOpt({ arrivalTimeRequired: !opt.arrivalTimeRequired })}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                          opt.arrivalTimeRequired
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.arrivalTimeRequired ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Tambahkan Jumlah Orang
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(opt.askGuestCount)}
+                    onChange={(checked) => updateOpt({ askGuestCount: checked })}
+                    label="Tambahkan jumlah orang"
+                  />
+                </div>
+                {opt.askGuestCount && (
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        value={opt.guestCountLabel ?? ''}
+                        placeholder="Label"
+                        onChange={(e) => updateOpt({ guestCountLabel: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={opt.guestCountPlaceholder ?? ''}
+                        placeholder="4 orang"
+                        onChange={(e) => updateOpt({ guestCountPlaceholder: e.target.value })}
+                        className="px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-medium text-[#64748B]">
+                        Status Kolom Jumlah Orang
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOpt({ guestCountRequired: !opt.guestCountRequired })}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                          opt.guestCountRequired
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.guestCountRequired ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Checklist Konfirmasi ({currentChecklistItems.length})
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(opt.checklistEnabled)}
+                    onChange={(checked) => updateOpt({ checklistEnabled: checked })}
+                    label="Checklist konfirmasi"
+                  />
+                </div>
+                {opt.checklistEnabled && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 pb-1">
+                      <span className="text-[10.5px] font-medium text-[#64748B]">
+                        Status Checklist
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateOpt({ checklistRequired: !opt.checklistRequired })}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                          opt.checklistRequired
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {opt.checklistRequired ? 'Wajib Dicentang' : 'Tidak Wajib'}
+                      </button>
+                    </div>
+                    {currentChecklistItems.map((chkTxt, cIdx) => (
+                      <div key={cIdx} className="flex items-start gap-1.5">
+                        <textarea
+                          rows={2}
+                          value={chkTxt}
+                          onChange={(e) => {
+                            const next = [...currentChecklistItems];
+                            next[cIdx] = e.target.value;
+                            saveChecklists(next);
+                          }}
+                          className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white resize-y"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            saveChecklists(currentChecklistItems.filter((_, i) => i !== cIdx))
+                          }
+                          className="p-1 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        saveChecklists([...currentChecklistItems, 'Pernyataan konfirmasi baru'])
+                      }
+                      className="w-full py-1 rounded border border-dashed border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      + Tambah Checklist
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  value={opt.noteTitle ?? 'Catatan:'}
+                  placeholder="Judul catatan"
+                  onChange={(e) => updateOpt({ noteTitle: e.target.value })}
+                  className="w-full px-2 py-1 text-[11px] font-semibold rounded border border-[#DCE5EF] bg-white"
+                />
+                <textarea
+                  rows={2}
+                  value={opt.noteText ?? ''}
+                  placeholder="Catatan khusus pilihan ini"
+                  onChange={(e) => updateOpt({ noteText: e.target.value })}
+                  className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white resize-y"
+                />
+              </div>
+            </div>
+          ),
+        };
+      }
+
       return {
         badge: items.length,
         body: (
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => {
-                const nextItem: FnbMenuItem = {
-                  id: createId('fnb'),
-                  title: `Menu Baru ${items.length + 1}`,
-                  description: 'Deskripsi singkat menu pilihan.',
-                  category: 'Makanan',
-                  badge: '',
-                  price: 'Rp 25.000',
-                  image: '',
-                  monogram: 'MN',
-                  monogramBg: '#FFEDD5',
-                  monogramColor: '#C2410C',
-                };
-                updateContent({ fnbItems: [...items, nextItem] });
-                setEditingItemKey(`fnb:${nextItem.id}`);
-              }}
-              className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
-              <span>Tambah Menu</span>
-            </button>
-
-            {items.map((item, idx) => (
-              <div
-                key={item.id}
-                onClick={() => setEditingItemKey(`fnb:${item.id}`)}
-                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center gap-2 cursor-pointer"
-              >
-                <div
-                  style={{
-                    backgroundColor: item.image ? '#FFFFFF' : item.monogramBg ?? '#FFEDD5',
-                    color: item.monogramColor ?? '#C2410C',
-                  }}
-                  className="w-8 h-8 rounded border border-[#DCE5EF] overflow-hidden shrink-0 flex items-center justify-center text-[11px] font-bold"
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+              {(
+                [
+                  { id: 'menu', label: `Menu (${items.length})` },
+                  { id: 'customer', label: `Pemesan (${customerFields.length})` },
+                  { id: 'shipping', label: `Kirim (${shippingOpts.length})` },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFnbSubList(tab.id)}
+                  className={`py-1 px-1 rounded text-[10.5px] font-semibold cursor-pointer truncate ${
+                    fnbSubList === tab.id
+                      ? 'bg-[#17243D] text-white'
+                      : 'text-[#8FA4BF] hover:text-[#17243D]'
+                  }`}
                 >
-                  {item.image ? (
-                    <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{(item.monogram || item.title.slice(0, 2)).toUpperCase()}</span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-[#17243D] truncate">{item.title}</div>
-                  <div className="text-[10.5px] text-[#8FA4BF] truncate tabular-nums">
-                    {item.category} · {item.price}
-                  </div>
-                </div>
-                <ItemOverflowMenu
-                  onEdit={() => setEditingItemKey(`fnb:${item.id}`)}
-                  onDuplicate={() => {
-                    const dup: FnbMenuItem = {
-                      ...item,
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {fnbSubList === 'menu' && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextItem: FnbMenuItem = {
                       id: createId('fnb'),
-                      title: `${item.title} Salinan`,
+                      title: `Menu Baru ${items.length + 1}`,
+                      description: 'Deskripsi singkat menu pilihan.',
+                      category: 'Makanan',
+                      badge: '',
+                      price: 'Rp 25.000',
+                      image: '',
+                      monogram: 'MN',
+                      monogramBg: '#FFEDD5',
+                      monogramColor: '#C2410C',
                     };
-                    const copy = [...items];
-                    copy.splice(idx + 1, 0, dup);
-                    updateContent({ fnbItems: copy });
+                    updateContent({ fnbItems: [...items, nextItem] });
+                    setEditingItemKey(`fnb:${nextItem.id}`);
                   }}
-                  onMoveUp={() => updateContent({ fnbItems: moveArrayItem(items, idx, -1) })}
-                  onMoveDown={() => updateContent({ fnbItems: moveArrayItem(items, idx, 1) })}
-                  disableMoveUp={idx === 0}
-                  disableMoveDown={idx === items.length - 1}
-                  onDelete={() => {
-                    updateContent({
-                      fnbItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
-                    });
-                    if (editingItemKey === `fnb:${item.id}`) setEditingItemKey(null);
-                  }}
-                />
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
+                  <span>Tambah Menu</span>
+                </button>
+
+                {items.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setEditingItemKey(`fnb:${item.id}`)}
+                    className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center gap-2 cursor-pointer"
+                  >
+                    <div
+                      style={{
+                        backgroundColor: item.image ? '#FFFFFF' : item.monogramBg ?? '#FFEDD5',
+                        color: item.monogramColor ?? '#C2410C',
+                      }}
+                      className="w-8 h-8 rounded border border-[#DCE5EF] overflow-hidden shrink-0 flex items-center justify-center text-[11px] font-bold"
+                    >
+                      {item.image ? (
+                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <span>{(item.monogram || item.title.slice(0, 2)).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-[#17243D] truncate">{item.title}</div>
+                      <div className="text-[10.5px] text-[#8FA4BF] truncate tabular-nums">
+                        {item.category} · {item.price}
+                      </div>
+                    </div>
+                    <ItemOverflowMenu
+                      onEdit={() => setEditingItemKey(`fnb:${item.id}`)}
+                      onDuplicate={() => {
+                        const dup: FnbMenuItem = {
+                          ...item,
+                          id: createId('fnb'),
+                          title: `${item.title} Salinan`,
+                        };
+                        const copy = [...items];
+                        copy.splice(idx + 1, 0, dup);
+                        updateContent({ fnbItems: copy });
+                      }}
+                      onMoveUp={() => updateContent({ fnbItems: moveArrayItem(items, idx, -1) })}
+                      onMoveDown={() => updateContent({ fnbItems: moveArrayItem(items, idx, 1) })}
+                      disableMoveUp={idx === 0}
+                      disableMoveDown={idx === items.length - 1}
+                      onDelete={() => {
+                        updateContent({
+                          fnbItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                        });
+                        if (editingItemKey === `fnb:${item.id}`) setEditingItemKey(null);
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
+            {fnbSubList === 'customer' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        catalogCustomerFields: getDefaultCustomerFields('physical'),
+                      })
+                    }
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        catalogCustomerFields: [
+                          ...customerFields,
+                          {
+                            id: createId('cf'),
+                            label: `Kolom #${customerFields.length + 1}`,
+                            placeholder: 'Isi data di sini',
+                            type: 'text',
+                            required: false,
+                          } as CatalogCustomerField,
+                        ],
+                      })
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#17243D] text-white text-[11px] font-semibold cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3 text-[#00C98A]" />
+                    <span>Tambah Kolom</span>
+                  </button>
+                </div>
+
+                {customerFields.map((field, fIdx) => (
+                  <div
+                    key={field.id}
+                    className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={field.label}
+                        onChange={(e) =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.map((it, i) =>
+                              i === fIdx ? { ...it, label: e.target.value } : it
+                            ),
+                          })
+                        }
+                        className="flex-1 min-w-0 px-2 py-1 text-[11px] font-semibold rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <select
+                        value={field.type}
+                        onChange={(e) =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.map((it, i) =>
+                              i === fIdx
+                                ? { ...it, type: e.target.value as CustomFieldInputType }
+                                : it
+                            ),
+                          })
+                        }
+                        className="px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                      >
+                        <option value="text">Teks</option>
+                        <option value="tel">No. WA</option>
+                        <option value="email">Email</option>
+                        <option value="textarea">Paragraf</option>
+                        <option value="number">Angka</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.filter((_, i) => i !== fIdx),
+                          })
+                        }
+                        className="p-1 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={field.placeholder}
+                        placeholder="Placeholder..."
+                        onChange={(e) =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.map((it, i) =>
+                              i === fIdx ? { ...it, placeholder: e.target.value } : it
+                            ),
+                          })
+                        }
+                        className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateContent({
+                            catalogCustomerFields: customerFields.map((it, i) =>
+                              i === fIdx ? { ...it, required: !it.required } : it
+                            ),
+                          })
+                        }
+                        className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold border cursor-pointer transition-colors ${
+                          field.required
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {field.required ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {fnbSubList === 'shipping' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#8FA4BF]">
+                    Klik opsi untuk edit detail
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+                      })
+                    }
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00C98A] hover:underline cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+                {shippingOpts.map((opt, idx) => (
+                  <div
+                    key={opt.id}
+                    onClick={() => setEditingItemKey(`fnb_ship:${opt.id}`)}
+                    className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          opt.enabled !== false ? 'bg-[#00C98A]' : 'bg-[#8FA4BF]'
+                        }`}
+                      />
+                      <span className="text-xs font-semibold text-[#17243D] truncate">
+                        {idx + 1}. {opt.label}
+                      </span>
+                    </div>
+                    <ItemOverflowMenu
+                      onEdit={() => setEditingItemKey(`fnb_ship:${opt.id}`)}
+                      editLabel="Atur Opsi"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ),
       };
@@ -2795,6 +3891,24 @@ export function BlockContentTab({
 
             {trainingSubList === 'checklist' && (
               <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Status Checklist Berkas
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({ trainingChecklistRequired: !c.trainingChecklistRequired })
+                    }
+                    className={`px-2 py-0.5 rounded text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                      c.trainingChecklistRequired
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                    }`}
+                  >
+                    {c.trainingChecklistRequired ? 'Wajib Dicentang' : 'Tidak Wajib'}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() =>
@@ -2919,18 +4033,37 @@ export function BlockContentTab({
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <input
-                      type="text"
-                      value={field.placeholder}
-                      onChange={(e) =>
-                        updateContent({
-                          trainingFormFields: formFields.map((it, i) =>
-                            i === fIdx ? { ...it, placeholder: e.target.value } : it
-                          ),
-                        })
-                      }
-                      className="w-full px-2 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={field.placeholder}
+                        onChange={(e) =>
+                          updateContent({
+                            trainingFormFields: formFields.map((it, i) =>
+                              i === fIdx ? { ...it, placeholder: e.target.value } : it
+                            ),
+                          })
+                        }
+                        className="flex-1 min-w-0 px-2 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateContent({
+                            trainingFormFields: formFields.map((it, i) =>
+                              i === fIdx ? { ...it, required: !it.required } : it
+                            ),
+                          })
+                        }
+                        className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold border cursor-pointer transition-colors ${
+                          field.required
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#64748B] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {field.required ? 'Wajib Isi' : 'Tidak Wajib'}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -4112,6 +5245,15 @@ export function BlockContentTab({
                 <Plus className="w-3 h-3 text-[#00C98A]" />
                 <span>Kolom Tombol</span>
               </button>
+              <button
+                type="button"
+                disabled={!canAddMore}
+                onClick={() => onAddChildToContainer(selectedBlock.id, 'cart_button')}
+                className="col-span-2 inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-[11px] font-semibold text-emerald-800 disabled:opacity-40 cursor-pointer"
+              >
+                <Plus className="w-3 h-3 text-emerald-600" />
+                <span>Tambah Tombol Keranjang (- 1 +)</span>
+              </button>
             </div>
 
             {rowChildren.map((child, idx) => (
@@ -4167,8 +5309,8 @@ export function BlockContentTab({
       const children = selectedBlock.children ?? [];
       const addableTypes: BlockType[] =
         selectedBlock.type === 'bottom_sheet' || selectedBlock.type === 'menu_icon'
-          ? ['maps_place', 'text', 'image', 'button', 'form', 'catalog', 'carousel', 'social']
-          : ['text', 'image', 'button', 'form', 'youtube', 'divider'];
+          ? ['cart_button', 'maps_place', 'text', 'image', 'button', 'form', 'catalog', 'showcase_card', 'carousel', 'social']
+          : ['cart_button', 'text', 'image', 'button', 'form', 'showcase_card', 'youtube', 'divider'];
 
       const applySheetTemplate = (tplId: 'maps' | 'contact' | 'promo' | 'form') => {
         let nextTitle = 'Lokasi & Ulasan';
@@ -4722,6 +5864,22 @@ export function BlockContentTab({
               />
             </div>
             <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[#17243D]">Form Data Pemesan</span>
+              <ToggleSwitch
+                checked={c.catalogAskCustomerInfo !== false}
+                onChange={(val) => updateContent({ catalogAskCustomerInfo: val })}
+                label="Form Data Pemesan"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[#17243D]">Opsi Pengiriman</span>
+              <ToggleSwitch
+                checked={c.catalogShippingEnabled !== false}
+                onChange={(val) => updateContent({ catalogShippingEnabled: val })}
+                label="Opsi Pengiriman"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-[#17243D]">Kolom Pencarian</span>
               <ToggleSwitch
                 checked={c.fnbShowSearch !== false}
@@ -4744,6 +5902,95 @@ export function BlockContentTab({
                 onChange={(val) => updateContent({ fnbGroupByCategory: val })}
                 label="Kelompokkan per Kategori"
               />
+            </div>
+          </div>
+        );
+
+      case 'cart_button':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                No. WhatsApp Checkout
+              </label>
+              <input
+                type="text"
+                value={c.cartWhatsappNumber ?? '6281234567890'}
+                onChange={(e) => updateContent({ cartWhatsappNumber: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Nama Toko (di Pesan WA)
+              </label>
+              <input
+                type="text"
+                value={c.cartStoreName ?? ''}
+                placeholder="Otomatis pakai nama halaman"
+                onChange={(e) => updateContent({ cartStoreName: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#17243D]">
+                  Label Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={c.cartFloatingEnabled !== false}
+                  onChange={(val) => updateContent({ cartFloatingEnabled: val })}
+                  label="Label Keranjang Mengambang"
+                />
+              </div>
+              {c.cartFloatingEnabled !== false && (
+                <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-[#64748B] mb-0.5">
+                        Teks Label Mengambang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.cartFloatingLabel ?? 'Lihat Keranjang'}
+                        onChange={(e) => updateContent({ cartFloatingLabel: e.target.value })}
+                        className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-[#64748B] mb-0.5">
+                        Warna
+                      </label>
+                      <input
+                        type="color"
+                        value={c.cartFloatingBg || c.cartAccentColor || theme.accentColor || '#059669'}
+                        onChange={(e) => updateContent({ cartFloatingBg: e.target.value })}
+                        className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#64748B] mb-1">
+                      Posisi Label Mengambang
+                    </label>
+                    <SegmentedControl<'bottom-floating' | 'bottom-docked' | 'top-floating'>
+                      columns={3}
+                      value={
+                        c.cartFloatingPosition === 'bottom-docked' ||
+                        c.cartFloatingPosition === 'top-floating'
+                          ? c.cartFloatingPosition
+                          : 'bottom-floating'
+                      }
+                      onChange={(pos) => updateContent({ cartFloatingPosition: pos })}
+                      options={[
+                        { id: 'bottom-floating', label: 'Bawah' },
+                        { id: 'bottom-docked', label: 'Menempel' },
+                        { id: 'top-floating', label: 'Atas' },
+                      ]}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -5158,6 +6405,33 @@ export function BlockContentTab({
       }));
     };
 
+    const gridCols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
+    const gridRows = Math.max(
+      1,
+      Math.min(10, c.rowGridRows ?? Math.max(1, Math.ceil((rowChildren.length || gridCols) / gridCols)))
+    );
+
+    const applyGridDimensions = (nextColsRaw: number, nextRowsRaw: number) => {
+      const nextCols = Math.max(1, Math.min(6, Math.round(nextColsRaw)));
+      const nextRows = Math.max(1, Math.min(10, Math.round(nextRowsRaw)));
+      const targetCells = Math.max(1, Math.min(20, nextCols * nextRows));
+      const next = [...rowChildren];
+      while (next.length < targetCells) {
+        next.push(makeEmptySlide(next.length + 1));
+      }
+      const trimmed = next.slice(0, targetCells);
+      onUpdateBlock(selectedBlock.id, (blk) => ({
+        ...blk,
+        content: {
+          ...blk.content,
+          rowLayoutMode: 'grid',
+          rowColumns: nextCols,
+          rowGridRows: nextRows,
+        },
+        children: trimmed,
+      }));
+    };
+
     return (
       <div className="space-y-2.5">
         <div>
@@ -5167,7 +6441,18 @@ export function BlockContentTab({
           <SegmentedControl<'horizontal' | 'vertical' | 'grid'>
             columns={3}
             value={rowMode}
-            onChange={(m) => updateContent({ rowLayoutMode: m })}
+            onChange={(m) => {
+              if (m === 'grid') {
+                const cols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
+                const rows = Math.max(
+                  1,
+                  Math.min(10, c.rowGridRows ?? Math.max(1, Math.ceil((rowChildren.length || cols) / cols)))
+                );
+                updateContent({ rowLayoutMode: 'grid', rowColumns: cols, rowGridRows: rows });
+              } else {
+                updateContent({ rowLayoutMode: m });
+              }
+            }}
             options={[
               { id: 'horizontal', label: 'Horizontal' },
               { id: 'vertical', label: 'Vertikal' },
@@ -5176,47 +6461,131 @@ export function BlockContentTab({
           />
         </div>
 
-        {/* Jumlah Kolom / Slide (1-20) */}
-        <div className="p-2 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold text-[#17243D]">
-              Jumlah Kolom / Slide (1–20)
-            </span>
-            <div className="inline-flex items-center gap-1">
-              <button
-                type="button"
-                disabled={rowChildren.length <= 1}
-                onClick={() => setSlideCount(rowChildren.length - 1)}
-                className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                aria-label="Kurangi kolom"
-              >
-                -
-              </button>
-              <span className="min-w-[24px] text-center text-xs font-bold tabular-nums text-[#17243D]">
-                {rowChildren.length}
+        {rowMode === 'grid' ? (
+          <div className="p-2.5 rounded-lg bg-[#F0F5FA]/80 border border-[#DCE5EF] space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-[#17243D]">Pengaturan Grid (Kolom × Row)</span>
+              <span className="text-[10px] font-semibold text-[#64748B] tabular-nums">
+                {rowChildren.length} / 20 sel
               </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-1.5 rounded-md bg-white border border-[#DCE5EF] space-y-1">
+                <span className="block text-[10px] font-semibold text-[#64748B]">Kolom (1–6)</span>
+                <div className="flex items-center justify-between gap-1">
+                  <button
+                    type="button"
+                    disabled={gridCols <= 1}
+                    onClick={() => applyGridDimensions(gridCols - 1, gridRows)}
+                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                    aria-label="Kurangi kolom grid"
+                  >
+                    -
+                  </button>
+                  <span className="text-xs font-bold tabular-nums text-[#17243D]">{gridCols}</span>
+                  <button
+                    type="button"
+                    disabled={gridCols >= 6 || (gridCols + 1) * gridRows > 20}
+                    onClick={() => applyGridDimensions(gridCols + 1, gridRows)}
+                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                    aria-label="Tambah kolom grid"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-1.5 rounded-md bg-white border border-[#DCE5EF] space-y-1">
+                <span className="block text-[10px] font-semibold text-[#64748B]">Baris / Row (1–10)</span>
+                <div className="flex items-center justify-between gap-1">
+                  <button
+                    type="button"
+                    disabled={gridRows <= 1}
+                    onClick={() => applyGridDimensions(gridCols, gridRows - 1)}
+                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                    aria-label="Kurangi baris grid"
+                  >
+                    -
+                  </button>
+                  <span className="text-xs font-bold tabular-nums text-[#17243D]">{gridRows}</span>
+                  <button
+                    type="button"
+                    disabled={gridRows >= 10 || gridCols * (gridRows + 1) > 20}
+                    onClick={() => applyGridDimensions(gridCols, gridRows + 1)}
+                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                    aria-label="Tambah baris grid"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
-                disabled={rowChildren.length >= 20}
-                onClick={() => setSlideCount(rowChildren.length + 1)}
-                className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                aria-label="Tambah kolom"
+                disabled={gridCols >= 6 || (gridCols + 1) * gridRows > 20}
+                onClick={() => applyGridDimensions(gridCols + 1, gridRows)}
+                className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#17243D] text-white text-[10.5px] font-semibold disabled:opacity-40 cursor-pointer"
               >
-                +
+                <Plus className="w-3 h-3 text-[#00C98A]" />
+                <span>Tambah Kolom</span>
+              </button>
+              <button
+                type="button"
+                disabled={gridRows >= 10 || gridCols * (gridRows + 1) > 20}
+                onClick={() => applyGridDimensions(gridCols, gridRows + 1)}
+                className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#17243D] text-white text-[10.5px] font-semibold disabled:opacity-40 cursor-pointer"
+              >
+                <Plus className="w-3 h-3 text-[#00C98A]" />
+                <span>Tambah Baris</span>
               </button>
             </div>
           </div>
-          <input
-            type="range"
-            min={1}
-            max={20}
-            step={1}
-            value={Math.max(1, Math.min(20, rowChildren.length || 1))}
-            onChange={(e) => setSlideCount(Number(e.target.value))}
-            style={rangeProgressStyle(Math.max(1, Math.min(20, rowChildren.length || 1)), 1, 20)}
-            className="w-full cursor-pointer"
-          />
-        </div>
+        ) : (
+          /* Jumlah Kolom / Slide (1-20) */
+          <div className="p-2 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-[#17243D]">
+                Jumlah Kolom / Slide (1–20)
+              </span>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={rowChildren.length <= 1}
+                  onClick={() => setSlideCount(rowChildren.length - 1)}
+                  className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                  aria-label="Kurangi kolom"
+                >
+                  -
+                </button>
+                <span className="min-w-[24px] text-center text-xs font-bold tabular-nums text-[#17243D]">
+                  {rowChildren.length}
+                </span>
+                <button
+                  type="button"
+                  disabled={rowChildren.length >= 20}
+                  onClick={() => setSlideCount(rowChildren.length + 1)}
+                  className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                  aria-label="Tambah kolom"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={20}
+              step={1}
+              value={Math.max(1, Math.min(20, rowChildren.length || 1))}
+              onChange={(e) => setSlideCount(Number(e.target.value))}
+              style={rangeProgressStyle(Math.max(1, Math.min(20, rowChildren.length || 1)), 1, 20)}
+              className="w-full cursor-pointer"
+            />
+          </div>
+        )}
 
         {rowMode === 'horizontal' && (
           <div className="space-y-2">
@@ -5286,6 +6655,7 @@ export function BlockContentTab({
   const showTypographyAccordion =
     selectedBlock.type === 'text' ||
     selectedBlock.type === 'button' ||
+    selectedBlock.type === 'cart_button' ||
     selectedBlock.type === 'hero_profile' ||
     selectedBlock.type === 'catalog' ||
     selectedBlock.type === 'fnb_catalog' ||

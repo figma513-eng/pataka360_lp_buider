@@ -113,7 +113,9 @@ export function BlockDesignTab({
     selectedBlock.type !== 'container' &&
     selectedBlock.type !== 'text' &&
     selectedBlock.type !== 'row' &&
-    selectedBlock.type !== 'menu_icon';
+    selectedBlock.type !== 'menu_icon' &&
+    selectedBlock.type !== 'cart_button' &&
+    selectedBlock.type !== 'showcase_card';
 
   const isProfilePhoto =
     selectedBlock.type === 'image' &&

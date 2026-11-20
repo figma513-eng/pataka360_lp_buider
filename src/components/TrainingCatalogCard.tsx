@@ -58,6 +58,8 @@ export function TrainingCatalogCard({
   const [checkedMap, setCheckedMap] = useState<Record<number, boolean>>({});
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [brokenMedia, setBrokenMedia] = useState<Record<string, boolean>>({});
+  const [validationError, setValidationError] = useState('');
+  const checklistRequired = Boolean(content.trainingChecklistRequired);
 
   useEffect(() => {
     setIsExpanded(Boolean(content.trainingDefaultExpanded));
@@ -477,7 +479,10 @@ export function TrainingCatalogCard({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold">
                   <CheckSquare className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  <span>{content.trainingChecklistTitle?.trim() || 'Checklist Syarat Berkas'}</span>
+                  <span>
+                    {content.trainingChecklistTitle?.trim() || 'Checklist Syarat Berkas'}
+                    {checklistRequired ? ' *' : ''}
+                  </span>
                 </div>
                 <span className="text-[10.5px] font-semibold opacity-70 tabular-nums">
                   {checkedList.length}/{checklistItems.length} siap
@@ -568,6 +573,13 @@ export function TrainingCatalogCard({
               ))}
             </div>
 
+            {/* Pesan Validasi Wajib Isi */}
+            {!isEditor && validationError && (
+              <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] font-semibold text-rose-700 leading-snug">
+                {validationError}
+              </div>
+            )}
+
             {/* Tombol Konsultasi via WA */}
             {isEditor ? (
               <div className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm">
@@ -580,7 +592,27 @@ export function TrainingCatalogCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 data-wa-tracked="1"
-                onClick={() => {
+                onClick={(e) => {
+                  const missingField = formFields.find(
+                    (f) => f.required && !(formValues[f.id] ?? '').trim()
+                  );
+                  if (missingField) {
+                    e.preventDefault();
+                    setValidationError(`Mohon lengkapi kolom wajib: ${missingField.label}`);
+                    return;
+                  }
+                  if (
+                    checklistRequired &&
+                    checklistItems.length > 0 &&
+                    checkedList.length < checklistItems.length
+                  ) {
+                    e.preventDefault();
+                    setValidationError(
+                      `Mohon centang seluruh checklist wajib (${content.trainingChecklistTitle?.trim() || 'Checklist Syarat Berkas'}).`
+                    );
+                    return;
+                  }
+                  setValidationError('');
                   const rawNum = activeProgram?.price
                     ? Number(String(activeProgram.price).replace(/[^\d]/g, ''))
                     : 0;

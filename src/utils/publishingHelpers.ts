@@ -55,7 +55,71 @@ export function createDefaultPublishingConfig(title: string): ProjectPublishingC
     isPublished: false,
     seoTitle: '',
     seoDescription: '',
+    seoImage: '',
+    seoImageAlt: '',
+    seoSiteName: '',
+    seoShareText: '',
   };
+}
+
+function isShareableImageCandidate(raw?: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Social scrapers (WhatsApp, FB, Telegram, X) cannot read inline base64 data URIs
+  if (/^data:/i.test(trimmed)) return null;
+  if (
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('/api/media/') ||
+    trimmed.startsWith('/assets/')
+  ) {
+    return trimmed;
+  }
+  return null;
+}
+
+export function findFallbackShareImageFromBlocks(blocks: BuilderBlock[]): string {
+  for (const blk of blocks) {
+    const c = blk.content;
+    if (blk.type === 'hero_profile') {
+      const cover = isShareableImageCandidate(c.heroCoverImage);
+      if (cover) return cover;
+      const logo = isShareableImageCandidate(c.heroLogoImage);
+      if (logo) return logo;
+    }
+    if (blk.type === 'image') {
+      const src = isShareableImageCandidate(c.src);
+      if (src) return src;
+    }
+    if (blk.type === 'carousel' && Array.isArray(c.carouselItems)) {
+      for (const item of c.carouselItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'catalog' && Array.isArray(c.catalogItems)) {
+      for (const item of c.catalogItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'fnb_catalog' && Array.isArray(c.fnbItems)) {
+      for (const item of c.fnbItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'menu_icon') {
+      const img = isShareableImageCandidate(c.menuIconImage);
+      if (img) return img;
+    }
+    if (blk.children?.length) {
+      const nested = findFallbackShareImageFromBlocks(blk.children);
+      if (nested) return nested;
+    }
+  }
+  return '';
 }
 
 export function findDefaultWaPhoneFromBlocks(blocks: BuilderBlock[]): string {
@@ -109,21 +173,40 @@ export function buildLiveUrls(
 ): {
   internalPath: string;
   internalUrl: string;
+  internalFullPath: string;
+  internalFullUrl: string;
   customUrl: string | null;
+  customFullUrl: string | null;
+  customSlugUrl: string | null;
+  customSlugFullUrl: string | null;
   primaryUrl: string;
+  primaryFullUrl: string;
 } {
   const slug = sanitizeSlug(publishing.slug, 'unit-usaha');
   const cleanOrigin = origin.replace(/\/+$/, '');
   const internalPath = `/p/${slug}`;
   const internalUrl = `${cleanOrigin}${internalPath}`;
+  const internalFullPath = `${internalPath}/full`;
+  const internalFullUrl = `${cleanOrigin}${internalFullPath}`;
   const domain = normalizeCustomDomain(publishing.customDomain);
   const customUrl = domain ? `https://${domain}` : null;
+  const customFullUrl = domain ? `https://${domain}/full` : null;
+  const customSlugUrl = domain ? `https://${domain}/${slug}` : null;
+  const customSlugFullUrl = domain ? `https://${domain}/${slug}/full` : null;
   const primaryUrl = publishing.useCustomDomain && customUrl ? customUrl : internalUrl;
+  const primaryFullUrl =
+    publishing.useCustomDomain && customFullUrl ? customFullUrl : internalFullUrl;
   return {
     internalPath,
     internalUrl,
+    internalFullPath,
+    internalFullUrl,
     customUrl,
+    customFullUrl,
+    customSlugUrl,
+    customSlugFullUrl,
     primaryUrl,
+    primaryFullUrl,
   };
 }
 

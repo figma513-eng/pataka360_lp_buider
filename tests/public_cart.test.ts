@@ -468,7 +468,7 @@ function mountPublicHtmlRuntime(html: string) {
   (windowObj as Record<string, unknown>).window = windowObj;
 
   const scripts = [...html.matchAll(/<script(?![^>]*src)([^>]*)>([\s\S]*?)<\/script>/gi)].filter(
-    (m) => !/type=["']application\/json["']/i.test(m[1])
+    (m) => !/type=["']application\/(?:ld\+)?json["']/i.test(m[1])
   );
   assert.ok(scripts.length >= 1, 'Expected inline script block');
   for (const sc of scripts) {

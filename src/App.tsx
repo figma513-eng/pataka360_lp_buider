@@ -1686,7 +1686,10 @@ export default function App() {
       showSaveToast('warn', 'Akun Anda tidak memiliki izin mengunduh HTML.');
       return;
     }
-    const html = generateProjectHtml(targetRecord.project, { projectId: targetRecord.id });
+    const html = generateProjectHtml(targetRecord.project, {
+      projectId: targetRecord.id,
+      publicOrigin: typeof window !== 'undefined' ? window.location.origin : undefined,
+    });
     downloadTextFile(
       `${slugifyFilename(targetRecord.project.title, 'halaman-usaha')}.html`,
       html,

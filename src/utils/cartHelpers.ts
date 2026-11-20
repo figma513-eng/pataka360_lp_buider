@@ -243,14 +243,17 @@ export function resolveCatalogShippingOptions(
             ? found.label
             : def.label,
         askArrivalTime: found.askArrivalTime ?? def.askArrivalTime,
+        arrivalTimeRequired: found.arrivalTimeRequired ?? def.arrivalTimeRequired ?? false,
         arrivalTimeLabel: found.arrivalTimeLabel ?? def.arrivalTimeLabel,
         arrivalTimePlaceholder:
           found.arrivalTimePlaceholder ?? def.arrivalTimePlaceholder,
         askGuestCount: found.askGuestCount ?? def.askGuestCount,
+        guestCountRequired: found.guestCountRequired ?? def.guestCountRequired ?? false,
         guestCountLabel: found.guestCountLabel ?? def.guestCountLabel,
         guestCountPlaceholder:
           found.guestCountPlaceholder ?? def.guestCountPlaceholder,
         checklistEnabled: found.checklistEnabled ?? def.checklistEnabled,
+        checklistRequired: found.checklistRequired ?? def.checklistRequired ?? false,
         checklistText: resolvedChecklists.join('\n'),
         checklistItems: resolvedChecklists,
         noteTitle: found.noteTitle ?? def.noteTitle,

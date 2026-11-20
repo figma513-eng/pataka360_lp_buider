@@ -71,15 +71,23 @@ export class PublicPageHtmlCache {
     return entry;
   }
 
-  public getBySlug(slug: string): CachedPublicPage | null {
+  public getBySlug(slug: string, origin?: string): CachedPublicPage | null {
     const clean = slug.trim().toLowerCase();
     if (!clean) return null;
-    return this.getKey(`slug:${clean}`);
+    const cleanOrigin = origin ? origin.trim().toLowerCase().replace(/\/+$/, '') : '';
+    const key = cleanOrigin ? `slug:${cleanOrigin}:${clean}` : `slug:${clean}`;
+    return this.getKey(key);
   }
 
-  public setBySlug(slug: string, input: CachePublicPageInput): CachedPublicPage {
+  public setBySlug(
+    slug: string,
+    input: CachePublicPageInput,
+    origin?: string
+  ): CachedPublicPage {
     const clean = slug.trim().toLowerCase();
-    return this.setKey(`slug:${clean}`, input);
+    const cleanOrigin = origin ? origin.trim().toLowerCase().replace(/\/+$/, '') : '';
+    const key = cleanOrigin ? `slug:${cleanOrigin}:${clean}` : `slug:${clean}`;
+    return this.setKey(key, input);
   }
 
   public getByDomainPath(host: string, cleanPath: string): CachedPublicPage | null {
@@ -107,7 +115,7 @@ export class PublicPageHtmlCache {
       if (
         val.projectId === projectId ||
         targetSlugs.has(val.slug.toLowerCase()) ||
-        (key.startsWith('slug:') && targetSlugs.has(key.slice(5)))
+        (key.startsWith('slug:') && targetSlugs.has(key.split(':').pop() || ''))
       ) {
         this.entries.delete(key);
       }
