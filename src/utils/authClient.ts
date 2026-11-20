@@ -371,6 +371,10 @@ export async function fetchUiAppearanceSettingsFromServer(): Promise<UiAppearanc
     if (!data.settings || typeof data.settings !== 'object') return null;
     return {
       labels: data.settings.labels && typeof data.settings.labels === 'object' ? data.settings.labels : {},
+      hiddenKeys:
+        data.settings.hiddenKeys && typeof data.settings.hiddenKeys === 'object'
+          ? data.settings.hiddenKeys
+          : {},
       updatedAt: Number(data.settings.updatedAt || 0),
     };
   } catch {
@@ -381,6 +385,8 @@ export async function fetchUiAppearanceSettingsFromServer(): Promise<UiAppearanc
 export async function saveUiAppearanceSettingsToServer(payload: {
   labels?: Record<string, string>;
   patch?: Record<string, string>;
+  hiddenKeys?: Record<string, boolean>;
+  hiddenPatch?: Record<string, boolean>;
   resetAll?: boolean;
 }): Promise<{ ok: boolean; settings?: UiAppearanceSettingsConfig; error?: string }> {
   try {

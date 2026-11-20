@@ -1,14 +1,21 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 :root {
   --lb-navy: #17243D;
   --lb-navy-soft: #223456;
   --lb-green: #00C98A;
   --lb-green-hover: #00B37B;
+  --lb-green-dark: #008F63;
   --lb-green-tint: #ECFDF6;
   --lb-bg: #F0F5FA;
   --lb-surface: #FFFFFF;
   --lb-border: #DCE5EF;
+  --lb-divider: #EEF3F8;
   --lb-slate: #8FA4BF;
   --lb-text-muted: #5B708B;
 }
@@ -117,23 +124,44 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
-/* Compact density for Right Inspector (Konten & Desain panels) */
+/* Compact, centered & eye-friendly density for Right Inspector (Konten & Desain panels) */
 .inspector-compact {
-  font-size: 11px;
+  font-size: 10.5px;
+  color: #334155;
 }
 
 .inspector-compact label {
-  font-size: 10.5px;
+  font-size: 10px;
+  color: #334155;
 }
 
 .inspector-compact input[type="text"],
 .inspector-compact input[type="url"],
 .inspector-compact input[type="number"],
+.inspector-compact input[type="email"],
+.inspector-compact input[type="tel"],
+.inspector-compact input[type="date"],
+.inspector-compact input[type="time"],
 .inspector-compact select,
 .inspector-compact textarea {
-  font-size: 11px;
+  font-size: 10.5px;
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.inspector-compact [data-accordion-body] {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.75rem;
+}
+
+.inspector-compact [data-accordion-inner] {
+  width: 94%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Subtle custom scrollbars for editor panels & inline workspace views */

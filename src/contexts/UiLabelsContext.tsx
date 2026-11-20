@@ -1,18 +1,26 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
-import type { UiAppearanceLabelsMap, UiAppearanceSettingsConfig } from '../types/builder';
-import { resolveUiLabel } from '../utils/uiAppearanceLabels';
+import type {
+  UiAppearanceHiddenMap,
+  UiAppearanceLabelsMap,
+  UiAppearanceSettingsConfig,
+} from '../types/builder';
+import { isUiLabelVisible, resolveUiLabel } from '../utils/uiAppearanceLabels';
 
 export interface UiLabelsContextValue {
   labels: UiAppearanceLabelsMap;
+  hiddenKeys: UiAppearanceHiddenMap;
   updatedAt: number;
   label: (key: string, fallback?: string) => string;
+  isVisible: (key: string) => boolean;
   setAppearanceSettings: (next: UiAppearanceSettingsConfig) => void;
 }
 
 const DEFAULT_CONTEXT: UiLabelsContextValue = {
   labels: {},
+  hiddenKeys: {},
   updatedAt: 0,
   label: (key, fallback) => resolveUiLabel(undefined, key, fallback),
+  isVisible: () => true,
   setAppearanceSettings: () => {},
 };
 
@@ -30,6 +38,7 @@ export function UiLabelsProvider({
   children,
 }: UiLabelsProviderProps) {
   const labels = settings.labels;
+  const hiddenKeys = settings.hiddenKeys ?? {};
   const updatedAt = settings.updatedAt;
 
   const label = useCallback(
@@ -37,14 +46,21 @@ export function UiLabelsProvider({
     [labels]
   );
 
+  const isVisible = useCallback(
+    (key: string) => isUiLabelVisible(hiddenKeys, key),
+    [hiddenKeys]
+  );
+
   const value = useMemo<UiLabelsContextValue>(
     () => ({
       labels,
+      hiddenKeys,
       updatedAt,
       label,
+      isVisible,
       setAppearanceSettings: onSettingsChange,
     }),
-    [labels, updatedAt, label, onSettingsChange]
+    [labels, hiddenKeys, updatedAt, label, isVisible, onSettingsChange]
   );
 
   return <UiLabelsContext.Provider value={value}>{children}</UiLabelsContext.Provider>;

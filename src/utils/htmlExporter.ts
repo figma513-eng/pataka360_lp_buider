@@ -24,17 +24,27 @@ import {
   shadowToCss,
 } from './exporterBlocks.ts';
 import { findFirstFloatingCartConfig } from './universalLayerHelpers.ts';
+import { resolveWhatsappCenter } from './whatsappBuilder.ts';
 
 export { extractYouTubeId, resolveBlockTextColor, resolveShadowSizePx, shadowToCss };
 
 function findFirstFnbCatalogBlock(
   blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[]
+  navItems?: BottomNavbarItem[],
+  pages?: { blocks: BuilderBlock[] }[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
     if (blk.type === 'fnb_catalog') return blk;
     if (blk.children?.length) {
       const found = findFirstFnbCatalogBlock(blk.children);
+      if (found) return found;
+    }
+    if (blk.content.actionSheetBlocks?.length) {
+      const found = findFirstFnbCatalogBlock(blk.content.actionSheetBlocks);
+      if (found) return found;
+    }
+    if (blk.content.cardFooterBlocks?.length) {
+      const found = findFirstFnbCatalogBlock(blk.content.cardFooterBlocks);
       if (found) return found;
     }
   }
@@ -44,12 +54,19 @@ function findFirstFnbCatalogBlock(
       if (found) return found;
     }
   }
+  if (pages?.length) {
+    for (const pg of pages) {
+      const found = findFirstFnbCatalogBlock(pg.blocks);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
 function findFirstCartButtonFloatBlock(
   blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[]
+  navItems?: BottomNavbarItem[],
+  pages?: { blocks: BuilderBlock[] }[]
 ): BuilderBlock | null {
   for (const blk of blocks) {
     if (blk.type === 'cart_button' && blk.content.cartFloatingEnabled !== false) return blk;
@@ -57,10 +74,24 @@ function findFirstCartButtonFloatBlock(
       const found = findFirstCartButtonFloatBlock(blk.children);
       if (found) return found;
     }
+    if (blk.content.actionSheetBlocks?.length) {
+      const found = findFirstCartButtonFloatBlock(blk.content.actionSheetBlocks);
+      if (found) return found;
+    }
+    if (blk.content.cardFooterBlocks?.length) {
+      const found = findFirstCartButtonFloatBlock(blk.content.cardFooterBlocks);
+      if (found) return found;
+    }
   }
   if (navItems?.length) {
     for (const item of navItems) {
       const found = findFirstCartButtonFloatBlock(item.children);
+      if (found) return found;
+    }
+  }
+  if (pages?.length) {
+    for (const pg of pages) {
+      const found = findFirstCartButtonFloatBlock(pg.blocks);
       if (found) return found;
     }
   }
@@ -340,8 +371,12 @@ ${enabledNavItems
   </nav>`
     : '';
 
-  const firstFnbBlk = findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items);
-  const firstCartBtnBlk = findFirstCartButtonFloatBlock(project.blocks, bottomNavbar.items);
+  const firstFnbBlk = findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items, subPages);
+  const firstCartBtnBlk = findFirstCartButtonFloatBlock(
+    project.blocks,
+    bottomNavbar.items,
+    subPages
+  );
   const fallbackFloat =
     !firstFnbBlk && !firstCartBtnBlk
       ? findFirstFloatingCartConfig(project.blocks, bottomNavbar.items, subPages)
@@ -382,6 +417,8 @@ ${enabledNavItems
     resolveCssFontFamily(project.theme.fontFamily) ||
     "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
 
+  const resolvedWaCenter = resolveWhatsappCenter(project);
+
   const serializedStore = JSON.stringify({
     projectId: exportOpts?.projectId || '',
     projectTitle: project.title,
@@ -389,6 +426,7 @@ ${enabledNavItems
     showUnitSold: adv.showUnitSold,
     navReservedHeight: showBottomNavbar ? navReservedHeight : 0,
     fnbFloatConfig,
+    whatsappCenter: resolvedWaCenter,
     ads: {
       metaPixelId: cleanMetaPixel,
       metaWaEvent: ads.metaWaEvent || 'Lead',
@@ -409,7 +447,7 @@ ${enabledNavItems
 
   const bodyBlocks = project.blocks
     .map((block) => {
-      const rendered = renderBlockHtml(block, project.theme, adv, '      ');
+      const rendered = renderBlockHtml(block, project.theme, adv, '      ', undefined, resolvedWaCenter);
       if (!rendered) return '';
       return `    <div class="${block.style.fullBleed ? 'page-full' : 'page-pad'}">\n${rendered}\n    </div>`;
     })
@@ -420,7 +458,7 @@ ${enabledNavItems
     .map((pg) => {
       const pgBlocksHtml = (pg.blocks ?? [])
         .map((block) => {
-          const rendered = renderBlockHtml(block, project.theme, adv, '      ');
+          const rendered = renderBlockHtml(block, project.theme, adv, '      ', undefined, resolvedWaCenter);
           if (!rendered) return '';
           return `    <div class="${block.style.fullBleed ? 'page-full' : 'page-pad'}">\n${rendered}\n    </div>`;
         })
@@ -3188,51 +3226,122 @@ ${bodyBlocks}
         syncTrainingWa();
       });
 
-      // Form Isian & Checklist Validation Handler
-      document.querySelectorAll('[data-lynk-form]').forEach(function (formEl) {
-        formEl.addEventListener('submit', function (ev) {
-          ev.preventDefault();
-          var errEl = formEl.querySelector('.form-err');
-          var msgEl = formEl.querySelector('.form-msg');
-          var missing = [];
-          formEl.querySelectorAll('input[required], textarea[required]').forEach(function (inp) {
-            if (!String(inp.value || '').trim()) {
-              missing.push(inp.getAttribute('placeholder') || 'Isian wajib');
-            }
+      // Container Parent-Child Slider Runtime (Bagian G)
+      document.querySelectorAll('[data-lb-cslider]').forEach(function (sliderEl) {
+        var track = sliderEl.querySelector('.lynk-cslider-track');
+        if (!track) return;
+        var items = Array.prototype.slice.call(track.querySelectorAll(':scope > .lynk-cslider-item'));
+        if (items.length <= 1) return;
+        var mode = sliderEl.getAttribute('data-slider-mode') || 'slider_horizontal';
+        var isHoriz = mode === 'slider_horizontal';
+        var loop = sliderEl.getAttribute('data-loop') === '1';
+        var autoplay = sliderEl.getAttribute('data-autoplay') === '1';
+        var intervalMs = Math.max(1000, Number(sliderEl.getAttribute('data-autoplay-interval') || 3500));
+        var transition = sliderEl.getAttribute('data-transition') || 'smooth';
+        var mouseDrag = sliderEl.getAttribute('data-mouse-drag') === '1';
+        var dots = Array.prototype.slice.call(sliderEl.querySelectorAll(':scope > .lynk-cslider-dots .lynk-cslider-dot'));
+        var prevBtn = sliderEl.querySelector(':scope > .lynk-cslider-prev');
+        var nextBtn = sliderEl.querySelector(':scope > .lynk-cslider-next');
+        var activeIdx = 0;
+
+        function updateDots(idx) {
+          dots.forEach(function (dot, i) {
+            dot.style.width = i === idx ? '18px' : '7px';
+            dot.style.background = i === idx ? '#00C98A' : '#CBD5E1';
           });
-          formEl.querySelectorAll('[data-form-chk-group]').forEach(function (grp) {
-            if (grp.getAttribute('data-form-chk-required') === '1') {
-              var chks = grp.querySelectorAll('[data-form-chk]');
-              var allChecked = true;
-              chks.forEach(function (c) { if (!c.checked) allChecked = false; });
-              if (chks.length > 0 && !allChecked) {
-                missing.push('Checklist wajib dicentang');
-              }
+        }
+
+        function goTo(idx) {
+          var targetIdx = idx;
+          if (targetIdx < 0) targetIdx = loop ? items.length - 1 : 0;
+          if (targetIdx >= items.length) targetIdx = loop ? 0 : items.length - 1;
+          activeIdx = targetIdx;
+          var targetEl = items[activeIdx];
+          if (targetEl) {
+            var behavior = transition === 'instant' ? 'auto' : 'smooth';
+            if (isHoriz) {
+              track.scrollTo({ left: targetEl.offsetLeft, behavior: behavior });
+            } else {
+              track.scrollTo({ top: targetEl.offsetTop, behavior: behavior });
             }
-          });
-          if (missing.length > 0) {
-            if (errEl) {
-              errEl.textContent = 'Mohon lengkapi bagian wajib: ' + missing.join(', ');
-              errEl.style.display = 'block';
-            }
-            if (msgEl) msgEl.style.display = 'none';
-            return;
           }
-          if (errEl) {
-            errEl.style.display = 'none';
-            errEl.textContent = '';
-          }
-          if (msgEl) msgEl.style.display = 'block';
+          updateDots(activeIdx);
+        }
+
+        if (prevBtn) prevBtn.addEventListener('click', function () { goTo(activeIdx - 1); });
+        if (nextBtn) nextBtn.addEventListener('click', function () { goTo(activeIdx + 1); });
+        dots.forEach(function (dot, i) {
+          dot.addEventListener('click', function () { goTo(i); });
         });
+
+        track.addEventListener('scroll', function () {
+          var pos = isHoriz ? track.scrollLeft : track.scrollTop;
+          var closest = 0;
+          var minDist = Infinity;
+          items.forEach(function (it, i) {
+            var off = isHoriz ? it.offsetLeft : it.offsetTop;
+            var d = Math.abs(off - pos);
+            if (d < minDist) { minDist = d; closest = i; }
+          });
+          if (closest !== activeIdx) {
+            activeIdx = closest;
+            updateDots(activeIdx);
+          }
+        }, { passive: true });
+
+        if (mouseDrag) {
+          var dragging = false;
+          var startCoord = 0;
+          var startScroll = 0;
+          track.addEventListener('mousedown', function (e) {
+            if (e.target && e.target.closest && e.target.closest('a, button, input, select, textarea')) return;
+            dragging = true;
+            startCoord = isHoriz ? e.pageX : e.pageY;
+            startScroll = isHoriz ? track.scrollLeft : track.scrollTop;
+          });
+          window.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var cur = isHoriz ? e.pageX : e.pageY;
+            if (isHoriz) track.scrollLeft = startScroll - (cur - startCoord);
+            else track.scrollTop = startScroll - (cur - startCoord);
+          });
+          window.addEventListener('mouseup', function () { dragging = false; });
+        }
+
+        if (autoplay) {
+          var timer = setInterval(function () { goTo(activeIdx + 1); }, intervalMs);
+          sliderEl.addEventListener('mouseenter', function () { clearInterval(timer); });
+        }
       });
 
-      // Ad Attribution, Meta/TikTok/Google Pixel & WA Click Tracker
+      // Helper render templat WhatsApp di sisi klien (tanpa token mentah)
+      function renderWaTemplateClient(rawTpl, ctx) {
+        var text = String(rawTpl || '').replace(/\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}/g, function (_, key) {
+          var v = ctx && ctx[key] !== undefined && ctx[key] !== null ? String(ctx[key]).trim() : '';
+          return v;
+        });
+        return text
+          .split('\\n')
+          .filter(function (line) {
+            var t = line.trim();
+            if (!t) return true;
+            if (/^[-•*]?\\s*[^:\\n]{1,42}:\\s*$/.test(t)) return false;
+            return true;
+          })
+          .join('\\n')
+          .replace(/\\n{3,}/g, '\\n\\n')
+          .trim();
+      }
+
+      // Ad Attribution, Meta/TikTok/Google Pixel, Dynamic Form & WA Click Tracker
       (function () {
         var sEl = document.getElementById('lynk-store-data');
         if (!sEl) return;
         var sData = {};
         try { sData = JSON.parse(sEl.textContent || '{}'); } catch (e) { return; }
         var adsCfg = sData.ads || {};
+        var isPreview = /[?&]preview=1(&|$)/.test(location.search || '');
+        var dedupeMap = {};
 
         function detectAttribution() {
           var key = 'lynk_attr_' + (sData.slug || 'default');
@@ -3293,6 +3402,15 @@ ${bodyBlocks}
 
         function sendServerEvent(eventType, extra) {
           if (location.protocol.indexOf('http') !== 0 || !sData.projectId) return;
+          var dedupeKey = [
+            sData.projectId,
+            eventType,
+            (extra && (extra.componentId || extra.waLinkId || extra.ctaLabel)) || ''
+          ].join(':');
+          var now = Date.now();
+          if (dedupeMap[dedupeKey] && now - dedupeMap[dedupeKey] < 2500) return;
+          dedupeMap[dedupeKey] = now;
+
           var payload = {
             projectId: sData.projectId,
             projectTitle: sData.projectTitle || '',
@@ -3306,7 +3424,9 @@ ${bodyBlocks}
             utmContent: attr.utmContent || undefined,
             clickIdType: attr.clickIdType || undefined,
             deviceType: window.innerWidth < 768 ? 'mobile' : 'desktop',
-            createdAt: Date.now()
+            isTest: isPreview,
+            dedupeKey: dedupeKey,
+            createdAt: now
           };
           if (extra) {
             for (var k in extra) {
@@ -3329,6 +3449,295 @@ ${bodyBlocks}
         }
 
         sendServerEvent('page_view');
+
+        // Form Dinamis (14 tipe + 6 aturan wajib + tampilan bersyarat + simpan DB + WA)
+        document.querySelectorAll('[data-lynk-form]').forEach(function (formEl) {
+          var openedTracked = false;
+          var formBlockId = formEl.getAttribute('data-form-block-id') || '';
+          var formTitle = formEl.getAttribute('data-form-title') || 'Formulir';
+          var formCategory = formEl.getAttribute('data-form-category') || 'konsultasi';
+
+          function collectFormValues() {
+            var vals = {};
+            formEl.querySelectorAll('[data-form-input]').forEach(function (inp) {
+              var fid = inp.getAttribute('data-field-id');
+              if (!fid) return;
+              if (inp.type === 'file') {
+                vals[fid] = inp.files && inp.files[0] ? inp.files[0].name : '';
+              } else {
+                vals[fid] = String(inp.value || '').trim();
+              }
+            });
+            formEl.querySelectorAll('[data-form-radio-group]').forEach(function (grp) {
+              var fid = grp.getAttribute('data-field-id');
+              if (!fid) return;
+              var checked = grp.querySelector('input[type="radio"]:checked');
+              vals[fid] = checked ? String(checked.value || '') : '';
+            });
+            formEl.querySelectorAll('[data-form-check-group]').forEach(function (grp) {
+              var fid = grp.getAttribute('data-field-id');
+              if (!fid) return;
+              var arr = [];
+              grp.querySelectorAll('input[type="checkbox"]:checked').forEach(function (c) {
+                arr.push(String(c.value || ''));
+              });
+              vals[fid] = arr;
+            });
+            return vals;
+          }
+
+          function syncConditionals() {
+            var vals = collectFormValues();
+            formEl.querySelectorAll('[data-cond-field]').forEach(function (wrap) {
+              var cf = wrap.getAttribute('data-cond-field');
+              var cv = String(wrap.getAttribute('data-cond-val') || '').trim().toLowerCase();
+              var cur = vals[cf];
+              var visible = true;
+              if (!cv) {
+                visible = Array.isArray(cur) ? cur.length > 0 : Boolean(String(cur || '').trim());
+              } else if (Array.isArray(cur)) {
+                visible = cur.some(function (x) { return String(x).trim().toLowerCase() === cv; });
+              } else {
+                visible = String(cur || '').trim().toLowerCase() === cv;
+              }
+              wrap.style.display = visible ? '' : 'none';
+            });
+          }
+
+          function validateFieldEl(el, vals) {
+            var wrap = el.closest('[data-form-field-wrap]');
+            if (wrap && wrap.style.display === 'none') return null;
+            var fid = el.getAttribute('data-field-id') || '';
+            var ftype = el.getAttribute('data-field-type') || 'text';
+            var flabel = el.getAttribute('data-field-label') || 'Kolom ini';
+            var rule = el.getAttribute('data-required-rule') || 'optional';
+            var customErr = el.getAttribute('data-err-msg') || '';
+            var rawVal = vals[fid];
+
+            if (ftype === 'checkbox_group') {
+              var arr = Array.isArray(rawVal) ? rawVal : [];
+              var allBoxes = el.querySelectorAll('input[type="checkbox"]');
+              if (rule === 'required_one' && arr.length === 0) return customErr || ('Wajib memilih salah satu pada "' + flabel + '".');
+              if (rule === 'required_multi' && arr.length === 0) return customErr || ('Wajib memilih minimal satu pilihan pada "' + flabel + '".');
+              if (rule === 'required_fill' && arr.length === 0) return customErr || ('Kolom "' + flabel + '" wajib diisi.');
+              if (rule === 'required_min_choices') {
+                var minC = Math.max(1, Number(el.getAttribute('data-min-choices') || 1));
+                if (arr.length < minC) return customErr || ('"' + flabel + '" wajib memilih minimal ' + minC + ' pilihan.');
+              }
+              if (rule === 'required_consent_all' && allBoxes.length > 0 && arr.length < allBoxes.length) {
+                return customErr || ('Wajib mencentang seluruh persetujuan pada "' + flabel + '".');
+              }
+              if (rule === 'required_consent_specific') {
+                var reqIdxs = String(el.getAttribute('data-req-idxs') || '0').split(',').map(Number);
+                for (var ri = 0; ri < reqIdxs.length; ri++) {
+                  var box = el.querySelector('input[data-check-idx="' + reqIdxs[ri] + '"]');
+                  if (box && !box.checked) {
+                    return customErr || ('Wajib mencentang persetujuan "' + box.value + '".');
+                  }
+                }
+              }
+              return null;
+            }
+
+            var strVal = String(rawVal || '').trim();
+            if (rule !== 'optional' && !strVal) {
+              if (rule === 'required_one') return customErr || ('Wajib memilih salah satu pada "' + flabel + '".');
+              return customErr || ('Kolom "' + flabel + '" wajib diisi.');
+            }
+            if (!strVal) return null;
+            if (ftype === 'email' && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(strVal)) {
+              return customErr || ('Format email pada "' + flabel + '" tidak valid.');
+            }
+            if (ftype === 'phone' || ftype === 'tel') {
+              var digits = strVal.replace(/[^\\d]/g, '');
+              if (digits.length < 8 || digits.length > 16) {
+                return customErr || ('Nomor telepon pada "' + flabel + '" harus terdiri dari 8–16 digit.');
+              }
+            }
+            if (ftype === 'number') {
+              var num = Number(strVal);
+              if (!Number.isFinite(num)) return customErr || ('Kolom "' + flabel + '" harus berupa angka yang valid.');
+              var minV = el.getAttribute('data-min-val');
+              var maxV = el.getAttribute('data-max-val');
+              if (minV !== null && minV !== '' && num < Number(minV)) return customErr || ('Nilai "' + flabel + '" minimal ' + minV + '.');
+              if (maxV !== null && maxV !== '' && num > Number(maxV)) return customErr || ('Nilai "' + flabel + '" maksimal ' + maxV + '.');
+            }
+            var minL = el.getAttribute('data-min-len');
+            var maxL = el.getAttribute('data-max-len');
+            if (minL && strVal.length < Number(minL)) return customErr || ('"' + flabel + '" minimal ' + minL + ' karakter.');
+            if (maxL && strVal.length > Number(maxL)) return customErr || ('"' + flabel + '" maksimal ' + maxL + ' karakter.');
+            return null;
+          }
+
+          formEl.addEventListener('focusin', function () {
+            if (!openedTracked) {
+              openedTracked = true;
+              sendServerEvent('form_open', {
+                componentId: formBlockId,
+                componentType: 'form',
+                ctaLabel: formTitle
+              });
+            }
+          });
+
+          formEl.addEventListener('input', function (ev) {
+            syncConditionals();
+            var t = ev.target && ev.target.closest ? ev.target.closest('[data-form-input], [data-form-radio-group], [data-form-check-group]') : null;
+            if (t) {
+              var vals = collectFormValues();
+              var fErr = validateFieldEl(t, vals);
+              var errBox = formEl.querySelector('[data-field-err="' + (t.getAttribute('data-field-id') || '') + '"]');
+              if (errBox) {
+                errBox.textContent = fErr || '';
+                errBox.style.display = fErr ? 'block' : 'none';
+              }
+            }
+          });
+          formEl.addEventListener('change', syncConditionals);
+          syncConditionals();
+
+          formEl.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            syncConditionals();
+            var errEl = formEl.querySelector('.form-err');
+            var msgEl = formEl.querySelector('.form-msg');
+            var vals = collectFormValues();
+            var firstErr = null;
+
+            formEl.querySelectorAll('[data-form-input], [data-form-radio-group], [data-form-check-group]').forEach(function (el) {
+              var fid = el.getAttribute('data-field-id') || '';
+              var err = validateFieldEl(el, vals);
+              var fErrBox = formEl.querySelector('[data-field-err="' + fid + '"]');
+              if (fErrBox) {
+                fErrBox.textContent = err || '';
+                fErrBox.style.display = err ? 'block' : 'none';
+              }
+              if (err && !firstErr) firstErr = err;
+            });
+
+            var checkedChecklist = [];
+            formEl.querySelectorAll('[data-form-chk-group]').forEach(function (grp) {
+              var chkRule = grp.getAttribute('data-form-chk-rule') || (grp.getAttribute('data-form-chk-required') === '1' ? 'required_consent_all' : 'optional');
+              var chkTitle = grp.getAttribute('data-form-chk-title') || 'Persetujuan';
+              var chkMin = Math.max(1, Number(grp.getAttribute('data-form-chk-min') || 1));
+              var boxes = grp.querySelectorAll('[data-form-chk]');
+              boxes.forEach(function (b) { if (b.checked) checkedChecklist.push(String(b.value || 'Ya')); });
+              if (chkRule === 'required_consent_all' && boxes.length > 0 && checkedChecklist.length < boxes.length && !firstErr) {
+                firstErr = 'Wajib mencentang seluruh persetujuan pada "' + chkTitle + '".';
+              } else if ((chkRule === 'required_one' || chkRule === 'required_multi' || chkRule === 'required_fill') && checkedChecklist.length === 0 && !firstErr) {
+                firstErr = 'Wajib memilih minimal satu butir pada "' + chkTitle + '".';
+              } else if (chkRule === 'required_min_choices' && checkedChecklist.length < chkMin && !firstErr) {
+                firstErr = '"' + chkTitle + '" wajib mencentang minimal ' + chkMin + ' pilihan.';
+              } else if (chkRule === 'required_consent_specific' && boxes.length > 0 && !boxes[0].checked && !firstErr) {
+                firstErr = 'Wajib mencentang persetujuan pertama pada "' + chkTitle + '".';
+              }
+            });
+
+            if (firstErr) {
+              if (errEl) { errEl.textContent = firstErr; errEl.style.display = 'block'; }
+              if (msgEl) msgEl.style.display = 'none';
+              return;
+            }
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+            var finishSuccess = function () {
+              if (msgEl) msgEl.style.display = 'block';
+              if (typeof window.fbq === 'function') window.fbq('track', 'Lead');
+              if (typeof window.ttq === 'object' && window.ttq.track) window.ttq.track('SubmitForm');
+              if (typeof window.gtag === 'function') window.gtag('event', 'generate_lead', { event_category: 'Form' });
+              sendServerEvent('form_submit', {
+                componentId: formBlockId,
+                componentType: 'form',
+                ctaLabel: formTitle
+              });
+
+              if (formEl.getAttribute('data-form-wa-enabled') === '1') {
+                var waCenter = sData.whatsappCenter || {};
+                var waLinks = Array.isArray(waCenter.links) ? waCenter.links : [];
+                var waTemplates = Array.isArray(waCenter.templates) ? waCenter.templates : [];
+                var linkId = formEl.getAttribute('data-form-wa-link-id') || '';
+                var tplId = formEl.getAttribute('data-form-wa-template-id') || '';
+                var chosenLink = waLinks.find(function (l) { return l.id === linkId && l.active; });
+                var effectiveTplId = tplId || (chosenLink && chosenLink.templateId) || (waCenter.defaultTemplateByType && waCenter.defaultTemplateByType[formCategory]) || '';
+                var chosenTpl = waTemplates.find(function (t) { return t.id === effectiveTplId; }) || waTemplates.find(function (t) { return t.type === formCategory; }) || waTemplates[0];
+                var phone = String(formEl.getAttribute('data-form-wa-phone') || (chosenLink && chosenLink.phone) || waCenter.mainPhone || '').replace(/[^\\d]/g, '');
+                if (phone.indexOf('0') === 0) phone = '62' + phone.slice(1);
+
+                var summaryLines = [];
+                var ctx = {
+                  nama_usaha: waCenter.businessName || sData.projectTitle || '',
+                  info_usaha: waCenter.businessInfo || '',
+                  nama_formulir: formTitle,
+                  halaman_asal: location.href || '',
+                  tanggal: new Date().toLocaleDateString('id-ID')
+                };
+                formEl.querySelectorAll('[data-form-input], [data-form-radio-group], [data-form-check-group]').forEach(function (el) {
+                  var fid = el.getAttribute('data-field-id');
+                  var lbl = el.getAttribute('data-field-label') || fid;
+                  var ft = el.getAttribute('data-field-type') || '';
+                  var v = vals[fid];
+                  var txt = Array.isArray(v) ? v.join(', ') : String(v || '').trim();
+                  if (txt) {
+                    summaryLines.push(lbl + ': ' + txt);
+                    if (ft === 'name' && !ctx.nama_pelanggan) ctx.nama_pelanggan = txt;
+                    if ((ft === 'phone' || ft === 'tel') && !ctx.nomor_telepon) ctx.nomor_telepon = txt;
+                    if (ft === 'email' && !ctx.email) ctx.email = txt;
+                    if (ft === 'address' && !ctx.alamat) ctx.alamat = txt;
+                    if (ft === 'date' && !ctx.tanggal) ctx.tanggal = txt;
+                    if (ft === 'time' && !ctx.waktu) ctx.waktu = txt;
+                  }
+                });
+                ctx.ringkasan_formulir = summaryLines.join('\\n');
+                var msgText = chosenTpl
+                  ? renderWaTemplateClient(chosenTpl.body, ctx)
+                  : ('Halo ' + ctx.nama_usaha + ', saya mengisi ' + formTitle + ':\\n' + ctx.ringkasan_formulir);
+                if (phone) {
+                  sendServerEvent('wa_click', {
+                    componentId: formBlockId,
+                    componentType: 'form',
+                    buttonLabel: formTitle,
+                    ctaLabel: formTitle,
+                    waPhone: phone,
+                    waLinkId: chosenLink ? chosenLink.id : undefined,
+                    waTemplateId: chosenTpl ? chosenTpl.id : undefined
+                  });
+                  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msgText), '_blank', 'noopener');
+                }
+              }
+            };
+
+            if (formEl.getAttribute('data-form-save-db') === '1' && location.protocol.indexOf('http') === 0 && sData.projectId) {
+              fetch('/api/form-submissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  projectId: sData.projectId,
+                  componentId: formBlockId,
+                  formTitle: formTitle,
+                  formCategory: formCategory,
+                  values: vals,
+                  checkedChecklist: checkedChecklist,
+                  sourceChannel: attr.channel || 'organic',
+                  isTest: isPreview
+                })
+              })
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (res) {
+                  if (!res.ok) {
+                    if (errEl) {
+                      errEl.textContent = (res.data && res.data.error) || 'Gagal mengirim formulir. Periksa kembali isian Anda.';
+                      errEl.style.display = 'block';
+                    }
+                    return;
+                  }
+                  finishSuccess();
+                })
+                .catch(function () { finishSuccess(); });
+            } else {
+              finishSuccess();
+            }
+          });
+        });
 
         document.addEventListener('click', function (e) {
           var t = e.target;
@@ -3374,6 +3783,12 @@ ${bodyBlocks}
           var phoneMatch = href.match(/wa\\.me\\/(\\d+)|[?&]phone=(\\d+)/i);
           var waPhone = phoneMatch ? (phoneMatch[1] || phoneMatch[2]) : '';
           var ctaLabel = anchor.getAttribute('data-lynk-wa-source') || (anchor.textContent || '').trim().slice(0, 60) || 'Tombol WhatsApp';
+          var blockWrap = anchor.closest('[data-block-id]');
+          var compId = anchor.getAttribute('data-lynk-component-id') || (blockWrap ? blockWrap.getAttribute('data-block-id') : '') || undefined;
+          var compType = anchor.getAttribute('data-lynk-component-type') || undefined;
+          var waLinkId = anchor.getAttribute('data-lynk-wa-link-id') || undefined;
+          var waTemplateId = anchor.getAttribute('data-lynk-wa-template-id') || undefined;
+          var productName = anchor.getAttribute('data-lynk-product-name') || undefined;
 
           var metaEvent = adsCfg.metaWaEvent || 'Lead';
           if (typeof window.fbq === 'function') {
@@ -3391,20 +3806,20 @@ ${bodyBlocks}
 
           var rawOrderVal = anchor.getAttribute('data-lynk-order-value');
           var parsedOrderVal = rawOrderVal !== null && rawOrderVal !== '' ? Number(rawOrderVal) : NaN;
-          var extraPayload = { ctaLabel: ctaLabel, waPhone: waPhone };
+          var extraPayload = {
+            ctaLabel: ctaLabel,
+            buttonLabel: ctaLabel,
+            waPhone: waPhone,
+            componentId: compId,
+            componentType: compType,
+            waLinkId: waLinkId,
+            waTemplateId: waTemplateId,
+            productName: productName
+          };
           if (Number.isFinite(parsedOrderVal) && parsedOrderVal > 0) {
             extraPayload.orderValue = Math.round(parsedOrderVal);
           }
           sendServerEvent('wa_click', extraPayload);
-        }, true);
-
-        document.addEventListener('submit', function (e) {
-          var form = e.target;
-          if (!form || form.tagName !== 'FORM') return;
-          if (typeof window.fbq === 'function') window.fbq('track', 'Lead');
-          if (typeof window.ttq === 'object' && window.ttq.track) window.ttq.track('SubmitForm');
-          if (typeof window.gtag === 'function') window.gtag('event', 'generate_lead', { event_category: 'Form' });
-          sendServerEvent('form_submit', { ctaLabel: 'Form Isian' });
         }, true);
       })();
 

@@ -340,23 +340,23 @@ export function ApiSettingsModal({
       className={
         asPage
           ? 'bg-white w-full max-w-5xl mx-auto flex-1 min-h-0 rounded-2xl border border-[#DCE5EF] shadow-xs flex flex-col overflow-hidden'
-          : 'bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden'
+          : 'bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl border border-[#DCE5EF] shadow-2xl flex flex-col overflow-hidden'
       }
       onClick={(e) => {
         if (!asPage) e.stopPropagation();
       }}
     >
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
+      <div className="px-5 py-4 border-b border-[#DCE5EF] flex items-center justify-between gap-3 bg-white shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
-            <Settings2 className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0">
+            <Settings2 className="w-4.5 h-4.5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-900 truncate">
+            <h2 className="text-sm font-bold text-[#17243D] tracking-tight truncate">
               Setting API, Webhook &amp; PostgreSQL
             </h2>
-            <p className="text-xs text-slate-500 truncate mt-0.5">
+            <p className="text-xs text-[#5B708B] truncate mt-0.5">
               Kelola REST API publik, integrasi webhook event, proteksi login, &amp; koneksi database.
             </p>
           </div>
@@ -367,7 +367,7 @@ export function ApiSettingsModal({
             type="button"
             onClick={onClose}
             aria-label="Tutup Setting API"
-            className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-[#5B708B] hover:bg-[#F0F5FA] hover:text-[#17243D] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -375,17 +375,17 @@ export function ApiSettingsModal({
       </div>
 
         {/* Navigation Tabs */}
-        <div className="px-5 bg-slate-50/70 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
+        <div className="px-5 bg-white border-b border-[#DCE5EF] flex items-center gap-2 overflow-x-auto shrink-0">
           <button
             type="button"
             onClick={() => setTab('webhook')}
             className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               tab === 'webhook'
-                ? 'border-emerald-500 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-[#00C98A] text-[#17243D]'
+                : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
             }`}
           >
-            <Webhook className="w-3.5 h-3.5" />
+            <Webhook className={`w-3.5 h-3.5 ${tab === 'webhook' ? 'text-[#00A873]' : 'text-[#8FA4BF]'}`} />
             <span>Webhook &amp; Log Event</span>
           </button>
 
@@ -394,11 +394,11 @@ export function ApiSettingsModal({
             onClick={() => setTab('public_api')}
             className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               tab === 'public_api'
-                ? 'border-emerald-500 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-[#00C98A] text-[#17243D]'
+                : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
             }`}
           >
-            <Globe className="w-3.5 h-3.5" />
+            <Globe className={`w-3.5 h-3.5 ${tab === 'public_api' ? 'text-[#00A873]' : 'text-[#8FA4BF]'}`} />
             <span>Public API &amp; Keamanan</span>
           </button>
 
@@ -407,22 +407,22 @@ export function ApiSettingsModal({
             onClick={() => setTab('database')}
             className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               tab === 'database'
-                ? 'border-emerald-500 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-[#00C98A] text-[#17243D]'
+                : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
             }`}
           >
-            <Database className="w-3.5 h-3.5" />
+            <Database className={`w-3.5 h-3.5 ${tab === 'database' ? 'text-[#00A873]' : 'text-[#8FA4BF]'}`} />
             <span>Database PostgreSQL &amp; Server</span>
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto bg-[#F7F9F8] p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto bg-[#F0F5FA]/70 p-5 space-y-4">
           {feedback && (
             <div
               className={`px-3.5 py-2.5 rounded-xl border text-xs font-medium flex items-start gap-2 ${
                 feedback.type === 'ok'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  ? 'bg-[#ECFDF6] border-[#00C98A]/40 text-[#008F63]'
                   : 'bg-rose-50 border-rose-200 text-rose-800'
               }`}
             >
@@ -436,7 +436,7 @@ export function ApiSettingsModal({
           )}
 
           {loading ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-8 text-center text-xs text-[#5B708B]">
               Memuat konfigurasi API &amp; diagnostik PostgreSQL...
             </div>
           ) : (
@@ -444,13 +444,13 @@ export function ApiSettingsModal({
               {tab === 'webhook' && (
                 <div className="space-y-4">
                   {/* Webhook Endpoint */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
-                        <h3 className="text-xs font-bold text-slate-900">
+                        <h3 className="text-xs font-bold text-[#17243D]">
                           Endpoint Outgoing Webhook (HTTPS)
                         </h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-[#5B708B] mt-0.5">
                           Terima payload JSON real-time ke CRM, Zapier, Make, n8n, atau backend Anda.
                         </p>
                       </div>
@@ -458,7 +458,7 @@ export function ApiSettingsModal({
                         type="button"
                         onClick={() => void handleTestWebhook()}
                         disabled={testingWebhook}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-[#EFF7F4] hover:bg-emerald-100/70 text-emerald-700 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 text-[#008F63] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                       >
                         <Send className="w-3.5 h-3.5" />
                         <span>{testingWebhook ? 'Mengirim...' : 'Uji Kirim Webhook'}</span>
@@ -472,7 +472,7 @@ export function ApiSettingsModal({
                         setSettings((prev) => ({ ...prev, webhookUrl: e.target.value }))
                       }
                       placeholder="https://hook.domain-anda.com/lynk-events"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A] transition-colors"
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
@@ -483,21 +483,21 @@ export function ApiSettingsModal({
                             key={opt.id}
                             className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
                               checked
-                                ? 'bg-emerald-50/60 border-emerald-200'
-                                : 'bg-white border-slate-200 hover:bg-slate-50'
+                                ? 'bg-[#ECFDF6]/70 border-[#00C98A]/45'
+                                : 'bg-white border-[#DCE5EF] hover:bg-[#F0F5FA]/60'
                             }`}
                           >
                             <input
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleWebhookEvent(opt.id)}
-                              className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              className="mt-0.5 rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                             />
                             <div className="min-w-0">
-                              <div className="text-xs font-semibold text-slate-900">
+                              <div className="text-xs font-semibold text-[#17243D]">
                                 {opt.label}
                               </div>
-                              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                              <div className="text-[11px] text-[#5B708B] leading-snug mt-0.5">
                                 {opt.desc}
                               </div>
                             </div>
@@ -508,13 +508,13 @@ export function ApiSettingsModal({
                   </div>
 
                   {/* Webhook Delivery Logs */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-[#EEF3F8] flex items-center justify-between gap-2">
                       <div>
-                        <h3 className="text-xs font-bold text-slate-900">
+                        <h3 className="text-xs font-bold text-[#17243D] tabular-nums">
                           Riwayat Pengiriman Webhook ({logs.length})
                         </h3>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-[#5B708B]">
                           50 pengiriman event terakhir dari server ke URL webhook Anda.
                         </p>
                       </div>
@@ -522,7 +522,7 @@ export function ApiSettingsModal({
                         <button
                           type="button"
                           onClick={() => void handleClearLogs()}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 cursor-pointer whitespace-nowrap shrink-0"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#DCE5EF] text-[11px] font-semibold text-[#5B708B] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                         >
                           <Trash2 className="w-3 h-3" />
                           <span>Bersihkan Log</span>
@@ -531,11 +531,11 @@ export function ApiSettingsModal({
                     </div>
 
                     {logs.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-slate-500">
+                      <div className="p-6 text-center text-xs text-[#5B708B]">
                         Belum ada riwayat pengiriman webhook.
                       </div>
                     ) : (
-                      <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                      <div className="divide-y divide-[#EEF3F8] max-h-64 overflow-y-auto">
                         {logs.map((log) => (
                           <div key={log.id} className="px-4 py-2.5 flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -543,20 +543,20 @@ export function ApiSettingsModal({
                                 <span
                                   className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
                                     log.success
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      ? 'bg-[#ECFDF6] text-[#008F63] border-[#00C98A]/40'
                                       : 'bg-rose-50 text-rose-700 border-rose-200'
                                   }`}
                                 >
                                   {log.success ? `HTTP ${log.statusCode ?? 200}` : log.errorMessage || 'Gagal'}
                                 </span>
-                                <span className="text-xs font-bold text-slate-900 font-mono">
+                                <span className="text-xs font-bold text-[#17243D] font-mono">
                                   {log.eventType}
                                 </span>
-                                <span className="text-[11px] text-slate-400 tabular-nums">
+                                <span className="text-[11px] text-[#8FA4BF] tabular-nums">
                                   {new Date(log.createdAt).toLocaleString('id-ID')}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 font-mono truncate mt-0.5">
+                              <p className="text-[11px] text-[#5B708B] font-mono truncate mt-0.5">
                                 {log.targetUrl}
                               </p>
                             </div>
@@ -571,14 +571,14 @@ export function ApiSettingsModal({
               {tab === 'public_api' && (
                 <div className="space-y-4">
                   {/* Auth & Security */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
+                    <h3 className="text-xs font-bold text-[#17243D] flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-[#00A873]" />
                       Keamanan Sesi Login &amp; Akses Builder
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                      <label className="flex items-start gap-2.5 p-3 rounded-xl border border-[#DCE5EF] cursor-pointer hover:bg-[#F0F5FA]/60 transition-colors">
                         <input
                           type="checkbox"
                           checked={settings.requireAuthForBuilder}
@@ -588,19 +588,19 @@ export function ApiSettingsModal({
                               requireAuthForBuilder: e.target.checked,
                             }))
                           }
-                          className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          className="mt-0.5 rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                         />
                         <div>
-                          <div className="text-xs font-semibold text-slate-900">
+                          <div className="text-xs font-semibold text-[#17243D]">
                             Wajibkan Login untuk Editor Builder
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">
+                          <div className="text-[11px] text-[#5B708B] mt-0.5">
                             Lindungi dashboard, edit blok, ekspor, dan seluruh endpoint `/api/*` dengan sesi login.
                           </div>
                         </div>
                       </label>
 
-                      <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                      <label className="flex items-start gap-2.5 p-3 rounded-xl border border-[#DCE5EF] cursor-pointer hover:bg-[#F0F5FA]/60 transition-colors">
                         <input
                           type="checkbox"
                           checked={settings.autoPublishOnSave}
@@ -610,13 +610,13 @@ export function ApiSettingsModal({
                               autoPublishOnSave: e.target.checked,
                             }))
                           }
-                          className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          className="mt-0.5 rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                         />
                         <div>
-                          <div className="text-xs font-semibold text-slate-900">
+                          <div className="text-xs font-semibold text-[#17243D]">
                             Auto-Publish Saat Klik Simpan
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">
+                          <div className="text-[11px] text-[#5B708B] mt-0.5">
                             Setiap penyimpanan langsung menayangkan `/p/:slug` dan memperbarui REST API publik.
                           </div>
                         </div>
@@ -625,13 +625,13 @@ export function ApiSettingsModal({
                   </div>
 
                   {/* Public REST API & Gateway Parameters */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5">
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-xs font-bold text-slate-900">
+                        <h3 className="text-xs font-bold text-[#17243D]">
                           Public Headless REST API (JSON)
                         </h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-[#5B708B] mt-0.5">
                           Ekspos data halaman yang sudah tayang untuk aplikasi eksternal / mobile app.
                         </p>
                       </div>
@@ -646,8 +646,8 @@ export function ApiSettingsModal({
                         aria-pressed={settings.publicApiEnabled}
                         className={`px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                           settings.publicApiEnabled
-                            ? 'bg-emerald-500 border-emerald-500 text-white'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            ? 'bg-[#17243D] border-[#17243D] text-white'
+                            : 'bg-white border-[#DCE5EF] text-[#5B708B] hover:bg-[#F0F5FA]'
                         }`}
                       >
                         {settings.publicApiEnabled ? 'API Publik Aktif' : 'API Publik Nonaktif'}
@@ -656,7 +656,7 @@ export function ApiSettingsModal({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-600">
+                        <label className="block text-[11px] font-semibold text-[#5B708B]">
                           CORS Allowed Origins
                         </label>
                         <input
@@ -666,12 +666,12 @@ export function ApiSettingsModal({
                             setSettings((prev) => ({ ...prev, corsOrigins: e.target.value }))
                           }
                           placeholder="* atau https://app.anda.com"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                          className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-600">
+                        <label className="block text-[11px] font-semibold text-[#5B708B]">
                           Rate Limit (req / menit)
                         </label>
                         <input
@@ -685,12 +685,12 @@ export function ApiSettingsModal({
                               rateLimitPerMinute: Number(e.target.value) || 120,
                             }))
                           }
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs tabular-nums text-slate-900 outline-none focus:border-emerald-500"
+                          className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs tabular-nums text-[#17243D] outline-none focus:border-[#00C98A]"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-600">
+                        <label className="block text-[11px] font-semibold text-[#5B708B]">
                           Versi Graph Meta CAPI
                         </label>
                         <input
@@ -700,12 +700,12 @@ export function ApiSettingsModal({
                             setSettings((prev) => ({ ...prev, metaApiVersion: e.target.value }))
                           }
                           placeholder="v21.0"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                          className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-600">
+                        <label className="block text-[11px] font-semibold text-[#5B708B]">
                           Kode Negara WA Default
                         </label>
                         <input
@@ -718,14 +718,14 @@ export function ApiSettingsModal({
                             }))
                           }
                           placeholder="62"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono tabular-nums text-slate-900 outline-none focus:border-emerald-500"
+                          className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono tabular-nums text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                         />
                       </div>
                     </div>
 
                     {/* Endpoint List */}
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <p className="text-[11px] font-bold text-slate-700">
+                    <div className="space-y-2 pt-2.5 border-t border-[#EEF3F8]">
+                      <p className="text-[11px] font-bold text-[#17243D]">
                         Daftar Endpoint Publik Tersedia:
                       </p>
                       {[
@@ -747,32 +747,32 @@ export function ApiSettingsModal({
                       ].map((ep) => (
                         <div
                           key={ep.path}
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F7F9F8] border border-slate-200/80"
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF]"
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#ECFDF6] border border-[#00C98A]/40 text-[#008F63]">
                                 {ep.method}
                               </span>
-                              <code className="text-xs font-mono text-slate-900 truncate">
+                              <code className="text-xs font-mono text-[#17243D] truncate">
                                 {ep.path}
                               </code>
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5">{ep.desc}</p>
+                            <p className="text-[11px] text-[#5B708B] mt-0.5">{ep.desc}</p>
                           </div>
                           <button
                             type="button"
                             onClick={() => void handleCopyEndpoint(ep.path)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-700 shrink-0 cursor-pointer whitespace-nowrap"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-[11px] font-semibold text-[#17243D] shrink-0 cursor-pointer whitespace-nowrap transition-colors"
                           >
                             {copiedPath === ep.path ? (
                               <>
-                                <Check className="w-3 h-3 text-emerald-600" />
+                                <Check className="w-3 h-3 text-[#00A873]" />
                                 <span>Disalin</span>
                               </>
                             ) : (
                               <>
-                                <Copy className="w-3 h-3" />
+                                <Copy className="w-3 h-3 text-[#5B708B]" />
                                 <span>Salin URL</span>
                               </>
                             )}
@@ -787,14 +787,14 @@ export function ApiSettingsModal({
               {tab === 'database' && diagnostics && (
                 <div className="space-y-4">
                   {/* PostgreSQL Connection Status Card */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
-                        <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <Database className="w-3.5 h-3.5 text-emerald-600" />
+                        <h3 className="text-xs font-bold text-[#17243D] flex items-center gap-1.5">
+                          <Database className="w-3.5 h-3.5 text-[#00A873]" />
                           Status Mesin Database
                         </h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-[#5B708B] mt-0.5">
                           Skema Drizzle ORM siap otomatis ke PostgreSQL begitu kredensial lingkungan aktif.
                         </p>
                       </div>
@@ -803,28 +803,28 @@ export function ApiSettingsModal({
                         <button
                           type="button"
                           onClick={() => void handleDownloadSchema()}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] cursor-pointer whitespace-nowrap transition-colors"
                         >
-                          <Download className="w-3.5 h-3.5 text-slate-600" />
+                          <Download className="w-3.5 h-3.5 text-[#5B708B]" />
                           <span>Unduh schema.sql</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => void handleDownloadFullDbSql()}
                           disabled={exportingFullSql}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60 text-xs font-semibold text-emerald-700 cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 disabled:opacity-60 text-xs font-semibold text-[#008F63] cursor-pointer whitespace-nowrap transition-colors"
                         >
-                          <Download className="w-3.5 h-3.5 text-emerald-600" />
+                          <Download className="w-3.5 h-3.5 text-[#00A873]" />
                           <span>{exportingFullSql ? 'Mengekspor...' : 'Unduh Full DB (.sql)'}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => void handleReconnectDb()}
                           disabled={reconnectingDb}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17243D] hover:bg-[#223456] disabled:opacity-60 text-white text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
                         >
                           <RefreshCw
-                            className={`w-3.5 h-3.5 ${reconnectingDb ? 'animate-spin' : ''}`}
+                            className={`w-3.5 h-3.5 text-[#00C98A] ${reconnectingDb ? 'animate-spin' : ''}`}
                           />
                           <span>{reconnectingDb ? 'Menguji...' : 'Uji Koneksi PG'}</span>
                         </button>
@@ -832,13 +832,13 @@ export function ApiSettingsModal({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="rounded-xl bg-[#F7F9F8] border border-slate-200/80 px-3 py-2.5">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <div className="rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF] px-3 py-2.5">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#8FA4BF]">
                           Engine Aktif
                         </div>
                         <div
                           className={`text-xs font-bold mt-0.5 ${
-                            diagnostics.connected ? 'text-emerald-700' : 'text-amber-700'
+                            diagnostics.connected ? 'text-[#008F63]' : 'text-amber-700'
                           }`}
                         >
                           {diagnostics.connected
@@ -847,22 +847,22 @@ export function ApiSettingsModal({
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-[#F7F9F8] border border-slate-200/80 px-3 py-2.5">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <div className="rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF] px-3 py-2.5">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#8FA4BF]">
                           Host &amp; Database
                         </div>
-                        <div className="text-xs font-bold text-slate-900 mt-0.5 font-mono truncate">
+                        <div className="text-xs font-bold text-[#17243D] mt-0.5 font-mono truncate">
                           {diagnostics.host
                             ? `${diagnostics.host}/${diagnostics.database || 'postgres'}`
                             : 'Belum diatur (env DATABASE_URL / PGHOST)'}
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-[#F7F9F8] border border-slate-200/80 px-3 py-2.5">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <div className="rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF] px-3 py-2.5">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#8FA4BF]">
                           Enkripsi TLS / SSL
                         </div>
-                        <div className="text-xs font-bold text-slate-900 mt-0.5">
+                        <div className="text-xs font-bold text-[#17243D] mt-0.5">
                           {diagnostics.ssl ? 'Aktif (SSL/TLS)' : 'Standar'}
                         </div>
                       </div>
@@ -876,13 +876,13 @@ export function ApiSettingsModal({
                   </div>
 
                   {/* Complete Portable Backup & Staged Restore (F-14) */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
-                        <h3 className="text-xs font-bold text-slate-900">
+                        <h3 className="text-xs font-bold text-[#17243D]">
                           Backup Lengkap (.json) &amp; Restore Bertahap
                         </h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-[#5B708B] mt-0.5">
                           Mencakup seluruh proyek, log analitik, aset media upload, &amp; setting aman dengan checksum SHA-256 (mengecualikan hash password &amp; sesi).
                         </p>
                       </div>
@@ -891,15 +891,15 @@ export function ApiSettingsModal({
                           type="button"
                           onClick={() => void handleDownloadCompleteJsonBackup()}
                           disabled={exportingCompleteJson}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60 text-xs font-semibold text-emerald-700 cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 disabled:opacity-60 text-xs font-semibold text-[#008F63] cursor-pointer whitespace-nowrap transition-colors"
                         >
-                          <Download className="w-3.5 h-3.5 text-emerald-600" />
+                          <Download className="w-3.5 h-3.5 text-[#00A873]" />
                           <span>
                             {exportingCompleteJson ? 'Menyiapkan...' : 'Unduh Backup Lengkap (.json)'}
                           </span>
                         </button>
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap">
-                          <Upload className="w-3.5 h-3.5 text-slate-600" />
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] cursor-pointer whitespace-nowrap transition-colors">
+                          <Upload className="w-3.5 h-3.5 text-[#5B708B]" />
                           <span>{previewingRestore ? 'Memeriksa...' : 'Pilih File Restore'}</span>
                           <input
                             type="file"
@@ -912,15 +912,15 @@ export function ApiSettingsModal({
                     </div>
 
                     {restorePreview && (
-                      <div className="rounded-xl border border-slate-200 bg-[#F7F9F8] p-3.5 space-y-3">
+                      <div className="rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/70 p-3.5 space-y-3">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="text-xs font-bold text-slate-900">
+                          <div className="text-xs font-bold text-[#17243D]">
                             Pratinjau Restore: <span className="font-mono">{restoreFilename}</span>
                           </div>
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                               restorePreview.valid && restorePreview.checksumValid
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                ? 'bg-[#ECFDF6] text-[#008F63] border-[#00C98A]/40'
                                 : 'bg-rose-50 text-rose-700 border-rose-200'
                             }`}
                           >
@@ -929,21 +929,21 @@ export function ApiSettingsModal({
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 text-[11px]">
-                          <div className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
-                            <div className="text-slate-400">Proyek Masuk / Saat Ini</div>
-                            <div className="font-bold text-slate-900 tabular-nums mt-0.5">
+                          <div className="bg-white rounded-lg border border-[#DCE5EF] px-2.5 py-2">
+                            <div className="text-[#8FA4BF]">Proyek Masuk / Saat Ini</div>
+                            <div className="font-bold text-[#17243D] tabular-nums mt-0.5">
                               {restorePreview.incomingCounts.projects} / {restorePreview.existingCounts.projects}
                             </div>
                           </div>
-                          <div className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
-                            <div className="text-slate-400">Analitik Masuk / Saat Ini</div>
-                            <div className="font-bold text-slate-900 tabular-nums mt-0.5">
+                          <div className="bg-white rounded-lg border border-[#DCE5EF] px-2.5 py-2">
+                            <div className="text-[#8FA4BF]">Analitik Masuk / Saat Ini</div>
+                            <div className="font-bold text-[#17243D] tabular-nums mt-0.5">
                               {restorePreview.incomingCounts.analyticsEvents} / {restorePreview.existingCounts.analyticsEvents}
                             </div>
                           </div>
-                          <div className="bg-white rounded-lg border border-slate-200 px-2.5 py-2">
-                            <div className="text-slate-400">Media Masuk / Saat Ini</div>
-                            <div className="font-bold text-slate-900 tabular-nums mt-0.5">
+                          <div className="bg-white rounded-lg border border-[#DCE5EF] px-2.5 py-2">
+                            <div className="text-[#8FA4BF]">Media Masuk / Saat Ini</div>
+                            <div className="font-bold text-[#17243D] tabular-nums mt-0.5">
                               {restorePreview.incomingCounts.media} / {restorePreview.existingCounts.media}
                             </div>
                           </div>
@@ -967,12 +967,12 @@ export function ApiSettingsModal({
 
                         {restorePreview.valid && (
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1">
-                            <label className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                            <label className="inline-flex items-center gap-2 text-xs text-[#17243D] cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={confirmOverwriteRestore}
                                 onChange={(e) => setConfirmOverwriteRestore(e.target.checked)}
-                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                               />
                               <span>Saya mengerti data proyek saat ini akan digantikan oleh backup (snapshot pre-restore dibuat otomatis).</span>
                             </label>
@@ -980,7 +980,7 @@ export function ApiSettingsModal({
                               type="button"
                               disabled={!confirmOverwriteRestore || applyingRestore}
                               onClick={() => void handleApplyRestore()}
-                              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0"
+                              className="px-3.5 py-1.5 rounded-xl bg-[#17243D] hover:bg-[#223456] disabled:opacity-50 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                             >
                               {applyingRestore ? 'Memulihkan...' : 'Terapkan Restore Sekarang'}
                             </button>
@@ -991,8 +991,8 @@ export function ApiSettingsModal({
                   </div>
 
                   {/* Table Counts */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-900">
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
+                    <h3 className="text-xs font-bold text-[#17243D]">
                       Statistik Tabel Database (7+ Tabel)
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -1008,10 +1008,10 @@ export function ApiSettingsModal({
                       ].map((t) => (
                         <div
                           key={t.label}
-                          className="rounded-xl border border-slate-200/80 bg-[#F7F9F8] px-3 py-2"
+                          className="rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/70 px-3 py-2"
                         >
-                          <div className="text-[11px] font-mono text-slate-500">{t.label}</div>
-                          <div className="text-base font-bold text-slate-900 tabular-nums mt-0.5">
+                          <div className="text-[11px] font-mono text-[#5B708B]">{t.label}</div>
+                          <div className="text-base font-bold text-[#17243D] tabular-nums mt-0.5">
                             {t.val}
                           </div>
                         </div>
@@ -1020,12 +1020,12 @@ export function ApiSettingsModal({
                   </div>
 
                   {/* Environment Secrets Checklist (Read-Only, never inputs secrets) */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                  <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
+                    <h3 className="text-xs font-bold text-[#17243D] flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-[#00A873]" />
                       Variabel Lingkungan Server (.env)
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-[#5B708B]">
                       Demi keamanan, kredensial rahasia dibaca server dari environment variables dan tidak pernah diekspos di UI.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1053,21 +1053,21 @@ export function ApiSettingsModal({
                       ].map((item) => (
                         <div
                           key={item.key}
-                          className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-slate-200/80 bg-[#F7F9F8]"
+                          className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/70"
                         >
                           <div className="min-w-0">
-                            <div className="text-xs font-mono font-bold text-slate-900 truncate">
+                            <div className="text-xs font-mono font-bold text-[#17243D] truncate">
                               {item.key}
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate">
+                            <div className="text-[11px] text-[#5B708B] truncate">
                               {item.desc}
                             </div>
                           </div>
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 ${
                               item.ok
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                                ? 'bg-[#ECFDF6] text-[#008F63] border-[#00C98A]/40'
+                                : 'bg-white text-[#5B708B] border-[#DCE5EF]'
                             }`}
                           >
                             {item.ok ? 'Terkonfigurasi' : 'Opsional / Default'}
@@ -1083,8 +1083,8 @@ export function ApiSettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0">
-          <div className="text-[11px] text-slate-500 hidden sm:block">
+        <div className="px-5 py-3.5 border-t border-[#DCE5EF] bg-white flex items-center justify-between gap-3 shrink-0">
+          <div className="text-[11px] text-[#5B708B] hidden sm:block">
             {diagnostics?.connected
               ? 'Disimpan langsung ke tabel api_settings PostgreSQL.'
               : 'Disimpan ke penyimpanan server lokal & siap migrasi PostgreSQL.'}
@@ -1095,7 +1095,7 @@ export function ApiSettingsModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+                className="px-3.5 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-xs font-semibold text-[#17243D] cursor-pointer whitespace-nowrap transition-colors"
               >
                 Tutup
               </button>
@@ -1104,9 +1104,9 @@ export function ApiSettingsModal({
               type="button"
               onClick={() => void handleSave()}
               disabled={saving || loading}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#17243D] hover:bg-[#223456] disabled:opacity-60 text-white text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-3.5 h-3.5 text-[#00C98A]" />
               <span>{saving ? 'Menyimpan...' : 'Simpan Setting API'}</span>
             </button>
           </div>
@@ -1120,7 +1120,7 @@ export function ApiSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-50 bg-[#17243D]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
       onClick={onClose}
     >
       {cardContent}

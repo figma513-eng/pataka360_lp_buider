@@ -442,6 +442,45 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof block.style?.marginTop === 'number' && Number.isFinite(block.style.marginTop)
           ? Math.max(0, Math.min(80, Math.round(block.style.marginTop)))
           : block.style?.marginTop,
+      minWidth:
+        typeof block.style?.minWidth === 'number' && Number.isFinite(block.style.minWidth)
+          ? Math.max(0, Math.min(576, Math.round(block.style.minWidth)))
+          : block.style?.minWidth,
+      maxWidth:
+        typeof block.style?.maxWidth === 'number' && Number.isFinite(block.style.maxWidth)
+          ? Math.max(0, Math.min(576, Math.round(block.style.maxWidth)))
+          : block.style?.maxWidth,
+      heightPx:
+        typeof block.style?.heightPx === 'number' && Number.isFinite(block.style.heightPx)
+          ? Math.max(0, Math.min(1600, Math.round(block.style.heightPx)))
+          : block.style?.heightPx,
+      gap:
+        typeof block.style?.gap === 'number' && Number.isFinite(block.style.gap)
+          ? Math.max(0, Math.min(64, Math.round(block.style.gap)))
+          : block.style?.gap,
+      zIndex:
+        typeof block.style?.zIndex === 'number' && Number.isFinite(block.style.zIndex)
+          ? Math.max(-10, Math.min(999, Math.round(block.style.zIndex)))
+          : block.style?.zIndex,
+      opacity:
+        typeof block.style?.opacity === 'number' && Number.isFinite(block.style.opacity)
+          ? Math.max(0, Math.min(100, Math.round(block.style.opacity)))
+          : block.style?.opacity,
+      transformScale:
+        typeof block.style?.transformScale === 'number' && Number.isFinite(block.style.transformScale)
+          ? Math.max(50, Math.min(150, Math.round(block.style.transformScale)))
+          : block.style?.transformScale,
+      transformRotate:
+        typeof block.style?.transformRotate === 'number' && Number.isFinite(block.style.transformRotate)
+          ? Math.max(-180, Math.min(180, Math.round(block.style.transformRotate)))
+          : block.style?.transformRotate,
+      transitionMs:
+        typeof block.style?.transitionMs === 'number' && Number.isFinite(block.style.transitionMs)
+          ? Math.max(0, Math.min(2000, Math.round(block.style.transitionMs)))
+          : block.style?.transitionMs,
+      bgImageUrl: block.style?.bgImageUrl
+        ? sanitizeImageOrMediaUrl(block.style.bgImageUrl)
+        : block.style?.bgImageUrl,
       themeOverrideMode:
         block.style?.themeOverrideMode === 'local'
           ? 'local'
@@ -720,6 +759,17 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       actionSheetBlocks: Array.isArray(c.actionSheetBlocks)
         ? c.actionSheetBlocks.map(sanitizeBlockTree)
         : c.actionSheetBlocks,
+      cardHideDefaultContent:
+        typeof c.cardHideDefaultContent === 'boolean'
+          ? c.cardHideDefaultContent
+          : c.cardHideDefaultContent,
+      cardHideDefaultFooter:
+        typeof c.cardHideDefaultFooter === 'boolean'
+          ? c.cardHideDefaultFooter
+          : c.cardHideDefaultFooter,
+      cardFooterBlocks: Array.isArray(c.cardFooterBlocks)
+        ? c.cardFooterBlocks.map(sanitizeBlockTree)
+        : c.cardFooterBlocks,
       actionTargetPageId:
         typeof c.actionTargetPageId === 'string'
           ? c.actionTargetPageId.replace(/[^\w-]/g, '').slice(0, 80)
@@ -753,6 +803,55 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.backTargetPageId === 'string'
           ? c.backTargetPageId.replace(/[^\w-]/g, '').slice(0, 80)
           : c.backTargetPageId,
+      // Container Slider (Section G)
+      containerLayoutMode:
+        c.containerLayoutMode === 'normal' ||
+        c.containerLayoutMode === 'slider_horizontal' ||
+        c.containerLayoutMode === 'slider_vertical'
+          ? c.containerLayoutMode
+          : c.containerLayoutMode,
+      sliderVisibleItems:
+        typeof c.sliderVisibleItems === 'number' && Number.isFinite(c.sliderVisibleItems)
+          ? Math.max(1, Math.min(6, Math.round(c.sliderVisibleItems)))
+          : c.sliderVisibleItems,
+      sliderGap:
+        typeof c.sliderGap === 'number' && Number.isFinite(c.sliderGap)
+          ? Math.max(0, Math.min(48, Math.round(c.sliderGap)))
+          : c.sliderGap,
+      sliderSpeedMs:
+        typeof c.sliderSpeedMs === 'number' && Number.isFinite(c.sliderSpeedMs)
+          ? Math.max(100, Math.min(2000, Math.round(c.sliderSpeedMs)))
+          : c.sliderSpeedMs,
+      sliderAutoplayIntervalMs:
+        typeof c.sliderAutoplayIntervalMs === 'number' && Number.isFinite(c.sliderAutoplayIntervalMs)
+          ? Math.max(1200, Math.min(15000, Math.round(c.sliderAutoplayIntervalMs)))
+          : c.sliderAutoplayIntervalMs,
+      whatsappTemplateId:
+        typeof c.whatsappTemplateId === 'string'
+          ? c.whatsappTemplateId.replace(/[^\w-]/g, '').slice(0, 80)
+          : c.whatsappTemplateId,
+      whatsappLinkId:
+        typeof c.whatsappLinkId === 'string'
+          ? c.whatsappLinkId.replace(/[^\w-]/g, '').slice(0, 80)
+          : c.whatsappLinkId,
+      formWhatsappTemplateId:
+        typeof c.formWhatsappTemplateId === 'string'
+          ? c.formWhatsappTemplateId.replace(/[^\w-]/g, '').slice(0, 80)
+          : c.formWhatsappTemplateId,
+      formFields: Array.isArray(c.formFields)
+        ? c.formFields.map((fld) => ({
+            ...fld,
+            id: String(fld.id || '').replace(/[^\w-]/g, '').slice(0, 64) || 'fld_1',
+            label: String(fld.label || 'Kolom').slice(0, 120),
+            placeholder: String(fld.placeholder || '').slice(0, 160),
+            helpText: fld.helpText ? String(fld.helpText).slice(0, 200) : fld.helpText,
+            errorMessage: fld.errorMessage ? String(fld.errorMessage).slice(0, 200) : fld.errorMessage,
+            description: fld.description ? String(fld.description).slice(0, 400) : fld.description,
+            options: Array.isArray(fld.options)
+              ? fld.options.map((o) => String(o || '').slice(0, 120)).slice(0, 40)
+              : fld.options,
+          }))
+        : c.formFields,
     },
     children: Array.isArray(block.children)
       ? block.children.map(sanitizeBlockTree)
@@ -849,6 +948,42 @@ export function sanitizeBuilderProject(raw: BuilderProject): BuilderProject {
       }))
     : undefined;
 
+  const safeWhatsappCenter = raw.whatsappCenter
+    ? {
+        mainPhone: String(raw.whatsappCenter.mainPhone || '').replace(/[^\d+]/g, '').slice(0, 24),
+        businessName: String(raw.whatsappCenter.businessName || raw.title || 'Usaha Aktif').slice(0, 120),
+        businessInfo: String(raw.whatsappCenter.businessInfo || '').slice(0, 300),
+        defaultTemplateByType: { ...(raw.whatsappCenter.defaultTemplateByType || {}) },
+        templates: Array.isArray(raw.whatsappCenter.templates)
+          ? raw.whatsappCenter.templates.slice(0, 50).map((t, idx) => ({
+              id: String(t.id || `wa_tpl_${idx + 1}`).replace(/[^\w-]/g, '').slice(0, 64),
+              name: String(t.name || `Templat ${idx + 1}`).slice(0, 100),
+              type: t.type || 'templat_khusus',
+              body: String(t.body || '')
+                .replace(/<[^>]+>/g, '')
+                .slice(0, 4000),
+              isDefault: Boolean(t.isDefault),
+              updatedAt: typeof t.updatedAt === 'number' ? t.updatedAt : Date.now(),
+            }))
+          : [],
+        links: Array.isArray(raw.whatsappCenter.links)
+          ? raw.whatsappCenter.links.slice(0, 50).map((l, idx) => ({
+              id: String(l.id || `wa_link_${idx + 1}`).replace(/[^\w-]/g, '').slice(0, 64),
+              name: String(l.name || `Tautan WA ${idx + 1}`).slice(0, 100),
+              functionType: l.functionType || 'konsultasi',
+              phone: String(l.phone || '').replace(/[^\d+]/g, '').slice(0, 24),
+              templateId: l.templateId ? String(l.templateId).replace(/[^\w-]/g, '').slice(0, 64) : undefined,
+              customMessage: l.customMessage
+                ? String(l.customMessage).replace(/<[^>]+>/g, '').slice(0, 2000)
+                : undefined,
+              active: l.active !== false,
+              updatedAt: typeof l.updatedAt === 'number' ? l.updatedAt : Date.now(),
+            }))
+          : [],
+        updatedAt: typeof raw.whatsappCenter.updatedAt === 'number' ? raw.whatsappCenter.updatedAt : Date.now(),
+      }
+    : undefined;
+
   return {
     ...raw,
     title: String(raw.title || 'Halaman Usaha').slice(0, 120),
@@ -858,5 +993,6 @@ export function sanitizeBuilderProject(raw: BuilderProject): BuilderProject {
     bottomNavbar: safeNav,
     publishing,
     adsConfig: ads,
+    whatsappCenter: safeWhatsappCenter,
   };
 }

@@ -12,8 +12,10 @@ import type {
   AuthUser,
   DbDiagnostics,
   FeaturePermissionsMap,
+  FormSubmissionRecord,
   MediaAssetMeta,
   ProjectRecord,
+  UiAppearanceHiddenMap,
   UiAppearanceLabelsMap,
   UiAppearanceSettingsConfig,
   WebhookEventName,
@@ -31,7 +33,12 @@ import {
   usersTable,
   webhookLogsTable,
 } from './schema.ts';
-import { sanitizeUiAppearanceLabelsMap } from '../utils/uiAppearanceLabels.ts';
+import {
+  packUiAppearanceStoragePayload,
+  sanitizeUiAppearanceHiddenMap,
+  sanitizeUiAppearanceLabelsMap,
+  unpackUiAppearanceStoragePayload,
+} from '../utils/uiAppearanceLabels.ts';
 import {
   AppError,
   RevisionConflictError,
@@ -103,6 +110,7 @@ export interface JsonStoreData {
   uiAppearanceSettings?: UiAppearanceSettingsConfig;
   webhookLogs: WebhookLogRecord[];
   mediaAssets?: MediaAssetMeta[];
+  formSubmissions?: FormSubmissionRecord[];
 }
 
 export const FULL_PERMISSIONS: FeaturePermissionsMap = {
@@ -1370,6 +1378,16 @@ export async function insertAnalyticsEvent(
   return withJsonStoreLock(async () => {
     const store = await loadJsonStore();
     if (store.events.some((e) => e.id === event.id)) return false;
+    // Deduplikasi event identik (dedupeKey) dalam jendela 3 detik agar tidak tercatat ganda
+    if (event.dedupeKey) {
+      const recentDup = store.events.find(
+        (e) =>
+          e.dedupeKey === event.dedupeKey &&
+          e.projectId === event.projectId &&
+          Math.abs((e.createdAt || 0) - (event.createdAt || 0)) < 3000
+      );
+      if (recentDup) return false;
+    }
     await persistJsonStore({
       ...store,
       events: [event, ...store.events].slice(0, 5000),
@@ -1444,6 +1462,48 @@ export async function clearAnalyticsEvents(projectId?: string): Promise<void> {
       ...store,
       events: projectId ? store.events.filter((ev) => ev.projectId !== projectId) : [],
     });
+  });
+}
+
+// ============================================================
+// Form Submissions Repository (Section H)
+// ============================================================
+export async function insertFormSubmission(
+  submission: FormSubmissionRecord
+): Promise<FormSubmissionRecord> {
+  await assertStorageReady();
+  return withJsonStoreLock(async () => {
+    const store = await loadJsonStore();
+    const existing = Array.isArray(store.formSubmissions) ? store.formSubmissions : [];
+    await persistJsonStore({
+      ...store,
+      formSubmissions: [submission, ...existing].slice(0, 2000),
+    });
+    return submission;
+  });
+}
+
+export async function listFormSubmissions(
+  projectId?: string
+): Promise<FormSubmissionRecord[]> {
+  await assertStorageReady();
+  const store = await loadJsonStore();
+  const list = Array.isArray(store.formSubmissions) ? store.formSubmissions : [];
+  return projectId ? list.filter((s) => s.projectId === projectId) : list;
+}
+
+export async function deleteFormSubmission(submissionId: string): Promise<boolean> {
+  await assertStorageReady();
+  return withJsonStoreLock(async () => {
+    const store = await loadJsonStore();
+    const existing = Array.isArray(store.formSubmissions) ? store.formSubmissions : [];
+    const next = existing.filter((s) => s.id !== submissionId);
+    if (next.length === existing.length) return false;
+    await persistJsonStore({
+      ...store,
+      formSubmissions: next,
+    });
+    return true;
   });
 }
 
@@ -1848,19 +1908,24 @@ export async function getUiAppearanceSettings(): Promise<UiAppearanceSettingsCon
       .where(eq(uiAppearanceSettingsTable.id, 'default'))
       .limit(1);
     if (!row) {
-      return { labels: {}, updatedAt: 0 };
+      return { labels: {}, hiddenKeys: {}, updatedAt: 0 };
     }
+    const unpacked = unpackUiAppearanceStoragePayload(row.labelsJson);
     return {
-      labels: sanitizeUiAppearanceLabelsMap(row.labelsJson),
+      labels: unpacked.labels,
+      hiddenKeys: unpacked.hiddenKeys,
       updatedAt: Number(row.updatedAt || 0),
     };
   }
   const store = await loadJsonStore();
   if (!store.uiAppearanceSettings) {
-    return { labels: {}, updatedAt: 0 };
+    return { labels: {}, hiddenKeys: {}, updatedAt: 0 };
   }
+  const unpacked = unpackUiAppearanceStoragePayload(store.uiAppearanceSettings.labels);
+  const directHidden = sanitizeUiAppearanceHiddenMap(store.uiAppearanceSettings.hiddenKeys);
   return {
-    labels: sanitizeUiAppearanceLabelsMap(store.uiAppearanceSettings.labels),
+    labels: unpacked.labels,
+    hiddenKeys: { ...unpacked.hiddenKeys, ...directHidden },
     updatedAt: Number(store.uiAppearanceSettings.updatedAt || 0),
   };
 }
@@ -1868,6 +1933,8 @@ export async function getUiAppearanceSettings(): Promise<UiAppearanceSettingsCon
 export async function saveUiAppearanceSettings(input: {
   labels?: UiAppearanceLabelsMap;
   patch?: Record<string, string>;
+  hiddenKeys?: UiAppearanceHiddenMap;
+  hiddenPatch?: Record<string, boolean>;
   resetAll?: boolean;
 }): Promise<UiAppearanceSettingsConfig> {
   await assertStorageReady();
@@ -1886,7 +1953,7 @@ export async function saveUiAppearanceSettings(input: {
       for (const [k, v] of Object.entries(input.patch)) {
         if (typeof k !== 'string' || !k) continue;
         if (typeof v !== 'string') continue;
-        const cleanVal = v.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 120);
+        const cleanVal = v.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 260);
         if (!cleanVal) {
           delete merged[k];
         } else {
@@ -1898,24 +1965,49 @@ export async function saveUiAppearanceSettings(input: {
     return sanitizeUiAppearanceLabelsMap(currentLabels);
   };
 
+  const computeNextHidden = (currentHidden: UiAppearanceHiddenMap): UiAppearanceHiddenMap => {
+    if (input.resetAll) {
+      return {};
+    }
+    if (input.hiddenKeys !== undefined) {
+      return sanitizeUiAppearanceHiddenMap(input.hiddenKeys);
+    }
+    if (input.hiddenPatch && typeof input.hiddenPatch === 'object') {
+      const merged: Record<string, boolean> = { ...currentHidden };
+      for (const [k, v] of Object.entries(input.hiddenPatch)) {
+        if (typeof k !== 'string' || !k) continue;
+        if (v === true) {
+          merged[k] = true;
+        } else {
+          delete merged[k];
+        }
+      }
+      return sanitizeUiAppearanceHiddenMap(merged);
+    }
+    return sanitizeUiAppearanceHiddenMap(currentHidden);
+  };
+
   if (state.db) {
     const cur = await getUiAppearanceSettings();
     const nextLabels = computeNextLabels(cur.labels);
+    const nextHidden = computeNextHidden(cur.hiddenKeys ?? {});
+    const packedPayload = packUiAppearanceStoragePayload(nextLabels, nextHidden);
     const next: UiAppearanceSettingsConfig = {
       labels: nextLabels,
+      hiddenKeys: nextHidden,
       updatedAt: now,
     };
     await state.db
       .insert(uiAppearanceSettingsTable)
       .values({
         id: 'default',
-        labelsJson: next.labels,
+        labelsJson: packedPayload,
         updatedAt: next.updatedAt,
       })
       .onConflictDoUpdate({
         target: uiAppearanceSettingsTable.id,
         set: {
-          labelsJson: next.labels,
+          labelsJson: packedPayload,
           updatedAt: next.updatedAt,
         },
       });
@@ -1924,9 +2016,14 @@ export async function saveUiAppearanceSettings(input: {
 
   return withJsonStoreLock(async () => {
     const store = await loadJsonStore();
-    const curLabels = sanitizeUiAppearanceLabelsMap(store.uiAppearanceSettings?.labels);
+    const unpacked = unpackUiAppearanceStoragePayload(store.uiAppearanceSettings?.labels);
+    const curHidden = {
+      ...unpacked.hiddenKeys,
+      ...sanitizeUiAppearanceHiddenMap(store.uiAppearanceSettings?.hiddenKeys),
+    };
     const next: UiAppearanceSettingsConfig = {
-      labels: computeNextLabels(curLabels),
+      labels: computeNextLabels(unpacked.labels),
+      hiddenKeys: computeNextHidden(curHidden),
       updatedAt: now,
     };
     await persistJsonStore({ ...store, uiAppearanceSettings: next });

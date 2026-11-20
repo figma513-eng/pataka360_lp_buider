@@ -1,6 +1,17 @@
 import type { BuilderBlock } from '../types/builder.ts';
 import { createId } from '../data/presets.ts';
 
+export function isContainerBlockType(type: BuilderBlock['type']): boolean {
+  return (
+    type === 'container' ||
+    type === 'row' ||
+    type === 'toggle_container' ||
+    type === 'bottom_sheet' ||
+    type === 'menu_icon' ||
+    type === 'showcase_card'
+  );
+}
+
 export function findBlockById(blocks: BuilderBlock[], id: string | null): BuilderBlock | null {
   if (!id) return null;
   for (const block of blocks) {
@@ -12,6 +23,10 @@ export function findBlockById(blocks: BuilderBlock[], id: string | null): Builde
     if (block.content?.actionSheetBlocks?.length) {
       const foundInSheet = findBlockById(block.content.actionSheetBlocks, id);
       if (foundInSheet) return foundInSheet;
+    }
+    if (block.content?.cardFooterBlocks?.length) {
+      const foundInFooter = findBlockById(block.content.cardFooterBlocks, id);
+      if (foundInFooter) return foundInFooter;
     }
   }
   return null;
@@ -45,6 +60,18 @@ export function updateBlockById(
         };
       }
     }
+    if (block.content?.cardFooterBlocks?.length) {
+      const updatedFooter = updateBlockById(block.content.cardFooterBlocks, id, updater);
+      if (updatedFooter !== block.content.cardFooterBlocks) {
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            cardFooterBlocks: updatedFooter,
+          },
+        };
+      }
+    }
     return next;
   });
 }
@@ -63,6 +90,15 @@ export function deleteBlockById(blocks: BuilderBlock[], id: string): BuilderBloc
           content: {
             ...next.content,
             actionSheetBlocks: deleteBlockById(block.content.actionSheetBlocks, id),
+          },
+        };
+      }
+      if (block.content?.cardFooterBlocks?.length) {
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            cardFooterBlocks: deleteBlockById(block.content.cardFooterBlocks, id),
           },
         };
       }
@@ -146,6 +182,9 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
       actionSheetBlocks: block.content.actionSheetBlocks
         ? block.content.actionSheetBlocks.map(cloneBlockDeep)
         : undefined,
+      cardFooterBlocks: block.content.cardFooterBlocks
+        ? block.content.cardFooterBlocks.map(cloneBlockDeep)
+        : undefined,
     },
     children: block.children ? block.children.map(cloneBlockDeep) : undefined,
   };
@@ -179,6 +218,17 @@ export function duplicateBlockById(blocks: BuilderBlock[], id: string): {
           content: {
             ...next.content,
             actionSheetBlocks: resSheet.nextBlocks,
+          },
+        };
+      }
+      if (block.content?.cardFooterBlocks?.length) {
+        const resFooter = duplicateBlockById(block.content.cardFooterBlocks, id);
+        if (resFooter.clonedId) clonedId = resFooter.clonedId;
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            cardFooterBlocks: resFooter.nextBlocks,
           },
         };
       }
@@ -218,6 +268,15 @@ export function moveBlockInTree(
         },
       };
     }
+    if (block.content?.cardFooterBlocks?.length) {
+      next = {
+        ...next,
+        content: {
+          ...next.content,
+          cardFooterBlocks: moveBlockInTree(block.content.cardFooterBlocks, id, direction),
+        },
+      };
+    }
     return next;
   });
 }
@@ -228,14 +287,7 @@ export function insertChildIntoContainer(
   newChild: BuilderBlock
 ): BuilderBlock[] {
   return blocks.map((block) => {
-    if (
-      block.id === containerId &&
-      (block.type === 'container' ||
-        block.type === 'row' ||
-        block.type === 'toggle_container' ||
-        block.type === 'bottom_sheet' ||
-        block.type === 'menu_icon')
-    ) {
+    if (block.id === containerId && isContainerBlockType(block.type)) {
       return {
         ...block,
         children: [...(block.children ?? []), newChild],
@@ -261,6 +313,19 @@ export function insertChildIntoContainer(
         },
       };
     }
+    if (block.content?.cardFooterBlocks?.length) {
+      next = {
+        ...next,
+        content: {
+          ...next.content,
+          cardFooterBlocks: insertChildIntoContainer(
+            block.content.cardFooterBlocks,
+            containerId,
+            newChild
+          ),
+        },
+      };
+    }
     return next;
   });
 }
@@ -279,10 +344,25 @@ export function insertBlockIntoActionSheet(
   }));
 }
 
+export function insertBlockIntoCardFooter(
+  blocks: BuilderBlock[],
+  cardId: string,
+  newChild: BuilderBlock
+): BuilderBlock[] {
+  return updateBlockById(blocks, cardId, (block) => ({
+    ...block,
+    content: {
+      ...block.content,
+      cardFooterBlocks: [...(block.content.cardFooterBlocks ?? []), newChild],
+    },
+  }));
+}
+
 function containsBlockId(node: BuilderBlock, id: string): boolean {
   if (node.id === id) return true;
   if (node.children?.some((child) => containsBlockId(child, id))) return true;
   if (node.content?.actionSheetBlocks?.some((child) => containsBlockId(child, id))) return true;
+  if (node.content?.cardFooterBlocks?.some((child) => containsBlockId(child, id))) return true;
   return false;
 }
 
@@ -319,6 +399,19 @@ function extractBlockById(
         };
       }
     }
+    if (!extracted && block.content?.cardFooterBlocks?.length) {
+      const footerRes = extractBlockById(block.content.cardFooterBlocks, id);
+      if (footerRes.extracted) {
+        extracted = footerRes.extracted;
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            cardFooterBlocks: footerRes.remaining,
+          },
+        };
+      }
+    }
     remaining.push(next);
   }
 
@@ -333,14 +426,7 @@ export function insertBlocksAtTarget(
 ): BuilderBlock[] {
   if (position === 'inside') {
     return blocks.map((block) => {
-      if (
-        block.id === targetId &&
-        (block.type === 'container' ||
-          block.type === 'row' ||
-          block.type === 'toggle_container' ||
-          block.type === 'bottom_sheet' ||
-          block.type === 'menu_icon')
-      ) {
+      if (block.id === targetId && isContainerBlockType(block.type)) {
         return { ...block, children: [...(block.children ?? []), ...toInsert] };
       }
       let next = block;
@@ -357,6 +443,20 @@ export function insertBlocksAtTarget(
             ...next.content,
             actionSheetBlocks: insertBlocksAtTarget(
               block.content.actionSheetBlocks,
+              toInsert,
+              targetId,
+              position
+            ),
+          },
+        };
+      }
+      if (block.content?.cardFooterBlocks?.length) {
+        next = {
+          ...next,
+          content: {
+            ...next.content,
+            cardFooterBlocks: insertBlocksAtTarget(
+              block.content.cardFooterBlocks,
               toInsert,
               targetId,
               position
@@ -398,6 +498,20 @@ export function insertBlocksAtTarget(
           },
         };
       }
+      if (block.content?.cardFooterBlocks?.length) {
+        updated = {
+          ...updated,
+          content: {
+            ...updated.content,
+            cardFooterBlocks: insertBlocksAtTarget(
+              block.content.cardFooterBlocks,
+              toInsert,
+              targetId,
+              position
+            ),
+          },
+        };
+      }
       next.push(updated);
     }
   }
@@ -420,4 +534,94 @@ export function reorderBlockInTree(
   if (!extracted) return blocks;
 
   return insertBlocksAtTarget(remaining, [extracted], targetId, position);
+}
+
+export function moveBlockIntoCardFooter(
+  blocks: BuilderBlock[],
+  draggedId: string,
+  cardId: string
+): BuilderBlock[] {
+  if (draggedId === cardId) return blocks;
+  const draggedNode = findBlockById(blocks, draggedId);
+  if (!draggedNode || containsBlockId(draggedNode, cardId)) {
+    return blocks;
+  }
+
+  const { extracted, remaining } = extractBlockById(blocks, draggedId);
+  if (!extracted) return blocks;
+
+  return insertBlockIntoCardFooter(remaining, cardId, extracted);
+}
+
+export function hasBlockNestedChildren(block: BuilderBlock): boolean {
+  return (
+    (Array.isArray(block.children) && block.children.length > 0) ||
+    (Array.isArray(block.content?.cardFooterBlocks) &&
+      block.content.cardFooterBlocks.length > 0) ||
+    (Array.isArray(block.content?.actionSheetBlocks) &&
+      block.content.actionSheetBlocks.length > 0)
+  );
+}
+
+export function countDirectNestedChildren(block: BuilderBlock): number {
+  return (
+    (Array.isArray(block.children) ? block.children.length : 0) +
+    (Array.isArray(block.content?.cardFooterBlocks) ? block.content.cardFooterBlocks.length : 0) +
+    (Array.isArray(block.content?.actionSheetBlocks) ? block.content.actionSheetBlocks.length : 0)
+  );
+}
+
+export function findLayerAncestorGroupIds(
+  blocks: BuilderBlock[],
+  targetId: string | null
+): string[] | null {
+  if (!targetId) return null;
+  for (const node of blocks) {
+    if (node.id === targetId) {
+      return hasBlockNestedChildren(node) ? [node.id] : [];
+    }
+    const childGroups = [
+      node.children,
+      node.content?.cardFooterBlocks,
+      node.content?.actionSheetBlocks,
+    ];
+    for (const list of childGroups) {
+      if (Array.isArray(list) && list.length > 0) {
+        const sub = findLayerAncestorGroupIds(list, targetId);
+        if (sub !== null) {
+          return [node.id, ...sub];
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export function resolveExpandedLayerGroupsForSelection(
+  blocks: BuilderBlock[],
+  selectedId: string | null,
+  navSheetEntries: { navId: string; children: BuilderBlock[] }[] = []
+): Record<string, boolean> {
+  if (!selectedId) return {};
+  const mainPath = findLayerAncestorGroupIds(blocks, selectedId);
+  if (mainPath !== null) {
+    const next: Record<string, boolean> = {};
+    for (const id of mainPath) {
+      next[id] = true;
+    }
+    return next;
+  }
+  for (const entry of navSheetEntries) {
+    const navPath = findLayerAncestorGroupIds(entry.children, selectedId);
+    if (navPath !== null) {
+      const next: Record<string, boolean> = {
+        [`nav:${entry.navId}`]: true,
+      };
+      for (const id of navPath) {
+        next[id] = true;
+      }
+      return next;
+    }
+  }
+  return {};
 }

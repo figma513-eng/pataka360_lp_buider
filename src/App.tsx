@@ -26,6 +26,7 @@ import {
   ProjectRecord,
   ServerSyncState,
   UiAppearanceSettingsConfig,
+  WhatsappCenterConfig,
   WorkspaceBundle,
 } from './types/builder';
 import {
@@ -43,8 +44,10 @@ import {
   duplicateBlockById,
   findBlockById,
   insertBlockIntoActionSheet,
+  insertBlockIntoCardFooter,
   insertBlocksAtTarget,
   insertChildIntoContainer,
+  moveBlockIntoCardFooter,
   moveBlockInTree,
   reorderBlockInTree,
   updateBlockById,
@@ -279,6 +282,10 @@ export default function App() {
   const [undoStackByProject, setUndoStackByProject] = useState<
     Record<string, BuilderProject[]>
   >({});
+  const [redoStackByProject, setRedoStackByProject] = useState<
+    Record<string, BuilderProject[]>
+  >({});
+  const [copiedBlock, setCopiedBlock] = useState<BuilderBlock | null>(null);
 
   const effectivePermissions = useMemo(
     () => resolveEffectivePermissions(accessSettings, authUser),
@@ -345,6 +352,9 @@ export default function App() {
     : false;
   const canUndo = Boolean(
     activeRecord && (undoStackByProject[activeRecord.id]?.length ?? 0) > 0
+  );
+  const canRedo = Boolean(
+    activeRecord && (redoStackByProject[activeRecord.id]?.length ?? 0) > 0
   );
 
   const remotePeers = useMemo(
@@ -528,6 +538,7 @@ export default function App() {
         const nextStack = [...stack.slice(-59), currentSnapshot];
         return { ...prev, [pid]: nextStack };
       });
+      setRedoStackByProject((prev) => (prev[pid]?.length ? { ...prev, [pid]: [] } : prev));
     }
     const editedAt = Date.now();
     latestProjectUpdatedAtRef.current[activeRecord.id] = editedAt;
@@ -567,9 +578,14 @@ export default function App() {
     if (stack.length === 0) return;
 
     const previousProject = stack[stack.length - 1];
+    const currentSnapshot = activeRecord.project;
     setUndoStackByProject((prev) => ({
       ...prev,
       [pid]: (prev[pid] ?? []).slice(0, -1),
+    }));
+    setRedoStackByProject((prev) => ({
+      ...prev,
+      [pid]: [...(prev[pid] ?? []).slice(-59), currentSnapshot],
     }));
 
     const editedAt = Date.now();
@@ -604,6 +620,100 @@ export default function App() {
       }
     }
   }, [activeRecord, effectivePermissions.editor, showSaveToast, syncState, undoStackByProject]);
+
+  const handleRedo = useCallback(() => {
+    if (!activeRecord) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Mode baca saja: akun Anda tidak memiliki izin mengubah kanvas.');
+      return;
+    }
+    const pid = activeRecord.id;
+    const stack = redoStackByProject[pid] ?? [];
+    if (stack.length === 0) return;
+
+    const nextProject = stack[stack.length - 1];
+    const currentSnapshot = activeRecord.project;
+    setRedoStackByProject((prev) => ({
+      ...prev,
+      [pid]: (prev[pid] ?? []).slice(0, -1),
+    }));
+    setUndoStackByProject((prev) => ({
+      ...prev,
+      [pid]: [...(prev[pid] ?? []).slice(-59), currentSnapshot],
+    }));
+
+    const editedAt = Date.now();
+    latestProjectUpdatedAtRef.current[pid] = editedAt;
+    if (syncState !== 'conflict' && syncState !== 'syncing') {
+      setSyncState('pending');
+      setSyncError(null);
+    }
+
+    setWorkspace((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) =>
+        p.id === pid
+          ? {
+              ...p,
+              project: nextProject,
+              updatedAt: editedAt,
+            }
+          : p
+      ),
+    }));
+  }, [activeRecord, effectivePermissions.editor, redoStackByProject, showSaveToast, syncState]);
+
+  const handleCopyBlock = useCallback(
+    (id?: string | null) => {
+      const targetId = id || selectedIdRef.current;
+      if (!targetId || !project) return;
+      const found =
+        findBlockById(currentCanvasBlocks, targetId) ||
+        resolveBottomNavbar(project).items.reduce<BuilderBlock | null>(
+          (acc, it) => acc || findBlockById(it.children, targetId),
+          null
+        );
+      if (!found) return;
+      setCopiedBlock(cloneBlockDeep(found));
+      showSaveToast('ok', `Komponen "${found.label}" berhasil disalin.`);
+    },
+    [currentCanvasBlocks, project, showSaveToast]
+  );
+
+  const handlePasteBlock = useCallback(() => {
+    if (!copiedBlock || !activeRecord) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Mode baca saja: akun Anda tidak memiliki izin menempel komponen.');
+      return;
+    }
+    const pasted = cloneBlockDeep(copiedBlock);
+    pasted.label = `${copiedBlock.label} (Tempel)`;
+    commitProject((prev) => {
+      if (activeSubPageId && Array.isArray(prev.pages)) {
+        return {
+          ...prev,
+          pages: prev.pages.map((pg) => {
+            if (pg.id !== activeSubPageId) return pg;
+            const targetId = selectedIdRef.current;
+            const nextBlocks = targetId
+              ? insertBlocksAtTarget(pg.blocks, [pasted], targetId, 'after')
+              : [...pg.blocks, pasted];
+            return { ...pg, blocks: nextBlocks };
+          }),
+        };
+      }
+      const targetId = selectedIdRef.current;
+      const nextBlocks = targetId
+        ? insertBlocksAtTarget(prev.blocks, [pasted], targetId, 'after')
+        : [...prev.blocks, pasted];
+      return {
+        ...prev,
+        blocks: nextBlocks,
+      };
+    });
+    setSelectedId(pasted.id);
+    showSaveToast('ok', `Komponen "${pasted.label}" ditempel ke kanvas.`);
+  }, [activeRecord, activeSubPageId, copiedBlock, effectivePermissions.editor, showSaveToast]);
 
   const handleSelectProject = (id: string) => {
     if (activeRecord && id === activeRecord.id) return;
@@ -876,6 +986,124 @@ export default function App() {
     setInspectorMode('element');
   };
 
+  const handleAddChildToCardFooter = (cardId: string, type: BlockType) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah elemen.');
+      return;
+    }
+    const rawChild = createBlock(type, project.theme);
+    const newChild: BuilderBlock = {
+      ...rawChild,
+      style: {
+        ...rawChild.style,
+        marginBottom: 0,
+      },
+    };
+    commitProject((prev) => {
+      const curNav = prev.bottomNavbar;
+      return {
+        ...prev,
+        blocks: insertBlockIntoCardFooter(prev.blocks, cardId, newChild),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: insertBlockIntoCardFooter(pg.blocks, cardId, newChild),
+            }))
+          : prev.pages,
+        bottomNavbar: curNav
+          ? {
+              ...curNav,
+              items: curNav.items.map((it) => ({
+                ...it,
+                children: insertBlockIntoCardFooter(it.children, cardId, newChild),
+              })),
+            }
+          : curNav,
+      };
+    });
+    setSelectedId(newChild.id);
+    setInspectorMode('element');
+  };
+
+  const handleDropSectionToCardFooter = (sectionId: string, cardId: string) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah seksi.');
+      return;
+    }
+    const section = PREBUILT_SECTIONS.find((s) => s.id === sectionId);
+    if (!section) return;
+    const created = section.createBlocks(project.theme).map((blk) => ({
+      ...blk,
+      style: { ...blk.style, marginBottom: 0 },
+    }));
+    if (created.length === 0) return;
+    const appendAll = (list: BuilderBlock[]): BuilderBlock[] =>
+      updateBlockById(list, cardId, (blk) => ({
+        ...blk,
+        content: {
+          ...blk.content,
+          cardFooterBlocks: [...(blk.content.cardFooterBlocks ?? []), ...created],
+        },
+      }));
+    commitProject((prev) => {
+      const curNav = prev.bottomNavbar;
+      return {
+        ...prev,
+        blocks: appendAll(prev.blocks),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: appendAll(pg.blocks),
+            }))
+          : prev.pages,
+        bottomNavbar: curNav
+          ? {
+              ...curNav,
+              items: curNav.items.map((it) => ({
+                ...it,
+                children: appendAll(it.children),
+              })),
+            }
+          : curNav,
+      };
+    });
+    setSelectedId(created[0].id);
+    setInspectorMode('element');
+  };
+
+  const handleMoveBlockToCardFooter = (draggedId: string, cardId: string) => {
+    if (!project || draggedId === cardId) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin memindahkan elemen.');
+      return;
+    }
+    commitProject((prev) => {
+      const curNav = prev.bottomNavbar;
+      return {
+        ...prev,
+        blocks: moveBlockIntoCardFooter(prev.blocks, draggedId, cardId),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: moveBlockIntoCardFooter(pg.blocks, draggedId, cardId),
+            }))
+          : prev.pages,
+        bottomNavbar: curNav
+          ? {
+              ...curNav,
+              items: curNav.items.map((it) => ({
+                ...it,
+                children: moveBlockIntoCardFooter(it.children, draggedId, cardId),
+              })),
+            }
+          : curNav,
+      };
+    });
+    setSelectedId(draggedId);
+  };
+
   const handleAddBlock = (
     type: BlockType,
     targetId?: string,
@@ -1069,6 +1297,12 @@ export default function App() {
               !status.tokens.borderColor && eq(blk.content.lineColor, prevTheme.borderColor)
                 ? nextTheme.borderColor
                 : blk.content.lineColor,
+            actionSheetBlocks: blk.content.actionSheetBlocks
+              ? remapBlocksForTheme(blk.content.actionSheetBlocks, prevTheme, nextTheme)
+              : undefined,
+            cardFooterBlocks: blk.content.cardFooterBlocks
+              ? remapBlocksForTheme(blk.content.cardFooterBlocks, prevTheme, nextTheme)
+              : undefined,
           },
           children: blk.children
             ? remapBlocksForTheme(blk.children, prevTheme, nextTheme)
@@ -1117,6 +1351,12 @@ export default function App() {
           lineColor: eq(blk.content.lineColor, prevTheme.borderColor)
             ? nextTheme.borderColor
             : blk.content.lineColor,
+          actionSheetBlocks: blk.content.actionSheetBlocks
+            ? remapBlocksForTheme(blk.content.actionSheetBlocks, prevTheme, nextTheme)
+            : undefined,
+          cardFooterBlocks: blk.content.cardFooterBlocks
+            ? remapBlocksForTheme(blk.content.cardFooterBlocks, prevTheme, nextTheme)
+            : undefined,
         },
         children: blk.children
           ? remapBlocksForTheme(blk.children, prevTheme, nextTheme)
@@ -1496,7 +1736,9 @@ export default function App() {
         if (fetchedAppearance) {
           setUiAppearanceSettings((prev) =>
             prev.updatedAt === fetchedAppearance.updatedAt &&
-            JSON.stringify(prev.labels) === JSON.stringify(fetchedAppearance.labels)
+            JSON.stringify(prev.labels) === JSON.stringify(fetchedAppearance.labels) &&
+            JSON.stringify(prev.hiddenKeys ?? {}) ===
+              JSON.stringify(fetchedAppearance.hiddenKeys ?? {})
               ? prev
               : fetchedAppearance
           );
@@ -1763,23 +2005,48 @@ export default function App() {
         void handleSaveProject();
         return;
       }
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toUpperCase();
+      const isEditable =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        Boolean(target?.isContentEditable);
+
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        const target = e.target as HTMLElement | null;
-        const tag = target?.tagName?.toUpperCase();
-        const isEditable =
-          tag === 'INPUT' ||
-          tag === 'TEXTAREA' ||
-          tag === 'SELECT' ||
-          Boolean(target?.isContentEditable);
         if (!isEditable && canUndo) {
           e.preventDefault();
           handleUndo();
+        }
+        return;
+      }
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))
+      ) {
+        if (!isEditable && canRedo) {
+          e.preventDefault();
+          handleRedo();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !isEditable) {
+        if (selectedIdRef.current && window.getSelection()?.toString() === '') {
+          e.preventDefault();
+          handleCopyBlock(selectedIdRef.current);
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && !isEditable) {
+        if (copiedBlock) {
+          e.preventDefault();
+          handlePasteBlock();
         }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canUndo, handleSaveProject, handleUndo]);
+  }, [canRedo, canUndo, copiedBlock, handleCopyBlock, handlePasteBlock, handleRedo, handleSaveProject, handleUndo]);
 
   const handleApplyDomainAndAds = async (
     nextPublishing: ProjectPublishingConfig,
@@ -1818,10 +2085,12 @@ export default function App() {
   const handleSaveBusinessSettings = async ({
     title,
     nextPublishing,
+    nextWhatsappCenter,
     publishNow,
   }: {
     title: string;
     nextPublishing: ProjectPublishingConfig;
+    nextWhatsappCenter?: WhatsappCenterConfig;
     publishNow: boolean;
   }): Promise<{ ok: boolean; error?: string }> => {
     if (!activeRecord) {
@@ -1835,6 +2104,7 @@ export default function App() {
       ...activeRecord.project,
       title,
       publishing: effectivePermissions.publishing ? nextPublishing : activeRecord.project.publishing,
+      whatsappCenter: nextWhatsappCenter ?? activeRecord.project.whatsappCenter,
     };
     const updatedRecord: ProjectRecord = {
       ...activeRecord,
@@ -2205,6 +2475,11 @@ export default function App() {
           remotePeersByBlock={remotePeersByBlock}
           canUndo={canUndo}
           onUndo={handleUndo}
+          canRedo={canRedo}
+          onRedo={handleRedo}
+          canPaste={Boolean(copiedBlock)}
+          onCopyBlock={handleCopyBlock}
+          onPasteBlock={handlePasteBlock}
           onOpenPreview={() => setShowPreview(true)}
           onSelectBlock={handleCanvasSelectBlock}
           onOpenNavbarSettings={handleOpenNavbarSettings}
@@ -2227,6 +2502,9 @@ export default function App() {
           onDropNewBlock={handleAddBlock}
           onDropSection={handleDropSectionById}
           onReorderBlock={handleReorderBlock}
+          onDropNewBlockToCardFooter={handleAddChildToCardFooter}
+          onDropSectionToCardFooter={handleDropSectionToCardFooter}
+          onMoveBlockToCardFooter={handleMoveBlockToCardFooter}
         />
 
         <RightInspector
@@ -2237,11 +2515,16 @@ export default function App() {
           onSelectSubPage={handleSelectSubPage}
           onAddSubPage={handleAddSubPage}
           onAddChildToActionSheet={handleAddChildToActionSheet}
+          onAddChildToCardFooter={handleAddChildToCardFooter}
           theme={project.theme}
+          whatsappCenter={project.whatsappCenter}
           advanceOptions={project.advanceOptions}
           selectedParentNavId={selectedParentNavId}
           selectedParentNavLabel={selectedParentNavLabel}
           contentFocusNonce={contentFocusNonce}
+          canPaste={Boolean(copiedBlock)}
+          onCopyBlock={handleCopyBlock}
+          onPasteBlock={handlePasteBlock}
           onOpenNavbarSettings={handleOpenNavbarSettings}
           onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
           onUpdateBlock={handleUpdateBlock}

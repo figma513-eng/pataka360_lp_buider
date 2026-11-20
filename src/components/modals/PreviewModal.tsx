@@ -107,6 +107,10 @@ function findBlockById(
       const found = findBlockById(blk.content.actionSheetBlocks, id);
       if (found) return found;
     }
+    if (blk.content.cardFooterBlocks?.length) {
+      const found = findBlockById(blk.content.cardFooterBlocks, id);
+      if (found) return found;
+    }
   }
   if (navItems?.length) {
     for (const item of navItems) {
@@ -148,6 +152,10 @@ function findFirstCatalogBlock(
       const found = findFirstCatalogBlock(blk.content.actionSheetBlocks);
       if (found) return found;
     }
+    if (blk.content.cardFooterBlocks?.length) {
+      const found = findFirstCatalogBlock(blk.content.cardFooterBlocks);
+      if (found) return found;
+    }
   }
   if (navItems?.length) {
     for (const item of navItems) {
@@ -179,6 +187,10 @@ function findFirstFnbCatalogBlock(
       const found = findFirstFnbCatalogBlock(blk.content.actionSheetBlocks);
       if (found) return found;
     }
+    if (blk.content.cardFooterBlocks?.length) {
+      const found = findFirstFnbCatalogBlock(blk.content.cardFooterBlocks);
+      if (found) return found;
+    }
   }
   if (navItems?.length) {
     for (const item of navItems) {
@@ -208,6 +220,10 @@ function findFirstCartButtonFloatBlock(
     }
     if (blk.content.actionSheetBlocks?.length) {
       const found = findFirstCartButtonFloatBlock(blk.content.actionSheetBlocks);
+      if (found) return found;
+    }
+    if (blk.content.cardFooterBlocks?.length) {
+      const found = findFirstCartButtonFloatBlock(blk.content.cardFooterBlocks);
       if (found) return found;
     }
   }
@@ -2307,6 +2323,7 @@ export function PreviewModal({
     if (block.type === 'showcase_card') {
       const cardItemId = `sc_${block.id}`;
       const cardQty = fnbCartQtyMap[cardItemId] ?? 0;
+      const cardVariant = block.content.cardVariant ?? 'news_banner';
       const cardItemObj: CatalogItem = {
         id: cardItemId,
         title: block.content.cardTitle?.trim() || 'Produk Store',
@@ -2318,6 +2335,27 @@ export function PreviewModal({
         image: block.content.cardImage || '',
         unitSold: 0,
       };
+      const bodyChildren = block.children ?? [];
+      const footerChildren = block.content.cardFooterBlocks ?? [];
+      const bodyZoneTextColor =
+        cardVariant === 'membership_ticket' || cardVariant === 'activity_post'
+          ? project.theme.textColor
+          : block.content.cardTextColor || '#FFFFFF';
+      const footerZoneTextColor = block.content.cardTextColor || '#FFFFFF';
+
+      const bodySlotNode =
+        bodyChildren.length > 0 ? (
+          <div className="w-full space-y-1.5">
+            {bodyChildren.map((ch) => renderPreviewBlock(ch, depth + 1, bodyZoneTextColor))}
+          </div>
+        ) : undefined;
+      const footerSlotNode =
+        footerChildren.length > 0 ? (
+          <div className="w-full space-y-1.5">
+            {footerChildren.map((ch) => renderPreviewBlock(ch, depth + 1, footerZoneTextColor))}
+          </div>
+        ) : undefined;
+
       return (
         <div key={block.id} style={style}>
           <ShowcaseCardView
@@ -2329,6 +2367,8 @@ export function PreviewModal({
             onAddCart={() => addToCart(block.id, cardItemObj, '', 1)}
             onIncCart={() => addToCart(block.id, cardItemObj, '', 1)}
             onDecCart={() => updateCartQty(`${block.id}::${cardItemId}::`, -1)}
+            bodySlot={bodySlotNode}
+            footerSlot={footerSlotNode}
           />
         </div>
       );

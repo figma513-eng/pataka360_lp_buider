@@ -15,6 +15,10 @@ import {
   deleteBlockById,
   findBlockById,
   insertBlockIntoActionSheet,
+  insertBlockIntoCardFooter,
+  insertChildIntoContainer,
+  isContainerBlockType,
+  moveBlockIntoCardFooter,
   updateBlockById,
 } from '../src/utils/treeHelpers.ts';
 import { findFirstFloatingCartConfig, resolveUniversalCartMeta } from '../src/utils/universalLayerHelpers.ts';
@@ -677,7 +681,146 @@ describe('Universal Layers, Typography, Multi-Page, Actions & Universal Cart', (
 
     assert.ok(appSrc.includes('setLayerFocusNonce((n) => n + 1)'), 'Canvas click triggers layerFocusNonce');
     assert.ok(leftSrc.includes('if (layerFocusNonce > 0)') && leftSrc.includes("setActiveTab('tema')"), 'LeftSidebar auto-activates Tema tab on canvas click');
-    assert.ok(homeSrc.includes('data-layer-item-id={blk.id}') && homeSrc.includes("block: 'center'"), 'HomePageSettings scrolls active layer into center view');
+    assert.ok(
+      homeSrc.includes('data-layer-item-id={blk.id}') &&
+        homeSrc.includes('root.scrollTo({ top: nextScrollTop') &&
+        homeSrc.includes('root.clientHeight * 0.25'),
+      'HomePageSettings scrolls active layer smoothly inside left layer panel container'
+    );
     assert.ok(homeSrc.includes('bg-[#17243D] border-[#00C98A] border-l-4 text-white'), 'Active layer has distinct high-contrast highlight');
+  });
+
+  it('7. Composable template cards (membership_ticket & all showcase_card) support drag-drop in upper body zone and colored lower strip (cart, sheets, page 2)', () => {
+    assert.equal(isContainerBlockType('showcase_card'), true, 'showcase_card is a container block type');
+
+    const card = createBlock('showcase_card', THEMES[0]);
+    card.id = 'card_ticket_dyn';
+    card.content.cardVariant = 'membership_ticket';
+    card.content.cardTitle = 'Anggota Utama';
+    card.content.cardAccentColor = '#0284C7';
+    card.content.cardFeeItems = [
+      { id: 'f1', label: 'Pendaftaran', value: 'Rp. 20.000' },
+      { id: 'f2', label: 'Iuran Anggota', value: 'Rp. 80.000' },
+    ];
+    card.content.cardTotalLabel = 'Total :';
+    card.content.cardTotalValue = 'Rp. 100.000';
+    card.content.cardHideDefaultContent = true;
+    card.content.cardHideDefaultFooter = true;
+
+    // Upper white zone children: image + text + menu_icon
+    const topImg = createBlock('image', THEMES[0]);
+    topImg.id = 'top_img_1';
+    topImg.content.src = 'https://cdn.example.com/produk-banner.jpg';
+    topImg.content.alt = 'Foto Produk Custom';
+
+    const topText = createBlock('text', THEMES[0]);
+    topText.id = 'top_txt_1';
+    topText.content.text = 'Paket Spesial Tanpa Rincian Biaya';
+
+    const topIcon = createBlock('menu_icon', THEMES[0]);
+    topIcon.id = 'top_ico_1';
+    topIcon.content.menuIconLabel = 'Detail Cepat';
+
+    // Lower blue strip children: cart_button + action button (opens right sheet) + button to page 2
+    const footCart = createBlock('cart_button', THEMES[0]);
+    footCart.id = 'foot_cart_1';
+    footCart.content.cartProductName = 'Paket VIP Custom';
+    footCart.content.cartProductPrice = 'Rp 120.000';
+    footCart.content.cartButtonLabel = 'Beli Paket';
+    footCart.content.cartWhatsappNumber = '081234567890';
+    footCart.content.cartFloatingEnabled = true;
+
+    const footSheetInner = createBlock('text', THEMES[0]);
+    footSheetInner.id = 'foot_sheet_txt';
+    footSheetInner.content.text = 'Isi Panel Kanan dari Strip Biru';
+
+    const footBtnSheet = createBlock('button', THEMES[0]);
+    footBtnSheet.id = 'foot_btn_sheet';
+    footBtnSheet.content.label = 'Buka Info Kanan';
+    footBtnSheet.content.actionType = 'sheet';
+    footBtnSheet.content.actionSheetPosition = 'right';
+    footBtnSheet.content.actionSheetTitle = 'Info Strip Biru';
+    footBtnSheet.content.actionSheetBlocks = [footSheetInner];
+
+    const footBtnPage2 = createBlock('button', THEMES[0]);
+    footBtnPage2.id = 'foot_btn_page2';
+    footBtnPage2.content.label = 'Ke Halaman 2';
+    footBtnPage2.content.actionType = 'page';
+    footBtnPage2.content.actionTargetPageId = 'pg_kedua';
+
+    // Exercise tree helpers (drop into upper body, drop into footer, move existing block into footer, clone, delete)
+    let tree = insertChildIntoContainer([card], 'card_ticket_dyn', topImg);
+    tree = insertChildIntoContainer(tree, 'card_ticket_dyn', topText);
+    tree = insertChildIntoContainer(tree, 'card_ticket_dyn', topIcon);
+    tree = insertBlockIntoCardFooter(tree, 'card_ticket_dyn', footCart);
+    tree = insertBlockIntoCardFooter(tree, 'card_ticket_dyn', footBtnSheet);
+    tree = [...tree, footBtnPage2];
+    tree = moveBlockIntoCardFooter(tree, 'foot_btn_page2', 'card_ticket_dyn');
+
+    assert.equal(tree.length, 1, 'Moved block removed from root and placed inside cardFooterBlocks');
+    assert.equal(tree[0].children?.length, 3, '3 components in upper white zone');
+    assert.equal(tree[0].content.cardFooterBlocks?.length, 3, '3 components in colored lower strip');
+    assert.ok(findBlockById(tree, 'foot_cart_1'), 'findBlockById finds block in cardFooterBlocks');
+    assert.ok(findBlockById(tree, 'foot_sheet_txt'), 'findBlockById finds nested sheet inside cardFooterBlocks');
+
+    const cloned = cloneBlockDeep(tree[0]);
+    assert.notEqual(cloned.id, tree[0].id);
+    assert.equal(cloned.content.cardFooterBlocks?.length, 3);
+    assert.notEqual(cloned.content.cardFooterBlocks?.[0].id, 'foot_cart_1');
+
+    const afterDelete = deleteBlockById(cloneBlockDeep(tree[0]).content.cardFooterBlocks ? [cloned] : tree, cloned.content.cardFooterBlocks![0].id);
+    assert.equal(afterDelete[0].content.cardFooterBlocks?.length, 2, 'deleteBlockById removes from cardFooterBlocks');
+
+    const p2Text = createBlock('text', THEMES[0]);
+    p2Text.id = 'pg2_txt';
+    p2Text.content.text = 'Selamat Datang di Halaman 2';
+    const subPage = {
+      id: 'pg_kedua',
+      title: 'Halaman 2',
+      showBackButton: true,
+      backButtonLabel: 'Kembali',
+      blocks: [p2Text],
+    };
+
+    const project = sanitizeBuilderProject(makeProject(tree, [subPage]));
+    assert.equal(project.blocks[0].content.cardHideDefaultContent, true);
+    assert.equal(project.blocks[0].content.cardHideDefaultFooter, true);
+    assert.equal(project.blocks[0].children?.length, 3);
+    assert.equal(project.blocks[0].content.cardFooterBlocks?.length, 3);
+
+    const html = generateProjectHtml(project);
+    assert.ok(!html.includes('Iuran Anggota'), 'Default fee rows hidden when cardHideDefaultContent=true');
+    assert.ok(!html.includes('Rp. 100.000'), 'Default Total strip hidden when cardHideDefaultFooter=true');
+    assert.ok(html.includes('Paket Spesial Tanpa Rincian Biaya'), 'Custom top-zone text exported');
+    assert.ok(html.includes('produk-banner.jpg'), 'Custom top-zone image exported');
+    assert.ok(html.includes('Detail Cepat'), 'Custom top-zone menu_icon exported');
+    assert.ok(html.includes('data-card-zone="body"'), 'Upper body zone container exported');
+    assert.ok(html.includes('data-card-zone="footer"'), 'Lower colored strip zone container exported');
+
+    const { doc } = bootExportedHtml(html);
+
+    // 1) Cart button inside blue lower strip adds to cart & activates floating bar
+    const addBtn = doc.querySelector('[data-fnb-add="foot_cart_1::cb_foot_cart_1"]');
+    const floatBar = doc.getElementById('lynk-fnb-float-bar');
+    const floatTotal = doc.getElementById('lynk-fnb-float-total');
+    assert.ok(addBtn && floatBar, 'Cart button inside blue strip & floating cart bar exist');
+    addBtn.click();
+    assert.equal(floatBar.style.display, 'flex', 'Floating cart bar activates from blue-strip cart_button');
+    assert.equal(floatTotal?.textContent, 'Rp 120.000');
+
+    // 2) Action button inside blue lower strip opens Right Sheet
+    const sheetTrigger = doc.querySelector('[data-universal-layer="foot_btn_sheet"]');
+    const rightSheet = doc.getElementById('sheet_act_foot_btn_sheet');
+    assert.ok(sheetTrigger && rightSheet, 'Right sheet trigger & dialog from blue strip exist');
+    assert.equal(rightSheet.getAttribute('data-sheet-pos'), 'right');
+    sheetTrigger.click();
+    assert.equal(rightSheet.classList.contains('is-open'), true, 'Right sheet opens from blue-strip button');
+
+    // 3) Page-2 button inside blue lower strip opens Halaman 2
+    const page2Trigger = doc.querySelector('[data-open-page="pg_kedua"]');
+    const page2View = doc.querySelector('[data-custom-page="pg_kedua"]');
+    assert.ok(page2Trigger && page2View, 'Page 2 button & view exist');
+    page2Trigger.click();
+    assert.equal(page2View.style.display, 'block', 'Halaman 2 opens from blue-strip button');
   });
 });

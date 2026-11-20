@@ -200,7 +200,31 @@ export type CatalogProductType = 'physical' | 'digital' | 'service';
 export type CatalogCartButtonSize = 'sm' | 'md' | 'lg';
 export type BottomSheetTriggerStyle = 'icon' | 'pill' | 'button';
 
-export type CustomFieldInputType = 'text' | 'tel' | 'email' | 'textarea' | 'number';
+export type CustomFieldInputType =
+  | 'text'
+  | 'textarea'
+  | 'name'
+  | 'tel'
+  | 'phone'
+  | 'email'
+  | 'number'
+  | 'date'
+  | 'time'
+  | 'select'
+  | 'radio'
+  | 'checkbox_group'
+  | 'file'
+  | 'address'
+  | 'section';
+
+export type FormRequiredRule =
+  | 'optional'
+  | 'required_fill'
+  | 'required_one'
+  | 'required_multi'
+  | 'required_consent_specific'
+  | 'required_consent_all'
+  | 'required_min_choices';
 
 export interface CatalogCustomerField {
   id: string;
@@ -208,6 +232,73 @@ export interface CatalogCustomerField {
   placeholder: string;
   type: CustomFieldInputType;
   required?: boolean;
+  requiredRule?: FormRequiredRule;
+  minChoices?: number;
+  defaultValue?: string;
+  helpText?: string;
+  errorMessage?: string;
+  minValue?: number;
+  maxValue?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  options?: string[];
+  requiredOptionIndexes?: number[];
+  conditionalFieldId?: string;
+  conditionalValue?: string;
+  description?: string;
+}
+
+export type WhatsappTemplateType =
+  | 'pesanan_baru'
+  | 'checkout_keranjang'
+  | 'pendaftaran'
+  | 'booking'
+  | 'konsultasi'
+  | 'templat_khusus';
+
+export interface WhatsappTemplate {
+  id: string;
+  name: string;
+  type: WhatsappTemplateType;
+  body: string;
+  isDefault?: boolean;
+  updatedAt: number;
+}
+
+export interface WhatsappLinkItem {
+  id: string;
+  name: string;
+  functionType: WhatsappTemplateType;
+  phone: string;
+  templateId?: string;
+  customMessage?: string;
+  active: boolean;
+  updatedAt: number;
+}
+
+export interface WhatsappCenterConfig {
+  mainPhone: string;
+  businessName: string;
+  businessInfo?: string;
+  defaultTemplateByType: Partial<Record<WhatsappTemplateType, string>>;
+  templates: WhatsappTemplate[];
+  links: WhatsappLinkItem[];
+  updatedAt: number;
+}
+
+export interface FormSubmissionRecord {
+  id: string;
+  projectId: string;
+  projectTitle: string;
+  slug: string;
+  componentId: string;
+  formTitle: string;
+  formCategory?: string;
+  values: Record<string, string | string[] | boolean>;
+  sourceChannel?: AdChannel;
+  isTest?: boolean;
+  createdAt: number;
 }
 
 export interface TrainingMediaItem {
@@ -330,20 +421,52 @@ export interface BlockStyle {
   blur: number;
   align: TextAlign;
   widthPercent: number;
+  minWidth?: number;
+  maxWidth?: number;
+  heightPx?: number;
   minHeight: number;
   maxHeight?: number;
+  // Tata Letak (Section D)
+  displayMode?: 'block' | 'flex' | 'grid' | 'inline-flex';
+  flexDirection?: 'column' | 'row' | 'column-reverse' | 'row-reverse';
+  alignItems?: 'stretch' | 'flex-start' | 'center' | 'flex-end';
+  justifyContent?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around';
+  flexWrap?: 'nowrap' | 'wrap';
+  gap?: number;
+  overflow?: 'visible' | 'hidden' | 'auto' | 'scroll';
+  // Posisi (Section D)
+  positionMode?: 'static' | 'relative' | 'absolute' | 'fixed' | 'sticky';
+  posTop?: number;
+  posRight?: number;
+  posBottom?: number;
+  posLeft?: number;
+  zIndex?: number;
+  // Garis Tepi & Bayangan
   borderRadius: number;
   shadow: ShadowPreset;
   shadowColor?: string;
   borderWidth: number;
   borderColor: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double' | 'none';
+  // Latar Belakang
   backgroundColor: string;
   backgroundMode?: 'solid' | 'gradient';
+  bgImageUrl?: string;
+  bgPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
+  bgSize?: 'cover' | 'contain' | 'auto';
+  bgRepeat?: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y';
   gradientColor1?: string;
   gradientColor2?: string;
   gradientColor3?: string;
   gradientAngle?: number;
+  // Efek
   hoverLift?: boolean;
+  opacity?: number;
+  visibility?: 'visible' | 'hidden';
+  transformScale?: number;
+  transformRotate?: number;
+  transitionMs?: number;
+  // Tipografi
   textColor: string;
   useThemeTextColor?: boolean;
   fontFamily?: string;
@@ -351,10 +474,13 @@ export interface BlockStyle {
   fontWeightCss?: '400' | '500' | '600' | '700' | '800';
   lineHeight?: number;
   letterSpacing?: number;
+  textDecoration?: 'none' | 'underline' | 'line-through';
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   paragraphGap?: number;
   maxLines?: 0 | 1 | 2 | 3 | 4;
   shapePreset?: BlockShapePreset;
   shadowSize?: number;
+  // Jarak
   padding: number;
   paddingTop?: number;
   paddingBottom?: number;
@@ -394,8 +520,10 @@ export interface BlockContent {
   buttonText?: string;
   buttonIcon?: ButtonIconId;
   buttonIconUrl?: string;
-  // Form
+  // Form Dinamis (Section H)
   formTitle?: string;
+  formCategory?: WhatsappTemplateType;
+  formFields?: CatalogCustomerField[];
   namePlaceholder?: string;
   emailPlaceholder?: string;
   formNameRequired?: boolean;
@@ -404,9 +532,33 @@ export interface BlockContent {
   formChecklistTitle?: string;
   formChecklistItems?: string[];
   formChecklistRequired?: boolean;
+  formChecklistRule?: FormRequiredRule;
+  formChecklistMinChoices?: number;
+  formSaveToDatabase?: boolean;
+  formWhatsappEnabled?: boolean;
+  formWhatsappNumber?: string;
+  formWhatsappTemplateId?: string;
   submitLabel?: string;
   successMessage?: string;
   buttonColor?: string;
+  // Wadah / Parent Slider (Section G)
+  containerLayoutMode?: 'normal' | 'slider_horizontal' | 'slider_vertical';
+  sliderVisibleItems?: number;
+  sliderGap?: number;
+  sliderSpeedMs?: number;
+  sliderTransition?: 'smooth' | 'fade' | 'instant';
+  sliderLoop?: boolean;
+  sliderAutoplay?: boolean;
+  sliderAutoplayIntervalMs?: number;
+  sliderShowArrows?: boolean;
+  sliderShowDots?: boolean;
+  sliderTouchSwipe?: boolean;
+  sliderMouseDrag?: boolean;
+  sliderSnap?: boolean;
+  sliderOverflow?: 'hidden' | 'visible' | 'auto';
+  // Integrasi Pusat WhatsApp (Single Source of Truth)
+  whatsappTemplateId?: string;
+  whatsappLinkId?: string;
   // Video Embeds (YouTube, Facebook, TikTok)
   youtubeUrl?: string;
   youtubeAspectRatio?: '16/9' | '1/1' | '4/5' | '9/16';
@@ -451,6 +603,8 @@ export interface BlockContent {
   trainingChecklistTitle?: string;
   trainingChecklistItems?: string[];
   trainingChecklistRequired?: boolean;
+  trainingChecklistRule?: FormRequiredRule;
+  trainingChecklistMinChoices?: number;
   trainingFormTitle?: string;
   trainingFormFields?: CatalogCustomerField[];
   trainingWaNumber?: string;
@@ -649,6 +803,9 @@ export interface BlockContent {
   cardTextGap?: number;
   cardLineHeight?: number;
   cardLetterSpacing?: number;
+  cardHideDefaultContent?: boolean;
+  cardHideDefaultFooter?: boolean;
+  cardFooterBlocks?: BuilderBlock[];
   // Aksi Universal (Berlaku pada semua lapisan: Link, Sheet 4 Arah, Halaman Baru, Card Lain, Back)
   actionType?: UniversalActionType;
   actionUrl?: string;
@@ -739,12 +896,20 @@ export interface AnalyticsEventRecord {
   projectId: string;
   projectTitle: string;
   slug: string;
-  eventType: 'page_view' | 'wa_click' | 'form_submit';
+  eventType: 'page_view' | 'wa_click' | 'form_open' | 'form_submit';
   channel: AdChannel;
   sourceLabel: string;
   ctaLabel?: string;
   waPhone?: string;
   orderValue?: number;
+  componentId?: string;
+  componentType?: string;
+  buttonLabel?: string;
+  waLinkId?: string;
+  waTemplateId?: string;
+  productId?: string;
+  productName?: string;
+  dedupeKey?: string;
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
@@ -772,6 +937,7 @@ export interface BuilderProject {
   bottomNavbar?: BottomNavbarConfig;
   publishing?: ProjectPublishingConfig;
   adsConfig?: ProjectAdsConfig;
+  whatsappCenter?: WhatsappCenterConfig;
 }
 
 export interface ProjectRecord {
@@ -892,9 +1058,11 @@ export interface WebhookLogRecord {
 }
 
 export type UiAppearanceLabelsMap = Record<string, string>;
+export type UiAppearanceHiddenMap = Record<string, boolean>;
 
 export interface UiAppearanceSettingsConfig {
   labels: UiAppearanceLabelsMap;
+  hiddenKeys?: UiAppearanceHiddenMap;
   updatedAt: number;
 }
 

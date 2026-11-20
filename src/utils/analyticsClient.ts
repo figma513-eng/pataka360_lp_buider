@@ -1,4 +1,10 @@
-import type { AdChannel, AnalyticsEventRecord, ProjectRecord } from '../types/builder';
+import type {
+  AdChannel,
+  AnalyticsEventRecord,
+  CatalogCustomerField,
+  FormSubmissionRecord,
+  ProjectRecord,
+} from '../types/builder';
 import { authFetch } from './authClient';
 import { AD_CHANNEL_META } from './publishingHelpers';
 
@@ -131,11 +137,19 @@ export async function trackAnalyticsEvent(params: {
   projectId: string;
   projectTitle: string;
   slug: string;
-  eventType: 'page_view' | 'wa_click' | 'form_submit';
+  eventType: 'page_view' | 'wa_click' | 'form_open' | 'form_submit';
   channel?: AdChannel;
   ctaLabel?: string;
   waPhone?: string;
   orderValue?: number;
+  componentId?: string;
+  componentType?: string;
+  buttonLabel?: string;
+  waLinkId?: string;
+  waTemplateId?: string;
+  productId?: string;
+  productName?: string;
+  dedupeKey?: string;
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
@@ -144,8 +158,24 @@ export async function trackAnalyticsEvent(params: {
   isTest?: boolean;
 }): Promise<void> {
   const channel: AdChannel = params.channel ?? 'organic';
+  const now = Date.now();
+  const dedupeKey =
+    params.dedupeKey ||
+    `${params.projectId}:${params.eventType}:${params.componentId || ''}:${params.waLinkId || ''}:${params.ctaLabel || ''}`;
+
+  const existing = readLocalEvents();
+  if (
+    existing.some(
+      (e) =>
+        e.dedupeKey === dedupeKey &&
+        Math.abs((e.createdAt || 0) - now) < 2500
+    )
+  ) {
+    return;
+  }
+
   const event: AnalyticsEventRecord = {
-    id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    id: `evt_${now.toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
     projectId: params.projectId,
     projectTitle: params.projectTitle,
     slug: params.slug,
@@ -155,6 +185,14 @@ export async function trackAnalyticsEvent(params: {
     ctaLabel: params.ctaLabel,
     waPhone: params.waPhone,
     orderValue: params.orderValue,
+    componentId: params.componentId,
+    componentType: params.componentType,
+    buttonLabel: params.buttonLabel,
+    waLinkId: params.waLinkId,
+    waTemplateId: params.waTemplateId,
+    productId: params.productId,
+    productName: params.productName,
+    dedupeKey,
     utmSource: params.utmSource,
     utmMedium: params.utmMedium,
     utmCampaign: params.utmCampaign,
@@ -163,10 +201,9 @@ export async function trackAnalyticsEvent(params: {
     deviceType:
       typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
     isTest: params.isTest,
-    createdAt: Date.now(),
+    createdAt: now,
   };
 
-  const existing = readLocalEvents();
   writeLocalEvents([event, ...existing]);
 
   try {
@@ -178,6 +215,67 @@ export async function trackAnalyticsEvent(params: {
     });
   } catch {
     // Fallback sudah tersimpan di localStorage
+  }
+}
+
+export async function submitDynamicFormToServer(payload: {
+  projectId: string;
+  projectTitle: string;
+  slug: string;
+  componentId: string;
+  formTitle: string;
+  formCategory?: string;
+  fields: CatalogCustomerField[];
+  values: Record<string, string | string[] | boolean>;
+  checklist?: {
+    enabled?: boolean;
+    title?: string;
+    items?: string[];
+    checkedItems?: string[];
+    rule?: string;
+    legacyRequired?: boolean;
+    minChoices?: number;
+  };
+  sourceChannel?: AdChannel;
+  isTest?: boolean;
+}): Promise<{ ok: boolean; error?: string; fieldErrors?: Record<string, string>; submission?: FormSubmissionRecord }> {
+  try {
+    const resp = await fetch('/api/form-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = (await resp.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      fieldErrors?: Record<string, string>;
+      submission?: FormSubmissionRecord;
+    };
+    if (!resp.ok) {
+      return {
+        ok: false,
+        error: data.error || 'Gagal mengirim formulir. Periksa kembali isian Anda.',
+        fieldErrors: data.fieldErrors,
+      };
+    }
+    return { ok: true, submission: data.submission };
+  } catch {
+    return {
+      ok: false,
+      error: 'Koneksi ke server terputus. Coba kirim ulang beberapa saat lagi.',
+    };
+  }
+}
+
+export async function fetchFormSubmissions(projectId?: string): Promise<FormSubmissionRecord[]> {
+  try {
+    const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+    const resp = await authFetch(`/api/form-submissions${query}`);
+    if (!resp.ok) return [];
+    const data = (await resp.json()) as { submissions?: FormSubmissionRecord[] };
+    return Array.isArray(data.submissions) ? data.submissions : [];
+  } catch {
+    return [];
   }
 }
 

@@ -223,6 +223,8 @@ export function DomainAndAdsModal({
     ? `\n\n[Sumber: ${AD_CHANNEL_META[utmChannel].shortLabel} · ${sanitizeSlug(utmCampaign || 'promo-utama', 'promo-utama')}]`
     : '';
 
+  const isDomainOnly = allowedTabs.length === 1 && allowedTabs[0] === 'domain';
+
   const cardContent = (
     <div
       onClick={(e) => {
@@ -231,40 +233,49 @@ export function DomainAndAdsModal({
       className={
         asPage
           ? 'w-full max-w-4xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
-          : 'w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+          : 'w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-[#DCE5EF] overflow-hidden'
       }
     >
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/70 shrink-0">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-[#17243D] truncate">
-              {allowedTabs.length === 1 && allowedTabs[0] === 'domain'
-                ? 'Domain & Slug Publik'
-                : !allowedTabs.includes('domain')
-                ? 'Tracking Iklan, Pixel & Add-On WhatsApp'
-                : 'Domain, Slug & Tracking Iklan'}
-            </h2>
-            <span
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
-                pub.isPublished
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-slate-100 text-slate-600 border-slate-200'
-              }`}
-            >
-              {pub.isPublished ? 'Tayang Publik' : 'Draft'}
-            </span>
+      <div className="px-5 py-4 border-b border-[#DCE5EF] flex items-center justify-between gap-3 bg-white shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0">
+            {isDomainOnly ? (
+              <Globe className="w-4.5 h-4.5" />
+            ) : (
+              <Megaphone className="w-4.5 h-4.5" />
+            )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5 truncate">
-            Unit Usaha: <strong className="text-slate-700">{activeRecord.project.title}</strong>
-          </p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-bold text-[#17243D] tracking-tight truncate">
+                {isDomainOnly
+                  ? 'Domain & Slug Publik'
+                  : !allowedTabs.includes('domain')
+                  ? 'Tracking Iklan, Pixel & Add-On WhatsApp'
+                  : 'Domain, Slug & Tracking Iklan'}
+              </h2>
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                  pub.isPublished
+                    ? 'bg-[#ECFDF6] text-[#008F63] border-[#00C98A]/40'
+                    : 'bg-[#F0F5FA] text-[#5B708B] border-[#DCE5EF]'
+                }`}
+              >
+                {pub.isPublished ? 'Tayang Publik' : 'Draft'}
+              </span>
+            </div>
+            <p className="text-xs text-[#5B708B] mt-0.5 truncate">
+              Unit Usaha: <strong className="text-[#17243D]">{activeRecord.project.title}</strong>
+            </p>
+          </div>
         </div>
         {!asPage && (
           <button
             type="button"
             onClick={onClose}
             aria-label="Tutup pengaturan"
-            className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-500 cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg hover:bg-[#F0F5FA] text-[#5B708B] hover:text-[#17243D] transition-colors cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -273,18 +284,18 @@ export function DomainAndAdsModal({
 
       {/* Navigation Tabs */}
       {allowedTabs.length > 1 && (
-        <div className="px-5 py-2.5 border-b border-slate-200 bg-white flex items-center gap-1.5 overflow-x-auto shrink-0">
+        <div className="px-5 border-b border-[#DCE5EF] bg-white flex items-center gap-2 overflow-x-auto shrink-0">
           {allowedTabs.includes('domain') && (
             <button
               type="button"
               onClick={() => setTab('domain')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 tab === 'domain'
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  ? 'border-[#00C98A] text-[#17243D]'
+                  : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
               }`}
             >
-              <Globe className="w-3.5 h-3.5" />
+              <Globe className={`w-3.5 h-3.5 ${tab === 'domain' ? 'text-[#00A873]' : 'text-[#8FA4BF]'}`} />
               <span>Domain & Slug</span>
             </button>
           )}
@@ -292,13 +303,13 @@ export function DomainAndAdsModal({
             <button
               type="button"
               onClick={() => setTab('pixels')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 tab === 'pixels'
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  ? 'border-[#00C98A] text-[#17243D]'
+                  : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
               }`}
             >
-              <Megaphone className="w-3.5 h-3.5" />
+              <Megaphone className={`w-3.5 h-3.5 ${tab === 'pixels' ? 'text-[#00A873]' : 'text-[#8FA4BF]'}`} />
               <span>Pixel Meta, TikTok & Google</span>
             </button>
           )}
@@ -306,13 +317,13 @@ export function DomainAndAdsModal({
             <button
               type="button"
               onClick={() => setTab('wa_addon')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 tab === 'wa_addon'
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                  ? 'border-[#00C98A] text-[#17243D]'
+                  : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
               }`}
             >
-              <MessageCircle className="w-3.5 h-3.5" />
+              <MessageCircle className={`w-3.5 h-3.5 ${tab === 'wa_addon' ? 'text-[#00A873]' : 'text-[#8FA4BF]'}`} />
               <span>Add-On WA Meta</span>
             </button>
           )}
@@ -320,35 +331,35 @@ export function DomainAndAdsModal({
       )}
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#F7F9F8]">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#F0F5FA]/70">
           {tab === 'domain' && (
             <>
               {/* Slug & Live URL */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="text-xs font-bold text-slate-900">Slug URL Unit Usaha</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <h3 className="text-xs font-bold text-[#17243D]">Slug URL Unit Usaha</h3>
+                    <p className="text-[11px] text-[#5B708B] mt-0.5">
                       Alamat unik per unit usaha agar bisa langsung dibuka dari HP, iklan Meta, TikTok, dan Google.
                     </p>
                   </div>
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#17243D] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={pub.isPublished}
                       onChange={(e) => updatePub((prev) => ({ ...prev, isPublished: e.target.checked }))}
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                     />
                     <span>Tayang Publik</span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                     Slug Halaman
                   </label>
-                  <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-emerald-500 focus-within:bg-white">
-                    <span className="px-3 py-2 text-xs font-mono text-slate-500 border-r border-slate-200 bg-slate-100/80 select-none shrink-0">
+                  <div className="flex items-center rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/60 overflow-hidden focus-within:border-[#00C98A] focus-within:bg-white transition-colors">
+                    <span className="px-3 py-2 text-xs font-mono text-[#5B708B] border-r border-[#DCE5EF] bg-[#F0F5FA] select-none shrink-0">
                       {origin.replace(/^https?:\/\//, '')}/p/
                     </span>
                     <input
@@ -362,11 +373,11 @@ export function DomainAndAdsModal({
                       }
                       onBlur={() => updatePub((prev) => ({ ...prev, slug: cleanSlug }))}
                       placeholder="kopi-senja-jakarta"
-                      className="flex-1 px-3 py-2 text-xs font-mono text-slate-900 bg-transparent outline-none min-w-0"
+                      className="flex-1 px-3 py-2 text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] bg-transparent outline-none min-w-0"
                     />
                   </div>
                   {slugConflictProject && (
-                    <p className="text-[11px] text-red-600 font-medium mt-1">
+                    <p className="text-[11px] text-rose-600 font-medium mt-1">
                       Slug ini sudah dipakai unit usaha "{slugConflictProject.project.title}".
                     </p>
                   )}
@@ -374,13 +385,13 @@ export function DomainAndAdsModal({
 
                 {pub.isPublished ? (
                   <div className="space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF]">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#5B708B]">
                             Tautan Live Bawaan
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#5B708B]">
                             Browser Mode
                           </span>
                         </div>
@@ -392,7 +403,7 @@ export function DomainAndAdsModal({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                          className="block text-xs font-mono text-[#008F63] hover:text-[#17243D] hover:underline truncate mt-0.5"
                         >
                           {urls.internalUrl}
                         </a>
@@ -401,12 +412,12 @@ export function DomainAndAdsModal({
                         <button
                           type="button"
                           onClick={() => handleCopy('live_url', urls.internalUrl)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] cursor-pointer transition-colors"
                         >
                           {copiedKey === 'live_url' ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <Check className="w-3.5 h-3.5 text-[#00A873]" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-3.5 h-3.5 text-[#5B708B]" />
                           )}
                           <span>{copiedKey === 'live_url' ? 'Tersalin' : 'Salin'}</span>
                         </button>
@@ -418,21 +429,21 @@ export function DomainAndAdsModal({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-3.5 h-3.5 text-[#00C98A]" />
                           <span>Buka Live</span>
                         </a>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF]">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#5B708B]">
                             Tautan Lihat Penuh
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#5B708B]">
                             Fullscreen Mode
                           </span>
                         </div>
@@ -444,7 +455,7 @@ export function DomainAndAdsModal({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                          className="block text-xs font-mono text-[#008F63] hover:text-[#17243D] hover:underline truncate mt-0.5"
                         >
                           {urls.internalFullUrl}
                         </a>
@@ -453,12 +464,12 @@ export function DomainAndAdsModal({
                         <button
                           type="button"
                           onClick={() => handleCopy('live_full_url', urls.internalFullUrl)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] cursor-pointer transition-colors"
                         >
                           {copiedKey === 'live_full_url' ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <Check className="w-3.5 h-3.5 text-[#00A873]" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-3.5 h-3.5 text-[#5B708B]" />
                           )}
                           <span>{copiedKey === 'live_full_url' ? 'Tersalin' : 'Salin'}</span>
                         </button>
@@ -470,9 +481,9 @@ export function DomainAndAdsModal({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-3.5 h-3.5 text-[#00C98A]" />
                           <span>Buka</span>
                         </a>
                       </div>
@@ -480,46 +491,46 @@ export function DomainAndAdsModal({
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    <div className="p-3 rounded-xl bg-slate-50/70 border border-dashed border-slate-200 space-y-2">
+                    <div className="p-3 rounded-xl bg-[#F0F5FA]/60 border border-dashed border-[#DCE5EF] space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8FA4BF]">
                             Tautan Live Bawaan
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-500">
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#5B708B]">
                             Browser Mode
                           </span>
                         </div>
-                        <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-[10px] font-semibold text-slate-600">
+                        <span className="px-1.5 py-0.5 rounded bg-[#EEF3F8] text-[10px] font-semibold text-[#5B708B]">
                           Draft · Nonaktif
                         </span>
                       </div>
-                      <div className="text-xs font-mono text-slate-400 truncate select-all">
+                      <div className="text-xs font-mono text-[#8FA4BF] truncate select-all">
                         {urls.internalUrl}
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-50/70 border border-dashed border-slate-200 space-y-2">
+                    <div className="p-3 rounded-xl bg-[#F0F5FA]/60 border border-dashed border-[#DCE5EF] space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8FA4BF]">
                             Tautan Lihat Penuh
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-500">
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#5B708B]">
                             Fullscreen Mode
                           </span>
                         </div>
-                        <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-[10px] font-semibold text-slate-600">
+                        <span className="px-1.5 py-0.5 rounded bg-[#EEF3F8] text-[10px] font-semibold text-[#5B708B]">
                           Draft · Nonaktif
                         </span>
                       </div>
-                      <div className="text-xs font-mono text-slate-400 truncate select-all">
+                      <div className="text-xs font-mono text-[#8FA4BF] truncate select-all">
                         {urls.internalFullUrl}
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-slate-500">
-                      Publikasi sedang nonaktif. Aktifkan <span className="font-semibold text-slate-700">Tayang Publik</span> lalu simpan untuk mengaktifkan tautan live Browser Mode &amp; Fullscreen Mode.
+                    <p className="text-[11px] text-[#5B708B]">
+                      Publikasi sedang nonaktif. Aktifkan <span className="font-semibold text-[#17243D]">Tayang Publik</span> lalu simpan untuk mengaktifkan tautan live Browser Mode &amp; Fullscreen Mode.
                     </p>
                   </div>
                 )}
@@ -531,29 +542,29 @@ export function DomainAndAdsModal({
               </div>
 
               {/* Domain Kustom */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="text-xs font-bold text-slate-900">Domain Kustom Unit Usaha</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <h3 className="text-xs font-bold text-[#17243D]">Domain Kustom Unit Usaha</h3>
+                    <p className="text-[11px] text-[#5B708B] mt-0.5">
                       Gunakan subdomain/domain brand sendiri (contoh: promo.tokoanda.com) untuk meningkatkan kepercayaan iklan.
                     </p>
                   </div>
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#17243D] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={pub.useCustomDomain}
                       onChange={(e) =>
                         updatePub((prev) => ({ ...prev, useCustomDomain: e.target.checked }))
                       }
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                     />
                     <span>Aktifkan</span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                     Nama Domain / Subdomain
                   </label>
                   <input
@@ -569,10 +580,10 @@ export function DomainAndAdsModal({
                       }))
                     }
                     placeholder="order.usahaku.id"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A] transition-colors"
                   />
                   {(pub.useCustomDomain || Boolean(pub.customDomain.trim())) && !domainValid && (
-                    <p className="text-[11px] text-red-600 font-medium mt-1">
+                    <p className="text-[11px] text-rose-600 font-medium mt-1">
                       Masukkan nama domain valid tanpa https:// (contoh: promo.brandanda.com).
                     </p>
                   )}
@@ -580,13 +591,13 @@ export function DomainAndAdsModal({
 
                 {pub.useCustomDomain && cleanDomain && domainValid && pub.isPublished && urls.customUrl && urls.customFullUrl && (
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF]">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#5B708B]">
                             Tautan Domain Kustom
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#5B708B]">
                             Browser Mode
                           </span>
                         </div>
@@ -594,7 +605,7 @@ export function DomainAndAdsModal({
                           href={urls.customUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                          className="block text-xs font-mono text-[#008F63] hover:text-[#17243D] hover:underline truncate mt-0.5"
                         >
                           {urls.customUrl}
                         </a>
@@ -603,12 +614,12 @@ export function DomainAndAdsModal({
                         <button
                           type="button"
                           onClick={() => handleCopy('custom_url', urls.customUrl || '')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] cursor-pointer transition-colors"
                         >
                           {copiedKey === 'custom_url' ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <Check className="w-3.5 h-3.5 text-[#00A873]" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-3.5 h-3.5 text-[#5B708B]" />
                           )}
                           <span>{copiedKey === 'custom_url' ? 'Tersalin' : 'Salin'}</span>
                         </button>
@@ -616,21 +627,21 @@ export function DomainAndAdsModal({
                           href={urls.customUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-3.5 h-3.5 text-[#00C98A]" />
                           <span>Buka Live</span>
                         </a>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF]">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#5B708B]">
                             Tautan Lihat Penuh (Domain Kustom)
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-semibold text-slate-600">
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#5B708B]">
                             Fullscreen Mode
                           </span>
                         </div>
@@ -638,7 +649,7 @@ export function DomainAndAdsModal({
                           href={urls.customFullUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-xs font-mono text-emerald-700 hover:text-emerald-800 hover:underline truncate mt-0.5"
+                          className="block text-xs font-mono text-[#008F63] hover:text-[#17243D] hover:underline truncate mt-0.5"
                         >
                           {urls.customFullUrl}
                         </a>
@@ -647,12 +658,12 @@ export function DomainAndAdsModal({
                         <button
                           type="button"
                           onClick={() => handleCopy('custom_full_url', urls.customFullUrl || '')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] cursor-pointer transition-colors"
                         >
                           {copiedKey === 'custom_full_url' ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <Check className="w-3.5 h-3.5 text-[#00A873]" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-3.5 h-3.5 text-[#5B708B]" />
                           )}
                           <span>{copiedKey === 'custom_full_url' ? 'Tersalin' : 'Salin'}</span>
                         </button>
@@ -660,9 +671,9 @@ export function DomainAndAdsModal({
                           href={urls.customFullUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-3.5 h-3.5 text-[#00C98A]" />
                           <span>Buka</span>
                         </a>
                       </div>
@@ -671,22 +682,22 @@ export function DomainAndAdsModal({
                 )}
 
                 {cleanDomain && domainValid && (
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-[11px] text-slate-600">
-                    <div className="font-semibold text-slate-800">
+                  <div className="p-3 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-2 text-[11px] text-[#5B708B]">
+                    <div className="font-semibold text-[#17243D]">
                       Panduan DNS (CNAME Record di Cloudflare / Niagahoster / DomaiNesia):
                     </div>
-                    <div className="grid grid-cols-3 gap-2 font-mono bg-white p-2.5 rounded-lg border border-slate-200 text-[11px]">
+                    <div className="grid grid-cols-3 gap-2 font-mono bg-white p-2.5 rounded-lg border border-[#DCE5EF] text-[11px]">
                       <div>
-                        <span className="text-slate-400 block text-[10px]">Type</span>
-                        <span className="font-bold text-slate-800">CNAME</span>
+                        <span className="text-[#8FA4BF] block text-[10px]">Type</span>
+                        <span className="font-bold text-[#17243D]">CNAME</span>
                       </div>
                       <div className="min-w-0">
-                        <span className="text-slate-400 block text-[10px]">Host / Name</span>
-                        <span className="font-bold text-slate-800 truncate block">{cleanDomain}</span>
+                        <span className="text-[#8FA4BF] block text-[10px]">Host / Name</span>
+                        <span className="font-bold text-[#17243D] truncate block">{cleanDomain}</span>
                       </div>
                       <div className="min-w-0">
-                        <span className="text-slate-400 block text-[10px]">Target</span>
-                        <span className="font-bold text-slate-800 truncate block">
+                        <span className="text-[#8FA4BF] block text-[10px]">Target</span>
+                        <span className="font-bold text-[#17243D] truncate block">
                           {origin.replace(/^https?:\/\//, '')}
                         </span>
                       </div>
@@ -696,19 +707,19 @@ export function DomainAndAdsModal({
               </div>
 
               {/* SEO & UTM Link Generator untuk Iklan */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3.5">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">
+                  <h3 className="text-xs font-bold text-[#17243D]">
                     Link Campaign Siap Pasang (UTM Tracker Iklan)
                   </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">
                     Buat link khusus untuk iklan Meta, TikTok, Google, atau Add-On WA agar sumber klik tercatat akurat di Dashboard.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Platform Iklan
                     </label>
                     <select
@@ -716,7 +727,7 @@ export function DomainAndAdsModal({
                       onChange={(e) =>
                         setUtmChannel(e.target.value as Exclude<AdChannel, 'organic'>)
                       }
-                      className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 outline-none focus:border-emerald-500"
+                      className="w-full px-2.5 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] outline-none focus:border-[#00C98A]"
                     >
                       <option value="meta_wa_addon">Meta Add-On WA (CTWA)</option>
                       <option value="meta">Meta Ads (FB / IG)</option>
@@ -725,7 +736,7 @@ export function DomainAndAdsModal({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Nama Campaign
                     </label>
                     <input
@@ -733,11 +744,11 @@ export function DomainAndAdsModal({
                       value={utmCampaign}
                       onChange={(e) => setUtmCampaign(e.target.value)}
                       placeholder="promo-gajian"
-                      className="w-full px-2.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
+                      className="w-full px-2.5 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Variasi Iklan / Konten
                     </label>
                     <input
@@ -745,32 +756,32 @@ export function DomainAndAdsModal({
                       value={utmContent}
                       onChange={(e) => setUtmContent(e.target.value)}
                       placeholder="video-testimoni-1"
-                      className="w-full px-2.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
+                      className="w-full px-2.5 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <code className="text-[11px] font-mono text-slate-700 truncate">
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F0F5FA]/70 border border-[#DCE5EF]">
+                  <code className="text-[11px] font-mono text-[#17243D] truncate">
                     {campaignUrl}
                   </code>
                   <button
                     type="button"
                     onClick={() => handleCopy('utm_url', campaignUrl)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold shrink-0 cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-[11px] font-semibold shrink-0 cursor-pointer transition-colors"
                   >
                     {copiedKey === 'utm_url' ? (
-                      <Check className="w-3 h-3 text-emerald-400" />
+                      <Check className="w-3 h-3 text-[#00C98A]" />
                     ) : (
-                      <Copy className="w-3 h-3" />
+                      <Copy className="w-3 h-3 text-[#00C98A]" />
                     )}
                     <span>{copiedKey === 'utm_url' ? 'Tersalin' : 'Salin Link Iklan'}</span>
                   </button>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="pt-2.5 border-t border-[#EEF3F8] grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Judul Preview Link (SEO / Share WA)
                     </label>
                     <input
@@ -778,11 +789,11 @@ export function DomainAndAdsModal({
                       value={pub.seoTitle ?? ''}
                       onChange={(e) => updatePub((prev) => ({ ...prev, seoTitle: e.target.value }))}
                       placeholder={activeRecord.project.title}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Deskripsi Singkat Link
                     </label>
                     <input
@@ -792,7 +803,7 @@ export function DomainAndAdsModal({
                         updatePub((prev) => ({ ...prev, seoDescription: e.target.value }))
                       }
                       placeholder={`Pesan cepat & promo resmi ${activeRecord.project.title}`}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                 </div>
@@ -803,13 +814,13 @@ export function DomainAndAdsModal({
           {tab === 'pixels' && (
             <>
               {/* Meta Pixel & CAPI */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-xs font-bold text-slate-900">
+                    <h3 className="text-xs font-bold text-[#17243D]">
                       Meta Pixel (Facebook & Instagram Ads)
                     </h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] text-[#5B708B] mt-0.5">
                       Otomatis menembakkan event PageView, ViewContent, AddToCart, dan event konversi saat pengunjung klik WhatsApp.
                     </p>
                   </div>
@@ -817,7 +828,7 @@ export function DomainAndAdsModal({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Meta Pixel ID
                     </label>
                     <input
@@ -830,12 +841,12 @@ export function DomainAndAdsModal({
                         }))
                       }
                       placeholder="Contoh: 123456789012345"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Event Konversi Klik WA
                     </label>
                     <select
@@ -846,7 +857,7 @@ export function DomainAndAdsModal({
                           metaWaEvent: e.target.value as MetaWaEventName,
                         }))
                       }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] outline-none focus:border-[#00C98A]"
                     >
                       <option value="Lead">Lead (Direkomendasikan untuk Iklan WA)</option>
                       <option value="Contact">Contact</option>
@@ -856,7 +867,7 @@ export function DomainAndAdsModal({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Test Event Code (Opsional)
                     </label>
                     <input
@@ -866,13 +877,13 @@ export function DomainAndAdsModal({
                         updateAds((prev) => ({ ...prev, metaTestEventCode: e.target.value }))
                       }
                       placeholder="TEST12345"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
 
                   <div className="flex flex-col justify-end">
-                    <label className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
-                      <span className="text-xs font-semibold text-slate-700">
+                    <label className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/70 cursor-pointer">
+                      <span className="text-xs font-semibold text-[#17243D]">
                         Aktifkan Bridge Server CAPI
                       </span>
                       <input
@@ -881,10 +892,10 @@ export function DomainAndAdsModal({
                         onChange={(e) =>
                           updateAds((prev) => ({ ...prev, metaCapiForwarding: e.target.checked }))
                         }
-                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                       />
                     </label>
-                    <p className="text-[10px] text-slate-500 mt-1">
+                    <p className="text-[10px] text-[#5B708B] mt-1">
                       {capiReady
                         ? 'Token CAPI server aktif — event akan diteruskan ke Meta.'
                         : 'Sistem server siap (opsional). Akan aktif otomatis jika token META_CAPI_ACCESS_TOKEN dipasang.'}
@@ -894,15 +905,15 @@ export function DomainAndAdsModal({
               </div>
 
               {/* TikTok Pixel */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">TikTok Pixel</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <h3 className="text-xs font-bold text-[#17243D]">TikTok Pixel</h3>
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">
                     Otomatis melacak PageView, ViewContent, AddToCart, SubmitForm, dan Contact saat tombol WhatsApp diklik.
                   </p>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                     TikTok Pixel ID
                   </label>
                   <input
@@ -912,25 +923,25 @@ export function DomainAndAdsModal({
                       updateAds((prev) => ({ ...prev, tiktokPixelId: e.target.value.trim() }))
                     }
                     placeholder="Contoh: C9ABCDEFG1234567890"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                   />
                 </div>
               </div>
 
               {/* Google Ads & GA4 & GTM */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">
+                  <h3 className="text-xs font-bold text-[#17243D]">
                     Google Ads, Google Analytics 4 & Tag Manager
                   </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">
                     Menembakkan event generate_lead dan konversi Google Ads saat pengunjung menekan tombol WhatsApp atau mengirim formulir.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Google Tag ID (GA4 / AW)
                     </label>
                     <input
@@ -940,11 +951,11 @@ export function DomainAndAdsModal({
                         updateAds((prev) => ({ ...prev, googleTagId: e.target.value.trim() }))
                       }
                       placeholder="G-XXXX atau AW-XXXX"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       Conversion Label (Opsional)
                     </label>
                     <input
@@ -957,11 +968,11 @@ export function DomainAndAdsModal({
                         }))
                       }
                       placeholder="AbCdEfGhIjKlMnOp"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                       GTM Container ID (Opsional)
                     </label>
                     <input
@@ -971,7 +982,7 @@ export function DomainAndAdsModal({
                         updateAds((prev) => ({ ...prev, gtmContainerId: e.target.value.trim() }))
                       }
                       placeholder="GTM-XXXXXXX"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                     />
                   </div>
                 </div>
@@ -980,24 +991,24 @@ export function DomainAndAdsModal({
           )}
 
           {tab === 'wa_addon' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">
+                  <h3 className="text-xs font-bold text-[#17243D]">
                     Add-On WhatsApp dari Meta (Click-to-WhatsApp)
                   </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">
                     Tambahkan tombol chat WhatsApp melayang di landing page dan catat sumber iklan Meta/TikTok/Google secara otomatis di pesan masuk CS.
                   </p>
                 </div>
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#17243D] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={ads.waAddonEnabled}
                     onChange={(e) =>
                       updateAds((prev) => ({ ...prev, waAddonEnabled: e.target.checked }))
                     }
-                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                   />
                   <span>Tampilkan Tombol WA Melayang</span>
                 </label>
@@ -1005,7 +1016,7 @@ export function DomainAndAdsModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                     Nomor WhatsApp Tujuan (Format 62...)
                   </label>
                   <input
@@ -1015,12 +1026,12 @@ export function DomainAndAdsModal({
                       updateAds((prev) => ({ ...prev, waAddonNumber: e.target.value }))
                     }
                     placeholder="6281234567890"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                   />
                 </div>
                 <div className="flex items-end">
-                  <label className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
-                    <span className="text-xs font-semibold text-slate-700">
+                  <label className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/70 cursor-pointer">
+                    <span className="text-xs font-semibold text-[#17243D]">
                       Sisipkan Sumber Iklan ke Pesan WA
                     </span>
                     <input
@@ -1032,14 +1043,14 @@ export function DomainAndAdsModal({
                           appendAdAttributionToWa: e.target.checked,
                         }))
                       }
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
                     />
                   </label>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-[#5B708B] mb-1">
                   Teks Sapaan Otomatis (Pre-filled Chat Add-On WA)
                 </label>
                 <textarea
@@ -1049,16 +1060,16 @@ export function DomainAndAdsModal({
                     updateAds((prev) => ({ ...prev, waAddonGreeting: e.target.value }))
                   }
                   placeholder="Halo Admin, saya lihat promo dari iklan dan ingin konsultasi / order."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A]"
                 />
               </div>
 
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-800">
-                  <Sparkles className="w-3.5 h-3.5" />
+              <div className="p-3.5 rounded-xl bg-[#ECFDF6]/70 border border-[#00C98A]/35 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#008F63]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#00A873]" />
                   <span>Simulasi Pesan yang Diterima Admin CS WhatsApp</span>
                 </div>
-                <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans bg-white p-3 rounded-lg border border-emerald-100 leading-relaxed">
+                <pre className="text-xs text-[#17243D] whitespace-pre-wrap font-sans bg-white p-3 rounded-lg border border-[#00C98A]/25 leading-relaxed">
                   {(ads.waAddonGreeting ?? '').trim() ||
                     `Halo ${activeRecord.project.title}, saya tertarik dengan penawaran di halaman ini.`}
                   {sampleWaAttribution}
@@ -1071,8 +1082,8 @@ export function DomainAndAdsModal({
             <div
               className={`px-3.5 py-2.5 rounded-xl border text-xs font-medium ${
                 feedback.type === 'ok'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-700'
+                  ? 'bg-[#ECFDF6] border-[#00C98A]/40 text-[#008F63]'
+                  : 'bg-rose-50 border-rose-200 text-rose-700'
               }`}
             >
               {feedback.text}
@@ -1081,8 +1092,8 @@ export function DomainAndAdsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="text-[11px] text-slate-500">
+        <div className="px-5 py-3.5 border-t border-[#DCE5EF] bg-white flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="text-[11px] text-[#5B708B]">
             Semua tombol WA & form di unit usaha ini otomatis terhubung ke tracking di atas.
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1090,7 +1101,7 @@ export function DomainAndAdsModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-semibold text-[#17243D] hover:bg-[#F0F5FA] cursor-pointer transition-colors"
               >
                 Tutup
               </button>
@@ -1099,18 +1110,18 @@ export function DomainAndAdsModal({
               type="button"
               disabled={saving}
               onClick={() => void handleSubmit(false)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 text-[#008F63] text-xs font-semibold disabled:opacity-50 cursor-pointer transition-colors"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-3.5 h-3.5 text-[#00A873]" />
               <span>Simpan</span>
             </button>
             <button
               type="button"
               disabled={saving}
               onClick={() => void handleSubmit(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer transition-colors"
             >
-              <Globe className="w-3.5 h-3.5" />
+              <Globe className="w-3.5 h-3.5 text-[#00C98A]" />
               <span>{saving ? 'Menyimpan...' : 'Simpan & Tayangkan'}</span>
             </button>
           </div>
@@ -1129,7 +1140,7 @@ export function DomainAndAdsModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-50 bg-[#17243D]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
     >
       {cardContent}
     </div>

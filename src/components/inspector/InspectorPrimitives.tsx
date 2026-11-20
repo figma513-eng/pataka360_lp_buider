@@ -13,12 +13,13 @@ import {
 import { BlockLayoutMode } from '../../types/builder';
 
 export function AccordionSection({
-  id: _id,
+  id,
   title,
   icon,
   badge,
   isOpen,
   onToggle,
+  fullWidthBody = false,
   children,
 }: {
   id: string;
@@ -27,30 +28,32 @@ export function AccordionSection({
   badge?: string | number;
   isOpen: boolean;
   onToggle: () => void;
+  fullWidthBody?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
+      data-accordion-id={id}
       className={`rounded-xl border transition-all ${
         isOpen
-          ? 'border-[#00C98A]/70 bg-white shadow-xs'
-          : 'border-[#DCE5EF] bg-white shadow-2xs hover:border-[#00C98A]'
+          ? 'border-[#00C98A]/55 bg-white shadow-2xs'
+          : 'border-[#DCE5EF] bg-white shadow-2xs hover:border-[#00C98A]/70'
       }`}
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
+        className={`w-full px-3 py-1.5 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
           isOpen
-            ? 'bg-[#ECFDF6]/70 border-b border-[#DCE5EF] text-[#17243D] rounded-t-xl'
+            ? 'bg-[#F3FBF7] border-b border-[#E6EEF5] text-[#17243D] rounded-t-xl'
             : 'bg-white hover:bg-[#F7FBFD] text-[#17243D] rounded-xl'
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
           {icon && (
             <span
-              className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+              className={`w-4.5 h-4.5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                 isOpen
                   ? 'bg-[#00C98A] text-white'
                   : 'bg-[#F0F5FA] text-[#51637D]'
@@ -59,28 +62,44 @@ export function AccordionSection({
               {icon}
             </span>
           )}
-          <span className="text-[11px] font-semibold text-[#17243D] truncate">
+          <span className="text-[10.5px] font-semibold text-[#17243D] tracking-[0.01em] truncate">
             {title}
           </span>
           {badge !== undefined && badge !== '' && (
-            <span className="px-1.5 py-0.5 rounded bg-[#F0F5FA] border border-[#DCE5EF] text-[9.5px] font-semibold text-[#51637D] tabular-nums shrink-0">
+            <span className="px-1.5 py-0.5 rounded bg-[#F0F5FA] border border-[#DCE5EF] text-[9px] font-semibold text-[#51637D] tabular-nums shrink-0">
               {badge}
             </span>
           )}
         </div>
         <span
-          className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+          className={`w-4.5 h-4.5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
             isOpen ? 'bg-[#17243D] text-white' : 'bg-[#F0F5FA] text-[#51637D]'
           }`}
         >
           <ChevronDown
-            className={`w-3 h-3 transition-transform duration-150 ${
+            className={`w-2.5 h-2.5 transition-transform duration-150 ${
               isOpen ? 'rotate-180' : ''
             }`}
           />
         </span>
       </button>
-      {isOpen && <div className="p-2.5 space-y-2 bg-white rounded-b-xl">{children}</div>}
+      {isOpen && (
+        <div
+          data-accordion-body={id}
+          className={
+            fullWidthBody
+              ? 'px-2 py-2 bg-white rounded-b-xl'
+              : 'px-4 py-2.5 bg-white rounded-b-xl'
+          }
+        >
+          <div
+            data-accordion-inner={id}
+            className={fullWidthBody ? 'space-y-1.5' : 'w-[94%] mx-auto space-y-2'}
+          >
+            {children}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -135,9 +154,9 @@ export function SliderRow({
   const pct = safeSpan > 0 ? Math.max(0, Math.min(100, ((current - min) / safeSpan) * 100)) : 0;
   return (
     <div>
-      <div className="flex items-center justify-between text-[11px] mb-1">
-        <span className="font-medium text-[#17243D]">{label}</span>
-        <span className="font-mono text-[10px] font-semibold text-[#17243D] bg-[#F0F5FA] border border-[#DCE5EF] px-1.5 py-0.5 rounded tabular-nums">
+      <div className="flex items-center justify-between text-[10px] mb-1">
+        <span className="font-medium text-[#334155]">{label}</span>
+        <span className="font-mono text-[9.5px] font-semibold text-[#334155] bg-[#F4F7FB] border border-[#E2EAF2] px-1.5 py-0.5 rounded tabular-nums">
           {value}
         </span>
       </div>
@@ -171,7 +190,7 @@ export function SegmentedControl<T extends string>({
   const cols = columns ?? Math.min(options.length, 4);
   return (
     <div
-      className="grid gap-1 p-0.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]"
+      className="grid gap-1 p-0.5 rounded-lg bg-[#F4F7FB] border border-[#E2EAF2]"
       style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
     >
       {options.map((opt) => {
@@ -181,10 +200,10 @@ export function SegmentedControl<T extends string>({
             key={opt.id}
             type="button"
             onClick={() => onChange(opt.id)}
-            className={`py-1 px-1.5 rounded-md text-[10.5px] font-semibold transition-colors cursor-pointer truncate flex items-center justify-center gap-1 ${
+            className={`py-1 px-1.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer truncate flex items-center justify-center gap-1 ${
               active
                 ? 'bg-[#17243D] text-white shadow-2xs'
-                : 'text-[#17243D]/75 hover:text-[#17243D] hover:bg-white/70'
+                : 'text-[#475569] hover:text-[#17243D] hover:bg-white/80'
             }`}
           >
             {opt.label}

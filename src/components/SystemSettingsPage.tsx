@@ -172,10 +172,10 @@ export function SystemSettingsPage({
                 className={`inline-flex items-center gap-1.5 px-3.5 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   isActive
                     ? 'border-[#00C98A] text-[#17243D]'
-                    : 'border-transparent text-[#8FA4BF] hover:text-[#17243D]'
+                    : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
                 }`}
               >
-                <span className={isActive ? 'text-[#00C98A]' : ''}>{t.icon}</span>
+                <span className={isActive ? 'text-[#00A873]' : 'text-[#8FA4BF]'}>{t.icon}</span>
                 <span>{t.label}</span>
               </button>
             );
@@ -190,7 +190,7 @@ export function SystemSettingsPage({
             <h2 className="text-sm font-bold text-[#17243D]">
               Tidak Ada Akses Pengaturan Sistem
             </h2>
-            <p className="text-xs text-[#8FA4BF]">
+            <p className="text-xs text-[#5B708B]">
               Peran akun Anda tidak memiliki izin untuk pengaturan sistem.
             </p>
           </div>
@@ -260,35 +260,40 @@ export function SystemSettingsPage({
           <div className="max-w-5xl w-full mx-auto flex-1 min-h-0 flex flex-col gap-4">
             {/* Quick JSON & HTML Action Cards */}
             <div className="bg-white rounded-2xl border border-[#DCE5EF] p-4 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <div>
-                <h3 className="text-sm font-bold text-[#17243D]">
-                  Backup JSON &amp; Ekspor Halaman Statis
-                </h3>
-                <p className="text-xs text-[#8FA4BF] mt-0.5">
-                  Unduh cadangan proyek dalam format JSON atau salin kode HTML siap pakai.
-                </p>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0">
+                  <Code2 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-[#17243D] tracking-tight">
+                    Backup JSON &amp; Ekspor Halaman Statis
+                  </h3>
+                  <p className="text-xs text-[#5B708B] mt-0.5">
+                    Unduh cadangan proyek dalam format JSON atau salin kode HTML siap pakai.
+                  </p>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={onBackupProject}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-xs font-semibold text-[#17243D] cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-xs font-semibold text-[#17243D] transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <FileJson className="w-3.5 h-3.5 text-[#00C98A]" />
+                  <FileJson className="w-3.5 h-3.5 text-[#00A873]" />
                   <span>Backup Usaha Aktif (.json)</span>
                 </button>
                 <button
                   type="button"
                   onClick={onBackupAll}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-xs font-semibold text-[#17243D] cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 text-xs font-semibold text-[#008F63] transition-colors cursor-pointer whitespace-nowrap tabular-nums"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5 text-[#00A873]" />
                   <span>Backup Semua Usaha ({projects.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={onCopyHtml}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17243D] hover:bg-[#223456] text-xs font-semibold text-white cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17243D] hover:bg-[#223456] text-xs font-semibold text-white transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <Copy className="w-3.5 h-3.5 text-[#00C98A]" />
                   <span>Salin HTML</span>

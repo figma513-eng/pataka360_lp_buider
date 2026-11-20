@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   Copy,
   FilePlus2,
   Files,
@@ -35,6 +36,11 @@ import {
 import { resolveButtonIcon } from '../../utils/buttonIcons';
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import { useUiLabel } from '../../contexts/UiLabelsContext';
+import {
+  countDirectNestedChildren,
+  hasBlockNestedChildren,
+  resolveExpandedLayerGroupsForSelection,
+} from '../../utils/treeHelpers';
 import { ButtonGlyph } from '../ButtonIcon';
 import { IconPicker } from '../IconPicker';
 import { AccordionSection, SliderRow, ToggleSwitch } from './InspectorPrimitives';
@@ -100,7 +106,7 @@ export function HomePageSettings({
   onDeleteBlock,
   onAddChildToContainer,
 }: HomePageSettingsProps) {
-  const { label } = useUiLabel();
+  const { label, isVisible } = useUiLabel();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [openSections, setOpenSections] = useState<Record<HomeSectionId, boolean>>({
     temaGlobal: false,
@@ -110,11 +116,28 @@ export function HomePageSettings({
     bottom: false,
   });
 
+  const [expandedLayerGroups, setExpandedLayerGroups] = useState<Record<string, boolean>>(() =>
+    resolveExpandedLayerGroupsForSelection(
+      blocks,
+      selectedId,
+      bottomNavbar.items
+        .filter((it) => Array.isArray(it.children) && it.children.length > 0)
+        .map((it) => ({ navId: it.id, children: it.children }))
+    )
+  );
+
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dragOverInfo, setDragOverInfo] = useState<{
     id: string;
     pos: 'before' | 'after' | 'inside';
   } | null>(null);
+
+  const toggleLayerGroup = (groupKey: string) => {
+    setExpandedLayerGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
+  };
 
   useEffect(() => {
     if (navbarFocusNonce > 0) {
@@ -126,22 +149,46 @@ export function HomePageSettings({
     if (layerFocusNonce > 0 || selectedId) {
       setOpenSections((prev) => (prev.body ? prev : { ...prev, body: true }));
     }
-    if (!selectedId) return;
+    if (!selectedId) {
+      setExpandedLayerGroups({});
+      return;
+    }
+
+    // Otomatis buka grup lapisan yang berkaitan dengan komponen terpilih & tutup grup lain
+    const nextExpanded = resolveExpandedLayerGroupsForSelection(
+      blocks,
+      selectedId,
+      bottomNavbar.items
+        .filter((it) => Array.isArray(it.children) && it.children.length > 0)
+        .map((it) => ({ navId: it.id, children: it.children }))
+    );
+    setExpandedLayerGroups(nextExpanded);
+
     const timer = window.setTimeout(() => {
       const root = scrollContainerRef.current;
       if (!root) return;
       const nodes = root.querySelectorAll<HTMLElement>('[data-layer-item-id]');
       for (let i = 0; i < nodes.length; i += 1) {
         if (nodes[i].getAttribute('data-layer-item-id') === selectedId) {
-          nodes[i].scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-            inline: 'nearest',
-          });
+          const target = nodes[i];
+          const containerRect = root.getBoundingClientRect();
+          const targetRect = target.getBoundingClientRect();
+          const targetOffsetTop = targetRect.top - containerRect.top + root.scrollTop;
+          const desiredOffsetFromTop = root.clientHeight * 0.25;
+          const maxScrollTop = Math.max(0, root.scrollHeight - root.clientHeight);
+          const nextScrollTop = Math.max(
+            0,
+            Math.min(maxScrollTop, Math.round(targetOffsetTop - desiredOffsetFromTop))
+          );
+          if (typeof root.scrollTo === 'function') {
+            root.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
+          } else {
+            root.scrollTop = nextScrollTop;
+          }
           break;
         }
       }
-    }, 45);
+    }, 60);
     return () => window.clearTimeout(timer);
   }, [layerFocusNonce, selectedId]);
 
@@ -240,6 +287,9 @@ export function HomePageSettings({
         (Array.isArray(node.children) ? countLayerTree(node.children) : 0) +
         (Array.isArray(node.content?.actionSheetBlocks)
           ? countLayerTree(node.content.actionSheetBlocks)
+          : 0) +
+        (Array.isArray(node.content?.cardFooterBlocks)
+          ? countLayerTree(node.content.cardFooterBlocks)
           : 0),
       0
     );
@@ -267,7 +317,11 @@ export function HomePageSettings({
       blk.type === 'toggle_container' ||
       blk.type === 'row' ||
       blk.type === 'bottom_sheet' ||
-      blk.type === 'menu_icon';
+      blk.type === 'menu_icon' ||
+      blk.type === 'showcase_card';
+    const hasChildren = hasBlockNestedChildren(blk);
+    const childCount = hasChildren ? countDirectNestedChildren(blk) : 0;
+    const isGroupExpanded = Boolean(expandedLayerGroups[blk.id]);
     const isOver = dragOverInfo?.id === blk.id;
 
     return (
@@ -275,6 +329,8 @@ export function HomePageSettings({
         <div
           data-layer-item-id={blk.id}
           data-layer-selected={isSelected ? 'true' : 'false'}
+          data-layer-has-children={hasChildren ? 'true' : 'false'}
+          data-layer-expanded={hasChildren ? (isGroupExpanded ? 'true' : 'false') : undefined}
           draggable
           onDragStart={(e) => {
             e.stopPropagation();
@@ -315,6 +371,8 @@ export function HomePageSettings({
           className={`group flex items-center gap-1 px-1.5 py-1 rounded-lg border text-[11px] transition-all ${
             isSelected
               ? 'bg-[#17243D] border-[#00C98A] border-l-4 text-white shadow-sm ring-2 ring-[#00C98A]/35'
+              : isGroupExpanded && hasChildren
+              ? 'bg-[#F3FBF7] border-[#00C98A]/55 text-[#17243D]'
               : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#8FA4BF]'
           } ${
             isOver && dragOverInfo.pos === 'before'
@@ -335,17 +393,61 @@ export function HomePageSettings({
             <GripVertical className="w-3 h-3" />
           </span>
 
+          {hasChildren ? (
+            <button
+              type="button"
+              data-layer-dropdown-toggle={blk.id}
+              aria-expanded={isGroupExpanded}
+              aria-label={isGroupExpanded ? 'Tutup grup lapisan' : 'Buka grup lapisan'}
+              title={isGroupExpanded ? 'Tutup grup lapisan' : 'Buka grup lapisan'}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleLayerGroup(blk.id);
+              }}
+              className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                isSelected
+                  ? 'bg-white/15 text-[#7AF0C7] hover:bg-white/25'
+                  : isGroupExpanded
+                  ? 'bg-[#00C98A] text-white hover:bg-[#00B37B]'
+                  : 'bg-[#F0F5FA] text-[#51637D] hover:bg-[#DCE5EF]'
+              }`}
+            >
+              <ChevronDown
+                className={`w-2.5 h-2.5 transition-transform duration-150 ${
+                  isGroupExpanded ? 'rotate-0' : '-rotate-90'
+                }`}
+              />
+            </button>
+          ) : (
+            <span className="w-2 shrink-0" aria-hidden="true" />
+          )}
+
           <button
             type="button"
             onClick={() => onSelectBlock(blk.id)}
             className="min-w-0 flex-1 text-left cursor-pointer"
           >
-            <div
-              className={`truncate text-[11px] leading-tight ${
-                isSelected ? 'font-bold text-white' : 'font-semibold text-[#17243D]'
-              }`}
-            >
-              {blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
+            <div className="flex items-center gap-1 min-w-0">
+              <div
+                className={`truncate text-[11px] leading-tight ${
+                  isSelected ? 'font-bold text-white' : 'font-semibold text-[#17243D]'
+                }`}
+              >
+                {blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
+              </div>
+              {hasChildren && (
+                <span
+                  className={`px-1 py-0 rounded text-[9px] font-bold tabular-nums shrink-0 ${
+                    isSelected
+                      ? 'bg-white/15 text-[#7AF0C7]'
+                      : isGroupExpanded
+                      ? 'bg-[#00C98A]/15 text-[#059669]'
+                      : 'bg-[#F0F5FA] text-[#51637D]'
+                  }`}
+                >
+                  {childCount}
+                </span>
+              )}
             </div>
             <div
               className={`text-[9.5px] truncate ${
@@ -425,25 +527,46 @@ export function HomePageSettings({
           </div>
         </div>
 
-        {Array.isArray(blk.children) && blk.children.length > 0 && (
-          <div className="space-y-1 border-l border-[#DCE5EF] ml-1.5 pl-1.5">
-            {blk.children.map((ch, cIdx) =>
-              renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
+        {hasChildren && isGroupExpanded && (
+          <div className="space-y-1">
+            {Array.isArray(blk.children) && blk.children.length > 0 && (
+              <div className="space-y-1 border-l-2 border-[#00C98A]/35 ml-2 pl-1.5">
+                {blk.type === 'showcase_card' && (
+                  <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
+                    Zona Atas / Isi Kartu
+                  </div>
+                )}
+                {blk.children.map((ch, cIdx) =>
+                  renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
+                )}
+              </div>
             )}
+
+            {Array.isArray(blk.content?.cardFooterBlocks) &&
+              blk.content.cardFooterBlocks.length > 0 && (
+                <div className="space-y-1 border-l border-dashed border-sky-500/70 ml-2 pl-1.5">
+                  <div className="text-[9px] font-bold uppercase tracking-wide text-sky-700 px-1">
+                    Strip Bawah (Warna)
+                  </div>
+                  {blk.content.cardFooterBlocks.map((ch, cIdx) =>
+                    renderLayerNode(ch, cIdx, blk.content.cardFooterBlocks!.length, depth + 1)
+                  )}
+                </div>
+              )}
+
+            {Array.isArray(blk.content?.actionSheetBlocks) &&
+              blk.content.actionSheetBlocks.length > 0 && (
+                <div className="space-y-1 border-l border-dashed border-[#00C98A]/60 ml-2 pl-1.5">
+                  <div className="text-[9px] font-bold uppercase tracking-wide text-[#00A873] px-1">
+                    Isi Sheet ({blk.content.actionSheetPosition || 'bottom'})
+                  </div>
+                  {blk.content.actionSheetBlocks.map((ch, cIdx) =>
+                    renderLayerNode(ch, cIdx, blk.content.actionSheetBlocks!.length, depth + 1)
+                  )}
+                </div>
+              )}
           </div>
         )}
-
-        {Array.isArray(blk.content?.actionSheetBlocks) &&
-          blk.content.actionSheetBlocks.length > 0 && (
-            <div className="space-y-1 border-l border-dashed border-[#00C98A]/60 ml-1.5 pl-1.5">
-              <div className="text-[9px] font-bold uppercase tracking-wide text-[#00A873] px-1">
-                Isi Sheet ({blk.content.actionSheetPosition || 'bottom'})
-              </div>
-              {blk.content.actionSheetBlocks.map((ch, cIdx) =>
-                renderLayerNode(ch, cIdx, blk.content.actionSheetBlocks!.length, depth + 1)
-              )}
-            </div>
-          )}
       </div>
     );
   };
@@ -451,14 +574,15 @@ export function HomePageSettings({
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-[#F0F5FA]/50">
       {/* 1. Tema Global */}
-      <AccordionSection
-        id="temaGlobal"
-        title={label('home.sec.temaGlobal', 'Tema Global')}
-        icon={<Palette className="w-3.5 h-3.5" />}
-        badge={theme.name}
-        isOpen={openSections.temaGlobal}
-        onToggle={() => toggleSection('temaGlobal')}
-      >
+      {isVisible('home.sec.temaGlobal') && (
+        <AccordionSection
+          id="temaGlobal"
+          title={label('home.sec.temaGlobal', 'Tema Global')}
+          icon={<Palette className="w-3.5 h-3.5" />}
+          badge={theme.name}
+          isOpen={openSections.temaGlobal}
+          onToggle={() => toggleSection('temaGlobal')}
+        >
         <div>
           <label className="block text-xs font-medium text-[#17243D] mb-1">
             {label('home.field.fontUtama', 'Font Utama Halaman')}
@@ -568,21 +692,27 @@ export function HomePageSettings({
           </div>
         </div>
       </AccordionSection>
+      )}
 
       {/* 1b. Pengaturan Halaman (Multi-Page) */}
-      <AccordionSection
-        id="pages"
-        title={label('home.sec.pages', 'Halaman (Multi-Page)')}
-        icon={<Files className="w-3.5 h-3.5" />}
-        badge={`${pages.length + 1} hal`}
-        isOpen={openSections.pages}
-        onToggle={() => toggleSection('pages')}
-      >
+      {isVisible('home.sec.pages') && (
+        <AccordionSection
+          id="pages"
+          title={label('home.sec.pages', 'Halaman (Multi-Page)')}
+          icon={<Files className="w-3.5 h-3.5" />}
+          badge={`${pages.length + 1} hal`}
+          isOpen={openSections.pages}
+          onToggle={() => toggleSection('pages')}
+        >
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-[#51637D]">
-              Tambah halaman baru &amp; tombol Back otomatis.
-            </span>
+            {isVisible('home.desc.pages') ? (
+              <span className="text-[11px] text-[#51637D]">
+                {label('home.desc.pages', 'Tambah halaman baru & tombol Back otomatis.')}
+              </span>
+            ) : (
+              <span />
+            )}
             {onAddSubPage && (
               <button
                 type="button"
@@ -711,20 +841,27 @@ export function HomePageSettings({
           })}
         </div>
       </AccordionSection>
+      )}
 
       {/* 2. Top */}
-      <AccordionSection
-        id="top"
-        title={label('home.sec.top', 'Top')}
-        icon={<PanelTop className="w-3.5 h-3.5" />}
-        badge={`${pageTopPadding}px`}
-        isOpen={openSections.top}
-        onToggle={() => toggleSection('top')}
-      >
+      {isVisible('home.sec.top') && (
+        <AccordionSection
+          id="top"
+          title={label('home.sec.top', 'Top')}
+          icon={<PanelTop className="w-3.5 h-3.5" />}
+          badge={`${pageTopPadding}px`}
+          isOpen={openSections.top}
+          onToggle={() => toggleSection('top')}
+        >
         <div className="space-y-2">
-          <div className="text-[11px] text-[#51637D]">
-            Jarak ruang di bagian paling atas kanvas halaman sebelum blok pertama.
-          </div>
+          {isVisible('home.desc.top') && (
+            <div className="text-[11px] text-[#51637D]">
+              {label(
+                'home.desc.top',
+                'Jarak ruang di bagian paling atas kanvas halaman sebelum blok pertama.'
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-1.5">
             {[
               { val: 0, label: '0px Rapat' },
@@ -765,21 +902,29 @@ export function HomePageSettings({
           )}
         </div>
       </AccordionSection>
+      )}
 
       {/* 3. Body (Susunan Semua Lapisan) */}
-      <AccordionSection
-        id="body"
-        title={label('home.sec.body', 'Body (Lapisan)')}
-        icon={<Layers className="w-3.5 h-3.5" />}
-        badge={totalLayerCount}
-        isOpen={openSections.body}
-        onToggle={() => toggleSection('body')}
-      >
+      {isVisible('home.sec.body') && (
+        <AccordionSection
+          id="body"
+          title={label('home.sec.body', 'Body (Lapisan)')}
+          icon={<Layers className="w-3.5 h-3.5" />}
+          badge={totalLayerCount}
+          isOpen={openSections.body}
+          onToggle={() => toggleSection('body')}
+          fullWidthBody
+        >
         <div className="space-y-2" data-all-layers-list>
           {blocks.length === 0 && navSheetLayers.length === 0 ? (
-            <div className="py-3 px-2.5 rounded-xl border border-dashed border-[#DCE5EF] bg-[#F0F5FA]/50 text-center text-[11px] text-[#8FA4BF]">
-              Kanvas masih kosong. Tambahkan blok dari panel kiri.
-            </div>
+            isVisible('home.desc.bodyKosong') ? (
+              <div className="py-3 px-2.5 rounded-xl border border-dashed border-[#DCE5EF] bg-[#F0F5FA]/50 text-center text-[11px] text-[#8FA4BF]">
+                {label(
+                  'home.desc.bodyKosong',
+                  'Kanvas masih kosong. Tambahkan blok dari panel kiri.'
+                )}
+              </div>
+            ) : null
           ) : (
             <>
               {blocks.length > 0 && (
@@ -793,41 +938,69 @@ export function HomePageSettings({
                   <div className="text-[10px] font-bold uppercase tracking-wide text-[#51637D]">
                     Lapisan Modal Navbar Bawah
                   </div>
-                  {navSheetLayers.map(({ navItem, children }) => (
-                    <div key={navItem.id} className="space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onSelectNavItem(navItem.id);
-                          setOpenSections((prev) => ({ ...prev, bottom: true }));
-                        }}
-                        className="w-full text-left px-1.5 py-0.5 rounded bg-[#F0F5FA] text-[10px] font-semibold text-[#17243D] hover:text-[#00A873] truncate cursor-pointer"
-                      >
-                        Navbar: {navItem.label || navItem.sheetTitle || 'Menu'} ({children.length})
-                      </button>
-                      <div className="space-y-1 border-l border-[#DCE5EF] ml-1.5 pl-1.5">
-                        {children.map((ch, cIdx) =>
-                          renderLayerNode(ch, cIdx, children.length, 1)
+                  {navSheetLayers.map(({ navItem, children }) => {
+                    const navGroupKey = `nav:${navItem.id}`;
+                    const isNavExpanded = Boolean(expandedLayerGroups[navGroupKey]);
+                    return (
+                      <div key={navItem.id} className="space-y-1">
+                        <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                          <button
+                            type="button"
+                            data-layer-dropdown-toggle={navGroupKey}
+                            aria-expanded={isNavExpanded}
+                            onClick={() => toggleLayerGroup(navGroupKey)}
+                            className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                              isNavExpanded
+                                ? 'bg-[#00C98A] text-white'
+                                : 'bg-white text-[#51637D] hover:bg-[#DCE5EF]'
+                            }`}
+                          >
+                            <ChevronDown
+                              className={`w-2.5 h-2.5 transition-transform duration-150 ${
+                                isNavExpanded ? 'rotate-0' : '-rotate-90'
+                              }`}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              toggleLayerGroup(navGroupKey);
+                              onSelectNavItem(navItem.id);
+                              setOpenSections((prev) => ({ ...prev, bottom: true }));
+                            }}
+                            className="flex-1 min-w-0 text-left text-[10px] font-semibold text-[#17243D] hover:text-[#00A873] truncate cursor-pointer"
+                          >
+                            Navbar: {navItem.label || navItem.sheetTitle || 'Menu'} ({children.length})
+                          </button>
+                        </div>
+                        {isNavExpanded && (
+                          <div className="space-y-1 border-l-2 border-[#00C98A]/35 ml-2 pl-1.5">
+                            {children.map((ch, cIdx) =>
+                              renderLayerNode(ch, cIdx, children.length, 1)
+                            )}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
           )}
         </div>
       </AccordionSection>
+      )}
 
       {/* 4. Bottom (Navbar Bawah) */}
-      <AccordionSection
-        id="bottom"
-        title={label('home.sec.bottom', 'Bottom (Navbar Bawah)')}
-        icon={<PanelBottom className="w-3.5 h-3.5" />}
-        badge={bottomNavbar.enabled ? 'Aktif' : 'Nonaktif'}
-        isOpen={openSections.bottom}
-        onToggle={() => toggleSection('bottom')}
-      >
+      {isVisible('home.sec.bottom') && (
+        <AccordionSection
+          id="bottom"
+          title={label('home.sec.bottom', 'Bottom (Navbar Bawah)')}
+          icon={<PanelBottom className="w-3.5 h-3.5" />}
+          badge={bottomNavbar.enabled ? 'Aktif' : 'Nonaktif'}
+          isOpen={openSections.bottom}
+          onToggle={() => toggleSection('bottom')}
+        >
         <div className="space-y-3">
           {/* Status & Layout Navbar */}
           <div className="p-2.5 rounded-xl border border-[#DCE5EF] bg-white space-y-3">
@@ -836,9 +1009,11 @@ export function HomePageSettings({
                 <div className="text-xs font-bold text-[#17243D]">
                   {label('home.field.navbarBawah', 'Navbar Bawah')}
                 </div>
-                <div className="text-[10.5px] text-[#8FA4BF]">
-                  Menu mengambang & Modal Bottom Sheet
-                </div>
+                {isVisible('home.desc.navbarBawah') && (
+                  <div className="text-[10.5px] text-[#8FA4BF]">
+                    {label('home.desc.navbarBawah', 'Menu mengambang & Modal Bottom Sheet')}
+                  </div>
+                )}
               </div>
               <ToggleSwitch
                 checked={bottomNavbar.enabled}
@@ -1344,6 +1519,7 @@ export function HomePageSettings({
           </div>
         </div>
       </AccordionSection>
+      )}
     </div>
   );
 }

@@ -148,9 +148,16 @@ export function collectProjectFontIds(project: BuilderProject): string[] {
         if (f2) set.add(f2);
       }
       if (Array.isArray(blk.children)) scan(blk.children);
+      if (Array.isArray(blk.content?.actionSheetBlocks)) scan(blk.content.actionSheetBlocks);
+      if (Array.isArray(blk.content?.cardFooterBlocks)) scan(blk.content.cardFooterBlocks);
     }
   };
   if (Array.isArray(project.blocks)) scan(project.blocks);
+  if (Array.isArray(project.pages)) {
+    for (const pg of project.pages) {
+      if (Array.isArray(pg.blocks)) scan(pg.blocks);
+    }
+  }
   if (Array.isArray(project.bottomNavbar?.items)) {
     for (const item of project.bottomNavbar.items) {
       if (Array.isArray(item.children)) scan(item.children);

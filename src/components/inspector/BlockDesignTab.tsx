@@ -3,9 +3,11 @@ import {
   Info,
   LayoutTemplate,
   Maximize2,
+  Plus,
   SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
+import { DEFAULT_STYLE, createId } from '../../data/presets';
 import {
   AdvanceOptions,
   BlockLayoutMode,
@@ -49,7 +51,7 @@ interface BlockDesignTabProps {
   onUpdateBlock: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
 }
 
-type DesignSectionId = 'visual' | 'layout' | 'specific';
+type DesignSectionId = 'visual' | 'layout' | 'position' | 'typo' | 'effects' | 'specific';
 
 function rangeProgressStyle(current: number, min: number, max: number): CSSProperties {
   const span = max - min;
@@ -66,11 +68,14 @@ export function BlockDesignTab({
   onUpdateAdvanceOptions,
   onUpdateBlock,
 }: BlockDesignTabProps) {
-  const { label } = useUiLabel();
+  const { label, isVisible } = useUiLabel();
   const [openSections, setOpenSections] = useState<Record<DesignSectionId, boolean>>({
     visual: true,
     layout: true,
-    specific: false,
+    position: true,
+    typo: true,
+    effects: true,
+    specific: true,
   });
 
   const toggleSection = (id: DesignSectionId) => {
@@ -112,7 +117,6 @@ export function BlockDesignTab({
   const hasSpecificVisualControls =
     selectedBlock.type !== 'container' &&
     selectedBlock.type !== 'text' &&
-    selectedBlock.type !== 'row' &&
     selectedBlock.type !== 'menu_icon' &&
     selectedBlock.type !== 'cart_button' &&
     selectedBlock.type !== 'showcase_card';
@@ -582,7 +586,7 @@ export function BlockDesignTab({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[#17243D]">
-                  <span>Show Unit Sold</span>
+                  <span>Tampilkan Jumlah Terjual</span>
                   <span
                     title="Tampilkan jumlah unit terjual pada detail produk di katalog."
                     className="text-[#8FA4BF] cursor-help"
@@ -597,19 +601,19 @@ export function BlockDesignTab({
               <ToggleSwitch
                 checked={advanceOptions.showUnitSold}
                 onChange={(checked) => onUpdateAdvanceOptions({ showUnitSold: checked })}
-                label="Show total unit sold on product detail"
+                label="Tampilkan jumlah terjual pada detail produk"
               />
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-[#17243D]">{label('desain.field.tampilanKatalog', 'Block Layout Katalog')}</div>
+              <div className="text-xs font-semibold text-[#17243D]">{label('desain.field.tampilanKatalog', 'Tata Letak Katalog')}</div>
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
-                    { id: 'default', label: 'Default' },
-                    { id: 'grid', label: 'Grid' },
-                    { id: 'large-image', label: 'Large Image' },
-                    { id: 'compact', label: 'Compact' },
+                    { id: 'default', label: 'Bawaan' },
+                    { id: 'grid', label: 'Kisi (Grid)' },
+                    { id: 'large-image', label: 'Gambar Besar' },
+                    { id: 'compact', label: 'Ringkas' },
                   ] as { id: BlockLayoutMode; label: string }[]
                 ).map((option) => {
                   const active = advanceOptions.blockLayout === option.id;
@@ -1356,7 +1360,7 @@ export function BlockDesignTab({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium text-[#17243D]">Auto Play Video</span>
+              <span className="text-xs font-medium text-[#17243D]">Putar Otomatis Video</span>
               <ToggleSwitch
                 checked={currentAuto}
                 onChange={(checked) =>
@@ -1366,7 +1370,7 @@ export function BlockDesignTab({
                       : { videoAutoplay: checked }
                   )
                 }
-                label="Auto Play Video"
+                label="Putar Otomatis Video"
               />
             </div>
 
@@ -1381,6 +1385,319 @@ export function BlockDesignTab({
                   isYt ? { youtubeVolume: val, videoVolume: val } : { videoVolume: val }
                 )
               }
+            />
+          </div>
+        );
+      }
+
+      case 'row': {
+        const rowChildren = selectedBlock.children ?? [];
+        const rowMode = c.rowLayoutMode ?? 'grid';
+        const rowColWidth = Math.max(80, Math.min(340, c.rowColumnWidth ?? 156));
+        const rowColMinH = Math.max(0, Math.min(360, c.rowColumnMinHeight ?? 0));
+        const rowGap = Math.max(0, Math.min(32, c.rowGap ?? 12));
+
+        const makeEmptySlide = (idx: number): BuilderBlock => ({
+          id: createId('slide'),
+          type: 'container',
+          label: `Slide ${idx}`,
+          style: {
+            ...DEFAULT_STYLE,
+            padding: 12,
+            marginBottom: 0,
+            minHeight: 80,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: theme.borderColor,
+            backgroundColor: theme.cardBg,
+            textColor: theme.textColor,
+            shadow: 'sm',
+            hoverLift: false,
+            align: 'left',
+          },
+          content: {},
+          children: [],
+        });
+
+        const setSlideCount = (targetCount: number) => {
+          const clamped = Math.max(1, Math.min(20, Math.round(targetCount)));
+          const next = [...rowChildren];
+          while (next.length < clamped) {
+            next.push(makeEmptySlide(next.length + 1));
+          }
+          const trimmed = next.slice(0, clamped);
+          onUpdateBlock(selectedBlock.id, (blk) => ({
+            ...blk,
+            content: {
+              ...blk.content,
+              rowColumns:
+                (blk.content.rowLayoutMode ?? 'grid') === 'grid'
+                  ? Math.min(20, Math.max(1, clamped))
+                  : blk.content.rowColumns,
+            },
+            children: trimmed,
+          }));
+        };
+
+        const gridCols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
+        const gridRows = Math.max(
+          1,
+          Math.min(
+            10,
+            c.rowGridRows ?? Math.max(1, Math.ceil((rowChildren.length || gridCols) / gridCols))
+          )
+        );
+
+        const applyGridDimensions = (nextColsRaw: number, nextRowsRaw: number) => {
+          const nextCols = Math.max(1, Math.min(6, Math.round(nextColsRaw)));
+          const nextRows = Math.max(1, Math.min(10, Math.round(nextRowsRaw)));
+          const targetCells = Math.max(1, Math.min(20, nextCols * nextRows));
+          const next = [...rowChildren];
+          while (next.length < targetCells) {
+            next.push(makeEmptySlide(next.length + 1));
+          }
+          const trimmed = next.slice(0, targetCells);
+          onUpdateBlock(selectedBlock.id, (blk) => ({
+            ...blk,
+            content: {
+              ...blk.content,
+              rowLayoutMode: 'grid',
+              rowColumns: nextCols,
+              rowGridRows: nextRows,
+            },
+            children: trimmed,
+          }));
+        };
+
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
+                {label('desain.field.layoutRow', 'Mode Susunan Kolom / Slide')}
+              </label>
+              <SegmentedControl<'horizontal' | 'vertical' | 'grid'>
+                columns={3}
+                value={rowMode}
+                onChange={(m) => {
+                  if (m === 'grid') {
+                    const cols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
+                    const rows = Math.max(
+                      1,
+                      Math.min(
+                        10,
+                        c.rowGridRows ?? Math.max(1, Math.ceil((rowChildren.length || cols) / cols))
+                      )
+                    );
+                    updateContent({ rowLayoutMode: 'grid', rowColumns: cols, rowGridRows: rows });
+                  } else {
+                    updateContent({ rowLayoutMode: m });
+                  }
+                }}
+                options={[
+                  { id: 'horizontal', label: 'Horizontal' },
+                  { id: 'vertical', label: 'Vertikal' },
+                  { id: 'grid', label: 'Grid' },
+                ]}
+              />
+            </div>
+
+            {rowMode === 'grid' ? (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA]/80 border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-[#17243D]">
+                    Pengaturan Grid (Kolom × Row)
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#64748B] tabular-nums">
+                    {rowChildren.length} / 20 sel
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-1.5 rounded-md bg-white border border-[#DCE5EF] space-y-1">
+                    <span className="block text-[10px] font-semibold text-[#64748B]">
+                      Kolom (1–6)
+                    </span>
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        disabled={gridCols <= 1}
+                        onClick={() => applyGridDimensions(gridCols - 1, gridRows)}
+                        className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                        aria-label="Kurangi kolom grid"
+                      >
+                        -
+                      </button>
+                      <span className="text-xs font-bold tabular-nums text-[#17243D]">
+                        {gridCols}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={gridCols >= 6 || (gridCols + 1) * gridRows > 20}
+                        onClick={() => applyGridDimensions(gridCols + 1, gridRows)}
+                        className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                        aria-label="Tambah kolom grid"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-1.5 rounded-md bg-white border border-[#DCE5EF] space-y-1">
+                    <span className="block text-[10px] font-semibold text-[#64748B]">
+                      Baris / Row (1–10)
+                    </span>
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        disabled={gridRows <= 1}
+                        onClick={() => applyGridDimensions(gridCols, gridRows - 1)}
+                        className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                        aria-label="Kurangi baris grid"
+                      >
+                        -
+                      </button>
+                      <span className="text-xs font-bold tabular-nums text-[#17243D]">
+                        {gridRows}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={gridRows >= 10 || gridCols * (gridRows + 1) > 20}
+                        onClick={() => applyGridDimensions(gridCols, gridRows + 1)}
+                        className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                        aria-label="Tambah baris grid"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={gridCols >= 6 || (gridCols + 1) * gridRows > 20}
+                    onClick={() => applyGridDimensions(gridCols + 1, gridRows)}
+                    className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#17243D] text-white text-[10.5px] font-semibold disabled:opacity-40 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3 text-[#00C98A]" />
+                    <span>Tambah Kolom</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={gridRows >= 10 || gridCols * (gridRows + 1) > 20}
+                    onClick={() => applyGridDimensions(gridCols, gridRows + 1)}
+                    className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#17243D] text-white text-[10.5px] font-semibold disabled:opacity-40 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3 text-[#00C98A]" />
+                    <span>Tambah Baris</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-2 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Jumlah Kolom / Slide (1–20)
+                  </span>
+                  <div className="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={rowChildren.length <= 1}
+                      onClick={() => setSlideCount(rowChildren.length - 1)}
+                      className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                      aria-label="Kurangi kolom"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-[24px] text-center text-xs font-bold tabular-nums text-[#17243D]">
+                      {rowChildren.length}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={rowChildren.length >= 20}
+                      onClick={() => setSlideCount(rowChildren.length + 1)}
+                      className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
+                      aria-label="Tambah kolom"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={Math.max(1, Math.min(20, rowChildren.length || 1))}
+                  onChange={(e) => setSlideCount(Number(e.target.value))}
+                  style={rangeProgressStyle(
+                    Math.max(1, Math.min(20, rowChildren.length || 1)),
+                    1,
+                    20
+                  )}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+            )}
+
+            {rowMode === 'horizontal' && (
+              <div className="space-y-2">
+                <SliderRow
+                  label={label('desain.field.lebarKolom', 'Ukuran Lebar Tiap Slide')}
+                  value={`${rowColWidth}px`}
+                  min={80}
+                  max={340}
+                  current={rowColWidth}
+                  onChange={(val) => updateContent({ rowColumnWidth: val })}
+                />
+                <div className="grid grid-cols-4 gap-1">
+                  {[
+                    { label: 'Kecil', px: 110 },
+                    { label: 'Sedang', px: 150 },
+                    { label: 'Besar', px: 200 },
+                    { label: 'Lebar', px: 260 },
+                  ].map((p) => (
+                    <button
+                      key={p.px}
+                      type="button"
+                      onClick={() => updateContent({ rowColumnWidth: p.px })}
+                      className={`py-1 px-1.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                        rowColWidth === p.px
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                {isVisible('konten.desc.rowSlideProgress') && (
+                  <p className="text-[10px] text-[#8FA4BF]">
+                    {label(
+                      'konten.desc.rowSlideProgress',
+                      'Slide horizontal menampilkan indikator progress 3 titik secara otomatis.'
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <SliderRow
+              label={label('desain.field.tinggiKolom', 'Tinggi Minimal Kolom / Slide')}
+              value={rowColMinH === 0 ? 'Auto' : `${rowColMinH}px`}
+              min={0}
+              max={360}
+              current={rowColMinH}
+              onChange={(val) => updateContent({ rowColumnMinHeight: val })}
+            />
+
+            <SliderRow
+              label={label('desain.field.jarakKolom', 'Jarak Antar Kolom / Slide')}
+              value={`${rowGap}px`}
+              min={0}
+              max={32}
+              current={rowGap}
+              onChange={(val) => updateContent({ rowGap: val })}
             />
           </div>
         );
@@ -1406,15 +1723,29 @@ export function BlockDesignTab({
   const isTransparentBg = s.backgroundColor === 'transparent';
 
   return (
-    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#F0F5FA]/50">
-      {/* 1. GAYA VISUAL — Unified across ALL components (Gambar 1) */}
-      <AccordionSection
-        id="visual"
-        title={label('desain.sec.visual', 'Gaya Visual')}
-        icon={<Sparkles className="w-3.5 h-3.5" />}
-        isOpen={openSections.visual}
-        onToggle={() => toggleSection('visual')}
-      >
+    <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2 bg-[#F4F7FB]">
+      {/* 1. PENGATURAN KHUSUS KOMPONEN — Paling atas pada tab Desain */}
+      {hasSpecificVisualControls && isVisible('desain.sec.specific') && (
+        <AccordionSection
+          id="specific"
+          title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
+          icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+          isOpen={openSections.specific}
+          onToggle={() => toggleSection('specific')}
+        >
+          {renderSpecificControls()}
+        </AccordionSection>
+      )}
+
+      {/* 2. GAYA VISUAL — Unified across ALL components */}
+      {isVisible('desain.sec.visual') && (
+        <AccordionSection
+          id="visual"
+          title={label('desain.sec.visual', 'Gaya Visual')}
+          icon={<Sparkles className="w-3.5 h-3.5" />}
+          isOpen={openSections.visual}
+          onToggle={() => toggleSection('visual')}
+        >
         {/* Bentuk: Bulat | Segi Empat | Kotak | Kapsul */}
         <SegmentedControl<BlockShapePreset>
           columns={4}
@@ -1748,10 +2079,10 @@ export function BlockDesignTab({
           onChange={(val) => updateStyle({ blur: val })}
         />
 
-        {/* Efek Bayangan (Shadow) Slider + Warna Shadow */}
+        {/* Efek Bayangan (Shadow) Slider + Warna Bayangan */}
         <div className="space-y-1.5">
           <SliderRow
-            label={label('desain.field.efekBayangan', 'Efek Bayangan (Shadow)')}
+            label={label('desain.field.efekBayangan', 'Bayangan')}
             value={`${shadowSizePx}px`}
             min={0}
             max={48}
@@ -1764,7 +2095,7 @@ export function BlockDesignTab({
             }
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-[#51637D]">Warna Shadow</span>
+            <span className="text-[11px] font-medium text-[#51637D]">Warna Bayangan</span>
             <div className="flex items-center gap-1.5">
               <input
                 type="color"
@@ -1778,29 +2109,88 @@ export function BlockDesignTab({
                   onClick={() => updateStyle({ shadowColor: undefined })}
                   className="px-1.5 py-0.5 rounded border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] hover:bg-[#F0F5FA] cursor-pointer"
                 >
-                  Default
+                  Bawaan
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Efek Hover Lift */}
+        {/* Latar Belakang Gambar */}
+        <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+          <div className="text-[11px] font-bold text-[#17243D]">Gambar Latar Belakang</div>
+          <input
+            type="url"
+            value={s.bgImageUrl ?? ''}
+            onChange={(e) => updateStyle({ bgImageUrl: e.target.value })}
+            placeholder="https://... (tautan gambar latar opsional)"
+            className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+          />
+          {s.bgImageUrl && (
+            <div className="grid grid-cols-3 gap-1.5">
+              <div>
+                <label className="block text-[10px] text-[#51637D] mb-0.5">Posisi Latar</label>
+                <select
+                  value={s.bgPosition ?? 'center'}
+                  onChange={(e) =>
+                    updateStyle({ bgPosition: e.target.value as BlockStyle['bgPosition'] })
+                  }
+                  className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                >
+                  <option value="center">Tengah</option>
+                  <option value="top">Atas</option>
+                  <option value="bottom">Bawah</option>
+                  <option value="left">Kiri</option>
+                  <option value="right">Kanan</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-[#51637D] mb-0.5">Ukuran Latar</label>
+                <select
+                  value={s.bgSize ?? 'cover'}
+                  onChange={(e) => updateStyle({ bgSize: e.target.value as BlockStyle['bgSize'] })}
+                  className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                >
+                  <option value="cover">Penuh</option>
+                  <option value="contain">Utuh</option>
+                  <option value="auto">Otomatis</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-[#51637D] mb-0.5">Pengulangan</label>
+                <select
+                  value={s.bgRepeat ?? 'no-repeat'}
+                  onChange={(e) =>
+                    updateStyle({ bgRepeat: e.target.value as BlockStyle['bgRepeat'] })
+                  }
+                  className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                >
+                  <option value="no-repeat">Tidak Diulang</option>
+                  <option value="repeat">Ulangi</option>
+                  <option value="repeat-x">Horizontal</option>
+                  <option value="repeat-y">Vertikal</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Efek Melayang */}
         <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
           <div>
             <div className="text-[11px] font-semibold text-[#17243D]">
-              {label('desain.field.efekHoverLift', 'Efek Hover Lift')}
+              {label('desain.field.efekHoverLift', 'Efek Melayang')}
             </div>
             <div className="text-[10px] text-[#8FA4BF]">Terangkat halus saat disentuh</div>
           </div>
           <ToggleSwitch
             checked={Boolean(s.hoverLift)}
             onChange={(checked) => updateStyle({ hoverLift: checked })}
-            label="Efek Kartu Dinamis"
+            label="Efek Melayang"
           />
         </div>
 
-        {/* Ketebalan Garis Tepi + Quick 0/1/2/4/6px + Warna Garis Tepi */}
+        {/* Garis Tepi: Ketebalan, Gaya & Warna */}
         <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
           <SliderRow
             label={label('desain.field.ketebalanGarisTepi', 'Ketebalan Garis Tepi')}
@@ -1826,30 +2216,52 @@ export function BlockDesignTab({
               </button>
             ))}
           </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-              {label('desain.field.warnaGarisTepi', 'Warna Garis Tepi')}
-            </label>
-            <input
-              type="color"
-              value={s.borderColor}
-              onChange={(e) =>
-                updateStyleWithToken({ borderColor: e.target.value }, ['borderColor'])
-              }
-              className="w-full h-7 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                {label('desain.field.warnaGarisTepi', 'Warna Garis Tepi')}
+              </label>
+              <input
+                type="color"
+                value={s.borderColor}
+                onChange={(e) =>
+                  updateStyleWithToken({ borderColor: e.target.value }, ['borderColor'])
+                }
+                className="w-full h-7 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Gaya Garis Tepi
+              </label>
+              <select
+                value={s.borderStyle ?? 'solid'}
+                onChange={(e) =>
+                  updateStyle({ borderStyle: e.target.value as BlockStyle['borderStyle'] })
+                }
+                className="w-full h-7 px-2 text-[11px] rounded-lg border border-[#DCE5EF] bg-white"
+              >
+                <option value="solid">Solid</option>
+                <option value="dashed">Putus-putus</option>
+                <option value="dotted">Titik-titik</option>
+                <option value="double">Ganda</option>
+                <option value="none">Tanpa Garis</option>
+              </select>
+            </div>
           </div>
         </div>
       </AccordionSection>
+      )}
 
       {/* 2. LAYOUT & SPASI — Unified across ALL components (Gambar 1) */}
-      <AccordionSection
-        id="layout"
-        title={label('desain.sec.layout', 'Layout & Spasi')}
-        icon={<Maximize2 className="w-3.5 h-3.5" />}
-        isOpen={openSections.layout}
-        onToggle={() => toggleSection('layout')}
-      >
+      {isVisible('desain.sec.layout') && (
+        <AccordionSection
+          id="layout"
+          title={label('desain.sec.layout', 'Layout & Spasi')}
+          icon={<Maximize2 className="w-3.5 h-3.5" />}
+          isOpen={openSections.layout}
+          onToggle={() => toggleSection('layout')}
+        >
         <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold text-[#17243D] flex items-center gap-1.5">
@@ -2036,36 +2448,429 @@ export function BlockDesignTab({
             </div>
           </div>
           <SliderRow
-            label={label('desain.field.tinggiMinimal', 'Tinggi Minimal')}
-            value={s.minHeight > 0 ? `${s.minHeight}px` : 'Auto'}
+            label={label('desain.field.tinggiMinimal', 'Tinggi Min')}
+            value={s.minHeight > 0 ? `${s.minHeight}px` : 'Otomatis'}
             min={0}
             max={600}
             current={s.minHeight}
             onChange={(val) => updateStyle({ minHeight: val })}
           />
           <SliderRow
-            label="Tinggi Maksimal"
-            value={s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : 'Auto'}
+            label="Tinggi Maks"
+            value={s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : 'Otomatis'}
             min={0}
             max={600}
             current={s.maxHeight ?? 0}
             onChange={(val) => updateStyle({ maxHeight: val > 0 ? val : undefined })}
           />
+          <div className="grid grid-cols-3 gap-1.5 pt-1">
+            <div>
+              <label className="block text-[10px] text-[#51637D] mb-0.5">Lebar Min (px)</label>
+              <input
+                type="number"
+                min={0}
+                max={576}
+                value={s.minWidth ?? ''}
+                placeholder="Auto"
+                onChange={(e) =>
+                  updateStyle({
+                    minWidth: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)),
+                  })
+                }
+                className="w-full px-1.5 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#51637D] mb-0.5">Lebar Maks (px)</label>
+              <input
+                type="number"
+                min={0}
+                max={576}
+                value={s.maxWidth ?? ''}
+                placeholder="Auto"
+                onChange={(e) =>
+                  updateStyle({
+                    maxWidth: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)),
+                  })
+                }
+                className="w-full px-1.5 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-[#51637D] mb-0.5">Tinggi Tetap</label>
+              <input
+                type="number"
+                min={0}
+                max={1200}
+                value={s.heightPx ?? ''}
+                placeholder="Auto"
+                onChange={(e) =>
+                  updateStyle({
+                    heightPx: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)),
+                  })
+                }
+                className="w-full px-1.5 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+              />
+            </div>
+          </div>
         </div>
       </AccordionSection>
+      )}
 
-      {/* 3. PENGATURAN KHUSUS KOMPONEN — only when component has extra design settings */}
-      {hasSpecificVisualControls && (
+      {/* 3. TATA LETAK & POSISI (Bagian D) */}
+      {isVisible('desain.sec.posisi') && (
         <AccordionSection
-          id="specific"
-          title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
-          icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
-          isOpen={openSections.specific}
-          onToggle={() => toggleSection('specific')}
+          id="position"
+          title={label('desain.sec.posisi', 'Tata Letak & Posisi')}
+          icon={<LayoutTemplate className="w-3.5 h-3.5" />}
+          isOpen={openSections.position}
+          onToggle={() => toggleSection('position')}
         >
-          {renderSpecificControls()}
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Tampilan
+              </label>
+              <select
+                value={s.displayMode ?? 'block'}
+                onChange={(e) =>
+                  updateStyle({ displayMode: e.target.value as BlockStyle['displayMode'] })
+                }
+                className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+              >
+                <option value="block">Blok</option>
+                <option value="flex">Fleksibel (Flex)</option>
+                <option value="grid">Kisi (Grid)</option>
+                <option value="inline-flex">Sebaris Fleksibel</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Luapan Konten
+              </label>
+              <select
+                value={s.overflow ?? 'visible'}
+                onChange={(e) =>
+                  updateStyle({ overflow: e.target.value as BlockStyle['overflow'] })
+                }
+                className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+              >
+                <option value="visible">Terlihat</option>
+                <option value="hidden">Tersembunyi</option>
+                <option value="auto">Otomatis</option>
+                <option value="scroll">Gulir</option>
+              </select>
+            </div>
+          </div>
+
+          {(s.displayMode === 'flex' || s.displayMode === 'inline-flex' || s.displayMode === 'grid') && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">Arah</label>
+                <select
+                  value={s.flexDirection ?? 'column'}
+                  onChange={(e) =>
+                    updateStyle({ flexDirection: e.target.value as BlockStyle['flexDirection'] })
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                >
+                  <option value="column">Vertikal</option>
+                  <option value="row">Horizontal</option>
+                  <option value="column-reverse">Vertikal Terbalik</option>
+                  <option value="row-reverse">Horizontal Terbalik</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">Bungkus</label>
+                <select
+                  value={s.flexWrap ?? 'nowrap'}
+                  onChange={(e) =>
+                    updateStyle({ flexWrap: e.target.value as BlockStyle['flexWrap'] })
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                >
+                  <option value="nowrap">Satu Baris</option>
+                  <option value="wrap">Bungkus Baris</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">Perataan</label>
+                <select
+                  value={s.alignItems ?? 'stretch'}
+                  onChange={(e) =>
+                    updateStyle({ alignItems: e.target.value as BlockStyle['alignItems'] })
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                >
+                  <option value="stretch">Penuh</option>
+                  <option value="flex-start">Awal</option>
+                  <option value="center">Tengah</option>
+                  <option value="flex-end">Akhir</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                  Perataan Konten
+                </label>
+                <select
+                  value={s.justifyContent ?? 'flex-start'}
+                  onChange={(e) =>
+                    updateStyle({ justifyContent: e.target.value as BlockStyle['justifyContent'] })
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                >
+                  <option value="flex-start">Awal</option>
+                  <option value="center">Tengah</option>
+                  <option value="flex-end">Akhir</option>
+                  <option value="space-between">Renggang Merata</option>
+                  <option value="space-around">Jarak Seimbang</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <SliderRow
+            label="Jarak Antar Elemen"
+            value={`${s.gap ?? 0}px`}
+            min={0}
+            max={48}
+            current={s.gap ?? 0}
+            onChange={(val) => updateStyle({ gap: val })}
+          />
+
+          <div className="pt-1.5 border-t border-[#DCE5EF] space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Posisi
+                </label>
+                <select
+                  value={s.positionMode ?? 'static'}
+                  onChange={(e) =>
+                    updateStyle({ positionMode: e.target.value as BlockStyle['positionMode'] })
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                >
+                  <option value="static">Normal</option>
+                  <option value="relative">Relatif</option>
+                  <option value="absolute">Absolut</option>
+                  <option value="fixed">Tetap</option>
+                  <option value="sticky">Menempel</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Urutan Lapisan
+                </label>
+                <input
+                  type="number"
+                  min={-10}
+                  max={100}
+                  value={s.zIndex ?? 0}
+                  onChange={(e) => updateStyle({ zIndex: Number(e.target.value) || 0 })}
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                />
+              </div>
+            </div>
+
+            {s.positionMode && s.positionMode !== 'static' && (
+              <div className="grid grid-cols-4 gap-1.5">
+                {(
+                  [
+                    { key: 'posTop', label: 'Atas' },
+                    { key: 'posRight', label: 'Kanan' },
+                    { key: 'posBottom', label: 'Bawah' },
+                    { key: 'posLeft', label: 'Kiri' },
+                  ] as const
+                ).map((item) => (
+                  <div key={item.key}>
+                    <label className="block text-[9.5px] text-[#51637D] mb-0.5">{item.label}</label>
+                    <input
+                      type="number"
+                      value={s[item.key] ?? ''}
+                      placeholder="-"
+                      onChange={(e) =>
+                        updateStyle({
+                          [item.key]: e.target.value === '' ? undefined : Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-1.5 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </AccordionSection>
+      )}
+
+      {/* 4. TIPOGRAFI LANJUTAN (Kontekstual untuk komponen berteks) */}
+      {isVisible('desain.sec.typo') &&
+        selectedBlock.type !== 'divider' &&
+        selectedBlock.type !== 'image' &&
+        selectedBlock.type !== 'youtube' &&
+        selectedBlock.type !== 'facebook_video' &&
+        selectedBlock.type !== 'tiktok_video' &&
+        selectedBlock.type !== 'instagram_video' && (
+          <AccordionSection
+            id="typo"
+            title={label('desain.sec.typo', 'Tipografi')}
+            icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+            isOpen={openSections.typo}
+            onToggle={() => toggleSection('typo')}
+          >
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Jenis Huruf
+                </label>
+                <select
+                  value={s.fontFamily ?? ''}
+                  onChange={(e) =>
+                    updateStyleWithToken(
+                      { fontFamily: e.target.value || undefined },
+                      ['fontFamily']
+                    )
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                >
+                  <option value="">Ikuti Tema Global</option>
+                  {FONT_OPTIONS.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                    Ketebalan Huruf
+                  </label>
+                  <select
+                    value={s.fontWeightCss ?? ''}
+                    onChange={(e) =>
+                      updateStyle({
+                        fontWeightCss: (e.target.value || undefined) as BlockStyle['fontWeightCss'],
+                      })
+                    }
+                    className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                  >
+                    <option value="">Bawaan</option>
+                    <option value="400">Normal (400)</option>
+                    <option value="500">Sedang (500)</option>
+                    <option value="600">Semi Tebal (600)</option>
+                    <option value="700">Tebal (700)</option>
+                    <option value="800">Ekstra Tebal (800)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                    Transformasi Teks
+                  </label>
+                  <select
+                    value={s.textTransform ?? 'none'}
+                    onChange={(e) =>
+                      updateStyle({
+                        textTransform: e.target.value as BlockStyle['textTransform'],
+                      })
+                    }
+                    className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                  >
+                    <option value="none">Normal</option>
+                    <option value="uppercase">HURUF BESAR</option>
+                    <option value="lowercase">huruf kecil</option>
+                    <option value="capitalize">Kapital Awal Kata</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                    Dekorasi Teks
+                  </label>
+                  <select
+                    value={s.textDecoration ?? 'none'}
+                    onChange={(e) =>
+                      updateStyle({
+                        textDecoration: e.target.value as BlockStyle['textDecoration'],
+                      })
+                    }
+                    className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                  >
+                    <option value="none">Normal</option>
+                    <option value="underline">Garis Bawah</option>
+                    <option value="line-through">Coret Tengah</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                    Jarak Antar Huruf (px)
+                  </label>
+                  <input
+                    type="number"
+                    min={-2}
+                    max={12}
+                    step={0.5}
+                    value={s.letterSpacing ?? 0}
+                    onChange={(e) => updateStyle({ letterSpacing: Number(e.target.value) || 0 })}
+                    className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </AccordionSection>
+        )}
+
+      {/* 5. EFEK LANJUTAN (Transparansi, Visibilitas, Transformasi, Transisi) */}
+      {isVisible('desain.sec.efek') && (
+        <AccordionSection
+          id="effects"
+          title={label('desain.sec.efek', 'Efek')}
+          icon={<Sparkles className="w-3.5 h-3.5" />}
+          isOpen={openSections.effects}
+          onToggle={() => toggleSection('effects')}
+        >
+          <div className="space-y-2.5">
+            <SliderRow
+              label="Transparansi"
+              value={`${s.opacity ?? 100}%`}
+              min={0}
+              max={100}
+              current={s.opacity ?? 100}
+              onChange={(val) => updateStyle({ opacity: val })}
+            />
+            <SliderRow
+              label="Skala Transformasi"
+              value={`${s.transformScale ?? 100}%`}
+              min={50}
+              max={150}
+              current={s.transformScale ?? 100}
+              onChange={(val) => updateStyle({ transformScale: val })}
+            />
+            <SliderRow
+              label="Rotasi"
+              value={`${s.transformRotate ?? 0}°`}
+              min={-45}
+              max={45}
+              current={s.transformRotate ?? 0}
+              onChange={(val) => updateStyle({ transformRotate: val })}
+            />
+            <SliderRow
+              label="Durasi Transisi"
+              value={`${s.transitionMs ?? 0}ms`}
+              min={0}
+              max={1000}
+              step={50}
+              current={s.transitionMs ?? 0}
+              onChange={(val) => updateStyle({ transitionMs: val })}
+            />
+          </div>
         </AccordionSection>
       )}
+
     </div>
   );
 }

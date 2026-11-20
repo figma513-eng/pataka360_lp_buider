@@ -16,7 +16,6 @@ import {
   RotateCcw,
   Settings2,
   ShoppingBag,
-  SlidersHorizontal,
   Trash2,
   Type,
   Upload,
@@ -51,7 +50,14 @@ import {
   TrainingMediaItem,
   TrainingProgramItem,
   UniversalActionType,
+  WhatsappCenterConfig,
 } from '../../types/builder';
+import {
+  WHATSAPP_TEMPLATE_TYPE_LABELS,
+  resolveWhatsappCenter,
+} from '../../utils/whatsappBuilder';
+import { DynamicFormBuilderEditor } from './DynamicFormBuilderEditor';
+import { ContainerSliderControls } from './ContainerSliderControls';
 import {
   BLOCK_TYPE_NAMES,
   CAROUSEL_SAMPLE_1_SVG,
@@ -99,6 +105,7 @@ interface BlockContentTabProps {
   allBlocks?: BuilderBlock[];
   pages?: BuilderSubPage[];
   activeSubPageId?: string | null;
+  whatsappCenter?: WhatsappCenterConfig;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   onUpdateAdvanceOptions: (patch: Partial<AdvanceOptions>) => void;
@@ -106,13 +113,14 @@ interface BlockContentTabProps {
   onDuplicateBlock: (id: string) => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
   onAddChildToActionSheet?: (ownerId: string, type: BlockType) => void;
+  onAddChildToCardFooter?: (cardId: string, type: BlockType) => void;
   onSelectSubPage?: (pageId: string | null) => void;
   onAddSubPage?: () => string | null;
   onSelectBlock?: (id: string) => void;
   onSetUploadError: (msg: string | null) => void;
 }
 
-type ContentSectionId = 'rowSpecific' | 'main' | 'typo' | 'items' | 'nav' | 'actions' | 'extra';
+type ContentSectionId = 'general' | 'main' | 'typo' | 'items' | 'nav' | 'actions' | 'extra';
 
 function rangeProgressStyle(current: number, min: number, max: number): CSSProperties {
   const span = max - min;
@@ -154,6 +162,12 @@ function flattenTargetBlocks(
     if (blk.children && blk.children.length > 0) {
       result.push(...flattenTargetBlocks(blk.children, excludeId, depth + 1));
     }
+    if (blk.content?.cardFooterBlocks && blk.content.cardFooterBlocks.length > 0) {
+      result.push(...flattenTargetBlocks(blk.content.cardFooterBlocks, excludeId, depth + 1));
+    }
+    if (blk.content?.actionSheetBlocks && blk.content.actionSheetBlocks.length > 0) {
+      result.push(...flattenTargetBlocks(blk.content.actionSheetBlocks, excludeId, depth + 1));
+    }
   }
   return result;
 }
@@ -163,6 +177,7 @@ export function BlockContentTab({
   allBlocks = [],
   pages = [],
   activeSubPageId = null,
+  whatsappCenter,
   theme,
   advanceOptions,
   onUpdateAdvanceOptions,
@@ -170,20 +185,21 @@ export function BlockContentTab({
   onDuplicateBlock,
   onAddChildToContainer,
   onAddChildToActionSheet,
+  onAddChildToCardFooter,
   onSelectSubPage,
   onAddSubPage,
   onSelectBlock,
   onSetUploadError,
 }: BlockContentTabProps) {
-  const { label } = useUiLabel();
+  const { label, isVisible } = useUiLabel();
   const [openSections, setOpenSections] = useState<Record<ContentSectionId, boolean>>({
-    rowSpecific: true,
+    general: true,
     main: true,
     typo: true,
     items: true,
     nav: true,
     actions: true,
-    extra: false,
+    extra: true,
   });
 
   // Drill-down key: e.g., "catalog:item_1", "fnb:fnb_1", "shipping:makan_ditempat", "cf:cf_1"
@@ -672,9 +688,12 @@ export function BlockContentTab({
               onChange={(e) => updateContent({ text: e.target.value })}
               className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none resize-y"
             />
-            {!(c.text ?? '').trim() && (
+            {!(c.text ?? '').trim() && isVisible('konten.desc.teksKosong') && (
               <p className="text-[11px] text-[#8FA4BF]">
-                Teks kosong otomatis disembunyikan di pratinjau &amp; halaman publik.
+                {label(
+                  'konten.desc.teksKosong',
+                  'Teks kosong otomatis disembunyikan di pratinjau & halaman publik.'
+                )}
               </p>
             )}
           </div>
@@ -796,9 +815,12 @@ export function BlockContentTab({
                 onChange={(v) => updateContent({ heroCoverHeight: v })}
               />
 
-              {heroVariant === 'compact' && (
+              {heroVariant === 'compact' && isVisible('konten.desc.heroBannerOverlap') && (
                 <p className="text-[10.5px] text-[#8FA4BF] leading-snug">
-                  Pilih model Banner Overlap di tab Desain untuk menampilkan cover di bagian atas profil.
+                  {label(
+                    'konten.desc.heroBannerOverlap',
+                    'Pilih model Banner Overlap di tab Desain untuk menampilkan cover di bagian atas profil.'
+                  )}
                 </p>
               )}
 
@@ -926,7 +948,7 @@ export function BlockContentTab({
             <div className="space-y-2">
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Nama Usaha / Judul
+                  {label('konten.main.label.namaUsaha', 'Nama Usaha / Judul')}
                 </label>
                 <input
                   type="text"
@@ -937,7 +959,7 @@ export function BlockContentTab({
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Tagline / Deskripsi
+                  {label('konten.main.label.taglineUsaha', 'Tagline / Deskripsi')}
                 </label>
                 <textarea
                   rows={2}
@@ -961,7 +983,7 @@ export function BlockContentTab({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Jam Buka
+                    {label('konten.main.label.jamBuka', 'Jam Buka')}
                   </label>
                   <input
                     type="text"
@@ -974,7 +996,7 @@ export function BlockContentTab({
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Lokasi / Alamat
+                  {label('konten.main.label.lokasiAlamat', 'Lokasi / Alamat')}
                 </label>
                 <input
                   type="text"
@@ -992,7 +1014,7 @@ export function BlockContentTab({
         return (
           <div>
             <label className="block text-xs font-semibold text-[#17243D] mb-1">
-              Nama Toko / Warung F&amp;B
+              {label('konten.main.label.namaTokoFnb', 'Nama Toko / Warung F&B')}
             </label>
             <input
               type="text"
@@ -1008,7 +1030,7 @@ export function BlockContentTab({
           <div className="space-y-2.5">
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1">
-                Nama Pelatihan
+                {label('konten.main.label.namaPelatihan', 'Nama Pelatihan')}
               </label>
               <input
                 type="text"
@@ -1184,7 +1206,7 @@ export function BlockContentTab({
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Nama Tempat / Lokasi
+                {label('konten.main.label.namaTempatMaps', 'Nama Tempat / Lokasi')}
               </label>
               <input
                 type="text"
@@ -1290,138 +1312,14 @@ export function BlockContentTab({
           </div>
         );
 
-      case 'form': {
-        const formChecklistItems = c.formChecklistItems ?? [
-          'Saya menyetujui syarat & ketentuan layanan',
-        ];
+      case 'form':
         return (
-          <div className="space-y-2.5">
-            <div>
-              <label className="block text-xs font-semibold text-[#17243D] mb-1">
-                {label('konten.field.judulForm', 'Judul Form')}
-              </label>
-              <input
-                type="text"
-                value={c.formTitle ?? ''}
-                onChange={(e) => updateContent({ formTitle: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
-              />
-            </div>
-
-            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
-              <div className="text-[11px] font-bold text-[#17243D]">Pengaturan Wajib Isi Kolom</div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-[#17243D]">Kolom Nama Lengkap</span>
-                <button
-                  type="button"
-                  onClick={() => updateContent({ formNameRequired: c.formNameRequired === false })}
-                  className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border cursor-pointer transition-colors ${
-                    c.formNameRequired !== false
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-white text-[#64748B] border-[#DCE5EF]'
-                  }`}
-                >
-                  {c.formNameRequired !== false ? 'Wajib Isi' : 'Tidak Wajib'}
-                </button>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-[#17243D]">Kolom Email / No. WA</span>
-                <button
-                  type="button"
-                  onClick={() => updateContent({ formEmailRequired: c.formEmailRequired === false })}
-                  className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border cursor-pointer transition-colors ${
-                    c.formEmailRequired !== false
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-white text-[#64748B] border-[#DCE5EF]'
-                  }`}
-                >
-                  {c.formEmailRequired !== false ? 'Wajib Isi' : 'Tidak Wajib'}
-                </button>
-              </div>
-            </div>
-
-            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-[#17243D]">Aktifkan Checklist Form</span>
-                <ToggleSwitch
-                  checked={Boolean(c.formChecklistEnabled)}
-                  onChange={(checked) => updateContent({ formChecklistEnabled: checked })}
-                  label="Aktifkan Checklist Form"
-                />
-              </div>
-              {c.formChecklistEnabled && (
-                <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
-                  <div>
-                    <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                      Judul Checklist
-                    </label>
-                    <input
-                      type="text"
-                      value={c.formChecklistTitle ?? 'Konfirmasi Checklist'}
-                      onChange={(e) => updateContent({ formChecklistTitle: e.target.value })}
-                      className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-medium text-[#17243D]">Status Checklist</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateContent({ formChecklistRequired: !c.formChecklistRequired })
-                      }
-                      className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border cursor-pointer transition-colors ${
-                        c.formChecklistRequired
-                          ? 'bg-[#17243D] text-white border-[#17243D]'
-                          : 'bg-white text-[#64748B] border-[#DCE5EF]'
-                      }`}
-                    >
-                      {c.formChecklistRequired ? 'Wajib Dicentang' : 'Tidak Wajib'}
-                    </button>
-                  </div>
-                  <div className="space-y-1.5">
-                    {formChecklistItems.map((chkItem, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={chkItem}
-                          onChange={(e) => {
-                            const next = [...formChecklistItems];
-                            next[idx] = e.target.value;
-                            updateContent({ formChecklistItems: next });
-                          }}
-                          className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateContent({
-                              formChecklistItems: formChecklistItems.filter((_, i) => i !== idx),
-                            })
-                          }
-                          className="p-1 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateContent({
-                          formChecklistItems: [...formChecklistItems, 'Pernyataan checklist baru'],
-                        })
-                      }
-                      className="w-full py-1 rounded border border-dashed border-[#00C98A] text-[11px] font-semibold text-[#17243D] cursor-pointer"
-                    >
-                      + Tambah Item Checklist
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <DynamicFormBuilderEditor
+            selectedBlock={selectedBlock}
+            whatsappCenter={whatsappCenter}
+            onUpdateBlock={onUpdateBlock}
+          />
         );
-      }
 
       case 'youtube':
       case 'facebook_video':
@@ -1458,7 +1356,7 @@ export function BlockContentTab({
             {!isYt && (
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  URL Gambar Sampul (Opsional)
+                  {label('konten.main.label.urlSampulVideo', 'URL Gambar Sampul (Opsional)')}
                 </label>
                 <input
                   type="url"
@@ -1581,7 +1479,7 @@ export function BlockContentTab({
 
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Label Menu Icon
+                {label('konten.main.label.labelMenuIcon', 'Label Menu Icon')}
               </label>
               <input
                 type="text"
@@ -1704,27 +1602,225 @@ export function BlockContentTab({
           variant === 'store_card' ||
           variant === 'activity_post';
 
+        const bodyChildren = selectedBlock.children ?? [];
+        const footerChildren = c.cardFooterBlocks ?? [];
+        const topQuickTypes: { type: BlockType; label: string }[] = [
+          { type: 'image', label: '+ Gambar' },
+          { type: 'text', label: '+ Teks' },
+          { type: 'menu_icon', label: '+ Icon' },
+          { type: 'button', label: '+ Tombol' },
+          { type: 'cart_button', label: '+ Keranjang' },
+          { type: 'row', label: '+ Kolom' },
+        ];
+        const footerQuickTypes: { type: BlockType; label: string }[] = [
+          { type: 'cart_button', label: '+ Keranjang' },
+          { type: 'button', label: '+ Tombol' },
+          { type: 'menu_icon', label: '+ Icon' },
+          { type: 'text', label: '+ Teks' },
+          { type: 'row', label: '+ Kolom' },
+          { type: 'back_button', label: '+ Back' },
+        ];
+
         return (
           <div className="space-y-2.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Jenis Tampilan Kartu
-              </label>
-              <select
-                value={variant}
-                onChange={(e) =>
-                  updateContent({ cardVariant: e.target.value as ShowcaseCardVariant })
-                }
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-semibold text-[#17243D]"
-              >
-                <option value="quote_banner">Kutipan Tokoh (Banner Gradasi)</option>
-                <option value="news_banner">Berita / Informasi Nasional</option>
-                <option value="event_poster">Poster Even & Promo</option>
-                <option value="badge_tile">Kartu Sertifikasi / Badge</option>
-                <option value="store_card">Kartu Store Gradasi + Harga</option>
-                <option value="activity_post">Feed Kegiatan + Galeri</option>
-                <option value="membership_ticket">Kartu Tarif / Tiket Anggota</option>
-              </select>
+            {isVisible('konten.field.jenisTampilanKartu') && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  {label('konten.field.jenisTampilanKartu', 'Jenis Tampilan Kartu')}
+                </label>
+                <select
+                  value={variant}
+                  onChange={(e) =>
+                    updateContent({ cardVariant: e.target.value as ShowcaseCardVariant })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-semibold text-[#17243D]"
+                >
+                  <option value="quote_banner">Kutipan Tokoh (Banner Gradasi)</option>
+                  <option value="news_banner">Berita / Informasi Nasional</option>
+                  <option value="event_poster">Poster Even & Promo</option>
+                  <option value="badge_tile">Kartu Sertifikasi / Badge</option>
+                  <option value="store_card">Kartu Store Gradasi + Harga</option>
+                  <option value="activity_post">Feed Kegiatan + Galeri</option>
+                  <option value="membership_ticket">Kartu Tarif / Tiket Anggota</option>
+                </select>
+              </div>
+            )}
+
+            {/* Mode Dinamis & Drag-Drop Isi Kartu (Zona Atas & Strip Bawah) */}
+            <div className="p-2.5 rounded-xl bg-[#F0F7FF] border border-sky-200/80 space-y-2.5">
+              {(isVisible('konten.field.modeDinamisKartu') ||
+                isVisible('konten.desc.modeDinamisKartu')) && (
+                <div>
+                  {isVisible('konten.field.modeDinamisKartu') && (
+                    <div className="text-[11px] font-bold text-[#17243D]">
+                      {label('konten.field.modeDinamisKartu', 'Mode Dinamis & Drag-Drop Isi Kartu')}
+                    </div>
+                  )}
+                  {isVisible('konten.desc.modeDinamisKartu') && (
+                    <p className="text-[10px] text-[#51637D] leading-snug mt-0.5">
+                      {label(
+                        'konten.desc.modeDinamisKartu',
+                        'Tarik langsung alat/blok ke kartu di kanvas, atau tambah komponen di Zona Atas & Strip Bawah di bawah ini.'
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {(isVisible('konten.field.tampilkanKontenBawaan') ||
+                isVisible('konten.field.tampilkanStripBawaan')) && (
+                <div className="space-y-1.5 bg-white rounded-lg border border-[#DCE5EF] p-2">
+                  {isVisible('konten.field.tampilkanKontenBawaan') && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-semibold text-[#17243D]">
+                        {label(
+                          'konten.field.tampilkanKontenBawaan',
+                          'Tampilkan Konten Bawaan (Atas)'
+                        )}
+                      </span>
+                      <ToggleSwitch
+                        checked={!c.cardHideDefaultContent}
+                        onChange={(show) => updateContent({ cardHideDefaultContent: !show })}
+                        label="Tampilkan konten template bawaan pada bagian atas kartu"
+                      />
+                    </div>
+                  )}
+                  {isVisible('konten.field.tampilkanStripBawaan') && (
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#F0F5FA]">
+                      <span className="text-[10.5px] font-semibold text-[#17243D]">
+                        {label(
+                          'konten.field.tampilkanStripBawaan',
+                          'Tampilkan Total / Strip Bawaan (Bawah)'
+                        )}
+                      </span>
+                      <ToggleSwitch
+                        checked={!c.cardHideDefaultFooter}
+                        onChange={(show) => updateContent({ cardHideDefaultFooter: !show })}
+                        label="Tampilkan teks total bawaan pada strip warna bawah"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Zona Atas / Bagian Putih */}
+              {isVisible('konten.field.zonaAtasKartu') && (
+                <div className="bg-white rounded-lg border border-[#DCE5EF] p-2 space-y-1.5">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10.5px] font-bold text-[#17243D]">
+                      {label('konten.field.zonaAtasKartu', 'Zona Atas / Isi Kartu')} ({bodyChildren.length})
+                    </span>
+                    <span className="text-[9.5px] text-[#64748B]">Gambar, teks, icon, dll</span>
+                  </div>
+                  {bodyChildren.length > 0 && (
+                    <div className="space-y-1">
+                      {bodyChildren.map((child) => (
+                        <div
+                          key={child.id}
+                          className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#DCE5EF]"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onSelectBlock?.(child.id)}
+                            className="min-w-0 flex-1 text-left text-[10.5px] font-semibold text-[#17243D] hover:text-[#00A873] truncate cursor-pointer"
+                          >
+                            {child.label?.trim() || BLOCK_TYPE_NAMES[child.type]}
+                          </button>
+                          <button
+                            type="button"
+                            title="Hapus komponen ini"
+                            onClick={() =>
+                              onUpdateBlock(selectedBlock.id, (blk) => ({
+                                ...blk,
+                                children: (blk.children ?? []).filter((item) => item.id !== child.id),
+                              }))
+                            }
+                            className="p-0.5 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {topQuickTypes.map((qt) => (
+                      <button
+                        key={qt.type}
+                        type="button"
+                        onClick={() => onAddChildToContainer(selectedBlock.id, qt.type)}
+                        className="px-2 py-1 rounded-md bg-[#F0F5FA] hover:bg-[#ECFDF6] border border-[#DCE5EF] hover:border-[#00C98A] text-[10px] font-semibold text-[#17243D] cursor-pointer transition-colors"
+                      >
+                        {qt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Zona Bawah / Strip Warna (Biru/Merah/Aksen) */}
+              <div className="bg-white rounded-lg border border-sky-200 p-2 space-y-1.5">
+                <div className="flex items-center justify-between gap-1">
+                  {isVisible('konten.field.stripBawahKartu') && (
+                    <span className="text-[10.5px] font-bold text-sky-900">
+                      {label('konten.field.stripBawahKartu', 'Strip Bawah / Area Warna')} ({footerChildren.length})
+                    </span>
+                  )}
+                  <span className="text-[9.5px] text-sky-700">Keranjang, tombol, sheet, hal. 2</span>
+                </div>
+                {footerChildren.length > 0 && (
+                  <div className="space-y-1">
+                    {footerChildren.map((child) => (
+                      <div
+                        key={child.id}
+                        className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-md bg-sky-50/70 border border-sky-200"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onSelectBlock?.(child.id)}
+                          className="min-w-0 flex-1 text-left text-[10.5px] font-semibold text-[#17243D] hover:text-sky-700 truncate cursor-pointer"
+                        >
+                          {child.label?.trim() || BLOCK_TYPE_NAMES[child.type]}
+                        </button>
+                        <button
+                          type="button"
+                          title="Hapus komponen strip bawah"
+                          onClick={() =>
+                            updateContent({
+                              cardFooterBlocks: footerChildren.filter((item) => item.id !== child.id),
+                            })
+                          }
+                          className="p-0.5 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {onAddChildToCardFooter && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {footerQuickTypes.map((qt) => (
+                      <button
+                        key={qt.type}
+                        type="button"
+                        onClick={() => onAddChildToCardFooter(selectedBlock.id, qt.type)}
+                        className="px-2 py-1 rounded-md bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[10px] font-semibold text-sky-900 cursor-pointer transition-colors"
+                      >
+                        {qt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {isVisible('konten.desc.stripBawahKartu') && (
+                  <div className="text-[9.5px] text-[#64748B] leading-snug">
+                    {label(
+                      'konten.desc.stripBawahKartu',
+                      'Klik komponen di strip bawah untuk atur Aksi: Keranjang, Bottom/Left/Right/Top Sheet, Halaman 2, atau Link.'
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
@@ -2305,7 +2401,7 @@ export function BlockContentTab({
           <div className="space-y-2.5">
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Label Tombol Kembali
+                {label('konten.main.label.labelTombolKembali', 'Label Tombol Kembali')}
               </label>
               <input
                 type="text"
@@ -2431,7 +2527,11 @@ export function BlockContentTab({
             body: (
               <div className="space-y-2">
                 {renderDrillHeader('Produk')}
-                <SectionEmptyNote message="Item produk tidak ditemukan." />
+                {isVisible('konten.desc.produkKosong') && (
+                  <SectionEmptyNote
+                    message={label('konten.desc.produkKosong', 'Item produk tidak ditemukan.')}
+                  />
+                )}
               </div>
             ),
           };
@@ -2451,7 +2551,7 @@ export function BlockContentTab({
               )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Nama Produk
+                  {label('konten.items.label.namaProduk', 'Nama Produk')}
                 </label>
                 <input
                   type="text"
@@ -2462,7 +2562,7 @@ export function BlockContentTab({
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Ringkasan
+                  {label('konten.items.label.ringkasanItem', 'Ringkasan')}
                 </label>
                 <input
                   type="text"
@@ -2474,7 +2574,7 @@ export function BlockContentTab({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Harga
+                    {label('konten.items.label.hargaItem', 'Harga')}
                   </label>
                   <input
                     type="text"
@@ -3278,7 +3378,7 @@ export function BlockContentTab({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Nama Menu
+                    {label('konten.items.label.namaMenu', 'Nama Menu')}
                   </label>
                   <input
                     type="text"
@@ -3289,7 +3389,7 @@ export function BlockContentTab({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Harga
+                    {label('konten.items.label.hargaItem', 'Harga')}
                   </label>
                   <input
                     type="text"
@@ -4513,7 +4613,7 @@ export function BlockContentTab({
               />
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Judul Foto
+                  {label('konten.items.label.judulFoto', 'Judul Foto')}
                 </label>
                 <input
                   type="text"
@@ -4658,7 +4758,7 @@ export function BlockContentTab({
               )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Platform
+                  {label('konten.items.label.platformSosmed', 'Platform')}
                 </label>
                 <select
                   value={item.platform}
@@ -5357,7 +5457,7 @@ export function BlockContentTab({
               )}
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Label Tombol
+                  {label('konten.items.label.labelTombolKategori', 'Label Tombol')}
                 </label>
                 <input
                   type="text"
@@ -5370,7 +5470,7 @@ export function BlockContentTab({
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Judul Tujuan Gulir
+                  {label('konten.items.label.tujuanGulirKategori', 'Judul Tujuan Gulir')}
                 </label>
                 <input
                   type="text"
@@ -5795,8 +5895,20 @@ export function BlockContentTab({
             )}
 
             <div className="space-y-1.5">
+              {isVisible('konten.items.title.isiWadah') && (
+                <div className="text-[11px] font-semibold text-[#17243D]">
+                  {label('konten.items.title.isiWadah', 'Isi Komponen Wadah')}
+                </div>
+              )}
               {children.length === 0 ? (
-                <SectionEmptyNote message="Wadah ini masih kosong. Tambahkan komponen di bawah." />
+                isVisible('konten.desc.wadahKosong') ? (
+                  <SectionEmptyNote
+                    message={label(
+                      'konten.desc.wadahKosong',
+                      'Wadah ini masih kosong. Tambahkan komponen di bawah.'
+                    )}
+                  />
+                ) : null
               ) : (
                 children.map((child, idx) => (
                   <div
@@ -5926,7 +6038,7 @@ export function BlockContentTab({
           <div className="space-y-2.5">
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1">
-                Teks Tombol Ikuti
+                {label('konten.nav.label.teksTombolIkuti', 'Teks Tombol Ikuti')}
               </label>
               <input
                 type="text"
@@ -5937,7 +6049,7 @@ export function BlockContentTab({
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1">
-                Link Profil Akun
+                {label('konten.nav.label.linkProfilAkun', 'Link Profil Akun')}
               </label>
               <input
                 type="url"
@@ -5952,9 +6064,14 @@ export function BlockContentTab({
       }
 
       case 'category_tabs':
-        return (
-          <SectionEmptyNote message="Setiap tombol di daftar Data & Daftar Item otomatis menggulir halaman ke judul target saat diklik pengunjung." />
-        );
+        return isVisible('konten.desc.kategoriNav') ? (
+          <SectionEmptyNote
+            message={label(
+              'konten.desc.kategoriNav',
+              'Setiap tombol di daftar Data & Daftar Item otomatis menggulir halaman ke judul target saat diklik pengunjung.'
+            )}
+          />
+        ) : null;
 
       case 'menu_icon': {
         const action: MenuIconAction = c.menuIconAction ?? 'sheet';
@@ -5965,7 +6082,7 @@ export function BlockContentTab({
             {action === 'sheet' && (
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Judul Panel Sheet
+                  {label('konten.nav.label.judulSheet', 'Judul Panel Sheet')}
                 </label>
                 <input
                   type="text"
@@ -5978,7 +6095,7 @@ export function BlockContentTab({
 
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                Fungsi Saat Diklik
+                {label('konten.nav.label.fungsiKlikMenu', 'Fungsi Saat Diklik')}
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 {(
@@ -6009,7 +6126,7 @@ export function BlockContentTab({
             {action === 'sheet' && (
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                  Arah Muncul Sheet
+                  {label('konten.nav.label.arahSheet', 'Arah Muncul Sheet')}
                 </label>
                 <div className="grid grid-cols-4 gap-1">
                   {(
@@ -6040,7 +6157,7 @@ export function BlockContentTab({
             {action === 'card' && (
               <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
                 <label className="block text-[11px] font-semibold text-[#17243D]">
-                  Pilih Card / Komponen Tujuan
+                  {label('konten.nav.label.pilihCardTujuan', 'Pilih Card / Komponen Tujuan')}
                 </label>
                 <select
                   value={c.menuIconTargetBlockId ?? ''}
@@ -6061,7 +6178,7 @@ export function BlockContentTab({
             {action === 'page' && (
               <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
                 <label className="block text-[11px] font-semibold text-[#17243D]">
-                  Pilih Halaman Tujuan
+                  {label('konten.nav.label.pilihHalamanTujuan', 'Pilih Halaman Tujuan')}
                 </label>
                 <select
                   value={c.actionTargetPageId ?? ''}
@@ -6221,7 +6338,7 @@ export function BlockContentTab({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Nama Toko (di Pesan WA)
+                    {label('konten.actions.label.namaTokoWa', 'Nama Toko (di Pesan WA)')}
                   </label>
                   <input
                     type="text"
@@ -6233,7 +6350,7 @@ export function BlockContentTab({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                    Pesan Pembuka WhatsApp
+                    {label('konten.actions.label.pesanPembukaWa', 'Pesan Pembuka WhatsApp')}
                   </label>
                   <input
                     type="text"
@@ -6246,7 +6363,9 @@ export function BlockContentTab({
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-[#17243D]">Form Data Pemesan</span>
+                  <span className="text-xs font-medium text-[#17243D]">
+                    {label('konten.actions.label.formDataPemesan', 'Form Data Pemesan')}
+                  </span>
                   <ToggleSwitch
                     checked={c.catalogAskCustomerInfo ?? true}
                     onChange={(checked) => updateContent({ catalogAskCustomerInfo: checked })}
@@ -6256,7 +6375,9 @@ export function BlockContentTab({
 
                 {hasPhysicalItem && (
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-[#17243D]">Opsi Pengiriman</span>
+                    <span className="text-xs font-medium text-[#17243D]">
+                      {label('konten.actions.label.opsiPengiriman', 'Opsi Pengiriman')}
+                    </span>
                     <ToggleSwitch
                       checked={c.catalogShippingEnabled ?? true}
                       onChange={(checked) => updateContent({ catalogShippingEnabled: checked })}
@@ -6296,7 +6417,9 @@ export function BlockContentTab({
               />
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[#17243D]">Form Data Pemesan</span>
+              <span className="text-xs font-medium text-[#17243D]">
+                {label('konten.actions.label.formDataPemesan', 'Form Data Pemesan')}
+              </span>
               <ToggleSwitch
                 checked={c.catalogAskCustomerInfo !== false}
                 onChange={(val) => updateContent({ catalogAskCustomerInfo: val })}
@@ -6304,7 +6427,9 @@ export function BlockContentTab({
               />
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[#17243D]">Opsi Pengiriman</span>
+              <span className="text-xs font-medium text-[#17243D]">
+                {label('konten.actions.label.opsiPengiriman', 'Opsi Pengiriman')}
+              </span>
               <ToggleSwitch
                 checked={c.catalogShippingEnabled !== false}
                 onChange={(val) => updateContent({ catalogShippingEnabled: val })}
@@ -6508,7 +6633,7 @@ export function BlockContentTab({
           <div className="space-y-2.5">
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Teks Tombol saat Sembunyi
+                {label('konten.actions.label.tombolShowHideBuka', 'Teks Tombol saat Sembunyi')}
               </label>
               <input
                 type="text"
@@ -6519,7 +6644,7 @@ export function BlockContentTab({
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Teks Tombol saat Tampil
+                {label('konten.actions.label.tombolShowHideTutup', 'Teks Tombol saat Tampil')}
               </label>
               <input
                 type="text"
@@ -6565,7 +6690,7 @@ export function BlockContentTab({
           <div className="space-y-2.5">
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Label Pemicu
+                {label('konten.actions.label.labelPemicuSheet', 'Label Pemicu')}
               </label>
               <input
                 type="text"
@@ -6590,7 +6715,7 @@ export function BlockContentTab({
             )}
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Judul Bottom Sheet
+                {label('konten.actions.label.judulBottomSheet', 'Judul Bottom Sheet')}
               </label>
               <input
                 type="text"
@@ -6786,297 +6911,6 @@ export function BlockContentTab({
     }
   };
 
-  // --- ROW SPECIFIC CONTROLS IN KONTEN (matching Gambar 1 bottom-right) ---
-  const renderRowSettings = () => {
-    if (selectedBlock.type !== 'row') return null;
-    const rowChildren = selectedBlock.children ?? [];
-    const rowMode = c.rowLayoutMode ?? 'grid';
-    const rowColWidth = Math.max(80, Math.min(340, c.rowColumnWidth ?? 156));
-    const rowColMinH = Math.max(0, Math.min(360, c.rowColumnMinHeight ?? 0));
-    const rowGap = Math.max(0, Math.min(32, c.rowGap ?? 12));
-
-    const makeEmptySlide = (idx: number): BuilderBlock => ({
-      id: createId('slide'),
-      type: 'container',
-      label: `Slide ${idx}`,
-      style: {
-        ...DEFAULT_STYLE,
-        padding: 12,
-        marginBottom: 0,
-        minHeight: 80,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: theme.borderColor,
-        backgroundColor: theme.cardBg,
-        textColor: theme.textColor,
-        shadow: 'sm',
-        hoverLift: false,
-        align: 'left',
-      },
-      content: {},
-      children: [],
-    });
-
-    const setSlideCount = (targetCount: number) => {
-      const clamped = Math.max(1, Math.min(20, Math.round(targetCount)));
-      const next = [...rowChildren];
-      while (next.length < clamped) {
-        next.push(makeEmptySlide(next.length + 1));
-      }
-      const trimmed = next.slice(0, clamped);
-      onUpdateBlock(selectedBlock.id, (blk) => ({
-        ...blk,
-        content: {
-          ...blk.content,
-          rowColumns:
-            (blk.content.rowLayoutMode ?? 'grid') === 'grid'
-              ? Math.min(20, Math.max(1, clamped))
-              : blk.content.rowColumns,
-        },
-        children: trimmed,
-      }));
-    };
-
-    const gridCols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
-    const gridRows = Math.max(
-      1,
-      Math.min(10, c.rowGridRows ?? Math.max(1, Math.ceil((rowChildren.length || gridCols) / gridCols)))
-    );
-
-    const applyGridDimensions = (nextColsRaw: number, nextRowsRaw: number) => {
-      const nextCols = Math.max(1, Math.min(6, Math.round(nextColsRaw)));
-      const nextRows = Math.max(1, Math.min(10, Math.round(nextRowsRaw)));
-      const targetCells = Math.max(1, Math.min(20, nextCols * nextRows));
-      const next = [...rowChildren];
-      while (next.length < targetCells) {
-        next.push(makeEmptySlide(next.length + 1));
-      }
-      const trimmed = next.slice(0, targetCells);
-      onUpdateBlock(selectedBlock.id, (blk) => ({
-        ...blk,
-        content: {
-          ...blk.content,
-          rowLayoutMode: 'grid',
-          rowColumns: nextCols,
-          rowGridRows: nextRows,
-        },
-        children: trimmed,
-      }));
-    };
-
-    return (
-      <div className="space-y-2.5">
-        <div>
-          <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-            {label('desain.field.layoutRow', 'Mode Susunan Kolom / Slide')}
-          </label>
-          <SegmentedControl<'horizontal' | 'vertical' | 'grid'>
-            columns={3}
-            value={rowMode}
-            onChange={(m) => {
-              if (m === 'grid') {
-                const cols = Math.max(1, Math.min(6, c.rowColumns ?? 2));
-                const rows = Math.max(
-                  1,
-                  Math.min(10, c.rowGridRows ?? Math.max(1, Math.ceil((rowChildren.length || cols) / cols)))
-                );
-                updateContent({ rowLayoutMode: 'grid', rowColumns: cols, rowGridRows: rows });
-              } else {
-                updateContent({ rowLayoutMode: m });
-              }
-            }}
-            options={[
-              { id: 'horizontal', label: 'Horizontal' },
-              { id: 'vertical', label: 'Vertikal' },
-              { id: 'grid', label: 'Grid' },
-            ]}
-          />
-        </div>
-
-        {rowMode === 'grid' ? (
-          <div className="p-2.5 rounded-lg bg-[#F0F5FA]/80 border border-[#DCE5EF] space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold text-[#17243D]">Pengaturan Grid (Kolom × Row)</span>
-              <span className="text-[10px] font-semibold text-[#64748B] tabular-nums">
-                {rowChildren.length} / 20 sel
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="p-1.5 rounded-md bg-white border border-[#DCE5EF] space-y-1">
-                <span className="block text-[10px] font-semibold text-[#64748B]">Kolom (1–6)</span>
-                <div className="flex items-center justify-between gap-1">
-                  <button
-                    type="button"
-                    disabled={gridCols <= 1}
-                    onClick={() => applyGridDimensions(gridCols - 1, gridRows)}
-                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                    aria-label="Kurangi kolom grid"
-                  >
-                    -
-                  </button>
-                  <span className="text-xs font-bold tabular-nums text-[#17243D]">{gridCols}</span>
-                  <button
-                    type="button"
-                    disabled={gridCols >= 6 || (gridCols + 1) * gridRows > 20}
-                    onClick={() => applyGridDimensions(gridCols + 1, gridRows)}
-                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                    aria-label="Tambah kolom grid"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-1.5 rounded-md bg-white border border-[#DCE5EF] space-y-1">
-                <span className="block text-[10px] font-semibold text-[#64748B]">Baris / Row (1–10)</span>
-                <div className="flex items-center justify-between gap-1">
-                  <button
-                    type="button"
-                    disabled={gridRows <= 1}
-                    onClick={() => applyGridDimensions(gridCols, gridRows - 1)}
-                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                    aria-label="Kurangi baris grid"
-                  >
-                    -
-                  </button>
-                  <span className="text-xs font-bold tabular-nums text-[#17243D]">{gridRows}</span>
-                  <button
-                    type="button"
-                    disabled={gridRows >= 10 || gridCols * (gridRows + 1) > 20}
-                    onClick={() => applyGridDimensions(gridCols, gridRows + 1)}
-                    className="w-6 h-6 rounded border border-[#DCE5EF] bg-[#F8FAFC] text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                    aria-label="Tambah baris grid"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                disabled={gridCols >= 6 || (gridCols + 1) * gridRows > 20}
-                onClick={() => applyGridDimensions(gridCols + 1, gridRows)}
-                className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#17243D] text-white text-[10.5px] font-semibold disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="w-3 h-3 text-[#00C98A]" />
-                <span>Tambah Kolom</span>
-              </button>
-              <button
-                type="button"
-                disabled={gridRows >= 10 || gridCols * (gridRows + 1) > 20}
-                onClick={() => applyGridDimensions(gridCols, gridRows + 1)}
-                className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#17243D] text-white text-[10.5px] font-semibold disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="w-3 h-3 text-[#00C98A]" />
-                <span>Tambah Baris</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Jumlah Kolom / Slide (1-20) */
-          <div className="p-2 rounded-lg bg-[#F0F5FA]/70 border border-[#DCE5EF] space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-[#17243D]">
-                Jumlah Kolom / Slide (1–20)
-              </span>
-              <div className="inline-flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={rowChildren.length <= 1}
-                  onClick={() => setSlideCount(rowChildren.length - 1)}
-                  className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                  aria-label="Kurangi kolom"
-                >
-                  -
-                </button>
-                <span className="min-w-[24px] text-center text-xs font-bold tabular-nums text-[#17243D]">
-                  {rowChildren.length}
-                </span>
-                <button
-                  type="button"
-                  disabled={rowChildren.length >= 20}
-                  onClick={() => setSlideCount(rowChildren.length + 1)}
-                  className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] font-bold text-xs disabled:opacity-40 cursor-pointer"
-                  aria-label="Tambah kolom"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={20}
-              step={1}
-              value={Math.max(1, Math.min(20, rowChildren.length || 1))}
-              onChange={(e) => setSlideCount(Number(e.target.value))}
-              style={rangeProgressStyle(Math.max(1, Math.min(20, rowChildren.length || 1)), 1, 20)}
-              className="w-full cursor-pointer"
-            />
-          </div>
-        )}
-
-        {rowMode === 'horizontal' && (
-          <div className="space-y-2">
-            <SliderRow
-              label={label('desain.field.lebarKolom', 'Ukuran Lebar Tiap Slide')}
-              value={`${rowColWidth}px`}
-              min={80}
-              max={340}
-              current={rowColWidth}
-              onChange={(val) => updateContent({ rowColumnWidth: val })}
-            />
-            <div className="grid grid-cols-4 gap-1">
-              {[
-                { label: 'Kecil', px: 110 },
-                { label: 'Sedang', px: 150 },
-                { label: 'Besar', px: 200 },
-                { label: 'Lebar', px: 260 },
-              ].map((p) => (
-                <button
-                  key={p.px}
-                  type="button"
-                  onClick={() => updateContent({ rowColumnWidth: p.px })}
-                  className={`py-1 px-1.5 rounded text-[10px] font-semibold border cursor-pointer ${
-                    rowColWidth === p.px
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-[#8FA4BF]">
-              Slide horizontal menampilkan indikator progress 3 titik secara otomatis.
-            </p>
-          </div>
-        )}
-
-        <SliderRow
-          label={label('desain.field.tinggiKolom', 'Tinggi Minimal Kolom / Slide')}
-          value={rowColMinH === 0 ? 'Auto' : `${rowColMinH}px`}
-          min={0}
-          max={360}
-          current={rowColMinH}
-          onChange={(val) => updateContent({ rowColumnMinHeight: val })}
-        />
-
-        <SliderRow
-          label={label('desain.field.jarakKolom', 'Jarak Antar Kolom / Slide')}
-          value={`${rowGap}px`}
-          min={0}
-          max={32}
-          current={rowGap}
-          onChange={(val) => updateContent({ rowGap: val })}
-        />
-      </div>
-    );
-  };
-
   // --- UNIVERSAL CLICK ACTION CONTROLS (EVERY LAYER) ---
   const renderUniversalActionControls = () => {
     if (
@@ -7105,9 +6939,11 @@ export function BlockContentTab({
     return (
       <div className="space-y-2.5 pt-2 border-t border-[#DCE5EF] first:border-t-0 first:pt-0">
         <div>
-          <label className="block text-[11px] font-bold text-[#17243D] mb-1">
-            Aksi Saat Lapisan / Kartu Diklik
-          </label>
+          {isVisible('konten.nav.title.aksiKlikUniversal') && (
+            <label className="block text-[11px] font-bold text-[#17243D] mb-1">
+              {label('konten.nav.title.aksiKlikUniversal', 'Aksi Saat Lapisan / Kartu Diklik')}
+            </label>
+          )}
           <select
             value={actionType}
             onChange={(e) => {
@@ -7136,7 +6972,7 @@ export function BlockContentTab({
         {actionType === 'url' && (
           <div>
             <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-              URL Tujuan
+              {label('konten.field.urlTujuan', 'URL Tujuan')}
             </label>
             <input
               type="url"
@@ -7152,7 +6988,7 @@ export function BlockContentTab({
           <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
             <div>
               <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                Arah Muncul Sheet
+                {label('konten.nav.label.arahSheet', 'Arah Muncul Sheet')}
               </label>
               <div className="grid grid-cols-4 gap-1">
                 {(
@@ -7180,7 +7016,7 @@ export function BlockContentTab({
             </div>
             <div>
               <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                Judul Panel Sheet
+                {label('konten.nav.label.judulSheet', 'Judul Panel Sheet')}
               </label>
               <input
                 type="text"
@@ -7192,15 +7028,22 @@ export function BlockContentTab({
             </div>
 
             <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
-              <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-bold text-[#17243D]">
-                  Isi Komponen Sheet ({sheetBlocks.length})
-                </span>
-              </div>
+              {isVisible('konten.nav.title.isiKomponenSheet') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-bold text-[#17243D]">
+                    {label('konten.nav.title.isiKomponenSheet', 'Isi Komponen Sheet')} ({sheetBlocks.length})
+                  </span>
+                </div>
+              )}
               {sheetBlocks.length === 0 ? (
-                <p className="text-[10px] text-[#8FA4BF]">
-                  Belum ada isi di panel sheet. Tambahkan elemen di bawah ini:
-                </p>
+                isVisible('konten.desc.sheetKosong') ? (
+                  <p className="text-[10px] text-[#8FA4BF]">
+                    {label(
+                      'konten.desc.sheetKosong',
+                      'Belum ada isi di panel sheet. Tambahkan elemen di bawah ini:'
+                    )}
+                  </p>
+                ) : null
               ) : (
                 <div className="space-y-1">
                   {sheetBlocks.map((child) => (
@@ -7252,7 +7095,7 @@ export function BlockContentTab({
         {actionType === 'page' && (
           <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
             <label className="block text-[10.5px] font-semibold text-[#17243D]">
-              Pilih Halaman Tujuan
+              {label('konten.nav.label.pilihHalamanTujuan', 'Pilih Halaman Tujuan')}
             </label>
             <select
               value={c.actionTargetPageId ?? ''}
@@ -7296,7 +7139,7 @@ export function BlockContentTab({
         {actionType === 'card' && (
           <div className="space-y-1">
             <label className="block text-[11px] font-semibold text-[#17243D]">
-              Pilih Card / Komponen Tujuan
+              {label('konten.nav.label.pilihCardTujuan', 'Pilih Card / Komponen Tujuan')}
             </label>
             <select
               value={c.actionTargetBlockId ?? ''}
@@ -7314,9 +7157,12 @@ export function BlockContentTab({
           </div>
         )}
 
-        {actionType === 'back' && (
+        {actionType === 'back' && isVisible('konten.desc.tombolBack') && (
           <p className="text-[10.5px] text-[#51637D] bg-[#F0F5FA] p-2 rounded-lg border border-[#DCE5EF]">
-            Saat diklik, pengunjung otomatis kembali ke halaman sebelumnya (atau Beranda).
+            {label(
+              'konten.desc.tombolBack',
+              'Saat diklik, pengunjung otomatis kembali ke halaman sebelumnya (atau Beranda).'
+            )}
           </p>
         )}
       </div>
@@ -7334,12 +7180,19 @@ export function BlockContentTab({
           <div className="flex items-center gap-1.5 min-w-0">
             <ShoppingBag className="w-3.5 h-3.5 text-[#00A873] shrink-0" />
             <div className="min-w-0">
-              <div className="text-[11px] font-bold text-[#17243D]">
-                Aktifkan Fungsi Keranjang
-              </div>
-              <div className="text-[9.5px] text-[#51637D]">
-                Harga, terjual, tambah - 1 +, &amp; info keranjang mengambang
-              </div>
+              {isVisible('konten.field.fungsiKeranjangUniversal') && (
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  {label('konten.field.fungsiKeranjangUniversal', 'Aktifkan Fungsi Keranjang')}
+                </div>
+              )}
+              {isVisible('konten.desc.fungsiKeranjangUniversal') && (
+                <div className="text-[9.5px] text-[#51637D]">
+                  {label(
+                    'konten.desc.fungsiKeranjangUniversal',
+                    'Harga, terjual, tambah - 1 +, & info keranjang mengambang'
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <ToggleSwitch
@@ -7362,7 +7215,7 @@ export function BlockContentTab({
           <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
             <div>
               <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                Nama Produk di Keranjang
+                {label('konten.actions.label.namaProdukKeranjang', 'Nama Produk di Keranjang')}
               </label>
               <input
                 type="text"
@@ -7417,7 +7270,7 @@ export function BlockContentTab({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                  Label Tombol Tambah
+                  {label('konten.actions.label.labelTombolTambah', 'Label Tombol Tambah')}
                 </label>
                 <input
                   type="text"
@@ -7442,7 +7295,7 @@ export function BlockContentTab({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                  No. WhatsApp Checkout
+                  {label('konten.field.noWhatsappCheckout', 'Nomor WhatsApp Checkout')}
                 </label>
                 <input
                   type="text"
@@ -7453,7 +7306,7 @@ export function BlockContentTab({
               </div>
               <div>
                 <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                  Nama Toko
+                  {label('konten.actions.label.namaTokoWa', 'Nama Toko (di Pesan WA)')}
                 </label>
                 <input
                   type="text"
@@ -7468,9 +7321,11 @@ export function BlockContentTab({
             {/* Info Keranjang Mengambang */}
             <div className="pt-2 border-t border-[#DCE5EF] space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-[#17243D]">
-                  Info Keranjang Mengambang
-                </span>
+                {isVisible('konten.actions.title.keranjangMengambang') && (
+                  <span className="text-[11px] font-bold text-[#17243D]">
+                    {label('konten.actions.title.keranjangMengambang', 'Info Keranjang Mengambang')}
+                  </span>
+                )}
                 <ToggleSwitch
                   checked={c.universalCartFloatingEnabled !== false}
                   onChange={(checked) => updateContent({ universalCartFloatingEnabled: checked })}
@@ -7529,7 +7384,6 @@ export function BlockContentTab({
     );
   };
 
-  const rowSpecialContent = renderRowSettings();
   const mainContent = renderMainContent();
   const itemsInfo = renderDataItemsSection();
   const specificNavContent = renderNavSection();
@@ -7575,21 +7429,34 @@ export function BlockContentTab({
     selectedBlock.type === 'social_feed' ||
     selectedBlock.type === 'social_follower';
 
+  const resolvedWaCenter = resolveWhatsappCenter({ whatsappCenter });
+  const supportsWaCenterIntegration =
+    selectedBlock.type === 'button' ||
+    selectedBlock.type === 'catalog' ||
+    selectedBlock.type === 'fnb_catalog' ||
+    selectedBlock.type === 'cart_button' ||
+    selectedBlock.type === 'training_catalog' ||
+    selectedBlock.type === 'form' ||
+    Boolean(c.universalCartEnabled);
+
   return (
-    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#F0F5FA]/50">
-      {rowSpecialContent && (
+    <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2 bg-[#F4F7FB]">
+      {/* 1. DATA & DAFTAR ITEM — Tampil paling atas jika tersedia */}
+      {itemsInfo && isVisible('konten.sec.items') && (
         <AccordionSection
-          id="rowSpecific"
-          title={label('desain.sec.specific', 'Pengaturan Khusus Komponen')}
-          icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
-          isOpen={openSections.rowSpecific}
-          onToggle={() => toggleSection('rowSpecific')}
+          id="items"
+          title={label('konten.sec.items', 'Data & Daftar Item')}
+          icon={<ListOrdered className="w-3.5 h-3.5" />}
+          badge={itemsInfo.badge}
+          isOpen={openSections.items}
+          onToggle={() => toggleSection('items')}
         >
-          {rowSpecialContent}
+          {itemsInfo.body}
         </AccordionSection>
       )}
 
-      {mainContent && (
+      {/* 2. KONTEN UTAMA */}
+      {mainContent && isVisible('konten.sec.main') && (
         <AccordionSection
           id="main"
           title={label('konten.sec.main', 'Konten Utama')}
@@ -7601,7 +7468,164 @@ export function BlockContentTab({
         </AccordionSection>
       )}
 
-      {showTypographyAccordion && (
+      {/* 3. TAUTAN & NAVIGASI */}
+      {navContent && isVisible('konten.sec.nav') && (
+        <AccordionSection
+          id="nav"
+          title={label('konten.sec.nav', 'Tautan & Navigasi')}
+          icon={<Link2 className="w-3.5 h-3.5" />}
+          isOpen={openSections.nav}
+          onToggle={() => toggleSection('nav')}
+        >
+          {navContent}
+        </AccordionSection>
+      )}
+
+      {/* 4. PENGATURAN UMUM */}
+      {isVisible('konten.sec.general') && (
+        <AccordionSection
+          id="general"
+          title={label('konten.sec.general', 'Pengaturan Umum')}
+          icon={<Settings2 className="w-3.5 h-3.5" />}
+          isOpen={openSections.general}
+          onToggle={() => toggleSection('general')}
+        >
+          <div className="space-y-2.5">
+            {isVisible('konten.field.namaLapisan') && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  {label('konten.field.namaLapisan', 'Nama Lapisan Komponen')}
+                </label>
+                <input
+                  type="text"
+                  value={selectedBlock.label}
+                  onChange={(e) =>
+                    onUpdateBlock(selectedBlock.id, (blk) => ({ ...blk, label: e.target.value }))
+                  }
+                  placeholder={BLOCK_TYPE_NAMES[selectedBlock.type] || selectedBlock.type}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+            )}
+
+            {isVisible('konten.field.visibilitasKomponen') && (
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-[#17243D]">
+                    {label('konten.field.visibilitasKomponen', 'Visibilitas Komponen')}
+                  </div>
+                  {(s.visibility === 'hidden'
+                    ? isVisible('konten.desc.visibilitasSembunyi')
+                    : isVisible('konten.desc.visibilitasAktif')) && (
+                    <div className="text-[10px] text-[#51637D]">
+                      {s.visibility === 'hidden'
+                        ? label(
+                            'konten.desc.visibilitasSembunyi',
+                            'Disembunyikan pada halaman publik'
+                          )
+                        : label('konten.desc.visibilitasAktif', 'Tampil aktif pada halaman')}
+                    </div>
+                  )}
+                </div>
+                <ToggleSwitch
+                  checked={s.visibility !== 'hidden'}
+                  onChange={(visible) => updateStyle({ visibility: visible ? 'visible' : 'hidden' })}
+                  label={label('konten.field.visibilitasKomponen', 'Visibilitas Komponen')}
+                />
+              </div>
+            )}
+
+            {selectedBlock.type === 'container' && (
+              <ContainerSliderControls
+                selectedBlock={selectedBlock}
+                onUpdateBlock={onUpdateBlock}
+              />
+            )}
+
+            {supportsWaCenterIntegration && isVisible('konten.field.pusatWaTerhubung') && (
+              <div className="p-2.5 rounded-lg bg-[#ECFDF6]/60 border border-[#00C98A]/30 space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  {label('konten.field.pusatWaTerhubung', 'Pusat WhatsApp (Terhubung)')}
+                </div>
+                {isVisible('konten.field.tautanWaAktif') && (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                      {label('konten.field.tautanWaAktif', 'Tautan WhatsApp Aktif')}
+                    </label>
+                    <select
+                      value={c.whatsappLinkId ?? ''}
+                      onChange={(e) => {
+                        const linkId = e.target.value || undefined;
+                        const found = resolvedWaCenter.links.find((l) => l.id === linkId);
+                        updateContent({
+                          whatsappLinkId: linkId,
+                          ...(found?.templateId && !c.whatsappTemplateId
+                            ? { whatsappTemplateId: found.templateId }
+                            : {}),
+                        });
+                      }}
+                      className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                    >
+                      <option value="">
+                        Nomor Utama ({resolvedWaCenter.mainPhone || 'Belum diisi'})
+                      </option>
+                      {resolvedWaCenter.links
+                        .filter((l) => l.active)
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} ({l.phone || resolvedWaCenter.mainPhone})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+                {isVisible('konten.field.templatPesanWa') && (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                      {label('konten.field.templatPesanWa', 'Templat Pesan WhatsApp')}
+                    </label>
+                    <select
+                      value={c.whatsappTemplateId ?? ''}
+                      onChange={(e) =>
+                        updateContent({
+                          whatsappTemplateId: e.target.value || undefined,
+                          ...(selectedBlock.type === 'form'
+                            ? { formWhatsappTemplateId: e.target.value || undefined }
+                            : {}),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                    >
+                      <option value="">Otomatis (Ikuti pengaturan Pusat WhatsApp)</option>
+                      {resolvedWaCenter.templates.map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name} ({WHATSAPP_TEMPLATE_TYPE_LABELS[tpl.type]})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AccordionSection>
+      )}
+
+      {/* 5. AKSI & INTERAKSI */}
+      {actionsContent && isVisible('konten.sec.actions') && (
+        <AccordionSection
+          id="actions"
+          title={label('konten.sec.actions', 'Aksi & Interaksi')}
+          icon={<MousePointerClick className="w-3.5 h-3.5" />}
+          isOpen={openSections.actions}
+          onToggle={() => toggleSection('actions')}
+        >
+          {actionsContent}
+        </AccordionSection>
+      )}
+
+      {/* PENDUKUNG: TIPOGRAFI & PENGATURAN TAMBAHAN */}
+      {showTypographyAccordion && isVisible('desain.sec.typo') && (
         <AccordionSection
           id="typo"
           title={label('desain.sec.typo', 'Tipografi')}
@@ -7615,44 +7639,7 @@ export function BlockContentTab({
         </AccordionSection>
       )}
 
-      {navContent && (
-        <AccordionSection
-          id="nav"
-          title={label('konten.sec.nav', 'Tautan & Navigasi')}
-          icon={<Link2 className="w-3.5 h-3.5" />}
-          isOpen={openSections.nav}
-          onToggle={() => toggleSection('nav')}
-        >
-          {navContent}
-        </AccordionSection>
-      )}
-
-      {itemsInfo && (
-        <AccordionSection
-          id="items"
-          title={label('konten.sec.items', 'Data & Daftar Item')}
-          icon={<ListOrdered className="w-3.5 h-3.5" />}
-          badge={itemsInfo.badge}
-          isOpen={openSections.items}
-          onToggle={() => toggleSection('items')}
-        >
-          {itemsInfo.body}
-        </AccordionSection>
-      )}
-
-      {actionsContent && (
-        <AccordionSection
-          id="actions"
-          title={label('konten.sec.actions', 'Aksi & Interaksi')}
-          icon={<MousePointerClick className="w-3.5 h-3.5" />}
-          isOpen={openSections.actions}
-          onToggle={() => toggleSection('actions')}
-        >
-          {actionsContent}
-        </AccordionSection>
-      )}
-
-      {extraContent && (
+      {extraContent && isVisible('konten.sec.extra') && (
         <AccordionSection
           id="extra"
           title={label('konten.sec.extra', 'Pengaturan Tambahan')}

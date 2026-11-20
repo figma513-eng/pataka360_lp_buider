@@ -57,22 +57,29 @@ export function ImportModal({
       }}
       className={
         asPage
-          ? 'w-full max-w-3xl mx-auto bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
-          : 'w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+          ? 'w-full max-w-3xl mx-auto bg-white rounded-2xl border border-[#DCE5EF] overflow-hidden'
+          : 'w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-[#DCE5EF] overflow-hidden'
       }
     >
-      <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900">Import Backup Proyek (.json)</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Mendukung file backup 1 usaha maupun backup semua usaha sekaligus.
-          </p>
+      <div className="px-5 py-4 border-b border-[#DCE5EF] bg-white flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0">
+            <FileUp className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-[#17243D] tracking-tight">
+              Impor Backup Proyek (.json)
+            </h2>
+            <p className="text-xs text-[#5B708B] mt-0.5">
+              Mendukung file backup 1 usaha maupun backup semua usaha sekaligus.
+            </p>
+          </div>
         </div>
         {!asPage && (
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-[#F0F5FA] text-[#5B708B] hover:text-[#17243D] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -80,16 +87,21 @@ export function ImportModal({
       </div>
 
         <div className="p-5 space-y-4">
-          <label className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors">
-            <FileUp className="w-6 h-6 text-blue-600" />
-            <span className="text-xs font-semibold text-slate-700">
+          <label className="flex flex-col items-center justify-center gap-2 py-7 px-4 rounded-xl border-2 border-dashed border-[#DCE5EF] bg-[#F0F5FA]/60 hover:bg-[#ECFDF6]/60 hover:border-[#00C98A] cursor-pointer transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-white border border-[#DCE5EF] text-[#00A873] flex items-center justify-center">
+              <FileUp className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-semibold text-[#17243D]">
               Pilih file backup .json dari perangkat
+            </span>
+            <span className="text-[11px] text-[#8FA4BF]">
+              Format .json tunggal atau bundel seluruh unit usaha
             </span>
             <input type="file" accept=".json,application/json" onChange={handleFileChange} className="hidden" />
           </label>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-[#5B708B] mb-1.5">
               Atau tempel isi JSON di sini:
             </label>
             <textarea
@@ -100,14 +112,18 @@ export function ImportModal({
                 setError(null);
               }}
               placeholder='{"title": "...", "theme": {...}, "blocks": [...]}'
-              className="w-full p-3 text-xs font-mono rounded-xl border border-slate-200 focus:border-blue-500 outline-none"
+              className="w-full p-3 text-xs font-mono text-[#17243D] placeholder:text-[#8FA4BF] rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/40 focus:bg-white focus:border-[#00C98A] outline-none transition-colors"
             />
           </div>
 
-          {error && <div className="text-xs text-red-600 font-medium">{error}</div>}
+          {error && (
+            <div className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
+              {error}
+            </div>
+          )}
 
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <span className="text-[11px] text-[#8FA4BF]">
               Usaha yang diimpor ditambahkan ke daftar tanpa menghapus proyek lama.
             </span>
             <div className="flex gap-2 shrink-0">
@@ -115,7 +131,7 @@ export function ImportModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-[#DCE5EF] bg-white text-xs font-semibold text-[#17243D] hover:bg-[#F0F5FA] transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
@@ -124,7 +140,7 @@ export function ImportModal({
                 type="button"
                 onClick={() => tryParseAndImport(rawJson)}
                 disabled={!rawJson.trim()}
-                className="px-4 py-2 rounded-lg bg-[#17243D] hover:bg-[#223456] disabled:opacity-40 text-xs font-semibold text-white cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#17243D] hover:bg-[#223456] disabled:opacity-40 text-xs font-semibold text-white transition-colors cursor-pointer"
               >
                 Muat Proyek
               </button>
@@ -141,7 +157,7 @@ export function ImportModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#17243D]/60 backdrop-blur-xs flex items-center justify-center p-4"
     >
       {cardContent}
     </div>

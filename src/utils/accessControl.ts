@@ -61,22 +61,22 @@ export const ROLE_META: Record<
   super_admin: {
     label: 'Super Admin (Full Fitur)',
     shortLabel: 'Super Admin',
-    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    badgeClass: 'bg-[#ECFDF6] text-[#008F63] border-[#00C98A]/40',
   },
   admin: {
     label: 'Admin Unit Usaha',
     shortLabel: 'Admin',
-    badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+    badgeClass: 'bg-[#F0F5FA] text-[#17243D] border-[#DCE5EF]',
   },
   editor: {
     label: 'Editor Halaman',
     shortLabel: 'Editor',
-    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   viewer: {
     label: 'Analis / Viewer',
     shortLabel: 'Viewer',
-    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+    badgeClass: 'bg-[#F0F5FA]/70 text-[#5B708B] border-[#DCE5EF]',
   },
 };
 

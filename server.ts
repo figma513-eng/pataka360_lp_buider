@@ -13,7 +13,9 @@ import type {
   AccessRole,
   AccessSettingsConfig,
   AnalyticsEventRecord,
+  CatalogCustomerField,
   FeaturePermissionKey,
+  FormSubmissionRecord,
   ProjectRecord,
 } from './src/types/builder.ts';
 import { getDbState, resetDbConnectionCheck } from './src/db/index.ts';
@@ -43,7 +45,9 @@ import {
   getUserByEmail,
   hashPassword,
   insertAnalyticsEvent,
+  insertFormSubmission,
   listAnalyticsEvents,
+  listFormSubmissions,
   listProjectEntries,
   listUsers,
   listWebhookLogs,
@@ -60,6 +64,8 @@ import {
   upsertUser,
   verifyPassword,
 } from './src/db/repository.ts';
+import { validateDynamicFormSubmission } from './src/utils/formValidation.ts';
+import { findBlockById } from './src/utils/treeHelpers.ts';
 import {
   applyBackupRestore,
   exportCompleteBackupBundle,
@@ -420,7 +426,11 @@ function csrfProtectionMiddleware(
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
     return next();
   }
-  if (!req.path.startsWith('/api/') || req.path === '/api/track/event') {
+  if (
+    !req.path.startsWith('/api/') ||
+    req.path === '/api/track/event' ||
+    req.path === '/api/form-submissions'
+  ) {
     return next();
   }
 
@@ -1702,7 +1712,9 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           : 'desktop';
 
       const eventType: AnalyticsEventRecord['eventType'] =
-        raw.eventType === 'wa_click' || raw.eventType === 'form_submit'
+        raw.eventType === 'wa_click' ||
+        raw.eventType === 'form_submit' ||
+        raw.eventType === 'form_open'
           ? raw.eventType
           : 'page_view';
 
@@ -1720,6 +1732,14 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           typeof raw.orderValue === 'number' && Number.isFinite(raw.orderValue)
             ? Math.max(0, Math.round(raw.orderValue))
             : undefined,
+        componentId: raw.componentId ? String(raw.componentId).slice(0, 80) : undefined,
+        componentType: raw.componentType ? String(raw.componentType).slice(0, 40) : undefined,
+        buttonLabel: raw.buttonLabel ? String(raw.buttonLabel).slice(0, 80) : undefined,
+        waLinkId: raw.waLinkId ? String(raw.waLinkId).slice(0, 80) : undefined,
+        waTemplateId: raw.waTemplateId ? String(raw.waTemplateId).slice(0, 80) : undefined,
+        productId: raw.productId ? String(raw.productId).slice(0, 80) : undefined,
+        productName: raw.productName ? String(raw.productName).slice(0, 120) : undefined,
+        dedupeKey: raw.dedupeKey ? String(raw.dedupeKey).slice(0, 120) : undefined,
         utmSource: raw.utmSource ? String(raw.utmSource).slice(0, 60) : undefined,
         utmMedium: raw.utmMedium ? String(raw.utmMedium).slice(0, 60) : undefined,
         utmCampaign: raw.utmCampaign ? String(raw.utmCampaign).slice(0, 80) : undefined,
@@ -1730,7 +1750,10 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
       };
 
-      await insertAnalyticsEvent(event);
+      const inserted = await insertAnalyticsEvent(event);
+      if (!inserted) {
+        return res.json({ ok: true, id: event.id, deduplicated: true });
+      }
 
       const projEntry = await getProjectEntryById(event.projectId);
       const ads = projEntry?.record.project.adsConfig;
@@ -1759,12 +1782,192 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
           ctaLabel: event.ctaLabel,
           waPhone: event.waPhone,
           orderValue: event.orderValue,
+          componentId: event.componentId,
+          waLinkId: event.waLinkId,
+          waTemplateId: event.waTemplateId,
+          productName: event.productName,
           deviceType: event.deviceType,
           createdAt: event.createdAt,
         });
       }
 
       return res.json({ ok: true, id: event.id });
+    })
+  );
+
+  // ============================================================
+  // Dynamic Form Submissions (Section H — Server-side Validation)
+  // ============================================================
+  app.post(
+    '/api/form-submissions',
+    asyncHandler(async (req, res) => {
+      const api = await getApiSettings();
+      const clientIp = getClientIp(req);
+      const limitCheck = apiRateLimiter.consume(
+        `form:${clientIp}`,
+        Math.max(30, api.rateLimitPerMinute),
+        60_000
+      );
+      if (!limitCheck.allowed) {
+        res.setHeader('Retry-After', String(limitCheck.retryAfterSeconds));
+        return res.status(429).json({ error: 'Terlalu banyak pengiriman formulir. Coba lagi sebentar.' });
+      }
+
+      const body = (req.body || {}) as {
+        projectId?: string;
+        projectTitle?: string;
+        slug?: string;
+        componentId?: string;
+        formTitle?: string;
+        formCategory?: string;
+        fields?: CatalogCustomerField[];
+        values?: Record<string, string | string[] | boolean>;
+        checklist?: {
+          enabled?: boolean;
+          title?: string;
+          items?: string[];
+          checkedItems?: string[];
+          rule?: any;
+          legacyRequired?: boolean;
+          minChoices?: number;
+        };
+        sourceChannel?: AnalyticsEventRecord['channel'];
+        isTest?: boolean;
+      };
+
+      if (!body.projectId || !body.componentId || !body.values || typeof body.values !== 'object') {
+        return res.status(400).json({ error: 'Data pengiriman formulir tidak lengkap.' });
+      }
+
+      // Resolve authoritative form schema from saved project when available
+      const projEntry = await getProjectEntryById(String(body.projectId));
+      let fieldsToValidate: CatalogCustomerField[] = Array.isArray(body.fields) ? body.fields : [];
+      let checklistConfig = body.checklist;
+      let resolvedFormTitle = String(body.formTitle || 'Formulir').slice(0, 120);
+
+      if (projEntry) {
+        const allTrees = [
+          projEntry.record.project.blocks,
+          ...(projEntry.record.project.pages || []).map((p) => p.blocks),
+        ];
+        for (const tree of allTrees) {
+          const blk = findBlockById(tree, String(body.componentId));
+          if (blk && blk.type === 'form') {
+            if (Array.isArray(blk.content.formFields) && blk.content.formFields.length > 0) {
+              fieldsToValidate = blk.content.formFields;
+            }
+            if (blk.content.formTitle) {
+              resolvedFormTitle = blk.content.formTitle.slice(0, 120);
+            }
+            if (blk.content.formChecklistEnabled) {
+              checklistConfig = {
+                enabled: true,
+                title: blk.content.formChecklistTitle,
+                items: blk.content.formChecklistItems,
+                checkedItems: body.checklist?.checkedItems || [],
+                rule: blk.content.formChecklistRule,
+                legacyRequired: blk.content.formChecklistRequired,
+                minChoices: blk.content.formChecklistMinChoices,
+              };
+            }
+            break;
+          }
+        }
+      }
+
+      if (fieldsToValidate.length > 0 || checklistConfig?.enabled) {
+        const validation = validateDynamicFormSubmission({
+          fields: fieldsToValidate,
+          values: body.values,
+          checklist: checklistConfig,
+        });
+        if (!validation.valid) {
+          return res.status(422).json({
+            ok: false,
+            error: validation.firstError || 'Isian formulir belum lengkap atau tidak valid.',
+            fieldErrors: validation.errors,
+          });
+        }
+      }
+
+      const cleanValues: Record<string, string | string[] | boolean> = {};
+      for (const [k, v] of Object.entries(body.values).slice(0, 60)) {
+        const cleanKey = String(k).slice(0, 80);
+        if (Array.isArray(v)) {
+          cleanValues[cleanKey] = v.map((x) => String(x).slice(0, 200)).slice(0, 40);
+        } else if (typeof v === 'boolean') {
+          cleanValues[cleanKey] = v;
+        } else {
+          cleanValues[cleanKey] = String(v ?? '').slice(0, 2000);
+        }
+      }
+
+      const submission: FormSubmissionRecord = {
+        id: `sub_${crypto.randomBytes(6).toString('hex')}`,
+        projectId: String(body.projectId).slice(0, 80),
+        projectTitle: String(body.projectTitle || projEntry?.record.project.title || 'Unit Usaha').slice(0, 120),
+        slug: String(body.slug || projEntry?.record.project.publishing?.slug || '').slice(0, 100),
+        componentId: String(body.componentId).slice(0, 80),
+        formTitle: resolvedFormTitle,
+        formCategory: body.formCategory ? String(body.formCategory).slice(0, 40) : undefined,
+        values: cleanValues,
+        sourceChannel: body.sourceChannel || 'organic',
+        isTest: Boolean(body.isTest),
+        createdAt: Date.now(),
+      };
+
+      await insertFormSubmission(submission);
+
+      const ua = String(req.headers['user-agent'] || '');
+      const deviceType: 'mobile' | 'desktop' = /mobile|android|iphone|ipad|ipod/i.test(ua)
+        ? 'mobile'
+        : 'desktop';
+
+      await insertAnalyticsEvent({
+        id: `evt_fs_${submission.id}`,
+        projectId: submission.projectId,
+        projectTitle: submission.projectTitle,
+        slug: submission.slug,
+        eventType: 'form_submit',
+        channel: submission.sourceChannel || 'organic',
+        sourceLabel: submission.sourceChannel || 'Organik',
+        ctaLabel: submission.formTitle,
+        componentId: submission.componentId,
+        componentType: 'form',
+        buttonLabel: submission.formTitle,
+        deviceType,
+        isTest: submission.isTest,
+        createdAt: submission.createdAt,
+      });
+
+      if (!submission.isTest) {
+        void dispatchWebhookEvent('form_submit', {
+          submissionId: submission.id,
+          projectId: submission.projectId,
+          formTitle: submission.formTitle,
+          values: submission.values,
+          createdAt: submission.createdAt,
+        });
+      }
+
+      return res.status(201).json({ ok: true, submission });
+    })
+  );
+
+  app.get(
+    '/api/form-submissions',
+    requireAuthenticatedAccess('analytics'),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const projectId =
+        typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+      if (projectId && !canUserAccessProjectId(req.authUser, projectId)) {
+        return res.status(403).json({ error: 'Akses data formulir proyek di luar izin Anda.' });
+      }
+      const submissions = await listFormSubmissions(projectId);
+      const scoped = projectId
+        ? submissions
+        : submissions.filter((s) => canUserAccessProjectId(req.authUser, s.projectId));
+      return res.json({ submissions: scoped });
     })
   );
 
@@ -1988,6 +2191,8 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
       const body = (req.body || {}) as {
         labels?: unknown;
         patch?: unknown;
+        hiddenKeys?: unknown;
+        hiddenPatch?: unknown;
         resetAll?: unknown;
       };
       const isResetAll = body.resetAll === true;
@@ -1995,8 +2200,16 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         Boolean(body.labels) && typeof body.labels === 'object' && !Array.isArray(body.labels);
       const hasPatch =
         Boolean(body.patch) && typeof body.patch === 'object' && !Array.isArray(body.patch);
+      const hasHiddenKeys =
+        Boolean(body.hiddenKeys) &&
+        typeof body.hiddenKeys === 'object' &&
+        !Array.isArray(body.hiddenKeys);
+      const hasHiddenPatch =
+        Boolean(body.hiddenPatch) &&
+        typeof body.hiddenPatch === 'object' &&
+        !Array.isArray(body.hiddenPatch);
 
-      if (!isResetAll && !hasLabels && !hasPatch) {
+      if (!isResetAll && !hasLabels && !hasPatch && !hasHiddenKeys && !hasHiddenPatch) {
         return res.status(400).json({ error: 'Payload pengaturan tampilan tidak valid.' });
       }
 
@@ -2004,6 +2217,8 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
         resetAll: isResetAll,
         labels: hasLabels ? (body.labels as Record<string, string>) : undefined,
         patch: hasPatch ? (body.patch as Record<string, string>) : undefined,
+        hiddenKeys: hasHiddenKeys ? (body.hiddenKeys as Record<string, boolean>) : undefined,
+        hiddenPatch: hasHiddenPatch ? (body.hiddenPatch as Record<string, boolean>) : undefined,
       });
       collabHub.broadcastAppearanceUpdated(saved);
       return res.json({ ok: true, settings: saved });

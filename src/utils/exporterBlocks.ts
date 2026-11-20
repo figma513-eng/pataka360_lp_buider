@@ -8,6 +8,7 @@ import type {
   CatalogShippingOptionConfig,
   PageTheme,
   ShadowPreset,
+  WhatsappCenterConfig,
 } from '../types/builder.ts';
 import { renderButtonIconSvgString, resolveButtonIcon } from './buttonIcons.ts';
 import { SOCIAL_PLATFORMS, resolveSocialMetrics } from './socialIcons.ts';
@@ -45,6 +46,9 @@ import {
   resolveUniversalCartMeta,
   supportsUniversalCart,
 } from './universalLayerHelpers.ts';
+import { buildSectionDInlineCss } from './blockStyleCss.ts';
+import { resolveFieldRequiredRule } from './formValidation.ts';
+import { buildWaMeUrl, resolveWhatsappDispatch } from './whatsappBuilder.ts';
 
 export { extractYouTubeId };
 
@@ -190,7 +194,8 @@ function styleObjectToCss(
 
   if (!options?.isHeroBanner) {
     if (style.borderWidth > 0) {
-      parts.push(`border: ${style.borderWidth}px solid ${style.borderColor}`);
+      const bStyle = style.borderStyle || 'solid';
+      parts.push(`border: ${style.borderWidth}px ${bStyle} ${style.borderColor}`);
     }
     const resolvedShadow = shadowToCss(style.shadow, style.shadowColor, style.shadowSize);
     if (resolvedShadow !== 'none') {
@@ -202,6 +207,11 @@ function styleObjectToCss(
     }
   }
 
+  const sectionDCss = buildSectionDInlineCss(style);
+  if (sectionDCss) {
+    parts.push(sectionDCss.replace(/;$/, ''));
+  }
+
   return parts.join('; ');
 }
 
@@ -210,9 +220,17 @@ export function renderBlockHtml(
   theme: PageTheme,
   advance: AdvanceOptions,
   indent = '      ',
-  inheritedTextColor?: string
+  inheritedTextColor?: string,
+  whatsappCenter?: WhatsappCenterConfig
 ): string {
-  const rawHtml = renderBlockHtmlInner(block, theme, advance, indent, inheritedTextColor);
+  const rawHtml = renderBlockHtmlInner(
+    block,
+    theme,
+    advance,
+    indent,
+    inheritedTextColor,
+    whatsappCenter
+  );
   if (!rawHtml) return rawHtml;
   const html = rawHtml.replace(
     /^(\s*<[a-zA-Z0-9-]+)/,
@@ -324,7 +342,8 @@ function renderBlockHtmlInner(
   theme: PageTheme,
   advance: AdvanceOptions,
   indent = '      ',
-  inheritedTextColor?: string
+  inheritedTextColor?: string,
+  whatsappCenter?: WhatsappCenterConfig
 ): string {
   const resolvedTextColor = resolveBlockTextColor(block.style, theme, inheritedTextColor);
   const nextInheritedTextColor =
@@ -345,15 +364,108 @@ function renderBlockHtmlInner(
 
   switch (block.type) {
     case 'container': {
-      const inner = (block.children ?? [])
-        .map((child) =>
-          renderBlockHtml(child, theme, advance, indent + '  ', nextInheritedTextColor)
-        )
-        .filter(Boolean)
-        .join('\n');
+      const children = block.children ?? [];
       const jumpAttr = block.label.trim()
         ? ` data-jump-title="${escapeHtml(block.label.trim().toLowerCase())}"`
         : '';
+      const mode = block.content.containerLayoutMode || 'normal';
+
+      if ((mode === 'slider_horizontal' || mode === 'slider_vertical') && children.length > 0) {
+        const isHoriz = mode === 'slider_horizontal';
+        const visibleItems = Math.max(
+          1,
+          Math.min(6, Number(block.content.sliderVisibleItems || 1))
+        );
+        const gap = Math.max(0, Math.min(48, Number(block.content.sliderGap ?? 12)));
+        const speedMs = Math.max(100, Math.min(3000, Number(block.content.sliderSpeedMs ?? 350)));
+        const transition = block.content.sliderTransition || 'smooth';
+        const loop = block.content.sliderLoop ? '1' : '0';
+        const autoplay = block.content.sliderAutoplay ? '1' : '0';
+        const autoplayMs = Math.max(
+          1000,
+          Math.min(20000, Number(block.content.sliderAutoplayIntervalMs ?? 3500))
+        );
+        const showArrows = block.content.sliderShowArrows !== false;
+        const showDots = block.content.sliderShowDots !== false;
+        const touchSwipe = block.content.sliderTouchSwipe !== false ? '1' : '0';
+        const mouseDrag = block.content.sliderMouseDrag !== false ? '1' : '0';
+        const snap = block.content.sliderSnap !== false ? '1' : '0';
+        const overflowMode = block.content.sliderOverflow || 'hidden';
+
+        const slideItemsHtml = children
+          .map((child, idx) => {
+            const childHtml = renderBlockHtml(
+              child,
+              theme,
+              advance,
+              indent + '      ',
+              nextInheritedTextColor,
+              whatsappCenter
+            );
+            const itemFlex = isHoriz
+              ? `flex: 0 0 calc((100% - ${Math.max(0, visibleItems - 1) * gap}px) / ${visibleItems}); min-width: 0;`
+              : `flex: 0 0 auto; width: 100%;`;
+            const snapStyle = snap === '1' ? 'scroll-snap-align: start;' : '';
+            return `${indent}    <div class="lynk-cslider-item" data-cslider-idx="${idx}" style="${itemFlex} ${snapStyle} box-sizing: border-box;">\n${childHtml}\n${indent}    </div>`;
+          })
+          .join('\n');
+
+        const trackStyle = isHoriz
+          ? `display: flex; flex-direction: row; gap: ${gap}px; overflow-x: auto; scroll-behavior: ${
+              transition === 'instant' ? 'auto' : 'smooth'
+            }; ${
+              snap === '1' ? 'scroll-snap-type: x mandatory;' : ''
+            } scrollbar-width: none; -webkit-overflow-scrolling: touch;`
+          : `display: flex; flex-direction: column; gap: ${gap}px; overflow-y: auto; max-height: ${Math.max(
+              240,
+              block.style.maxHeight || 380
+            )}px; scroll-behavior: ${transition === 'instant' ? 'auto' : 'smooth'}; ${
+              snap === '1' ? 'scroll-snap-type: y mandatory;' : ''
+            } scrollbar-width: none; -webkit-overflow-scrolling: touch;`;
+
+        const arrowsHtml =
+          showArrows && children.length > 1
+            ? `\n${indent}  <button type="button" class="lynk-cslider-prev" aria-label="Slide sebelumnya" style="position: absolute; ${
+                isHoriz ? 'left: 6px; top: 50%; transform: translateY(-50%);' : 'right: 8px; top: 8px;'
+              } z-index: 6; width: 28px; height: 28px; border-radius: 9999px; border: 1px solid rgba(15,23,42,0.14); background: rgba(255,255,255,0.92); color: #0F172A; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(15,23,42,0.12);">${
+                isHoriz ? '&lsaquo;' : '&uarr;'
+              }</button>` +
+              `\n${indent}  <button type="button" class="lynk-cslider-next" aria-label="Slide berikutnya" style="position: absolute; ${
+                isHoriz ? 'right: 6px; top: 50%; transform: translateY(-50%);' : 'right: 8px; bottom: 8px;'
+              } z-index: 6; width: 28px; height: 28px; border-radius: 9999px; border: 1px solid rgba(15,23,42,0.14); background: rgba(255,255,255,0.92); color: #0F172A; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(15,23,42,0.12);">${
+                isHoriz ? '&rsaquo;' : '&darr;'
+              }</button>`
+            : '';
+
+        const dotsHtml =
+          showDots && children.length > 1
+            ? `\n${indent}  <div class="lynk-cslider-dots" style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px;">` +
+              children
+                .map(
+                  (_, idx) =>
+                    `<button type="button" class="lynk-cslider-dot" data-cslider-dot="${idx}" aria-label="Slide ${
+                      idx + 1
+                    }" style="width: ${idx === 0 ? '18px' : '7px'}; height: 7px; border-radius: 9999px; border: 0; padding: 0; background: ${
+                      idx === 0 ? theme.accentColor || '#00C98A' : '#CBD5E1'
+                    }; cursor: pointer; transition: all 0.2s;"></button>`
+                )
+                .join('') +
+              `</div>`
+            : '';
+
+        return `${indent}<div${hoverCls}${jumpAttr} data-lb-cslider="1" data-slider-mode="${mode}" data-visible-items="${visibleItems}" data-gap="${gap}" data-speed="${speedMs}" data-transition="${transition}" data-loop="${loop}" data-autoplay="${autoplay}" data-autoplay-interval="${autoplayMs}" data-touch-swipe="${touchSwipe}" data-mouse-drag="${mouseDrag}" data-snap="${snap}" data-overflow="${overflowMode}" style="${css}; position: relative; overflow: ${overflowMode};">
+${indent}  <div class="lynk-cslider-track" style="${trackStyle}">
+${slideItemsHtml}
+${indent}  </div>${arrowsHtml}${dotsHtml}
+${indent}</div>`;
+      }
+
+      const inner = children
+        .map((child) =>
+          renderBlockHtml(child, theme, advance, indent + '  ', nextInheritedTextColor, whatsappCenter)
+        )
+        .filter(Boolean)
+        .join('\n');
       return `${indent}<div${hoverCls}${jumpAttr} style="${css}">\n${inner}\n${indent}</div>`;
     }
 
@@ -758,9 +870,36 @@ ${indent}</div>`;
     }
 
     case 'button': {
-      const href = escapeHtml(sanitizeExternalUrl(block.content.url, '#'));
       const rawLabel = block.content.label ?? 'Tautan';
       const label = escapeHtml(rawLabel);
+      let resolvedHref = sanitizeExternalUrl(block.content.url, '#');
+      let waTrackAttrs = ` data-lynk-component-id="${escapeHtml(block.id)}" data-lynk-component-type="button" data-lynk-wa-source="${label}"`;
+
+      if (
+        whatsappCenter &&
+        (block.content.whatsappLinkId || block.content.whatsappTemplateId)
+      ) {
+        const dispatch = resolveWhatsappDispatch({
+          project: { whatsappCenter },
+          waLinkId: block.content.whatsappLinkId,
+          waTemplateId: block.content.whatsappTemplateId,
+          context: {
+            nama_usaha: whatsappCenter.businessName,
+            info_usaha: whatsappCenter.businessInfo,
+          },
+        });
+        if (dispatch.phone) {
+          resolvedHref = buildWaMeUrl(dispatch.phone, dispatch.message);
+        }
+        if (dispatch.waLinkId) {
+          waTrackAttrs += ` data-lynk-wa-link-id="${escapeHtml(dispatch.waLinkId)}"`;
+        }
+        if (dispatch.waTemplateId) {
+          waTrackAttrs += ` data-lynk-wa-template-id="${escapeHtml(dispatch.waTemplateId)}"`;
+        }
+      }
+
+      const href = escapeHtml(resolvedHref);
       const btnGrad = buildLinearGradientCss(block.style);
       const bg = btnGrad
         ? block.style.gradientColor1 || '#2563EB'
@@ -772,54 +911,220 @@ ${indent}</div>`;
       const weight = block.style.fontWeightCss || '600';
       const leftIconId = resolveButtonIcon(block.content.buttonIcon, rawLabel);
       const leftIconSvg = renderButtonIconSvgString(leftIconId, 16, block.content.buttonIconUrl);
-      return `${indent}<a href="${href}" target="_blank" rel="noopener noreferrer"${hoverCls} style="${css}; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: ${weight}; font-size: ${fontSize}; background-color: ${bg};${
+      return `${indent}<a href="${href}" target="_blank" rel="noopener noreferrer"${hoverCls}${waTrackAttrs} style="${css}; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: ${weight}; font-size: ${fontSize}; background-color: ${bg};${
         btnGrad ? ` background-image: ${btnGrad};` : ''
       } color: ${fg}; padding: 12px 18px;">${leftIconSvg}<span>${label}</span></a>`;
     }
 
     case 'form': {
       const title = escapeHtml(block.content.formTitle ?? 'Formulir');
-      const nameReq = block.content.formNameRequired !== false;
-      const emailReq = block.content.formEmailRequired !== false;
-      const namePh = escapeHtml(
-        `${block.content.namePlaceholder ?? 'Nama'}${nameReq ? ' *' : ' (Opsional)'}`
-      );
-      const emailPh = escapeHtml(
-        `${block.content.emailPlaceholder ?? 'Email'}${emailReq ? ' *' : ' (Opsional)'}`
-      );
-      const btnLabel = escapeHtml(block.content.submitLabel ?? 'Kirim');
+      const formCategory = block.content.formCategory || 'konsultasi';
+      const btnLabel = escapeHtml(block.content.submitLabel ?? 'Kirim Formulir');
       const btnBg = block.content.buttonColor ?? '#2563EB';
-      const successMsg = escapeHtml(block.content.successMessage ?? 'Terima kasih!');
+      const successMsg = escapeHtml(
+        block.content.successMessage ?? 'Terima kasih! Data Anda telah berhasil dikirim.'
+      );
+      const fields: CatalogCustomerField[] =
+        Array.isArray(block.content.formFields) && block.content.formFields.length > 0
+          ? block.content.formFields
+          : [
+              {
+                id: 'fld_nama',
+                label: 'Nama Lengkap',
+                placeholder: block.content.namePlaceholder ?? 'Nama Lengkap',
+                type: 'name',
+                required: block.content.formNameRequired !== false,
+                requiredRule:
+                  block.content.formNameRequired === false ? 'optional' : 'required_fill',
+              },
+              {
+                id: 'fld_email',
+                label: 'Email / WhatsApp',
+                placeholder: block.content.emailPlaceholder ?? 'Email atau Nomor WhatsApp',
+                type: 'text',
+                required: block.content.formEmailRequired !== false,
+                requiredRule:
+                  block.content.formEmailRequired === false ? 'optional' : 'required_fill',
+              },
+            ];
+
+      const fieldStyle =
+        'width: 100%; padding: 10px 12px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px; font-family: inherit; background: #FFFFFF; color: #0F172A;';
+
+      const fieldsHtml = fields
+        .map((fld) => {
+          const fid = escapeHtml(fld.id);
+          const flabel = escapeHtml(fld.label || 'Kolom');
+          const fph = escapeHtml(fld.placeholder || '');
+          const fdef = escapeHtml(fld.defaultValue || '');
+          const rule = resolveFieldRequiredRule(fld);
+          const isReq = rule !== 'optional';
+          const condAttrs = fld.conditionalFieldId
+            ? ` data-cond-field="${escapeHtml(fld.conditionalFieldId)}" data-cond-val="${escapeHtml(
+                fld.conditionalValue || ''
+              )}"`
+            : '';
+
+          if (fld.type === 'section') {
+            return `${indent}  <div data-form-field-wrap="${fid}"${condAttrs} style="margin: 12px 0 8px 0; padding-top: 8px; border-top: 1px solid #E2E8F0; text-align: left;">
+${indent}    <div style="font-size: 13px; font-weight: 700;">${flabel}</div>${
+              fld.description
+                ? `\n${indent}    <div style="font-size: 12px; opacity: 0.78; margin-top: 2px;">${escapeHtml(
+                    fld.description
+                  )}</div>`
+                : ''
+            }
+${indent}  </div>`;
+          }
+
+          const ruleAttrs =
+            ` data-field-id="${fid}" data-field-type="${escapeHtml(fld.type)}" data-field-label="${flabel}" data-required-rule="${escapeHtml(
+              rule
+            )}"` +
+            (fld.minChoices ? ` data-min-choices="${Math.max(1, fld.minChoices)}"` : '') +
+            (fld.requiredOptionIndexes?.length
+              ? ` data-req-idxs="${escapeHtml(fld.requiredOptionIndexes.join(','))}"`
+              : '') +
+            (fld.errorMessage ? ` data-err-msg="${escapeHtml(fld.errorMessage)}"` : '') +
+            (typeof fld.minValue === 'number' ? ` data-min-val="${fld.minValue}"` : '') +
+            (typeof fld.maxValue === 'number' ? ` data-max-val="${fld.maxValue}"` : '') +
+            (typeof fld.minLength === 'number' ? ` data-min-len="${fld.minLength}"` : '') +
+            (typeof fld.maxLength === 'number' ? ` data-max-len="${fld.maxLength}"` : '') +
+            (fld.pattern ? ` data-pattern="${escapeHtml(fld.pattern)}"` : '');
+
+          const reqAttr = isReq ? ' required' : '';
+          let controlHtml = '';
+          const opts = (fld.options ?? []).map((o) => o.trim()).filter(Boolean);
+
+          if (fld.type === 'textarea' || fld.type === 'address') {
+            controlHtml = `<textarea rows="3" data-form-input${ruleAttrs}${reqAttr} placeholder="${fph}" style="${fieldStyle} resize: vertical;">${fdef}</textarea>`;
+          } else if (fld.type === 'select') {
+            controlHtml =
+              `<select data-form-input${ruleAttrs}${reqAttr} style="${fieldStyle}">` +
+              `<option value="">${fph || '-- Pilih --'}</option>` +
+              opts
+                .map(
+                  (o) =>
+                    `<option value="${escapeHtml(o)}"${
+                      o === fld.defaultValue ? ' selected' : ''
+                    }>${escapeHtml(o)}</option>`
+                )
+                .join('') +
+              `</select>`;
+          } else if (fld.type === 'radio') {
+            controlHtml =
+              `<div data-form-radio-group${ruleAttrs} style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 8px; background: #FFFFFF; color: #0F172A;">` +
+              (opts.length > 0 ? opts : ['Pilihan 1', 'Pilihan 2'])
+                .map(
+                  (o) =>
+                    `<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;"><input type="radio" name="fld_${escapeHtml(
+                      block.id
+                    )}_${fid}" value="${escapeHtml(o)}"${
+                      o === fld.defaultValue ? ' checked' : ''
+                    } style="accent-color: #059669;" /><span>${escapeHtml(o)}</span></label>`
+                )
+                .join('') +
+              `</div>`;
+          } else if (fld.type === 'checkbox_group') {
+            controlHtml =
+              `<div data-form-check-group${ruleAttrs} style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 8px; background: #FFFFFF; color: #0F172A;">` +
+              (opts.length > 0 ? opts : ['Pilihan 1', 'Pilihan 2'])
+                .map(
+                  (o, idx) =>
+                    `<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer;"><input type="checkbox" data-check-idx="${idx}" value="${escapeHtml(
+                      o
+                    )}" style="margin-top: 2px; accent-color: #059669;" /><span>${escapeHtml(
+                      o
+                    )}</span></label>`
+                )
+                .join('') +
+              `</div>`;
+          } else if (fld.type === 'file') {
+            controlHtml = `<input type="file" data-form-input${ruleAttrs}${reqAttr} style="${fieldStyle} padding: 8px;" />`;
+          } else {
+            const htmlType =
+              fld.type === 'email'
+                ? 'email'
+                : fld.type === 'number'
+                ? 'number'
+                : fld.type === 'date'
+                ? 'date'
+                : fld.type === 'time'
+                ? 'time'
+                : fld.type === 'phone' || fld.type === 'tel'
+                ? 'tel'
+                : 'text';
+            controlHtml = `<input type="${htmlType}" data-form-input${ruleAttrs}${reqAttr} value="${fdef}" placeholder="${fph}" style="${fieldStyle}" />`;
+          }
+
+          return `${indent}  <div data-form-field-wrap="${fid}"${condAttrs} style="margin-bottom: 10px; text-align: left;">
+${indent}    <label style="display: block; font-size: 12px; font-weight: 700; margin-bottom: 4px;">${flabel}${
+            isReq ? ' <span style="color: #E11D48;">*</span>' : ''
+          }</label>
+${indent}    ${controlHtml}${
+            fld.helpText
+              ? `\n${indent}    <div style="font-size: 11px; opacity: 0.72; margin-top: 3px;">${escapeHtml(
+                  fld.helpText
+                )}</div>`
+              : ''
+          }
+${indent}    <div data-field-err="${fid}" style="display: none; font-size: 11px; color: #BE123C; font-weight: 600; margin-top: 3px;"></div>
+${indent}  </div>`;
+        })
+        .join('\n');
+
       const chkEnabled = Boolean(block.content.formChecklistEnabled);
       const chkItems = (block.content.formChecklistItems ?? []).filter((x) => x.trim());
-      const chkReq = Boolean(block.content.formChecklistRequired);
+      const chkRule =
+        block.content.formChecklistRule ||
+        (block.content.formChecklistRequired ? 'required_consent_all' : 'optional');
+      const chkReq = chkRule !== 'optional';
+      const chkMin = Math.max(1, Number(block.content.formChecklistMinChoices || 1));
       const chkTitle = escapeHtml(
-        (block.content.formChecklistTitle ?? 'Persetujuan / Checklist').trim() +
+        (block.content.formChecklistTitle ?? 'Persetujuan & Konfirmasi').trim() +
           (chkReq ? ' *' : '')
       );
       const chkHtml =
         chkEnabled && chkItems.length > 0
           ? `\n${indent}  <div data-form-chk-group data-form-chk-required="${
               chkReq ? '1' : '0'
-            }" style="margin-bottom: 12px; padding: 10px; border: 1px solid #CBD5E1; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; text-align: left;">` +
+            }" data-form-chk-rule="${escapeHtml(chkRule)}" data-form-chk-min="${chkMin}" data-form-chk-title="${escapeHtml(
+              block.content.formChecklistTitle ?? 'Persetujuan'
+            )}" style="margin-bottom: 12px; padding: 10px; border: 1px solid #CBD5E1; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; text-align: left;">` +
             `\n${indent}    <div style="font-size: 12px; font-weight: 700;">${chkTitle}</div>` +
             chkItems
               .map(
-                (itemText) =>
-                  `\n${indent}    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; cursor: pointer;"><input type="checkbox" data-form-chk style="margin-top: 2px; accent-color: #059669; cursor: pointer;" /><span>${escapeHtml(
+                (itemText, idx) =>
+                  `\n${indent}    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; cursor: pointer;"><input type="checkbox" data-form-chk data-chk-idx="${idx}" value="${escapeHtml(
+                    itemText
+                  )}" style="margin-top: 2px; accent-color: #059669; cursor: pointer;" /><span>${escapeHtml(
                     itemText
                   )}</span></label>`
               )
               .join('') +
             `\n${indent}  </div>`
           : '';
-      return `${indent}<form data-lynk-form style="${css}">
-${indent}  <div style="font-weight: 700; font-size: 15px; margin-bottom: 12px;">${title}</div>
-${indent}  <input type="text"${nameReq ? ' required' : ''} placeholder="${namePh}" style="width: 100%; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px;" />
-${indent}  <input type="text"${emailReq ? ' required' : ''} placeholder="${emailPh}" style="width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #CBD5E1; border-radius: 8px; box-sizing: border-box; font-size: 14px;" />${chkHtml}
-${indent}  <div class="form-err" style="display: none; margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; background: #FFF1F2; border: 1px solid #FECDD3; font-size: 12px; color: #BE123C; font-weight: 600;"></div>
-${indent}  <button type="submit" style="width: 100%; padding: 11px 16px; border: none; border-radius: 8px; background-color: ${btnBg}; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer;">${btnLabel}</button>
-${indent}  <div class="form-msg" style="display: none; margin-top: 10px; font-size: 13px; color: #16A34A; font-weight: 500;">${successMsg}</div>
+
+      const saveDb = block.content.formSaveToDatabase !== false ? '1' : '0';
+      const waEnabled = block.content.formWhatsappEnabled ? '1' : '0';
+      const waPhoneAttr = escapeHtml(
+        normalizeWhatsappNumber(block.content.formWhatsappNumber || whatsappCenter?.mainPhone || '')
+      );
+      const waTplIdAttr = escapeHtml(
+        block.content.formWhatsappTemplateId || block.content.whatsappTemplateId || ''
+      );
+      const waLinkIdAttr = escapeHtml(block.content.whatsappLinkId || '');
+
+      return `${indent}<form data-lynk-form novalidate data-form-block-id="${escapeHtml(
+        block.id
+      )}" data-form-title="${title}" data-form-category="${escapeHtml(
+        formCategory
+      )}" data-form-save-db="${saveDb}" data-form-wa-enabled="${waEnabled}" data-form-wa-phone="${waPhoneAttr}" data-form-wa-template-id="${waTplIdAttr}" data-form-wa-link-id="${waLinkIdAttr}" style="${css}">
+${indent}  <div style="font-weight: 700; font-size: 15px; margin-bottom: 12px; text-align: left;">${title}</div>
+${fieldsHtml}${chkHtml}
+${indent}  <div class="form-err" style="display: none; margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; background: #FFF1F2; border: 1px solid #FECDD3; font-size: 12px; color: #BE123C; font-weight: 600; text-align: left;"></div>
+${indent}  <button type="submit" style="width: 100%; padding: 11px 16px; border: none; border-radius: 8px; background-color: ${btnBg}; color: #FFFFFF; font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit;">${btnLabel}</button>
+${indent}  <div class="form-msg" style="display: none; margin-top: 10px; font-size: 13px; color: #16A34A; font-weight: 600; text-align: left;">${successMsg}</div>
 ${indent}</form>`;
     }
 
@@ -2353,8 +2658,37 @@ ${indent}</div>`;
       const accent = sanitizeCssColor(c.cardAccentColor, theme.accentColor || '#2563EB');
       const fg = sanitizeCssColor(c.cardTextColor, '#FFFFFF');
       const radius = Math.max(8, block.style.borderRadius || 14);
+      const hideDefaultContent = Boolean(c.cardHideDefaultContent);
+      const hideDefaultFooter = Boolean(c.cardHideDefaultFooter);
+
+      const bodyChildren = block.children ?? [];
+      const footerChildren = c.cardFooterBlocks ?? [];
+      const hasBodyChildren = bodyChildren.length > 0;
+      const hasFooterChildren = footerChildren.length > 0;
+      const bodyZoneTextColor =
+        variant === 'membership_ticket' || variant === 'activity_post'
+          ? theme.textColor
+          : fg;
+
+      const bodySlotHtml = hasBodyChildren
+        ? `<div data-card-zone="body" style="width:100%; display:flex; flex-direction:column; gap:6px;">${bodyChildren
+            .map((ch) => renderBlockHtml(ch, theme, advance, indent + '  ', bodyZoneTextColor))
+            .join('\n')}</div>`
+        : '';
+      const footerSlotHtml = hasFooterChildren
+        ? `<div data-card-zone="footer" style="width:100%; display:flex; flex-direction:column; gap:6px;">${footerChildren
+            .map((ch) => renderBlockHtml(ch, theme, advance, indent + '  ', fg))
+            .join('\n')}</div>`
+        : '';
+      const optionalAccentStripHtml = footerSlotHtml
+        ? `<div style="background:${accent}; color:${fg}; padding:10px 12px; width:100%;">${footerSlotHtml}</div>`
+        : '';
+
       const hasUniversalAction = Boolean(c.actionType && c.actionType !== 'none');
-      const actionUrl = hasUniversalAction ? '' : sanitizeExternalUrl(c.cardActionUrl, '');
+      const actionUrl =
+        hasUniversalAction || hasBodyChildren || hasFooterChildren
+          ? ''
+          : sanitizeExternalUrl(c.cardActionUrl, '');
       const wrapAnchor = (inner: string) =>
         actionUrl && variant !== 'store_card' && variant !== 'activity_post'
           ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer" style="display:block; text-decoration:none; color:inherit;">${inner}</a>`
@@ -2387,153 +2721,184 @@ ${indent}</div>`;
               c.cardImage
             )}" alt="${escapeHtml(c.cardTitle || 'Tokoh')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; object-position:top; display:block;${imgTransformCss}" /></div>`
           : '';
+        const defaultRow = !hideDefaultContent
+          ? `<div style="display:flex; flex-direction:${
+              isLeft ? 'row-reverse' : 'row'
+            }; align-items:flex-end; justify-content:space-between; gap:8px; text-align:${
+              isLeft ? 'right' : 'left'
+            }; width:100%;"><div style="flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:${Math.max(
+              6,
+              textGap
+            )}px;">${
+              c.cardQuote?.trim()
+                ? `<p style="margin:0; font-size:${subtitleSize ?? 11}px; line-height:${
+                    lh ?? 1.38
+                  }; font-weight:500;${ls ? ` letter-spacing:${ls}px;` : ''}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardQuote)}</p>`
+                : ''
+            }<div style="display:flex; flex-direction:column; gap:${textGap}px;">${
+              c.cardTitle?.trim()
+                ? `<div style="font-size:${titleSize ?? 11.5}px; font-weight:800; line-height:${
+                    lh ?? 1.25
+                  };${ls ? ` letter-spacing:${ls}px;` : ''}${
+                    titleClampCss ? ` ${titleClampCss}` : ''
+                  }">${escapeHtml(c.cardTitle)}</div>`
+                : ''
+            }${
+              c.cardSubtitle?.trim()
+                ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9; line-height:${
+                    lh ?? 1.25
+                  };${ls ? ` letter-spacing:${ls}px;` : ''}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }</div></div>${imgHtml}</div>`
+          : '';
         cardHtml = wrapAnchor(
-          `<div style="background:linear-gradient(135deg, ${gradFrom}, ${gradTo}); border-radius:${radius}px; color:${fg}; display:flex; flex-direction:${
-            isLeft ? 'row-reverse' : 'row'
-          }; align-items:flex-end; justify-content:space-between; gap:8px; padding:12px 14px 10px; min-height:${Math.max(
+          `<div style="background:linear-gradient(135deg, ${gradFrom}, ${gradTo}); border-radius:${radius}px; overflow:hidden; color:${fg}; display:flex; flex-direction:column; min-height:${Math.max(
             118,
             block.style.minHeight || 0
-          )}px; box-shadow:0 2px 8px rgba(15,23,42,0.1); text-align:${
-            isLeft ? 'right' : 'left'
-          };"><div style="flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:${Math.max(
-            6,
-            textGap
-          )}px;">${
-            c.cardQuote?.trim()
-              ? `<p style="margin:0; font-size:${subtitleSize ?? 11}px; line-height:${
-                  lh ?? 1.38
-                }; font-weight:500;${ls ? ` letter-spacing:${ls}px;` : ''}${
-                  subClampCss ? ` ${subClampCss}` : ''
-                }">${escapeHtml(c.cardQuote)}</p>`
-              : ''
-          }<div style="display:flex; flex-direction:column; gap:${textGap}px;">${
-            c.cardTitle?.trim()
-              ? `<div style="font-size:${titleSize ?? 11.5}px; font-weight:800; line-height:${
-                  lh ?? 1.25
-                };${ls ? ` letter-spacing:${ls}px;` : ''}${
-                  titleClampCss ? ` ${titleClampCss}` : ''
-                }">${escapeHtml(c.cardTitle)}</div>`
-              : ''
-          }${
-            c.cardSubtitle?.trim()
-              ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9; line-height:${
-                  lh ?? 1.25
-                };${ls ? ` letter-spacing:${ls}px;` : ''}${
-                  subClampCss ? ` ${subClampCss}` : ''
-                }">${escapeHtml(c.cardSubtitle)}</div>`
-              : ''
-          }</div></div>${imgHtml}</div>`
+          )}px; box-shadow:0 2px 8px rgba(15,23,42,0.1);"><div style="padding:12px 14px 10px; display:flex; flex-direction:column; gap:8px; flex:1;">${defaultRow}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`
         );
       } else if (variant === 'news_banner') {
         const boxHeightCss = c.cardMediaHeight
           ? `height:${Math.max(90, Math.min(360, c.cardMediaHeight))}px;`
           : 'aspect-ratio:16/9;';
+        const mediaSection = !hideDefaultContent
+          ? `<div style="position:relative; ${boxHeightCss} width:100%; background:#E2E8F0; overflow:hidden;">${
+              c.cardImage
+                ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
+                    c.cardTitle || 'Berita'
+                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
+                : ''
+            }<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+              titleSize ?? 11.5
+            }px; font-weight:700;${typoExtra || ' line-height:1.35;'}${
+              titleClampCss ? ` ${titleClampCss}` : ''
+            }">${escapeHtml(c.cardTitle || 'Judul Informasi')}</div>${
+              c.cardSubtitle?.trim()
+                ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }</div></div>`
+          : '';
+        const customBody = bodySlotHtml
+          ? `<div style="padding:10px 12px;">${bodySlotHtml}</div>`
+          : '';
         cardHtml = wrapAnchor(
-          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; ${boxHeightCss} background:#E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08);">${
-            c.cardImage
-              ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
-                  c.cardTitle || 'Berita'
-                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
-              : ''
-          }<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
-            titleSize ?? 11.5
-          }px; font-weight:700;${typoExtra || ' line-height:1.35;'}${
-            titleClampCss ? ` ${titleClampCss}` : ''
-          }">${escapeHtml(c.cardTitle || 'Judul Informasi')}</div>${
-            c.cardSubtitle?.trim()
-              ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
-                  subClampCss ? ` ${subClampCss}` : ''
-                }">${escapeHtml(c.cardSubtitle)}</div>`
-              : ''
-          }</div></div>`
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;">${mediaSection}${customBody}${optionalAccentStripHtml}</div>`
         );
       } else if (variant === 'event_poster') {
         const boxHeightCss = c.cardMediaHeight
           ? `height:${Math.max(100, Math.min(360, c.cardMediaHeight))}px;`
           : 'aspect-ratio:3/4;';
+        const posterMedia = !hideDefaultContent
+          ? `<div style="${boxHeightCss} width:100%; background:#F1F5F9; overflow:hidden;">${
+              c.cardImage
+                ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
+                    c.cardTitle || 'Event'
+                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
+                : ''
+            }</div>`
+          : '';
+        const customBody = bodySlotHtml
+          ? `<div style="padding:10px 12px; width:100%;">${bodySlotHtml}</div>`
+          : '';
+        const defaultFooter = !hideDefaultFooter
+          ? `<div style="font-size:${
+              titleSize ?? 10.5
+            }px; font-weight:700;${typoExtra || ' line-height:1.3;'}${
+              titleClampCss ? ` ${titleClampCss}` : ''
+            }">${escapeHtml(c.cardTitle || 'Nama Event / Promo')}</div>${
+              c.cardSubtitle?.trim()
+                ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9;${typoExtra}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }`
+          : '';
+        const footerBar =
+          !hideDefaultFooter || footerSlotHtml
+            ? `<div style="background:${accent}; color:${fg}; padding:8px; text-align:center; display:flex; flex-direction:column; gap:${Math.max(
+                4,
+                textGap
+              )}px;">${defaultFooter}${footerSlotHtml}</div>`
+            : '';
         cardHtml = wrapAnchor(
-          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;"><div style="${boxHeightCss} width:100%; background:#F1F5F9; overflow:hidden;">${
-            c.cardImage
-              ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
-                  c.cardTitle || 'Event'
-                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
-              : ''
-          }</div><div style="background:${accent}; color:${fg}; padding:8px; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
-            titleSize ?? 10.5
-          }px; font-weight:700;${typoExtra || ' line-height:1.3;'}${
-            titleClampCss ? ` ${titleClampCss}` : ''
-          }">${escapeHtml(c.cardTitle || 'Nama Event / Promo')}</div>${
-            c.cardSubtitle?.trim()
-              ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9;${typoExtra}${
-                  subClampCss ? ` ${subClampCss}` : ''
-                }">${escapeHtml(c.cardSubtitle)}</div>`
-              : ''
-          }</div></div>`
+          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;">${posterMedia}${customBody}${footerBar}</div>`
         );
       } else if (variant === 'badge_tile') {
         const boxSize = Math.max(32, Math.min(200, c.cardMediaSize ?? 52));
+        const defaultBody = !hideDefaultContent
+          ? `${
+              c.cardImage
+                ? `<div style="width:${boxSize}px; height:${boxSize}px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
+                    c.cardImage
+                  )}" alt="${escapeHtml(
+                    c.cardTitle || 'Badge'
+                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
+                : ''
+            }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+              titleSize ?? 11
+            }px; font-weight:700; white-space:pre-line;${typoExtra || ' line-height:1.25;'}${
+              titleClampCss ? ` ${titleClampCss}` : ''
+            }">${escapeHtml(c.cardTitle || 'Sertifikasi')}</div>${
+              c.cardSubtitle?.trim()
+                ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9;${typoExtra}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }</div>`
+          : '';
         cardHtml = wrapAnchor(
-          `<div style="background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 8px; min-height:${Math.max(
+          `<div style="background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; overflow:hidden; color:${fg}; min-height:${Math.max(
             124,
             block.style.minHeight || 0
-          )}px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${
-            c.cardImage
-              ? `<div style="width:${boxSize}px; height:${boxSize}px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
-                  c.cardImage
-                )}" alt="${escapeHtml(
-                  c.cardTitle || 'Badge'
-                )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
-              : ''
-          }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
-            titleSize ?? 11
-          }px; font-weight:700; white-space:pre-line;${typoExtra || ' line-height:1.25;'}${
-            titleClampCss ? ` ${titleClampCss}` : ''
-          }">${escapeHtml(c.cardTitle || 'Sertifikasi')}</div>${
-            c.cardSubtitle?.trim()
-              ? `<div style="font-size:${subtitleSize ?? 9.5}px; opacity:0.9;${typoExtra}${
-                  subClampCss ? ` ${subClampCss}` : ''
-                }">${escapeHtml(c.cardSubtitle)}</div>`
-              : ''
-          }</div></div>`
+          )}px; display:flex; flex-direction:column; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);"><div style="padding:12px 8px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px;">${defaultBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`
         );
       } else if (variant === 'store_card') {
         const boxSize = Math.max(36, Math.min(200, c.cardMediaSize ?? 72));
         const itemKey = `${escapeHtml(block.id)}::sc_${escapeHtml(block.id)}`;
         const playHtml =
-          c.cardShowPlayIcon !== false
+          !hideDefaultContent && c.cardShowPlayIcon !== false
             ? `<span style="position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:9999px; background:rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; color:#FFFFFF;"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"/></svg></span>`
             : '';
-        const cartHtml = c.cardEnableCart
+        const cartHtml = !hideDefaultContent && c.cardEnableCart
           ? `<div style="width:100%; padding-top:4px; display:flex; justify-content:center;"><button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:9999px; border:0; background:#FFFFFF; color:#0F172A; font-size:10.5px; font-weight:700; cursor:pointer; font-family:inherit;">+ Tambah</button><div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:6px; padding:2px 6px; border-radius:9999px; background:#FFFFFF; color:#0F172A;"><button type="button" data-fnb-dec="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-weight:700; cursor:pointer;">-</button><span data-fnb-qty="${itemKey}" style="min-width:14px; text-align:center; font-size:11px; font-weight:700;">0</span><button type="button" data-fnb-inc="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#059669; color:#FFFFFF; font-weight:700; cursor:pointer;">+</button></div></div>`
           : '';
-        cardHtml = `<div style="position:relative; background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; color:${fg}; padding:12px 10px; min-height:${Math.max(
+        const defaultStoreBody = !hideDefaultContent
+          ? `${
+              c.cardImage
+                ? `<div style="width:${boxSize}px; height:${boxSize}px; margin-top:8px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
+                    c.cardImage
+                  )}" alt="${escapeHtml(
+                    c.cardTitle || 'Produk'
+                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
+                : ''
+            }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+              titleSize ?? 13
+            }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
+              titleClampCss ? ` ${titleClampCss}` : ''
+            }">${escapeHtml(c.cardTitle || 'Nama Produk')}</div>${
+              c.cardSubtitle?.trim()
+                ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }${
+              c.cardPrice?.trim()
+                ? `<div style="font-size:11px; font-weight:600; opacity:0.95; font-variant-numeric:tabular-nums;">${escapeHtml(
+                    c.cardPrice
+                  )}</div>`
+                : ''
+            }</div>${cartHtml}`
+          : '';
+        cardHtml = `<div style="position:relative; background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; overflow:hidden; color:${fg}; min-height:${Math.max(
           168,
           block.style.minHeight || 0
-        )}px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${playHtml}${
-          c.cardImage
-            ? `<div style="width:${boxSize}px; height:${boxSize}px; margin-top:8px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
-                c.cardImage
-              )}" alt="${escapeHtml(
-                c.cardTitle || 'Produk'
-              )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
-            : ''
-        }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
-          titleSize ?? 13
-        }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
-          titleClampCss ? ` ${titleClampCss}` : ''
-        }">${escapeHtml(c.cardTitle || 'Nama Produk')}</div>${
-          c.cardSubtitle?.trim()
-            ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
-                subClampCss ? ` ${subClampCss}` : ''
-              }">${escapeHtml(c.cardSubtitle)}</div>`
-            : ''
-        }${
-          c.cardPrice?.trim()
-            ? `<div style="font-size:11px; font-weight:600; opacity:0.95; font-variant-numeric:tabular-nums;">${escapeHtml(
-                c.cardPrice
-              )}</div>`
-            : ''
-        }</div>${cartHtml}</div>`;
+        )}px; display:flex; flex-direction:column; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${playHtml}<div style="padding:12px 10px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px;">${defaultStoreBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`;
       } else if (variant === 'activity_post') {
         const avatarSize = Math.max(32, Math.min(96, c.cardMediaSize ?? 42));
         const galH = c.cardMediaHeight
@@ -2552,45 +2917,48 @@ ${indent}</div>`;
               )
               .join('')}</div>`
           : '';
-        cardHtml = `<div style="border-radius:${radius}px; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; color:${theme.textColor}; padding:12px; display:flex; flex-direction:column; gap:10px; text-align:left; box-shadow:0 1px 4px rgba(15,23,42,0.06);"><div style="display:flex; align-items:center; gap:10px;">${
-          c.cardImage
-            ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
-                c.cardTitle || 'Profil'
-              )}" referrerpolicy="no-referrer" style="width:${avatarSize}px; height:${avatarSize}px; border-radius:9999px; object-fit:${imgFit}; flex-shrink:0; border:1px solid #E2E8F0;" />`
-            : ''
-        }<div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
-          titleSize ?? 13
-        }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
-          titleClampCss ? ` ${titleClampCss}` : ''
-        }">${escapeHtml(c.cardTitle || 'Nama Pengurus')}</div>${
-          c.cardSubtitle?.trim()
-            ? `<div style="font-size:${subtitleSize ?? 11}px; opacity:0.7;${typoExtra}${
-                subClampCss ? ` ${subClampCss}` : ''
-              }">${escapeHtml(c.cardSubtitle)}</div>`
-            : ''
-        }</div></div><div style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; opacity:0.75;"><span>${escapeHtml(
-          c.cardHeaderTitle?.trim() || c.cardQuote?.trim() || 'Judul Kegiatan'
-        )}</span>${
-          c.cardDate?.trim()
-            ? `<span style="flex-shrink:0; font-variant-numeric:tabular-nums;">${escapeHtml(
-                c.cardDate
-              )}</span>`
-            : ''
-        }</div>${galHtml}<div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; padding-top:2px;">${
-          moreUrl
-            ? `<a href="${escapeHtml(
-                moreUrl
-              )}" target="_blank" rel="noopener noreferrer" style="color:${accent}; font-weight:600; text-decoration:none;">${moreLabel}</a>`
-            : `<span style="color:${accent}; font-weight:600;">${moreLabel}</span>`
-        }${
-          c.cardViews?.trim()
-            ? `<span style="display:inline-flex; align-items:center; gap:4px; opacity:0.65; font-variant-numeric:tabular-nums;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>${escapeHtml(
-                c.cardViews
-              )}</span></span>`
-            : ''
-        }</div></div>`;
+        const defaultActivityBody = !hideDefaultContent
+          ? `<div style="display:flex; align-items:center; gap:10px;">${
+              c.cardImage
+                ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
+                    c.cardTitle || 'Profil'
+                  )}" referrerpolicy="no-referrer" style="width:${avatarSize}px; height:${avatarSize}px; border-radius:9999px; object-fit:${imgFit}; flex-shrink:0; border:1px solid #E2E8F0;" />`
+                : ''
+            }<div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+              titleSize ?? 13
+            }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
+              titleClampCss ? ` ${titleClampCss}` : ''
+            }">${escapeHtml(c.cardTitle || 'Nama Pengurus')}</div>${
+              c.cardSubtitle?.trim()
+                ? `<div style="font-size:${subtitleSize ?? 11}px; opacity:0.7;${typoExtra}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }</div></div><div style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; opacity:0.75;"><span>${escapeHtml(
+              c.cardHeaderTitle?.trim() || c.cardQuote?.trim() || 'Judul Kegiatan'
+            )}</span>${
+              c.cardDate?.trim()
+                ? `<span style="flex-shrink:0; font-variant-numeric:tabular-nums;">${escapeHtml(
+                    c.cardDate
+                  )}</span>`
+                : ''
+            }</div>${galHtml}<div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; padding-top:2px;">${
+              moreUrl
+                ? `<a href="${escapeHtml(
+                    moreUrl
+                  )}" target="_blank" rel="noopener noreferrer" style="color:${accent}; font-weight:600; text-decoration:none;">${moreLabel}</a>`
+                : `<span style="color:${accent}; font-weight:600;">${moreLabel}</span>`
+            }${
+              c.cardViews?.trim()
+                ? `<span style="display:inline-flex; align-items:center; gap:4px; opacity:0.65; font-variant-numeric:tabular-nums;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>${escapeHtml(
+                    c.cardViews
+                  )}</span></span>`
+                : ''
+            }</div>`
+          : '';
+        cardHtml = `<div style="border-radius:${radius}px; overflow:hidden; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; color:${theme.textColor}; display:flex; flex-direction:column; text-align:left; box-shadow:0 1px 4px rgba(15,23,42,0.06);"><div style="padding:12px; display:flex; flex-direction:column; gap:10px;">${defaultActivityBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`;
       } else {
-        // membership_ticket
+        // membership_ticket (Dual-Zone: White Upper Body + Colored Lower Strip)
         const feeRows = (c.cardFeeItems ?? [])
           .map(
             (fee) =>
@@ -2605,23 +2973,33 @@ ${indent}</div>`;
         const totalValue = escapeHtml(
           (c.cardTotalValue || c.cardPrice || 'Rp. 500.000,-').trim()
         );
+        const defaultUpperHtml = !hideDefaultContent
+          ? `<div style="text-align:center; color:#0284C7; font-size:${
+              titleSize ?? 13.5
+            }px; font-weight:800;${typoExtra}${
+              titleClampCss ? ` ${titleClampCss}` : ''
+            }">${escapeHtml(c.cardTitle || 'Anggota Pratama')}</div>${
+              c.cardSubtitle?.trim()
+                ? `<div style="text-align:center; font-size:${
+                    subtitleSize ?? 11
+                  }px; color:#64748B;${typoExtra}${
+                    subClampCss ? ` ${subClampCss}` : ''
+                  }">${escapeHtml(c.cardSubtitle)}</div>`
+                : ''
+            }${feeRows}`
+          : '';
+        const defaultLowerHtml = !hideDefaultFooter
+          ? `<div style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:13.5px; font-weight:800;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg><span>${totalLabel}</span><span style="font-variant-numeric:tabular-nums;">${totalValue}</span></div>`
+          : '';
+        const lowerStripHtml =
+          !hideDefaultFooter || footerSlotHtml
+            ? `<div style="position:relative;"><span aria-hidden="true" style="position:absolute; left:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><span aria-hidden="true" style="position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><div style="background:${accent}; color:${fg}; padding:12px 16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">${defaultLowerHtml}${footerSlotHtml}</div></div>`
+            : '';
         cardHtml = wrapAnchor(
           `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08); text-align:left;"><div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:${Math.max(
             6,
             textGap
-          )}px;"><div style="text-align:center; color:#0284C7; font-size:${
-            titleSize ?? 13.5
-          }px; font-weight:800;${typoExtra}${
-            titleClampCss ? ` ${titleClampCss}` : ''
-          }">${escapeHtml(c.cardTitle || 'Anggota Pratama')}</div>${
-            c.cardSubtitle?.trim()
-              ? `<div style="text-align:center; font-size:${
-                  subtitleSize ?? 11
-                }px; color:#64748B;${typoExtra}${
-                  subClampCss ? ` ${subClampCss}` : ''
-                }">${escapeHtml(c.cardSubtitle)}</div>`
-              : ''
-          }${feeRows}</div><div style="position:relative;"><span aria-hidden="true" style="position:absolute; left:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><span aria-hidden="true" style="position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><div style="background:${accent}; color:${fg}; padding:12px 16px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:13.5px; font-weight:800;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg><span>${totalLabel}</span><span style="font-variant-numeric:tabular-nums;">${totalValue}</span></div></div></div>`
+          )}px;">${defaultUpperHtml}${bodySlotHtml}</div>${lowerStripHtml}</div>`
         );
       }
 
@@ -2835,6 +3213,9 @@ export function collectCatalogData(
     }
     if (blk.content.actionSheetBlocks?.length) {
       collectCatalogData(blk.content.actionSheetBlocks, out);
+    }
+    if (blk.content.cardFooterBlocks?.length) {
+      collectCatalogData(blk.content.cardFooterBlocks, out);
     }
   });
 }

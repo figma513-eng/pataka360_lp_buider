@@ -157,6 +157,9 @@ export function walkAllBlocks(
     if (b.content?.actionSheetBlocks?.length) {
       walkAllBlocks(b.content.actionSheetBlocks, visitor);
     }
+    if (b.content?.cardFooterBlocks?.length) {
+      walkAllBlocks(b.content.cardFooterBlocks, visitor);
+    }
   }
 }
 

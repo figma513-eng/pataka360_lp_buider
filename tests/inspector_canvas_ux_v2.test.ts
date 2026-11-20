@@ -164,7 +164,7 @@ describe('Unified Inspector UI/UX, Inline Header Rename, Canvas Overlap Fix & La
       'Padding Kiri',
       'Jarak Atas (Margin)',
       'shadowSize: val',
-      'Warna Shadow',
+      'Warna Bayangan',
     ]) {
       assert.ok(
         designTabSrc.includes(expected),

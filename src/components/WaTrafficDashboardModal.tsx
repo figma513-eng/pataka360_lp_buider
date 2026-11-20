@@ -9,16 +9,23 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { AdChannel, AnalyticsEventRecord, ProjectRecord } from '../types/builder';
+import {
+  AdChannel,
+  AnalyticsEventRecord,
+  FormSubmissionRecord,
+  ProjectRecord,
+} from '../types/builder';
 import {
   clearAnalyticsOnServer,
   fetchAnalyticsSummary,
+  fetchFormSubmissions,
 } from '../utils/analyticsClient';
 import { formatRupiah } from '../utils/cartHelpers';
 import { AD_CHANNEL_META, resolveProjectPublishing } from '../utils/publishingHelpers';
 import { downloadTextFile } from '../utils/projectStorage';
 
 type TimeRange = 'today' | '7d' | '30d' | 'all';
+type AnalyticsViewTab = 'ringkasan' | 'whatsapp' | 'produk_formulir';
 
 interface WaTrafficDashboardModalProps {
   projects: ProjectRecord[];
@@ -55,6 +62,8 @@ export function WaTrafficDashboardModal({
   asPage = false,
 }: WaTrafficDashboardModalProps) {
   const [events, setEvents] = useState<AnalyticsEventRecord[]>([]);
+  const [formSubmissions, setFormSubmissions] = useState<FormSubmissionRecord[]>([]);
+  const [activeViewTab, setActiveViewTab] = useState<AnalyticsViewTab>('ringkasan');
   const [loading, setLoading] = useState(true);
   const [capiConfigured, setCapiConfigured] = useState(false);
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
@@ -66,9 +75,13 @@ export function WaTrafficDashboardModal({
 
   const refreshData = async () => {
     setLoading(true);
-    const res = await fetchAnalyticsSummary();
+    const [res, subs] = await Promise.all([
+      fetchAnalyticsSummary(),
+      fetchFormSubmissions(),
+    ]);
     setEvents(res.events);
     setCapiConfigured(res.capiConfiguredOnServer);
+    setFormSubmissions(subs);
     setLoading(false);
   };
 
@@ -118,6 +131,7 @@ export function WaTrafficDashboardModal({
   const kpis = useMemo(() => {
     let pageViews = 0;
     let waClicks = 0;
+    let formOpens = 0;
     let formSubmits = 0;
     let totalOrderValue = 0;
 
@@ -128,14 +142,87 @@ export function WaTrafficDashboardModal({
         if (typeof ev.orderValue === 'number' && ev.orderValue > 0) {
           totalOrderValue += ev.orderValue;
         }
+      } else if (ev.eventType === 'form_open') {
+        formOpens += 1;
       } else if (ev.eventType === 'form_submit') {
         formSubmits += 1;
       }
     }
 
     const ctr = pageViews > 0 ? Math.min(100, (waClicks / pageViews) * 100) : 0;
-    return { pageViews, waClicks, formSubmits, totalOrderValue, ctr };
+    const formConversionRate =
+      pageViews > 0 ? Math.min(100, (formSubmits / pageViews) * 100) : 0;
+    return { pageViews, waClicks, formOpens, formSubmits, totalOrderValue, ctr, formConversionRate };
   }, [filteredEvents]);
+
+  const waBreakdownStats = useMemo(() => {
+    const byLink = new Map<string, { id: string; label: string; clicks: number; value: number }>();
+    const byTemplate = new Map<string, { id: string; label: string; clicks: number }>();
+    const byComponent = new Map<string, { id: string; label: string; type: string; clicks: number }>();
+    const byProduct = new Map<string, { name: string; clicks: number; value: number }>();
+
+    const linkNameMap = new Map<string, string>();
+    const tplNameMap = new Map<string, string>();
+    for (const p of projects) {
+      p.project.whatsappCenter?.links?.forEach((l) => linkNameMap.set(l.id, l.name));
+      p.project.whatsappCenter?.templates?.forEach((t) => tplNameMap.set(t.id, t.name));
+    }
+
+    for (const ev of filteredEvents) {
+      if (ev.eventType === 'wa_click') {
+        const linkKey = ev.waLinkId || ev.waPhone || 'langsung';
+        const linkLabel =
+          (ev.waLinkId && linkNameMap.get(ev.waLinkId)) ||
+          (ev.waPhone ? `WA ${ev.waPhone}` : 'Tautan Langsung');
+        const curLink = byLink.get(linkKey) || { id: linkKey, label: linkLabel, clicks: 0, value: 0 };
+        curLink.clicks += 1;
+        curLink.value += ev.orderValue || 0;
+        byLink.set(linkKey, curLink);
+
+        const tplKey = ev.waTemplateId || 'bawaan';
+        const tplLabel =
+          (ev.waTemplateId && tplNameMap.get(ev.waTemplateId)) || 'Pesan Langsung / Bawaan';
+        const curTpl = byTemplate.get(tplKey) || { id: tplKey, label: tplLabel, clicks: 0 };
+        curTpl.clicks += 1;
+        byTemplate.set(tplKey, curTpl);
+
+        const compKey = ev.componentId || ev.ctaLabel || 'tombol_wa';
+        const compLabel = ev.buttonLabel || ev.ctaLabel || 'Tombol WhatsApp';
+        const curComp = byComponent.get(compKey) || {
+          id: compKey,
+          label: compLabel,
+          type: ev.componentType || 'button',
+          clicks: 0,
+        };
+        curComp.clicks += 1;
+        byComponent.set(compKey, curComp);
+
+        if (ev.productName || (ev.orderValue && ev.orderValue > 0)) {
+          const prodKey = ev.productName || ev.ctaLabel || 'Produk Katalog';
+          const curProd = byProduct.get(prodKey) || { name: prodKey, clicks: 0, value: 0 };
+          curProd.clicks += 1;
+          curProd.value += ev.orderValue || 0;
+          byProduct.set(prodKey, curProd);
+        }
+      }
+    }
+
+    return {
+      byLink: Array.from(byLink.values()).sort((a, b) => b.clicks - a.clicks),
+      byTemplate: Array.from(byTemplate.values()).sort((a, b) => b.clicks - a.clicks),
+      byComponent: Array.from(byComponent.values()).sort((a, b) => b.clicks - a.clicks),
+      byProduct: Array.from(byProduct.values()).sort((a, b) => b.clicks - a.clicks),
+    };
+  }, [filteredEvents, projects]);
+
+  const filteredFormSubmissions = useMemo(() => {
+    return formSubmissions.filter((sub) => {
+      if (allowedProjectIds.size > 0 && !allowedProjectIds.has(sub.projectId)) return false;
+      if (!includeTest && sub.isTest) return false;
+      if (selectedProjectFilter !== 'all' && sub.projectId !== selectedProjectFilter) return false;
+      return true;
+    });
+  }, [formSubmissions, allowedProjectIds, includeTest, selectedProjectFilter]);
 
   const channelBreakdown = useMemo(() => {
     const channels: AdChannel[] = ['meta_wa_addon', 'meta', 'tiktok', 'google', 'organic'];
@@ -307,23 +394,23 @@ export function WaTrafficDashboardModal({
       }}
       className={
         asPage
-          ? 'w-full max-w-6xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#DCE5EF] shadow-xs overflow-hidden'
-          : 'w-full max-w-6xl h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden'
+          ? 'w-full max-w-6xl mx-auto flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#DCE5EF] overflow-hidden'
+          : 'w-full max-w-6xl h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-[#DCE5EF] overflow-hidden'
       }
     >
       {/* Header */}
-      <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/30 text-[#17243D] flex items-center justify-center shrink-0">
-            <BarChart3 className="w-4 h-4 text-[#00A873]" />
+      <div className="px-5 py-4 border-b border-[#DCE5EF] flex items-center justify-between gap-3 bg-white shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0">
+            <BarChart3 className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-[#17243D] truncate">
-              Dashboard Trafik Klik WhatsApp & Iklan
+            <h2 className="text-sm font-bold text-[#17243D] tracking-tight truncate">
+              Dasbor Analitik Trafik, WhatsApp &amp; Formulir
             </h2>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-[#5B708B] mt-0.5 tabular-nums">
               <span>{projects.length} unit usaha</span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true" className="text-[#8FA4BF]">·</span>
               <span>
                 Meta CAPI Server: {capiConfigured ? 'Aktif' : 'Siap (opsional via env)'}
               </span>
@@ -336,17 +423,17 @@ export function WaTrafficDashboardModal({
             type="button"
             onClick={handleExportCsv}
             disabled={filteredEvents.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] disabled:opacity-40 text-xs font-semibold text-[#17243D] transition-colors cursor-pointer whitespace-nowrap"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-[#00A873]" />
             <span>Ekspor CSV</span>
           </button>
           <button
             type="button"
             onClick={() => void refreshData()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-[#00C98A] ${loading ? 'animate-spin' : ''}`} />
             <span>Segarkan</span>
           </button>
           {!asPage && (
@@ -354,7 +441,7 @@ export function WaTrafficDashboardModal({
               type="button"
               onClick={onClose}
               aria-label="Tutup dashboard"
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-[#F0F5FA] text-[#5B708B] hover:text-[#17243D] transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -363,13 +450,13 @@ export function WaTrafficDashboardModal({
       </div>
 
         {/* Filter Bar */}
-        <div className="px-5 py-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+        <div className="px-5 py-2.5 border-b border-[#DCE5EF] bg-[#F0F5FA]/60 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedProjectFilter}
               onChange={(e) => setSelectedProjectFilter(e.target.value)}
               aria-label="Filter Unit Usaha"
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 outline-none focus:border-emerald-500"
+              className="px-2.5 py-1.5 rounded-xl border border-[#DCE5EF] bg-white text-xs font-semibold text-[#17243D] outline-none focus:border-[#00C98A] transition-colors"
             >
               <option value="all">Semua Unit Usaha ({projects.length})</option>
               {projects.map((rec) => (
@@ -379,7 +466,7 @@ export function WaTrafficDashboardModal({
               ))}
             </select>
 
-            <div className="flex items-center gap-0.5 p-0.5 bg-slate-200/70 rounded-lg">
+            <div className="flex items-center gap-0.5 p-0.5 bg-[#DCE5EF]/60 rounded-xl">
               {(
                 [
                   { id: 'today', label: 'Hari Ini' },
@@ -392,10 +479,10 @@ export function WaTrafficDashboardModal({
                   key={rng.id}
                   type="button"
                   onClick={() => setTimeRange(rng.id)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     timeRange === rng.id
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-[#17243D] text-white'
+                      : 'text-[#5B708B] hover:text-[#17243D]'
                   }`}
                 >
                   {rng.label}
@@ -407,7 +494,7 @@ export function WaTrafficDashboardModal({
               value={channelFilter}
               onChange={(e) => setChannelFilter(e.target.value as AdChannel | 'all')}
               aria-label="Filter Sumber Iklan"
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 outline-none focus:border-emerald-500"
+              className="px-2.5 py-1.5 rounded-xl border border-[#DCE5EF] bg-white text-xs font-medium text-[#17243D] outline-none focus:border-[#00C98A] transition-colors"
             >
               <option value="all">Semua Sumber Iklan</option>
               <option value="meta_wa_addon">Meta Add-On WA</option>
@@ -419,14 +506,14 @@ export function WaTrafficDashboardModal({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer whitespace-nowrap">
+            <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5B708B] cursor-pointer whitespace-nowrap">
               <input
                 type="checkbox"
                 checked={includeTest}
                 onChange={(e) => setIncludeTest(e.target.checked)}
-                className="rounded border-slate-300 text-emerald-600 cursor-pointer"
+                className="rounded border-[#DCE5EF] accent-[#00C98A] cursor-pointer"
               />
-              <span>Sertakan Uji Preview</span>
+              <span>Sertakan Uji Pratinjau</span>
             </label>
 
             {confirmClear ? (
@@ -434,14 +521,14 @@ export function WaTrafficDashboardModal({
                 <button
                   type="button"
                   onClick={() => void handleClearLogs()}
-                  className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Yakin Reset
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmClear(false)}
-                  className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs cursor-pointer"
+                  className="px-2 py-1 rounded-lg border border-[#DCE5EF] bg-white text-[#5B708B] hover:text-[#17243D] text-xs font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -451,7 +538,7 @@ export function WaTrafficDashboardModal({
                 type="button"
                 onClick={() => setConfirmClear(true)}
                 disabled={events.length === 0}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-red-50 hover:text-red-600 disabled:opacity-40 text-xs font-medium text-slate-600 cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 disabled:opacity-40 text-xs font-semibold text-[#5B708B] transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Reset Data</span>
@@ -460,72 +547,254 @@ export function WaTrafficDashboardModal({
           </div>
         </div>
 
+        {/* View Sub-Tabs */}
+        <div className="px-5 border-b border-[#DCE5EF] bg-white flex items-center gap-1 overflow-x-auto shrink-0">
+          {(
+            [
+              { id: 'ringkasan', label: 'Ringkasan & Sumber Trafik' },
+              { id: 'whatsapp', label: 'Per Tautan, Tombol & Templat WA' },
+              {
+                id: 'produk_formulir',
+                label: `Produk & Formulir (${filteredFormSubmissions.length})`,
+              },
+            ] as { id: AnalyticsViewTab; label: string }[]
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveViewTab(t.id)}
+              className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 tabular-nums ${
+                activeViewTab === t.id
+                  ? 'border-[#00C98A] text-[#17243D]'
+                  : 'border-transparent text-[#5B708B] hover:text-[#17243D]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#F7F9F8]">
-          {/* 4 KPI Strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="text-xs font-medium text-slate-500">Kunjungan Halaman</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#F0F5FA]/70">
+          {/* 5 KPI Strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4">
+              <div className="text-xs font-medium text-[#5B708B]">Kunjungan Halaman</div>
+              <div className="text-2xl font-bold text-[#17243D] mt-1 tabular-nums tracking-tight">
                 {kpis.pageViews.toLocaleString('id-ID')}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">Total page view tercatat</div>
+              <div className="text-[11px] text-[#8FA4BF] mt-1">Total kunjungan tercatat</div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="text-xs font-medium text-slate-500">Total Klik WhatsApp</div>
-              <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4">
+              <div className="text-xs font-medium text-[#5B708B]">Total Klik WhatsApp</div>
+              <div className="text-2xl font-bold text-[#008F63] mt-1 tabular-nums tracking-tight">
                 {kpis.waClicks.toLocaleString('id-ID')}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Tombol WA, Katalog & Add-On
+              <div className="text-[11px] text-[#8FA4BF] mt-1">
+                Tombol WA, Katalog &amp; Pusat WA
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="text-xs font-medium text-slate-500">Rasio Klik WA (CTR)</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4">
+              <div className="text-xs font-medium text-[#5B708B]">Rasio Klik WA (CTR)</div>
+              <div className="text-2xl font-bold text-[#17243D] mt-1 tabular-nums tracking-tight">
                 {kpis.ctr.toFixed(1)}%
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Form masuk: <span className="tabular-nums">{kpis.formSubmits}</span>
+              <div className="text-[11px] text-[#8FA4BF] mt-1">
+                Klik WA ÷ Kunjungan Halaman
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="text-xs font-medium text-slate-500">Estimasi Order WA</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums truncate">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4">
+              <div className="text-xs font-medium text-[#5B708B]">Pengiriman Formulir</div>
+              <div className="text-2xl font-bold text-[#17243D] mt-1 tabular-nums tracking-tight">
+                {kpis.formSubmits.toLocaleString('id-ID')}
+              </div>
+              <div className="text-[11px] text-[#8FA4BF] mt-1 tabular-nums">
+                Dibuka: {kpis.formOpens} · Rasio: {kpis.formConversionRate.toFixed(1)}%
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4">
+              <div className="text-xs font-medium text-[#5B708B]">Estimasi Pesanan WhatsApp</div>
+              <div className="text-2xl font-bold text-[#17243D] mt-1 tabular-nums tracking-tight truncate">
                 {formatRupiah(kpis.totalOrderValue)}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">Dari checkout katalog & detail</div>
+              <div className="text-[11px] text-amber-700 mt-1">
+                Estimasi klik checkout WA (bukan transaksi final)
+              </div>
             </div>
           </div>
 
+          {activeViewTab === 'whatsapp' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#DCE5EF]">
+                  <h3 className="text-xs font-bold text-[#17243D]">Statistik per Tautan WhatsApp</h3>
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">Performa masing-masing tautan dari Pusat WhatsApp</p>
+                </div>
+                <div className="divide-y divide-[#EEF3F8] text-xs max-h-80 overflow-y-auto">
+                  {waBreakdownStats.byLink.length === 0 ? (
+                    <div className="p-5 text-center text-[#8FA4BF]">Belum ada data klik tautan WA.</div>
+                  ) : (
+                    waBreakdownStats.byLink.map((row) => (
+                      <div key={row.id} className="px-4 py-2.5 flex items-center justify-between gap-2 hover:bg-[#F0F5FA]/50 transition-colors">
+                        <span className="font-semibold text-[#17243D] truncate">{row.label}</span>
+                        <span className="font-mono font-bold text-[#008F63] tabular-nums shrink-0">
+                          {row.clicks} klik
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#DCE5EF]">
+                  <h3 className="text-xs font-bold text-[#17243D]">Statistik per Tombol &amp; Komponen</h3>
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">Elemen yang paling sering diklik pengunjung</p>
+                </div>
+                <div className="divide-y divide-[#EEF3F8] text-xs max-h-80 overflow-y-auto">
+                  {waBreakdownStats.byComponent.length === 0 ? (
+                    <div className="p-5 text-center text-[#8FA4BF]">Belum ada data klik komponen.</div>
+                  ) : (
+                    waBreakdownStats.byComponent.map((row) => (
+                      <div key={row.id} className="px-4 py-2.5 flex items-center justify-between gap-2 hover:bg-[#F0F5FA]/50 transition-colors">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-[#17243D] truncate">{row.label}</div>
+                          <div className="text-[10px] font-mono text-[#8FA4BF]">{row.type}</div>
+                        </div>
+                        <span className="font-mono font-bold text-[#008F63] tabular-nums shrink-0">
+                          {row.clicks} klik
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#DCE5EF]">
+                  <h3 className="text-xs font-bold text-[#17243D]">Statistik per Templat WhatsApp</h3>
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">Templat pesan yang paling sering dipakai</p>
+                </div>
+                <div className="divide-y divide-[#EEF3F8] text-xs max-h-80 overflow-y-auto">
+                  {waBreakdownStats.byTemplate.length === 0 ? (
+                    <div className="p-5 text-center text-[#8FA4BF]">Belum ada data penggunaan templat.</div>
+                  ) : (
+                    waBreakdownStats.byTemplate.map((row) => (
+                      <div key={row.id} className="px-4 py-2.5 flex items-center justify-between gap-2 hover:bg-[#F0F5FA]/50 transition-colors">
+                        <span className="font-semibold text-[#17243D] truncate">{row.label}</span>
+                        <span className="font-mono font-bold text-[#008F63] tabular-nums shrink-0">
+                          {row.clicks} klik
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeViewTab === 'produk_formulir' && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#DCE5EF]">
+                  <h3 className="text-xs font-bold text-[#17243D]">Statistik per Produk</h3>
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">Produk yang paling banyak diminati melalui klik WhatsApp / Keranjang</p>
+                </div>
+                <div className="divide-y divide-[#EEF3F8] text-xs">
+                  {waBreakdownStats.byProduct.length === 0 ? (
+                    <div className="p-5 text-center text-[#8FA4BF]">Belum ada klik produk tercatat.</div>
+                  ) : (
+                    waBreakdownStats.byProduct.map((p) => (
+                      <div key={p.name} className="px-4 py-2.5 flex items-center justify-between gap-2 hover:bg-[#F0F5FA]/50 transition-colors">
+                        <span className="font-semibold text-[#17243D] truncate">{p.name}</span>
+                        <div className="flex items-center gap-3 shrink-0 font-mono tabular-nums">
+                          <span className="text-[#008F63] font-bold">{p.clicks} klik</span>
+                          {p.value > 0 && (
+                            <span className="text-[#5B708B]">{formatRupiah(p.value)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#DCE5EF]">
+                  <h3 className="text-xs font-bold text-[#17243D] tabular-nums">
+                    Data Kiriman Formulir Tersimpan ({filteredFormSubmissions.length})
+                  </h3>
+                  <p className="text-[11px] text-[#5B708B] mt-0.5 tabular-nums">
+                    Formulir dibuka: {kpis.formOpens} · Formulir dikirim: {kpis.formSubmits}
+                  </p>
+                </div>
+                {filteredFormSubmissions.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#8FA4BF]">
+                    Belum ada data pengiriman formulir pada filter ini.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#EEF3F8] text-xs max-h-96 overflow-y-auto">
+                    {filteredFormSubmissions.slice(0, 50).map((sub) => (
+                      <div key={sub.id} className="px-4 py-3 space-y-1.5 hover:bg-[#F0F5FA]/40 transition-colors">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-[#17243D]">
+                            {sub.formTitle} · {sub.projectTitle}
+                          </span>
+                          <span className="text-[11px] font-mono text-[#8FA4BF] tabular-nums">
+                            {formatDateTimeShort(sub.createdAt)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(sub.values).map(([k, v]) => (
+                            <span
+                              key={k}
+                              className="px-2 py-0.5 rounded-md bg-[#F0F5FA] border border-[#DCE5EF] text-[11px] text-[#17243D]"
+                            >
+                              <strong className="text-[#5B708B]">{k}:</strong>{' '}
+                              {Array.isArray(v) ? v.join(', ') : String(v)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeViewTab === 'ringkasan' && (
+          <>
+
           {/* Trend Chart + Channel Attribution */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between">
+            <div className="lg:col-span-2 bg-white rounded-xl border border-[#DCE5EF] p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">
+                  <h3 className="text-xs font-bold text-[#17243D]">
                     Tren Kunjungan vs Klik WhatsApp
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-[#5B708B] mt-0.5">
                     Perbandingan harian trafik masuk dan konversi tombol WA
                   </p>
                 </div>
-                <div className="flex items-center gap-3 text-[11px] font-medium text-slate-600">
+                <div className="flex items-center gap-3 text-[11px] font-medium text-[#5B708B]">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-slate-300 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#CBD8E6] inline-block" />
                     Kunjungan
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#00C98A] inline-block" />
                     Klik WA
                   </span>
                 </div>
               </div>
 
-              <div className="h-44 flex items-end gap-2 pt-4 border-t border-slate-100">
+              <div className="h-44 flex items-end gap-2 pt-4 border-t border-[#EEF3F8]">
                 {dailyTrend.map((day) => {
                   const viewH = Math.max(day.views > 0 ? 6 : 2, Math.round((day.views / maxTrendValue) * 128));
                   const clickH = Math.max(day.clicks > 0 ? 6 : 2, Math.round((day.clicks / maxTrendValue) * 128));
@@ -538,14 +807,14 @@ export function WaTrafficDashboardModal({
                       <div className="w-full flex items-end justify-center gap-1 h-32">
                         <div
                           style={{ height: `${viewH}px` }}
-                          className="w-2.5 sm:w-3.5 rounded-t bg-slate-200 transition-all"
+                          className="w-2.5 sm:w-3.5 rounded-t bg-[#CBD8E6] transition-all"
                         />
                         <div
                           style={{ height: `${clickH}px` }}
-                          className="w-2.5 sm:w-3.5 rounded-t bg-emerald-600 transition-all"
+                          className="w-2.5 sm:w-3.5 rounded-t bg-[#00C98A] transition-all"
                         />
                       </div>
-                      <div className="text-[10px] font-medium text-slate-500 truncate w-full text-center tabular-nums">
+                      <div className="text-[10px] font-medium text-[#5B708B] truncate w-full text-center tabular-nums">
                         {day.label}
                       </div>
                     </div>
@@ -555,11 +824,11 @@ export function WaTrafficDashboardModal({
             </div>
 
             {/* Channel Attribution */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
               <div>
-                <h3 className="text-xs font-bold text-slate-900">Sumber Iklan (Atribusi Klik WA)</h3>
-                <p className="text-[11px] text-slate-500">
-                  Deteksi otomatis UTM & click ID Meta, TikTok, Google
+                <h3 className="text-xs font-bold text-[#17243D]">Sumber Iklan (Atribusi Klik WA)</h3>
+                <p className="text-[11px] text-[#5B708B] mt-0.5">
+                  Deteksi otomatis UTM &amp; click ID Meta, TikTok, Google
                 </p>
               </div>
 
@@ -567,12 +836,12 @@ export function WaTrafficDashboardModal({
                 {channelBreakdown.map((ch) => (
                   <div key={ch.channel} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700 truncate">{ch.label}</span>
-                      <span className="font-mono text-slate-900 font-semibold tabular-nums shrink-0">
+                      <span className="font-semibold text-[#17243D] truncate">{ch.label}</span>
+                      <span className="font-mono text-[#17243D] font-semibold tabular-nums shrink-0">
                         {ch.clicks} klik ({ch.sharePct}%)
                       </span>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-[#F0F5FA] rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
@@ -581,7 +850,7 @@ export function WaTrafficDashboardModal({
                         }}
                       />
                     </div>
-                    <div className="text-[10px] text-slate-400 tabular-nums">
+                    <div className="text-[10px] text-[#8FA4BF] tabular-nums">
                       {ch.views} kunjungan
                     </div>
                   </div>
@@ -591,13 +860,13 @@ export function WaTrafficDashboardModal({
           </div>
 
           {/* Per Business Unit Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+          <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#DCE5EF] flex items-center justify-between gap-2">
               <div>
-                <h3 className="text-xs font-bold text-slate-900">
+                <h3 className="text-xs font-bold text-[#17243D]">
                   Performa Trafik Klik WA per Unit Usaha
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-[#5B708B] mt-0.5">
                   Klik salah satu baris untuk memfilter detail trafik unit usaha tersebut.
                 </p>
               </div>
@@ -606,7 +875,7 @@ export function WaTrafficDashboardModal({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-semibold text-slate-500">
+                  <tr className="border-b border-[#DCE5EF] bg-[#F0F5FA]/70 text-[11px] font-semibold text-[#5B708B]">
                     <th className="py-2.5 px-4">Unit Usaha</th>
                     <th className="py-2.5 px-3">Slug / Domain</th>
                     <th className="py-2.5 px-3 text-right">Kunjungan</th>
@@ -616,7 +885,7 @@ export function WaTrafficDashboardModal({
                     <th className="py-2.5 px-4 text-right">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody className="divide-y divide-[#EEF3F8] text-xs">
                   {perUnitSummary.map((row) => {
                     const ctr = row.views > 0 ? ((row.waClicks / row.views) * 100).toFixed(1) : '0.0';
                     const topCh = (Object.entries(row.channelCounts) as [AdChannel, number][])
@@ -633,36 +902,36 @@ export function WaTrafficDashboardModal({
                           )
                         }
                         className={`cursor-pointer transition-colors ${
-                          isSelected ? 'bg-emerald-50/60' : 'hover:bg-slate-50'
+                          isSelected ? 'bg-[#ECFDF6]/70' : 'hover:bg-[#F0F5FA]/50'
                         }`}
                       >
-                        <td className="py-2.5 px-4 font-semibold text-slate-900">
+                        <td className="py-2.5 px-4 font-semibold text-[#17243D]">
                           <div className="flex items-center gap-2">
                             <span className="truncate max-w-[180px]">{row.title}</span>
                             {row.projectId === activeProjectId && (
-                              <span className="text-[10px] font-medium text-emerald-700">
+                              <span className="text-[10.5px] font-semibold text-[#008F63]">
                                 · Aktif
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-[#5B708B]">
                           {row.domain}
-                          <span className="text-slate-400">
+                          <span className="text-[#8FA4BF]">
                             {' '}
-                            · {row.isPublished ? 'Tayang' : 'Draft'}
+                            · {row.isPublished ? 'Tayang' : 'Draf'}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#17243D]">
                           {row.views}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-emerald-700">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-[#008F63]">
                           {row.waClicks}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                        <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#17243D]">
                           {ctr}%
                         </td>
-                        <td className="py-2.5 px-3 text-slate-700">{topLabel}</td>
+                        <td className="py-2.5 px-3 text-[#5B708B]">{topLabel}</td>
                         <td
                           className="py-2.5 px-4 text-right whitespace-nowrap"
                           onClick={(e) => e.stopPropagation()}
@@ -676,7 +945,7 @@ export function WaTrafficDashboardModal({
                                   if (!asPage) onClose();
                                   onOpenDomainSettings(row.projectId);
                                 }}
-                                className="px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                                className="px-2.5 py-1 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-[11px] font-semibold text-[#17243D] transition-colors cursor-pointer"
                               >
                                 Atur
                               </button>
@@ -685,7 +954,7 @@ export function WaTrafficDashboardModal({
                               href={`/p/${row.slug}?preview=1`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-emerald-50 text-[11px] font-semibold text-emerald-700"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 text-[11px] font-semibold text-[#008F63] transition-colors"
                             >
                               <ExternalLink className="w-3 h-3" />
                               <span>Buka</span>
@@ -701,45 +970,45 @@ export function WaTrafficDashboardModal({
           </div>
 
           {/* WA Click Log */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-white rounded-xl border border-[#DCE5EF] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#DCE5EF] flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-xs font-bold text-slate-900">
+                <h3 className="text-xs font-bold text-[#17243D] tabular-nums">
                   Log Klik WhatsApp Pengunjung ({waClickLogs.length})
                 </h3>
-                <p className="text-[11px] text-slate-500">
-                  Mencatat klik dari tombol link, katalog WA, Add-On WA Meta, dan uji Preview.
+                <p className="text-[11px] text-[#5B708B] mt-0.5">
+                  Mencatat klik dari tombol link, katalog WA, Add-On WA Meta, dan uji Pratinjau.
                 </p>
               </div>
               <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Cari unit usaha, campaign, tombol..."
-                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-emerald-500"
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/50 focus:bg-white text-xs text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:border-[#00C98A] transition-colors"
                 />
               </div>
             </div>
 
             {waClickLogs.length === 0 ? (
               <div className="p-8 text-center space-y-2">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <div className="w-10 h-10 rounded-xl bg-[#F0F5FA] border border-[#DCE5EF] text-[#8FA4BF] flex items-center justify-center mx-auto">
                   <MessageCircle className="w-5 h-5" />
                 </div>
-                <div className="text-xs font-bold text-slate-800">
+                <div className="text-xs font-bold text-[#17243D]">
                   Belum ada klik WhatsApp pada filter ini
                 </div>
-                <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-                  Setiap kali pengunjung membuka link live <span className="font-mono">/p/slug</span> atau menekan tombol WhatsApp di mode Preview, trafiknya akan langsung muncul di sini.
+                <p className="text-[11px] text-[#5B708B] max-w-md mx-auto">
+                  Setiap kali pengunjung membuka link live <span className="font-mono text-[#17243D]">/p/slug</span> atau menekan tombol WhatsApp di mode Pratinjau, trafiknya akan langsung muncul di sini.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-semibold text-slate-500">
+                    <tr className="border-b border-[#DCE5EF] bg-[#F0F5FA]/70 text-[11px] font-semibold text-[#5B708B]">
                       <th className="py-2 px-4">Waktu</th>
                       <th className="py-2 px-3">Unit Usaha</th>
                       <th className="py-2 px-3">Tombol / Aksi WA</th>
@@ -748,16 +1017,16 @@ export function WaTrafficDashboardModal({
                       <th className="py-2 px-4 text-right">Perangkat</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs">
+                  <tbody className="divide-y divide-[#EEF3F8] text-xs">
                     {waClickLogs.map((ev) => (
-                      <tr key={ev.id} className="hover:bg-slate-50/70">
-                        <td className="py-2 px-4 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap">
+                      <tr key={ev.id} className="hover:bg-[#F0F5FA]/50 transition-colors">
+                        <td className="py-2 px-4 font-mono text-[11px] text-[#5B708B] tabular-nums whitespace-nowrap">
                           {formatDateTimeShort(ev.createdAt)}
                         </td>
-                        <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                        <td className="py-2 px-3 font-semibold text-[#17243D] whitespace-nowrap">
                           {ev.projectTitle}
                         </td>
-                        <td className="py-2 px-3 text-slate-700">
+                        <td className="py-2 px-3 text-[#17243D]">
                           <span className="truncate block max-w-[220px]">
                             {ev.ctaLabel || 'Tombol WhatsApp'}
                             {ev.orderValue && ev.orderValue > 0
@@ -766,17 +1035,17 @@ export function WaTrafficDashboardModal({
                           </span>
                         </td>
                         <td className="py-2 px-3 whitespace-nowrap">
-                          <span className="font-medium text-slate-800">
+                          <span className="font-medium text-[#17243D]">
                             {AD_CHANNEL_META[ev.channel]?.shortLabel || ev.sourceLabel}
                           </span>
                           {ev.isTest && (
-                            <span className="text-[10px] text-amber-700 ml-1">· Preview</span>
+                            <span className="text-[10.5px] text-amber-700 ml-1">· Pratinjau</span>
                           )}
                         </td>
-                        <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
+                        <td className="py-2 px-3 font-mono text-[11px] text-[#5B708B]">
                           {ev.utmCampaign || '—'}
                         </td>
-                        <td className="py-2 px-4 text-right text-[11px] text-slate-500 capitalize">
+                        <td className="py-2 px-4 text-right text-[11px] text-[#5B708B] capitalize">
                           {ev.deviceType}
                         </td>
                       </tr>
@@ -786,6 +1055,8 @@ export function WaTrafficDashboardModal({
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
   );
@@ -801,7 +1072,7 @@ export function WaTrafficDashboardModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-50 bg-[#17243D]/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
     >
       {cardContent}
     </div>

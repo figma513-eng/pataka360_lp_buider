@@ -6,6 +6,10 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCopy,
+  ClipboardPaste,
   Copy,
   Eye,
   FilePlus2,
@@ -15,6 +19,7 @@ import {
   Monitor,
   PanelBottomOpen,
   Plus,
+  Redo2,
   Shapes,
   ShoppingCart,
   Smartphone,
@@ -62,6 +67,12 @@ import { SocialGlyph } from './SocialIcon';
 import { ShowcaseCardView } from './ShowcaseCardView';
 import { TrainingCatalogCard } from './TrainingCatalogCard';
 import { CollabPeer } from '../utils/collabClient';
+import { buildSectionDReactStyle } from '../utils/blockStyleCss';
+import {
+  DYNAMIC_FORM_FIELD_TYPE_LABELS,
+  resolveFieldRequiredRule,
+} from '../utils/formValidation';
+import { hydrateDefaultFormFields } from './inspector/DynamicFormBuilderEditor';
 
 interface MobileCanvasProps {
   blocks: BuilderBlock[];
@@ -77,6 +88,11 @@ interface MobileCanvasProps {
   remotePeersByBlock?: Record<string, CollabPeer[]>;
   canUndo?: boolean;
   onUndo?: () => void;
+  canRedo?: boolean;
+  onRedo?: () => void;
+  canPaste?: boolean;
+  onCopyBlock?: (id: string) => void;
+  onPasteBlock?: () => void;
   onOpenPreview: () => void;
   onSelectBlock: (id: string | null) => void;
   onOpenNavbarSettings: (itemId?: string) => void;
@@ -99,6 +115,9 @@ interface MobileCanvasProps {
     targetId: string,
     position: 'before' | 'after' | 'inside'
   ) => void;
+  onDropNewBlockToCardFooter?: (cardId: string, type: BlockType) => void;
+  onDropSectionToCardFooter?: (sectionId: string, cardId: string) => void;
+  onMoveBlockToCardFooter?: (draggedId: string, cardId: string) => void;
 }
 
 export function MobileCanvas({
@@ -115,6 +134,11 @@ export function MobileCanvas({
   remotePeersByBlock = {},
   canUndo = false,
   onUndo,
+  canRedo = false,
+  onRedo,
+  canPaste = false,
+  onCopyBlock,
+  onPasteBlock,
   onOpenPreview,
   onSelectBlock,
   onOpenNavbarSettings,
@@ -125,6 +149,9 @@ export function MobileCanvas({
   onDropNewBlock,
   onDropSection,
   onReorderBlock,
+  onDropNewBlockToCardFooter,
+  onDropSectionToCardFooter,
+  onMoveBlockToCardFooter,
 }: MobileCanvasProps) {
   const activeSubPage = activeSubPageId
     ? pages.find((p) => p.id === activeSubPageId) ?? null
@@ -141,6 +168,10 @@ export function MobileCanvas({
     targetId: string | null;
     position: 'before' | 'after' | 'inside' | null;
   }>({ draggedId: null, targetId: null, position: null });
+  const [dragOverCardZone, setDragOverCardZone] = useState<{
+    cardId: string;
+    zone: 'body' | 'footer';
+  } | null>(null);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
   const [openToggles, setOpenToggles] = useState<Record<string, boolean>>({});
   const [openSheets, setOpenSheets] = useState<Record<string, boolean>>({});
@@ -149,10 +180,30 @@ export function MobileCanvas({
   const [fnbPreviewQtys, setFnbPreviewQtys] = useState<Record<string, number>>({});
   const [rowActiveDots, setRowActiveDots] = useState<Record<string, number>>({});
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+  const [isZoomMenuOpen, setIsZoomMenuOpen] = useState(false);
+  const zoomMenuRef = useRef<HTMLDivElement>(null);
   const rowTrackRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const canvasFrameRef = useRef<HTMLDivElement>(null);
   const canvasRootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isZoomMenuOpen) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+        setIsZoomMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsZoomMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isZoomMenuOpen]);
 
   useEffect(() => {
     const el = canvasFrameRef.current;
@@ -189,8 +240,24 @@ export function MobileCanvas({
   };
 
   const hasDescendantId = (node: BuilderBlock, targetId: string): boolean => {
-    if (!node.children || node.children.length === 0) return false;
-    return node.children.some((ch) => ch.id === targetId || hasDescendantId(ch, targetId));
+    if (node.children?.some((ch) => ch.id === targetId || hasDescendantId(ch, targetId))) {
+      return true;
+    }
+    if (
+      node.content?.cardFooterBlocks?.some(
+        (ch) => ch.id === targetId || hasDescendantId(ch, targetId)
+      )
+    ) {
+      return true;
+    }
+    if (
+      node.content?.actionSheetBlocks?.some(
+        (ch) => ch.id === targetId || hasDescendantId(ch, targetId)
+      )
+    ) {
+      return true;
+    }
+    return false;
   };
 
   const navIdWithSelectedChild = (() => {
@@ -283,11 +350,16 @@ export function MobileCanvas({
       : s.shapePreset === 'square'
       ? '0px'
       : `${s.borderRadius}px`;
+    const sectionDStyle = buildSectionDReactStyle(s);
     const inlineStyle: React.CSSProperties = {
+      ...sectionDStyle,
       width: `${s.widthPercent}%`,
       minHeight: isEmptyText || isCircleImage ? '0px' : `${s.minHeight}px`,
-      maxHeight: !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : undefined,
-      overflow: !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0 ? 'hidden' : undefined,
+      maxHeight: !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : sectionDStyle.maxHeight,
+      overflow:
+        !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0
+          ? 'hidden'
+          : sectionDStyle.overflow,
       borderRadius: resolvedRadius,
       padding: isEmptyText
         ? isSelected
@@ -300,6 +372,14 @@ export function MobileCanvas({
       marginBottom: isEmptyText ? (isSelected ? '4px' : '0px') : `${s.marginBottom}px`,
       textAlign: s.align,
       ...bgProps,
+      ...(sectionDStyle.backgroundImage
+        ? {
+            backgroundImage: sectionDStyle.backgroundImage,
+            backgroundPosition: sectionDStyle.backgroundPosition,
+            backgroundSize: sectionDStyle.backgroundSize,
+            backgroundRepeat: sectionDStyle.backgroundRepeat,
+          }
+        : {}),
       color: resolvedTextColor,
       fontFamily: resolvedFontFamily,
       fontSize: s.fontSize ? `${s.fontSize}px` : undefined,
@@ -308,7 +388,9 @@ export function MobileCanvas({
       letterSpacing: s.letterSpacing ? `${s.letterSpacing}px` : undefined,
       borderWidth: isEmptyText || isCircleImage || isHeroBanner ? '0px' : `${s.borderWidth}px`,
       borderStyle:
-        !isEmptyText && !isCircleImage && !isHeroBanner && s.borderWidth > 0 ? 'solid' : 'none',
+        !isEmptyText && !isCircleImage && !isHeroBanner && s.borderWidth > 0
+          ? s.borderStyle || 'solid'
+          : 'none',
       borderColor: s.borderColor,
       boxShadow:
         isEmptyText || isCircleImage || isHeroBanner
@@ -390,7 +472,8 @@ export function MobileCanvas({
               block.type === 'row' ||
               block.type === 'toggle_container' ||
               block.type === 'bottom_sheet' ||
-              block.type === 'menu_icon'
+              block.type === 'menu_icon' ||
+              block.type === 'showcase_card'
             ) {
               if (relY < rect.height * 0.25) pos = 'before';
               else if (relY > rect.height * 0.75) pos = 'after';
@@ -406,11 +489,13 @@ export function MobileCanvas({
               dragState.targetId === block.id && dragState.position
                 ? dragState.position
                 : 'after';
+            setDragOverCardZone(null);
             handleBlockDrop(e, block.id, pos);
           }}
           onDragEnd={() => {
             setDragState({ draggedId: null, targetId: null, position: null });
             setDragOverRoot(false);
+            setDragOverCardZone(null);
           }}
           onMouseOver={(e) => {
             e.stopPropagation();
@@ -527,28 +612,114 @@ export function MobileCanvas({
             </div>
           )}
 
-          {block.type === 'container' && (
-            <div
-              data-jump-title={block.label?.trim().toLowerCase() || undefined}
-              onDragOver={(e) => {
-                e.preventDefault();
-              }}
-              onDrop={(e) => {
-                if (block.children && block.children.length > 0) return;
-                handleBlockDrop(e, block.id, 'inside');
-              }}
-            >
-              {block.children && block.children.length > 0 ? (
-                block.children.map((child) =>
-                  renderBlockContent(child, depth + 1, nextInheritedTextColor)
-                )
-              ) : (
-                <div className="py-5 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg">
-                  Wadah kosong — tarik &amp; lepas komponen ke sini
-                </div>
-              )}
-            </div>
-          )}
+          {block.type === 'container' && (() => {
+            const layoutMode = block.content.containerLayoutMode || 'normal';
+            const isHSlider = layoutMode === 'slider_horizontal';
+            const isVSlider = layoutMode === 'slider_vertical';
+            const isSlider = isHSlider || isVSlider;
+            const visibleItems = Math.max(1, Math.min(6, Number(block.content.sliderVisibleItems || 1)));
+            const sliderGap = Math.max(0, Math.min(48, Number(block.content.sliderGap ?? 12)));
+            const children = block.children ?? [];
+            const showArrows = block.content.sliderShowArrows !== false;
+            const showDots = block.content.sliderShowDots !== false;
+            const dotCount = Math.min(children.length, 6);
+
+            return (
+              <div
+                data-jump-title={block.label?.trim().toLowerCase() || undefined}
+                data-container-mode={layoutMode}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  if (children.length > 0) return;
+                  handleBlockDrop(e, block.id, 'inside');
+                }}
+                className="relative"
+              >
+                {isSlider && (
+                  <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-0.5 select-none">
+                    <span>
+                      {isHSlider ? 'Slider Horizontal' : 'Slider Vertikal'} ({children.length} item · tampil {visibleItems})
+                    </span>
+                    {showArrows && (
+                      <span className="inline-flex items-center gap-0.5 text-slate-500">
+                        <ChevronLeft className="w-3 h-3" />
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {children.length > 0 ? (
+                  isHSlider ? (
+                    <div
+                      className="flex flex-row overflow-x-auto pb-1"
+                      style={{
+                        gap: `${sliderGap}px`,
+                        scrollSnapType: block.content.sliderSnap !== false ? 'x mandatory' : undefined,
+                      }}
+                    >
+                      {children.map((child) => (
+                        <div
+                          key={child.id}
+                          style={{
+                            flex: `0 0 calc((100% - ${Math.max(0, visibleItems - 1) * sliderGap}px) / ${visibleItems})`,
+                            scrollSnapAlign: block.content.sliderSnap !== false ? 'start' : undefined,
+                            minWidth: 0,
+                          }}
+                        >
+                          {renderBlockContent(child, depth + 1, nextInheritedTextColor)}
+                        </div>
+                      ))}
+                    </div>
+                  ) : isVSlider ? (
+                    <div
+                      className="flex flex-col overflow-y-auto pr-0.5"
+                      style={{
+                        gap: `${sliderGap}px`,
+                        maxHeight: `${Math.max(220, s.maxHeight || 340)}px`,
+                        scrollSnapType: block.content.sliderSnap !== false ? 'y mandatory' : undefined,
+                      }}
+                    >
+                      {children.map((child) => (
+                        <div
+                          key={child.id}
+                          style={{
+                            flexShrink: 0,
+                            scrollSnapAlign: block.content.sliderSnap !== false ? 'start' : undefined,
+                          }}
+                        >
+                          {renderBlockContent(child, depth + 1, nextInheritedTextColor)}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    children.map((child) =>
+                      renderBlockContent(child, depth + 1, nextInheritedTextColor)
+                    )
+                  )
+                ) : (
+                  <div className="py-5 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg">
+                    Wadah kosong — tarik &amp; lepas komponen ke sini
+                  </div>
+                )}
+
+                {isSlider && showDots && dotCount > 1 && (
+                  <div className="mt-2 flex items-center justify-center gap-1.5">
+                    {Array.from({ length: dotCount }).map((_, idx) => (
+                      <span
+                        key={idx}
+                        className={`rounded-full ${
+                          idx === 0 ? 'w-4 h-1.5 bg-emerald-500' : 'w-1.5 h-1.5 bg-slate-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {block.type === 'toggle_container' && (() => {
             const defaultOpen = Boolean(block.content.toggleDefaultOpen);
@@ -1342,32 +1513,95 @@ export function MobileCanvas({
         })()}
 
         {block.type === 'form' && (() => {
-          const nameReq = block.content.formNameRequired !== false;
-          const emailReq = block.content.formEmailRequired !== false;
+          const dynFields = hydrateDefaultFormFields(block);
           const chkEnabled = Boolean(block.content.formChecklistEnabled);
           const chkItems = (block.content.formChecklistItems ?? []).filter((x) => x.trim());
-          const chkReq = Boolean(block.content.formChecklistRequired);
+          const chkRule =
+            block.content.formChecklistRule ||
+            (block.content.formChecklistRequired ? 'required_consent_all' : 'optional');
           return (
             <div className="space-y-2.5 text-left">
-              <div className="font-bold text-sm">{block.content.formTitle || 'Formulir'}</div>
-              <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs flex items-center justify-between gap-2">
-                <span className="truncate">{block.content.namePlaceholder || 'Nama Lengkap'}</span>
-                <span className={`text-[9.5px] font-semibold shrink-0 ${nameReq ? 'text-rose-500' : 'text-slate-400'}`}>
-                  {nameReq ? 'Wajib *' : 'Opsional'}
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-bold text-sm">{block.content.formTitle || 'Formulir'}</div>
+                {block.content.formWhatsappEnabled && (
+                  <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Terhubung WA
+                  </span>
+                )}
               </div>
-              <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs flex items-center justify-between gap-2">
-                <span className="truncate">{block.content.emailPlaceholder || 'Email / WhatsApp'}</span>
-                <span className={`text-[9.5px] font-semibold shrink-0 ${emailReq ? 'text-rose-500' : 'text-slate-400'}`}>
-                  {emailReq ? 'Wajib *' : 'Opsional'}
-                </span>
-              </div>
+              {dynFields.map((fld) => {
+                const rule = resolveFieldRequiredRule(fld);
+                if (fld.type === 'section') {
+                  return (
+                    <div key={fld.id} className="pt-1.5 border-t border-slate-200">
+                      <div className="text-xs font-bold text-slate-800">{fld.label}</div>
+                      {fld.description && (
+                        <div className="text-[11px] text-slate-500 mt-0.5">{fld.description}</div>
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={fld.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-1 text-[11px]">
+                      <span className="font-semibold text-slate-700 truncate">
+                        {fld.label || 'Kolom'}
+                      </span>
+                      <span
+                        className={`text-[9.5px] font-semibold shrink-0 ${
+                          rule !== 'optional' ? 'text-rose-500' : 'text-slate-400'
+                        }`}
+                      >
+                        {rule !== 'optional' ? 'Wajib *' : 'Opsional'}
+                      </span>
+                    </div>
+                    {fld.type === 'radio' || fld.type === 'checkbox_group' ? (
+                      <div className="rounded-lg border border-slate-200 bg-white/85 p-2 space-y-1">
+                        {(fld.options && fld.options.length > 0
+                          ? fld.options
+                          : ['Pilihan 1', 'Pilihan 2']
+                        )
+                          .slice(0, 4)
+                          .map((opt, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1.5 text-[11px] text-slate-600"
+                            >
+                              <span
+                                className={`w-3.5 h-3.5 border border-slate-300 bg-white shrink-0 ${
+                                  fld.type === 'radio' ? 'rounded-full' : 'rounded'
+                                }`}
+                              />
+                              <span className="truncate">{opt}</span>
+                            </div>
+                          ))}
+                      </div>
+                    ) : fld.type === 'textarea' || fld.type === 'address' ? (
+                      <div className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs min-h-[54px]">
+                        {fld.placeholder || DYNAMIC_FORM_FIELD_TYPE_LABELS[fld.type]}
+                      </div>
+                    ) : (
+                      <div className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white/90 text-slate-400 text-xs flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          {fld.placeholder || DYNAMIC_FORM_FIELD_TYPE_LABELS[fld.type]}
+                        </span>
+                        <span className="text-[9px] text-slate-400 shrink-0">
+                          {DYNAMIC_FORM_FIELD_TYPE_LABELS[fld.type]}
+                        </span>
+                      </div>
+                    )}
+                    {fld.helpText && (
+                      <div className="text-[10px] text-slate-400">{fld.helpText}</div>
+                    )}
+                  </div>
+                );
+              })}
               {chkEnabled && chkItems.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-white/75 p-2 space-y-1">
                   <div className="text-[11px] font-semibold text-slate-700 flex items-center justify-between">
-                    <span>{block.content.formChecklistTitle?.trim() || 'Persetujuan / Checklist'}</span>
-                    <span className={`text-[9.5px] font-semibold ${chkReq ? 'text-rose-500' : 'text-slate-400'}`}>
-                      {chkReq ? 'Wajib *' : 'Opsional'}
+                    <span>{block.content.formChecklistTitle?.trim() || 'Persetujuan & Konfirmasi'}</span>
+                    <span className={`text-[9.5px] font-semibold ${chkRule !== 'optional' ? 'text-rose-500' : 'text-slate-400'}`}>
+                      {chkRule !== 'optional' ? 'Wajib *' : 'Opsional'}
                     </span>
                   </div>
                   {chkItems.map((itemText, idx) => (
@@ -1382,7 +1616,7 @@ export function MobileCanvas({
                 className="w-full py-2.5 px-4 rounded-lg text-white text-xs font-semibold text-center"
                 style={{ backgroundColor: block.content.buttonColor ?? theme.accentColor }}
               >
-                {block.content.submitLabel || 'Kirim Data'}
+                {block.content.submitLabel || 'Kirim Formulir'}
               </div>
             </div>
           );
@@ -2018,15 +2252,172 @@ export function MobileCanvas({
           );
         })()}
 
-        {block.type === 'showcase_card' && (
-          <ShowcaseCardView
-            content={block.content}
-            theme={theme}
-            borderRadius={s.borderRadius}
-            blockStyle={s}
-            isEditor
-          />
-        )}
+        {block.type === 'showcase_card' && (() => {
+          const cardVariant = block.content.cardVariant ?? 'news_banner';
+          const bodyChildren = block.children ?? [];
+          const footerChildren = block.content.cardFooterBlocks ?? [];
+          const isDragOverBody =
+            dragOverCardZone?.cardId === block.id && dragOverCardZone.zone === 'body';
+          const isDragOverFooter =
+            dragOverCardZone?.cardId === block.id && dragOverCardZone.zone === 'footer';
+          const isCardOrChildSelected =
+            isSelected || (selectedId !== null && hasDescendantId(block, selectedId));
+          const isDraggingAny =
+            Boolean(dragState.draggedId && dragState.draggedId !== block.id) ||
+            isDropTarget ||
+            isDragOverBody ||
+            isDragOverFooter;
+
+          const showBodyDropZone =
+            bodyChildren.length > 0 ||
+            Boolean(block.content.cardHideDefaultContent) ||
+            isCardOrChildSelected ||
+            isDraggingAny;
+          const isDualZoneVariant =
+            cardVariant === 'membership_ticket' || cardVariant === 'event_poster';
+          const showFooterDropZone =
+            footerChildren.length > 0 ||
+            (isDualZoneVariant &&
+              (Boolean(block.content.cardHideDefaultFooter) ||
+                isCardOrChildSelected ||
+                isDraggingAny)) ||
+            (!isDualZoneVariant && (isDragOverFooter || Boolean(block.content.cardHideDefaultFooter)));
+
+          const handleFooterZoneDrop = (e: React.DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const existingId = e.dataTransfer.getData('application/lynk-existing-block');
+            const newBlockType = e.dataTransfer.getData('application/lynk-block-type') as BlockType;
+            const sectionId = e.dataTransfer.getData('application/lynk-section-id');
+            if (existingId && existingId !== block.id) {
+              onMoveBlockToCardFooter?.(existingId, block.id);
+            } else if (newBlockType) {
+              onDropNewBlockToCardFooter?.(block.id, newBlockType);
+            } else if (sectionId) {
+              onDropSectionToCardFooter?.(sectionId, block.id);
+            }
+            setDragState({ draggedId: null, targetId: null, position: null });
+            setDragOverRoot(false);
+            setDragOverCardZone(null);
+          };
+
+          const handleBodyZoneDrop = (e: React.DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragOverCardZone(null);
+            handleBlockDrop(e, block.id, 'inside');
+          };
+
+          const bodyZoneTextColor =
+            cardVariant === 'membership_ticket' || cardVariant === 'activity_post'
+              ? theme.textColor
+              : block.content.cardTextColor || '#FFFFFF';
+          const footerZoneTextColor = block.content.cardTextColor || '#FFFFFF';
+
+          const bodySlotNode = showBodyDropZone ? (
+            <div
+              data-card-drop-zone="body"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (dragState.draggedId === block.id) return;
+                if (!isDragOverBody) {
+                  setDragOverCardZone({ cardId: block.id, zone: 'body' });
+                }
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setDragOverCardZone((prev) =>
+                    prev?.cardId === block.id && prev.zone === 'body' ? null : prev
+                  );
+                }
+              }}
+              onDrop={handleBodyZoneDrop}
+              className={`w-full space-y-1.5 rounded-lg transition-all ${
+                isDragOverBody
+                  ? 'ring-2 ring-dashed ring-emerald-500 bg-emerald-500/10 p-1.5'
+                  : bodyChildren.length === 0
+                  ? 'mt-1'
+                  : 'pt-1'
+              }`}
+            >
+              {bodyChildren.map((child) =>
+                renderBlockContent(child, depth + 1, bodyZoneTextColor)
+              )}
+              {(bodyChildren.length === 0 || isDragOverBody) && (
+                <div
+                  className={`py-2 px-2 text-center text-[10px] font-medium rounded-lg border border-dashed select-none transition-colors ${
+                    isDragOverBody
+                      ? 'border-emerald-500 text-emerald-700 bg-emerald-50/90'
+                      : cardVariant === 'membership_ticket' || cardVariant === 'activity_post'
+                      ? 'border-slate-300 text-slate-400 bg-slate-50/60'
+                      : 'border-white/45 text-white/80 bg-black/10'
+                  }`}
+                >
+                  {isDragOverBody
+                    ? 'Lepas komponen ke Zona Atas kartu'
+                    : 'Tarik & lepas komponen ke Zona Atas (gambar, teks, icon...)'}
+                </div>
+              )}
+            </div>
+          ) : undefined;
+
+          const footerSlotNode = showFooterDropZone ? (
+            <div
+              data-card-drop-zone="footer"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (dragState.draggedId === block.id) return;
+                if (!isDragOverFooter) {
+                  setDragOverCardZone({ cardId: block.id, zone: 'footer' });
+                }
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setDragOverCardZone((prev) =>
+                    prev?.cardId === block.id && prev.zone === 'footer' ? null : prev
+                  );
+                }
+              }}
+              onDrop={handleFooterZoneDrop}
+              className={`w-full space-y-1.5 rounded-lg transition-all ${
+                isDragOverFooter
+                  ? 'ring-2 ring-dashed ring-white bg-white/15 p-1'
+                  : ''
+              }`}
+            >
+              {footerChildren.map((child) =>
+                renderBlockContent(child, depth + 1, footerZoneTextColor)
+              )}
+              {(footerChildren.length === 0 || isDragOverFooter) && (
+                <div
+                  className={`py-1.5 px-2 text-center text-[10px] font-medium rounded-md border border-dashed select-none transition-colors ${
+                    isDragOverFooter
+                      ? 'border-white text-white bg-white/20'
+                      : 'border-white/45 text-white/85 bg-black/10'
+                  }`}
+                >
+                  {isDragOverFooter
+                    ? 'Lepas komponen ke Strip Bawah'
+                    : '+ Tarik keranjang / tombol / icon ke Strip Bawah'}
+                </div>
+              )}
+            </div>
+          ) : undefined;
+
+          return (
+            <ShowcaseCardView
+              content={block.content}
+              theme={theme}
+              borderRadius={s.borderRadius}
+              blockStyle={s}
+              isEditor
+              bodySlot={bodySlotNode}
+              footerSlot={footerSlotNode}
+            />
+          );
+        })()}
 
         {block.type === 'back_button' && (
           <div
@@ -2155,44 +2546,52 @@ export function MobileCanvas({
       onClick={() => onSelectBlock(null)}
       className="flex-1 bg-[#F0F5FA] flex flex-col overflow-hidden relative"
     >
-      {/* Workspace Toolbar: Kiri (Beranda + Site) | Tengah (Icon Mobile, Icon PC, Undo) | Kanan (50%/75%/100% + Zoom Slider) */}
+      {/* Workspace Toolbar: Kiri (Halaman + Site) | Tengah (Perangkat & Riwayat Ikon Minimalis) | Kanan (Zoom Terpadu) */}
       <div
         onClick={(e) => e.stopPropagation()}
         data-canvas-toolbar="1"
-        className="min-h-12 px-3 py-1.5 bg-white border-b border-[#DCE5EF] flex items-center justify-between gap-2 text-[13px] text-[#17243D] shrink-0 overflow-x-auto no-scrollbar"
+        className="h-10 px-3 bg-white/95 backdrop-blur-xs border-b border-[#E6EDF5] flex items-center justify-between gap-3 text-[12px] text-[#334155] shrink-0 relative z-20"
       >
         {/* Kiri: Beranda, Sub-Halaman, + Site */}
         <div
           data-canvas-page-bar="1"
           role="group"
           aria-label="Navigasi Halaman"
-          className="flex items-center gap-1 min-w-0 max-w-[38%] overflow-x-auto no-scrollbar shrink"
+          className="flex items-center gap-1 min-w-0 max-w-[44%] overflow-x-auto no-scrollbar shrink"
         >
-          <button
-            type="button"
-            onClick={() => onSelectSubPage?.(null)}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              activeSubPageId === null
-                ? 'bg-[#17243D] text-white border-[#17243D]'
-                : 'bg-white text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
-            }`}
-          >
-            Beranda
-          </button>
-          {pages.map((pg) => (
+          <div className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5 shrink-0">
             <button
-              key={pg.id}
               type="button"
-              onClick={() => onSelectSubPage?.(pg.id)}
-              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeSubPageId === pg.id
-                  ? 'bg-[#17243D] text-white border-[#17243D]'
-                  : 'bg-white text-[#17243D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+              onClick={() => onSelectSubPage?.(null)}
+              className={`inline-flex items-center gap-1.5 px-2.5 h-6 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                activeSubPageId === null
+                  ? 'bg-white text-[#0F172A] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                  : 'text-[#64748B] hover:text-[#0F172A]'
               }`}
             >
-              {pg.title}
+              {activeSubPageId === null && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00C98A] shrink-0" />
+              )}
+              <span>Beranda</span>
             </button>
-          ))}
+            {pages.map((pg) => (
+              <button
+                key={pg.id}
+                type="button"
+                onClick={() => onSelectSubPage?.(pg.id)}
+                className={`inline-flex items-center gap-1.5 px-2.5 h-6 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  activeSubPageId === pg.id
+                    ? 'bg-white text-[#0F172A] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                    : 'text-[#64748B] hover:text-[#0F172A]'
+                }`}
+              >
+                {activeSubPageId === pg.id && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00C98A] shrink-0" />
+                )}
+                <span>{pg.title}</span>
+              </button>
+            ))}
+          </div>
           {onAddSubPage && (
             <button
               type="button"
@@ -2200,7 +2599,7 @@ export function MobileCanvas({
               onClick={() => onAddSubPage()}
               title="Tambah Halaman / Site Baru"
               aria-label="Tambah Site"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-[#00C98A] bg-[#ECFDF6] text-[#0F766E] text-[11px] font-bold hover:bg-[#D1FAE5] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 h-7 rounded-md text-[#64748B] hover:text-[#0F766E] hover:bg-[#ECFDF6] text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
               <span>+ Site</span>
@@ -2208,115 +2607,240 @@ export function MobileCanvas({
           )}
         </div>
 
-        {/* Tengah: Icon Mobile (440px), Icon PC (576px), Undo */}
+        {/* Tengah: Segmented Mobile/PC + Ikon Riwayat Tanpa Border Ramai */}
         <div
-          className="flex items-center gap-1.5 shrink-0"
+          className="flex items-center gap-2 shrink-0"
           role="group"
           aria-label="Preview Mobile & Undo"
         >
-          <button
-            type="button"
-            data-viewport-preset="mobile-440"
-            onClick={() => handleSelectPresetWidth('mobile-440')}
-            aria-pressed={!isWideViewport}
-            title="Mobile 440 px"
-            aria-label="Mobile 440 px"
-            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg border transition-colors shrink-0 cursor-pointer ${
-              !isWideViewport
-                ? 'bg-[#17243D] border-[#17243D] text-white shadow-xs'
-                : 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA]'
-            }`}
-          >
-            <Smartphone
-              className={`w-4 h-4 ${!isWideViewport ? 'text-[#00C98A]' : 'text-[#5B708B]'}`}
-            />
-          </button>
+          <div className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5">
+            <button
+              type="button"
+              data-viewport-preset="mobile-440"
+              onClick={() => handleSelectPresetWidth('mobile-440')}
+              aria-pressed={!isWideViewport}
+              title="Mobile 440 px"
+              aria-label="Mobile 440 px"
+              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+                !isWideViewport
+                  ? 'bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                  : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Smartphone
+                className={`w-3.5 h-3.5 ${!isWideViewport ? 'text-[#059669]' : 'text-current'}`}
+              />
+            </button>
 
-          <button
-            type="button"
-            data-viewport-preset="mobile-576"
-            onClick={() => handleSelectPresetWidth('mobile-576')}
-            aria-pressed={isWideViewport}
-            title="Mobile 576 px"
-            aria-label="Mobile 576 px"
-            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg border transition-colors shrink-0 cursor-pointer ${
-              isWideViewport
-                ? 'bg-[#17243D] border-[#17243D] text-white shadow-xs'
-                : 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA]'
-            }`}
-          >
-            <Monitor
-              className={`w-4 h-4 ${isWideViewport ? 'text-[#00C98A]' : 'text-[#5B708B]'}`}
-            />
-          </button>
+            <button
+              type="button"
+              data-viewport-preset="mobile-576"
+              onClick={() => handleSelectPresetWidth('mobile-576')}
+              aria-pressed={isWideViewport}
+              title="Mobile 576 px"
+              aria-label="Mobile 576 px"
+              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+                isWideViewport
+                  ? 'bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                  : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Monitor
+                className={`w-3.5 h-3.5 ${isWideViewport ? 'text-[#059669]' : 'text-current'}`}
+              />
+            </button>
+          </div>
 
-          <div className="ml-1.5 pl-2 border-l border-[#DCE5EF] flex items-center shrink-0">
+          <span className="w-px h-4 bg-[#E2E8F0] shrink-0" aria-hidden="true" />
+
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               type="button"
               data-toolbar-undo="1"
               disabled={!canUndo || !onUndo}
               onClick={() => onUndo?.()}
-              title={canUndo ? 'Urungkan perubahan terakhir (Ctrl+Z)' : 'Belum ada riwayat Undo'}
-              aria-label="Undo"
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 ${
+              title={canUndo ? 'Batalkan perubahan terakhir (Ctrl+Z)' : 'Belum ada riwayat pembatalan'}
+              aria-label="Batalkan"
+              className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors shrink-0 ${
                 canUndo && onUndo
-                  ? 'bg-white border-[#DCE5EF] text-[#17243D] hover:bg-[#F0F5FA] hover:border-[#8FA4BF] cursor-pointer'
-                  : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'
+                  ? 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer'
+                  : 'text-[#CBD5E1] cursor-not-allowed'
               }`}
             >
               <Undo2 className="w-3.5 h-3.5" />
-              <span>Undo</span>
             </button>
+
+            <button
+              type="button"
+              data-toolbar-redo="1"
+              disabled={!canRedo || !onRedo}
+              onClick={() => onRedo?.()}
+              title={canRedo ? 'Ulangi perubahan (Ctrl+Y)' : 'Belum ada riwayat ulangi'}
+              aria-label="Ulangi"
+              className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors shrink-0 ${
+                canRedo && onRedo
+                  ? 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer'
+                  : 'text-[#CBD5E1] cursor-not-allowed'
+              }`}
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+
+            {onCopyBlock && selectedId && (
+              <button
+                type="button"
+                onClick={() => onCopyBlock(selectedId)}
+                title="Salin komponen terpilih (Ctrl+C)"
+                aria-label="Salin"
+                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] transition-colors cursor-pointer shrink-0"
+              >
+                <ClipboardCopy className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {onPasteBlock && canPaste && (
+              <button
+                type="button"
+                onClick={onPasteBlock}
+                title="Tempel komponen (Ctrl+V)"
+                aria-label="Tempel"
+                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-[#059669] bg-[#ECFDF6] hover:bg-[#D1FAE5] transition-colors cursor-pointer shrink-0"
+              >
+                <ClipboardPaste className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Kanan: 50%, 75%, 100% dan Slider Zoom */}
-        <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="Zoom Canvas">
-          <div className="flex items-center gap-0.5 bg-[#F0F5FA] border border-[#DCE5EF] rounded-lg p-0.5">
-            {([0.5, 0.75, 1] as const).map((z) => {
-              const active = Math.abs(zoom - z) < 0.005;
-              return (
-                <button
-                  key={z}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setZoom(z)}
-                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium tabular-nums cursor-pointer transition-colors whitespace-nowrap ${
-                    active
-                      ? 'bg-[#17243D] text-white'
-                      : 'text-[#5B708B] hover:text-[#17243D]'
-                  }`}
-                >
-                  {Math.round(z * 100)}%
-                </button>
-              );
-            })}
-          </div>
+        {/* Kanan: Zoom Terpadu Ringkas (- 100% + dengan Popover Preset & Slider) */}
+        <div
+          ref={zoomMenuRef}
+          className="relative flex items-center shrink-0"
+          role="group"
+          aria-label="Zoom Canvas"
+        >
           {(() => {
             const zoomPct = Math.round(zoom * 100);
             const sliderFill = Math.max(0, Math.min(100, ((zoomPct - 50) / (250 - 50)) * 100));
             return (
-              <div className="flex items-center gap-1.5 bg-[#F0F5FA] border border-[#DCE5EF] rounded-lg px-2 py-1">
-                <input
-                  type="range"
-                  min={50}
-                  max={250}
-                  step={5}
-                  value={zoomPct}
-                  aria-label="Slider Zoom Canvas (50% - 250%)"
-                  onChange={(e) => {
-                    const nextPct = Math.max(50, Math.min(250, Number(e.target.value)));
-                    setZoom(nextPct / 100);
-                  }}
-                  style={{
-                    background: `linear-gradient(to right, #94A3B8 0%, #94A3B8 ${sliderFill}%, #E2E8F0 ${sliderFill}%, #E2E8F0 100%)`,
-                  }}
-                  className="w-16 sm:w-20 cursor-pointer"
-                />
-                <span className="text-[10.5px] font-mono font-semibold text-[#17243D] tabular-nums w-8 text-right">
-                  {zoomPct}%
-                </span>
-              </div>
+              <>
+                <div className="inline-flex items-center bg-[#F1F5F9] rounded-lg p-0.5 gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
+                    disabled={zoomPct <= 50}
+                    title="Perkecil tampilan kanvas"
+                    aria-label="Perkecil"
+                    className={`w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors ${
+                      zoomPct > 50
+                        ? 'text-[#475569] hover:bg-white hover:text-[#0F172A] cursor-pointer'
+                        : 'text-[#CBD5E1] cursor-not-allowed'
+                    }`}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    data-zoom-menu-trigger="1"
+                    aria-expanded={isZoomMenuOpen}
+                    onClick={() => setIsZoomMenuOpen((v) => !v)}
+                    title="Atur skala zoom kanvas (50% – 250%)"
+                    className={`inline-flex items-center gap-0.5 px-2 h-6 rounded-md text-[11px] font-semibold tabular-nums transition-all cursor-pointer ${
+                      isZoomMenuOpen
+                        ? 'bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                        : 'text-[#334155] hover:bg-white/80 hover:text-[#0F172A]'
+                    }`}
+                  >
+                    <span>{zoomPct}%</span>
+                    <ChevronDown
+                      className={`w-3 h-3 text-[#64748B] transition-transform ${
+                        isZoomMenuOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.min(2.5, Number((z + 0.1).toFixed(2))))}
+                    disabled={zoomPct >= 250}
+                    title="Perbesar tampilan kanvas"
+                    aria-label="Perbesar"
+                    className={`w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors ${
+                      zoomPct < 250
+                        ? 'text-[#475569] hover:bg-white hover:text-[#0F172A] cursor-pointer'
+                        : 'text-[#CBD5E1] cursor-not-allowed'
+                    }`}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {isZoomMenuOpen && (
+                  <div
+                    data-zoom-popover="1"
+                    className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-[#E2E8F0] rounded-xl shadow-[0_10px_28px_rgba(15,23,42,0.12)] p-2.5 z-40"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-semibold text-[#334155]">Skala Kanvas</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZoom(1);
+                          setIsZoomMenuOpen(false);
+                        }}
+                        className="text-[10.5px] font-medium text-[#059669] hover:underline cursor-pointer"
+                      >
+                        Reset 100%
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-1 mb-2.5">
+                      {([0.5, 0.75, 1, 1.25, 1.5] as const).map((z) => {
+                        const active = Math.abs(zoom - z) < 0.005;
+                        return (
+                          <button
+                            key={z}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => {
+                              setZoom(z);
+                              setIsZoomMenuOpen(false);
+                            }}
+                            className={`py-1 rounded-md text-[10.5px] font-semibold tabular-nums transition-colors cursor-pointer ${
+                              active
+                                ? 'bg-[#0F172A] text-white'
+                                : 'bg-[#F8FAFC] text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
+                            }`}
+                          >
+                            {Math.round(z * 100)}%
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#F1F5F9]">
+                      <input
+                        type="range"
+                        min={50}
+                        max={250}
+                        step={5}
+                        value={zoomPct}
+                        aria-label="Slider Zoom Canvas (50% - 250%)"
+                        onChange={(e) => {
+                          const nextPct = Math.max(50, Math.min(250, Number(e.target.value)));
+                          setZoom(nextPct / 100);
+                        }}
+                        style={{
+                          background: `linear-gradient(to right, #0F172A 0%, #0F172A ${sliderFill}%, #E2E8F0 ${sliderFill}%, #E2E8F0 100%)`,
+                        }}
+                        className="flex-1 h-1.5 rounded-full cursor-pointer"
+                      />
+                      <span className="text-[10.5px] font-mono font-semibold text-[#0F172A] tabular-nums w-9 text-right">
+                        {zoomPct}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
@@ -2516,6 +3040,9 @@ export function MobileCanvas({
                       if (b.children?.length) acc.push(...collectNested(b.children));
                       if (b.content.actionSheetBlocks?.length) {
                         acc.push(...collectNested(b.content.actionSheetBlocks));
+                      }
+                      if (b.content.cardFooterBlocks?.length) {
+                        acc.push(...collectNested(b.content.cardFooterBlocks));
                       }
                     });
                     return acc;

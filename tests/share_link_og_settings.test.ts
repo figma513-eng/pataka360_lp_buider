@@ -142,11 +142,11 @@ test('BusinessSettingsPage & server.ts wire Share Link preview settings end-to-e
     path.resolve('src/components/BusinessSettingsPage.tsx'),
     'utf8'
   );
-  assert.match(settingsSrc, /Tampilan Share Link \(WhatsApp &amp; Media Sosial\)/);
+  assert.match(settingsSrc, /Tampilan Tautan Berbagi \(WhatsApp &amp; Media Sosial\)/);
   assert.match(settingsSrc, /Gambar Banner Preview Link/);
   assert.match(settingsSrc, /Judul Preview Link \(og:title\)/);
   assert.match(settingsSrc, /Deskripsi Preview Link \(og:description\)/);
-  assert.match(settingsSrc, /Preview Kartu Share WhatsApp/);
+  assert.match(settingsSrc, /Pratinjau Berbagi WhatsApp/);
   assert.match(settingsSrc, /Salin Pesan \+ Link/);
   assert.match(settingsSrc, /Bagikan ke WA/);
 

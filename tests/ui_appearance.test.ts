@@ -18,9 +18,14 @@ import { apiRateLimiter, authRateLimiter } from '../src/server/rateLimiter.ts';
 import { DEMO_ROLE_PROFILES } from '../src/utils/demoAccounts.ts';
 import {
   UI_LABEL_CATALOG,
+  UI_LABEL_CATEGORIES,
   UI_LABEL_DEFAULT_MAP,
+  getUiLabelKind,
+  isUiLabelVisible,
+  packUiAppearanceStoragePayload,
   resolveUiLabel,
   sanitizeUiAppearanceLabelsMap,
+  unpackUiAppearanceStoragePayload,
 } from '../src/utils/uiAppearanceLabels.ts';
 
 class TestCookieJar {
@@ -136,6 +141,25 @@ describe('UI Appearance ("Tampilan") Catalog, Persistence, and RBAC API', () => 
     });
 
     assert.equal(
+      UI_LABEL_DEFAULT_MAP['konten.field.modeWadahIndukAnak'],
+      'Mode Wadah Induk–Anak'
+    );
+    assert.equal(
+      UI_LABEL_DEFAULT_MAP['konten.desc.modeWadahIndukAnak'],
+      'Ubah wadah menjadi Slider Horizontal atau Vertikal tanpa merusak komponen anak di dalamnya.'
+    );
+    const titleItem = UI_LABEL_CATALOG.find((i) => i.key === 'konten.field.modeWadahIndukAnak');
+    const descItem = UI_LABEL_CATALOG.find((i) => i.key === 'konten.desc.modeWadahIndukAnak');
+    assert.ok(titleItem && descItem);
+    assert.equal(getUiLabelKind(titleItem), 'judul');
+    assert.equal(getUiLabelKind(descItem), 'deskripsi');
+    assert.equal(titleItem.groupTitle, 'Mode Wadah Induk–Anak');
+    assert.equal(descItem.groupTitle, 'Mode Wadah Induk–Anak');
+    assert.ok(UI_LABEL_DEFAULT_MAP['konten.desc.stripBawahKartu']);
+    assert.ok(UI_LABEL_DEFAULT_MAP['home.desc.top']);
+    assert.ok(UI_LABEL_DEFAULT_MAP['konten.desc.formWaKhusus']);
+
+    assert.equal(
       resolveUiLabel(cleaned, 'desain.sec.specific'),
       'Komponen Utama'
     );
@@ -147,6 +171,34 @@ describe('UI Appearance ("Tampilan") Catalog, Persistence, and RBAC API', () => 
       resolveUiLabel(cleaned, 'unknown.key', 'Fallback Custom'),
       'Fallback Custom'
     );
+
+    const packed = packUiAppearanceStoragePayload(
+      { 'konten.field.modeWadahIndukAnak': 'Mode Wadah Kustom' },
+      { 'konten.desc.modeWadahIndukAnak': true }
+    );
+    const unpacked = unpackUiAppearanceStoragePayload(packed);
+    assert.deepEqual(unpacked.labels, {
+      'konten.field.modeWadahIndukAnak': 'Mode Wadah Kustom',
+    });
+    assert.deepEqual(unpacked.hiddenKeys, {
+      'konten.desc.modeWadahIndukAnak': true,
+    });
+    assert.equal(isUiLabelVisible(unpacked.hiddenKeys, 'konten.field.modeWadahIndukAnak'), true);
+    assert.equal(isUiLabelVisible(unpacked.hiddenKeys, 'konten.desc.modeWadahIndukAnak'), false);
+
+    // 5 separated core content categories (1..5) must appear first in order and cover judul, label, deskripsi
+    const coreCats = UI_LABEL_CATEGORIES.filter((c) => c.isCoreContentSection);
+    assert.deepEqual(
+      coreCats.map((c) => c.id),
+      ['konten_items', 'konten_main', 'konten_nav', 'konten_general', 'konten_actions']
+    );
+    for (const cat of coreCats) {
+      const catItems = UI_LABEL_CATALOG.filter((i) => i.category === cat.id);
+      const kinds = new Set(catItems.map((i) => getUiLabelKind(i)));
+      assert.ok(kinds.has('judul'), `${cat.label} harus memiliki item Judul`);
+      assert.ok(kinds.has('label'), `${cat.label} harus memiliki item Label`);
+      assert.ok(kinds.has('deskripsi'), `${cat.label} harus memiliki item Deskripsi`);
+    }
   });
 
   it('persists partial patches, single-key reset, full labels replacement, and resetAll in repository', async () => {
@@ -191,9 +243,30 @@ describe('UI Appearance ("Tampilan") Catalog, Persistence, and RBAC API', () => 
       'konten.sec.main': 'Isi Utama',
     });
 
-    // Reset all
+    // Hidden keys patch & unhide
+    const hiddenPatched = await saveUiAppearanceSettings({
+      hiddenPatch: {
+        'konten.field.modeWadahIndukAnak': true,
+        'konten.desc.modeWadahIndukAnak': true,
+      },
+    });
+    assert.deepEqual(hiddenPatched.hiddenKeys, {
+      'konten.field.modeWadahIndukAnak': true,
+      'konten.desc.modeWadahIndukAnak': true,
+    });
+    const unhideOne = await saveUiAppearanceSettings({
+      hiddenPatch: {
+        'konten.field.modeWadahIndukAnak': false,
+      },
+    });
+    assert.deepEqual(unhideOne.hiddenKeys, {
+      'konten.desc.modeWadahIndukAnak': true,
+    });
+
+    // Reset all clears both labels and hiddenKeys
     const reset = await saveUiAppearanceSettings({ resetAll: true });
     assert.deepEqual(reset.labels, {});
+    assert.deepEqual(reset.hiddenKeys, {});
   });
 
   it('enforces RBAC on /api/settings/appearance and broadcasts updated labels readable by active users', async () => {
@@ -267,26 +340,33 @@ describe('UI Appearance ("Tampilan") Catalog, Persistence, and RBAC API', () => 
         patch: {
           'desain.sec.specific': 'Komponen Utama',
           'tema.sec.pengaturanLokal': 'Token Lokal',
+          'konten.field.modeWadahIndukAnak': 'Mode Wadah Slider',
+        },
+        hiddenPatch: {
+          'konten.desc.modeWadahIndukAnak': true,
         },
       }),
     });
     assert.equal(saveRes.status, 200);
     const saveJson = (await saveRes.json()) as {
       ok: boolean;
-      settings: { labels: Record<string, string> };
+      settings: { labels: Record<string, string>; hiddenKeys?: Record<string, boolean> };
     };
     assert.equal(saveJson.ok, true);
     assert.equal(saveJson.settings.labels['desain.sec.specific'], 'Komponen Utama');
     assert.equal(saveJson.settings.labels['tema.sec.pengaturanLokal'], 'Token Lokal');
+    assert.equal(saveJson.settings.labels['konten.field.modeWadahIndukAnak'], 'Mode Wadah Slider');
+    assert.equal(saveJson.settings.hiddenKeys?.['konten.desc.modeWadahIndukAnak'], true);
 
-    // Viewer reads updated labels cleanly
+    // Viewer reads updated labels & hiddenKeys cleanly
     const viewerGet = await viewerJar.request(baseUrl, '/api/settings/appearance');
     assert.equal(viewerGet.status, 200);
     const viewerJson = (await viewerGet.json()) as {
-      settings: { labels: Record<string, string> };
+      settings: { labels: Record<string, string>; hiddenKeys?: Record<string, boolean> };
     };
     assert.equal(viewerJson.settings.labels['desain.sec.specific'], 'Komponen Utama');
     assert.equal(viewerJson.settings.labels['tema.sec.pengaturanLokal'], 'Token Lokal');
+    assert.equal(viewerJson.settings.hiddenKeys?.['konten.desc.modeWadahIndukAnak'], true);
 
     // Super Admin resets all
     const resetRes = await adminJar.request(baseUrl, '/api/settings/appearance', {
@@ -297,8 +377,9 @@ describe('UI Appearance ("Tampilan") Catalog, Persistence, and RBAC API', () => 
     assert.equal(resetRes.status, 200);
     const resetJson = (await resetRes.json()) as {
       ok: boolean;
-      settings: { labels: Record<string, string> };
+      settings: { labels: Record<string, string>; hiddenKeys?: Record<string, boolean> };
     };
     assert.deepEqual(resetJson.settings.labels, {});
+    assert.deepEqual(resetJson.settings.hiddenKeys, {});
   });
 });

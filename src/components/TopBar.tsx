@@ -151,12 +151,12 @@ export function TopBar({
           |
         </span>
 
-        {/* 3. Gear icon ONLY -> Setting Usaha */}
+        {/* 3. Gear icon ONLY -> Usaha Aktif */}
         <button
           type="button"
           onClick={() => onNavigatePage('setting_usaha')}
-          title="Setting Usaha (Identitas, Slug, Domain & Publikasi Usaha Aktif)"
-          aria-label="Setting Usaha"
+          title="Pengaturan Usaha Aktif (Identitas, Pusat WhatsApp, Slug, Domain & Publikasi)"
+          aria-label="Usaha Aktif"
           className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
             activePage === 'setting_usaha'
               ? 'bg-[#17243D] border-[#17243D] text-white'
@@ -197,7 +197,7 @@ export function TopBar({
                   }}
                   className="text-[11px] font-semibold text-[#00A873] hover:underline cursor-pointer"
                 >
-                  Setting Usaha Aktif
+                  Pengaturan Usaha Aktif
                 </button>
               </div>
 
@@ -242,7 +242,7 @@ export function TopBar({
                         <div className="min-w-0">
                           <div className="truncate">{rec.project.title || 'Tanpa Judul'}</div>
                           <div className="text-[11px] font-mono text-[#8FA4BF] truncate">
-                            /p/{pub.slug} · {pub.isPublished ? 'Tayang' : 'Draft'}
+                            /p/{pub.slug} · {pub.isPublished ? 'Tayang' : 'Draf'}
                           </div>
                         </div>
                         {isCurrent && <Check className="w-3.5 h-3.5 text-[#00C98A] shrink-0" />}
@@ -265,7 +265,7 @@ export function TopBar({
                         className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-[11px] font-semibold cursor-pointer"
                       >
                         <Plus className="w-3 h-3 text-[#00C98A]" />
-                        <span>Template Baru</span>
+                        <span>Templat Baru</span>
                       </button>
                       <button
                         type="button"
@@ -398,7 +398,7 @@ export function TopBar({
               }`}
               strokeWidth={1.9}
             />
-            <span>Ads</span>
+            <span>Iklan</span>
           </button>
         )}
 
@@ -406,7 +406,7 @@ export function TopBar({
           <button
             type="button"
             onClick={() => onNavigatePage('setting_sistem')}
-            title="Setting Sistem (Domain, Akses, Setting API, Tampilan, Import, Backup, Copy HTML, Daftar Usaha)"
+            title="Pengaturan Sistem (Domain, Akses, Pengaturan API, Tampilan, Impor, Cadangan, Salin HTML, Daftar Usaha)"
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               activePage === 'setting_sistem'
                 ? 'bg-[#17243D] text-white'
@@ -419,7 +419,7 @@ export function TopBar({
               }`}
               strokeWidth={1.9}
             />
-            <span>Setting</span>
+            <span>Pengaturan</span>
           </button>
         )}
       </nav>
@@ -476,7 +476,7 @@ export function TopBar({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-[12.5px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Eye className="w-3.5 h-3.5 text-[#00C98A] shrink-0" strokeWidth={1.9} />
-            <span>Preview</span>
+            <span>Pratinjau</span>
           </button>
         )}
 
@@ -485,7 +485,7 @@ export function TopBar({
             href={publicHref}
             target="_blank"
             rel="noopener noreferrer"
-            title={`Buka halaman publik ${displaySlug} (${isPublished ? 'Tayang' : 'Pratinjau Draft'})`}
+            title={`Buka halaman publik ${displaySlug} (${isPublished ? 'Tayang' : 'Pratinjau Draf'})`}
             className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA]/70 hover:bg-[#ECFDF6] hover:border-[#00C98A] text-[#17243D] text-[12px] font-mono font-medium transition-colors whitespace-nowrap shrink-0 max-w-[165px]"
           >
             <span className="truncate">{displaySlug}</span>
@@ -501,11 +501,11 @@ export function TopBar({
           <button
             type="button"
             onClick={onLogout}
-            title={`Logout dari akun ${authUser.name} (${authUser.email})`}
+            title={`Keluar dari akun ${authUser.name} (${authUser.email})`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-[#17243D] text-[12.5px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5 text-[#8FA4BF]" />
-            <span>Logout</span>
+            <span>Keluar</span>
           </button>
         ) : (
           <button

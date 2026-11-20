@@ -319,7 +319,7 @@ export function LeftSidebar({
   onDeleteBlock,
   onAddChildToContainer,
 }: LeftSidebarProps) {
-  const { label } = useUiLabel();
+  const { label, isVisible } = useUiLabel();
   const [activeTab, setActiveTab] = useState<SidebarTab>('alat');
   const [query, setQuery] = useState('');
   const [selectedBlockCategory, setSelectedBlockCategory] = useState<
@@ -340,8 +340,9 @@ export function LeftSidebar({
 
   const filteredTools = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return TOOL_ITEMS;
     return TOOL_ITEMS.filter((item) => {
+      if (!isVisible(`alat.tool.${item.key}`)) return false;
+      if (!q) return true;
       const displayLabel = label(`alat.tool.${item.key}`, item.label);
       return (
         displayLabel.toLowerCase().includes(q) ||
@@ -350,11 +351,12 @@ export function LeftSidebar({
         item.type.toLowerCase().includes(q)
       );
     });
-  }, [query, label]);
+  }, [query, label, isVisible]);
 
   const filteredSections = useMemo(() => {
     const q = query.trim().toLowerCase();
     return PREBUILT_SECTIONS.filter((sec) => {
+      if (!isVisible(`blok.sec.${sec.id}`)) return false;
       if (selectedBlockCategory !== 'semua' && sec.category !== selectedBlockCategory) {
         return false;
       }
@@ -368,7 +370,7 @@ export function LeftSidebar({
         catLabel.toLowerCase().includes(q)
       );
     });
-  }, [query, selectedBlockCategory, label]);
+  }, [query, selectedBlockCategory, label, isVisible]);
 
   return (
     <aside className="w-64 xl:w-[19%] min-w-[240px] max-w-[300px] bg-white border-r border-[#DCE5EF] flex flex-col shrink-0 h-full overflow-hidden">

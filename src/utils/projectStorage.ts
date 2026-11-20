@@ -13,6 +13,7 @@ import {
   resolveProjectPublishing,
   sanitizeSlug,
 } from './publishingHelpers';
+import { createDefaultWhatsappCenter, resolveWhatsappCenter } from './whatsappBuilder';
 
 const LEGACY_STORAGE_KEY = 'lynk_builder_project_v2';
 const IDB_NAME = 'lynk_builder_idb';
@@ -98,6 +99,7 @@ export function normalizeProject(raw: BuilderProject): BuilderProject {
     title,
     theme: raw.theme,
     blocks: Array.isArray(raw.blocks) ? raw.blocks : [],
+    pages: Array.isArray(raw.pages) ? raw.pages : undefined,
     advanceOptions: {
       ...DEFAULT_ADVANCE_OPTIONS,
       ...(raw.advanceOptions ?? {}),
@@ -105,12 +107,14 @@ export function normalizeProject(raw: BuilderProject): BuilderProject {
     bottomNavbar: raw.bottomNavbar,
     publishing: raw.publishing,
     adsConfig: raw.adsConfig,
+    whatsappCenter: raw.whatsappCenter,
   };
   return {
     ...baseNormalized,
     bottomNavbar: resolveBottomNavbar(baseNormalized),
     publishing: resolveProjectPublishing(baseNormalized),
     adsConfig: resolveProjectAds(baseNormalized),
+    whatsappCenter: resolveWhatsappCenter(baseNormalized),
   };
 }
 
@@ -121,11 +125,16 @@ export function cloneProjectForNewBusiness(
   const normalized = normalizeProject(source);
   const srcAds = resolveProjectAds(normalized);
   const srcNav = resolveBottomNavbar(normalized);
+  const srcWa = resolveWhatsappCenter(normalized);
   return {
     title: nextTitle,
     theme: { ...normalized.theme },
     advanceOptions: { ...normalized.advanceOptions },
     blocks: cloneBlocksWithNewIds(normalized.blocks),
+    pages: normalized.pages?.map((pg) => ({
+      ...pg,
+      blocks: cloneBlocksWithNewIds(pg.blocks),
+    })),
     bottomNavbar: {
       ...srcNav,
       items: srcNav.items.map((it) => ({
@@ -143,6 +152,12 @@ export function cloneProjectForNewBusiness(
     adsConfig: {
       ...srcAds,
     },
+    whatsappCenter: {
+      ...srcWa,
+      businessName: nextTitle,
+      templates: srcWa.templates.map((t) => ({ ...t })),
+      links: srcWa.links.map((l) => ({ ...l })),
+    },
   };
 }
 
@@ -155,6 +170,7 @@ export function createBlankProject(title: string): BuilderProject {
     bottomNavbar: createDefaultBottomNavbar(INITIAL_PROJECT.theme, false),
     publishing: createDefaultPublishingConfig(title),
     adsConfig: { ...DEFAULT_ADS_CONFIG },
+    whatsappCenter: createDefaultWhatsappCenter(title, ''),
   };
 }
 

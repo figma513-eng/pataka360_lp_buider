@@ -23,6 +23,7 @@ import {
   FeaturePermissionsMap,
   ProjectPublishingConfig,
   ProjectRecord,
+  WhatsappCenterConfig,
 } from '../types/builder';
 import {
   buildLiveUrls,
@@ -34,7 +35,9 @@ import {
 } from '../utils/publishingHelpers';
 import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import { uploadCompressedImageOrFallback } from '../utils/imageHelpers';
+import { resolveWhatsappCenter } from '../utils/whatsappBuilder';
 import { ToggleSwitch } from './inspector/InspectorPrimitives';
+import { WhatsAppCenterPanel } from './WhatsAppCenterPanel';
 
 interface BusinessSettingsPageProps {
   activeRecord: ProjectRecord;
@@ -44,6 +47,7 @@ interface BusinessSettingsPageProps {
   onSaveBusinessSettings: (params: {
     title: string;
     nextPublishing: ProjectPublishingConfig;
+    nextWhatsappCenter?: WhatsappCenterConfig;
     publishNow: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
   onDuplicateProject: (id: string) => void;
@@ -68,6 +72,9 @@ export function BusinessSettingsPage({
   const [title, setTitle] = useState(activeRecord.project.title);
   const [pub, setPub] = useState<ProjectPublishingConfig>(() =>
     resolveProjectPublishing(activeRecord.project)
+  );
+  const [waCenter, setWaCenter] = useState<WhatsappCenterConfig>(() =>
+    resolveWhatsappCenter(activeRecord.project)
   );
   const [saving, setSaving] = useState(false);
   const [uploadingOgImage, setUploadingOgImage] = useState(false);
@@ -106,6 +113,7 @@ export function BusinessSettingsPage({
     if (switched || !isDirtyRef.current) {
       setTitle(activeRecord.project.title);
       setPub(resolveProjectPublishing(activeRecord.project));
+      setWaCenter(resolveWhatsappCenter(activeRecord.project));
     }
   }, [activeRecord.id, activeRecord.revision, activeRecord.lastSavedAt, activeRecord.project]);
 
@@ -247,6 +255,7 @@ export function BusinessSettingsPage({
     const res = await onSaveBusinessSettings({
       title: title.trim(),
       nextPublishing: nextPub,
+      nextWhatsappCenter: waCenter,
       publishNow,
     });
     setSaving(false);
@@ -279,7 +288,7 @@ export function BusinessSettingsPage({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base font-bold text-[#17243D] truncate">
-                  Setting Usaha Aktif
+                  Pengaturan Usaha Aktif
                 </h1>
                 <span
                   className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
@@ -288,11 +297,11 @@ export function BusinessSettingsPage({
                       : 'bg-[#F0F5FA] text-[#51637D] border-[#DCE5EF]'
                   }`}
                 >
-                  {pub.isPublished ? 'Tayang Publik' : 'Draft'}
+                  {pub.isPublished ? 'Tayang Publik' : 'Draf'}
                 </span>
               </div>
               <p className="text-xs text-[#8FA4BF] mt-0.5 truncate">
-                Mengatur identitas, tampilan share link, URL publik, domain, dan aksi cepat unit usaha aktif.
+                Mengatur identitas, tampilan tautan berbagi, Pusat WhatsApp, URL publik, domain, dan aksi cepat unit usaha aktif.
               </p>
             </div>
           </div>
@@ -398,11 +407,11 @@ export function BusinessSettingsPage({
                 ) : (
                   <Copy className="w-3 h-3" />
                 )}
-                <span>{copiedKey === 'url' ? 'Tersalin' : 'Salin Link'}</span>
+                <span>{copiedKey === 'url' ? 'Tersalin' : 'Salin Tautan'}</span>
               </button>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[#17243D]">
-                  {pub.isPublished ? 'Tayang' : 'Draft'}
+                  {pub.isPublished ? 'Tayang' : 'Draf'}
                 </span>
                 <ToggleSwitch
                   checked={pub.isPublished}
@@ -416,7 +425,7 @@ export function BusinessSettingsPage({
           </div>
         </div>
 
-        {/* Section 2: Tampilan Share Link (WhatsApp & Media Sosial) */}
+        {/* Section 2: Tampilan Tautan Berbagi (WhatsApp & Media Sosial) */}
         <div className="bg-white rounded-2xl border border-[#DCE5EF] p-5 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-2 pb-2.5 border-b border-[#DCE5EF]">
             <div className="flex items-start gap-2.5">
@@ -425,7 +434,7 @@ export function BusinessSettingsPage({
               </div>
               <div>
                 <h2 className="text-sm font-bold text-[#17243D]">
-                  Tampilan Share Link (WhatsApp &amp; Media Sosial)
+                  Tampilan Tautan Berbagi (WhatsApp &amp; Media Sosial)
                 </h2>
                 <p className="text-xs text-[#8FA4BF] mt-0.5">
                   Atur gambar banner, judul, deskripsi, dan teks pesan agar kartu link tampil profesional saat dibagikan ke WhatsApp, Telegram, Facebook, atau X.
@@ -641,10 +650,10 @@ export function BusinessSettingsPage({
             <div className="lg:col-span-5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#17243D]">
-                  Preview Kartu Share WhatsApp
+                  Pratinjau Berbagi WhatsApp
                 </span>
                 <span className="text-[10px] font-semibold text-[#059669] bg-[#ECFDF6] border border-[#00C98A]/30 px-2 py-0.5 rounded-md">
-                  Live Preview
+                  Pratinjau Langsung
                 </span>
               </div>
 
@@ -850,12 +859,22 @@ export function BusinessSettingsPage({
           )}
         </div>
 
+        {/* Section 3B: Pusat WhatsApp & Pembuat Pesan (Section I & J) */}
+        <WhatsAppCenterPanel
+          projectId={activeRecord.id}
+          config={waCenter}
+          canEdit={canEditIdentity}
+          saving={saving}
+          onChange={setWaCenter}
+          onSave={() => void handleSave(false)}
+        />
+
         {/* Section 4: Aksi Cepat Usaha */}
         <div className="bg-white rounded-2xl border border-[#DCE5EF] p-5 space-y-3">
           <div className="pb-2 border-b border-[#DCE5EF]">
             <h2 className="text-sm font-bold text-[#17243D]">Aksi Cepat Usaha Ini</h2>
             <p className="text-xs text-[#8FA4BF] mt-0.5">
-              Duplikasi, unduh ekspor statis, backup JSON, atau hapus unit usaha aktif.
+              Duplikasi, unduh ekspor statis, cadangkan JSON, atau hapus unit usaha aktif.
             </p>
           </div>
 
@@ -887,7 +906,7 @@ export function BusinessSettingsPage({
                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-xs font-semibold text-[#17243D] cursor-pointer"
                   >
                     <FileJson className="w-3.5 h-3.5" />
-                    <span>Backup JSON Usaha</span>
+                    <span>Cadangkan JSON Usaha</span>
                   </button>
                 </>
               )}

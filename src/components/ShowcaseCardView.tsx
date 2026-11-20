@@ -13,6 +13,8 @@ interface ShowcaseCardViewProps {
   onAddCart?: () => void;
   onIncCart?: () => void;
   onDecCart?: () => void;
+  bodySlot?: React.ReactNode;
+  footerSlot?: React.ReactNode;
 }
 
 export function ShowcaseCardView({
@@ -25,6 +27,8 @@ export function ShowcaseCardView({
   onAddCart,
   onIncCart,
   onDecCart,
+  bodySlot,
+  footerSlot,
 }: ShowcaseCardViewProps) {
   const variant = content.cardVariant ?? 'news_banner';
   const gradFrom = content.cardGradientFrom || '#F59E0B';
@@ -34,6 +38,9 @@ export function ShowcaseCardView({
   const radius = Math.max(0, borderRadius ?? 14);
   const actionUrl = content.cardActionUrl?.trim() || '';
   const hasUniversalAction = Boolean(content.actionType && content.actionType !== 'none');
+  const hideDefaultContent = Boolean(content.cardHideDefaultContent);
+  const hideDefaultFooter = Boolean(content.cardHideDefaultFooter);
+  const hasInteractiveSlots = Boolean(bodySlot || footerSlot);
 
   const zoom =
     typeof content.cardImageZoom === 'number' && Number.isFinite(content.cardImageZoom)
@@ -84,6 +91,7 @@ export function ShowcaseCardView({
     if (
       !isEditor &&
       !hasUniversalAction &&
+      !hasInteractiveSlots &&
       actionUrl &&
       variant !== 'store_card' &&
       variant !== 'activity_post'
@@ -102,6 +110,16 @@ export function ShowcaseCardView({
     return node;
   };
 
+  const renderOptionalFooterStrip = () =>
+    footerSlot ? (
+      <div
+        style={{ backgroundColor: accent, color: textColor }}
+        className="w-full px-3 py-2.5 flex flex-col gap-1.5"
+      >
+        {footerSlot}
+      </div>
+    ) : null;
+
   if (variant === 'quote_banner') {
     const imgPos = content.cardImagePosition === 'left' ? 'left' : 'right';
     const mediaW = content.cardMediaSize ?? 82;
@@ -119,70 +137,78 @@ export function ShowcaseCardView({
           maxHeight: maxHStyle,
           letterSpacing,
         }}
-        className={`relative overflow-hidden flex items-end justify-between gap-2 px-3.5 pt-3 pb-2.5 shadow-sm ${
-          imgPos === 'left' ? 'flex-row-reverse text-right' : 'flex-row text-left'
-        }`}
+        className="relative overflow-hidden shadow-sm flex flex-col"
       >
-        <div
-          className="flex-1 min-w-0 flex flex-col justify-between z-10"
-          style={{ gap: `${Math.max(4, textGap)}px` }}
-        >
-          {content.cardQuote?.trim() && (
-            <p
-              style={{
-                fontSize: `${Math.max(10, titleSize - 0.5)}px`,
-                lineHeight,
-                ...buildLineClampStyle(titleLines),
-              }}
-              className="font-medium opacity-95"
-            >
-              {content.cardQuote}
-            </p>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(1, textGap / 2)}px` }}>
-            {content.cardTitle?.trim() && (
-              <div
-                style={{
-                  fontSize: `${titleSize}px`,
-                  lineHeight,
-                  ...buildLineClampStyle(titleLines || 2),
-                }}
-                className="font-extrabold"
-              >
-                {content.cardTitle}
-              </div>
-            )}
-            {content.cardSubtitle?.trim() && (
-              <div
-                style={{
-                  fontSize: `${subtitleSize}px`,
-                  lineHeight,
-                  ...buildLineClampStyle(subtitleLines || 2),
-                }}
-                className="opacity-90"
-              >
-                {content.cardSubtitle}
-              </div>
-            )}
-          </div>
-        </div>
-        {content.cardImage && (
+        {!hideDefaultContent && (
           <div
-            style={{
-              width: `${mediaW}px`,
-              height: `${mediaH}px`,
-              borderRadius: `${mediaRadius}px`,
-            }}
-            className="shrink-0 overflow-hidden bg-white/15 border border-white/20 self-end"
+            className={`flex items-end justify-between gap-2 px-3.5 pt-3 pb-2.5 flex-1 ${
+              imgPos === 'left' ? 'flex-row-reverse text-right' : 'flex-row text-left'
+            }`}
           >
-            <img
-              src={content.cardImage}
-              alt={content.cardTitle || 'Tokoh'}
-              referrerPolicy="no-referrer"
-              style={{ ...imgStyle, objectPosition: 'top center' }}
-            />
+            <div
+              className="flex-1 min-w-0 flex flex-col justify-between z-10"
+              style={{ gap: `${Math.max(4, textGap)}px` }}
+            >
+              {content.cardQuote?.trim() && (
+                <p
+                  style={{
+                    fontSize: `${Math.max(10, titleSize - 0.5)}px`,
+                    lineHeight,
+                    ...buildLineClampStyle(titleLines),
+                  }}
+                  className="font-medium opacity-95"
+                >
+                  {content.cardQuote}
+                </p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(1, textGap / 2)}px` }}>
+                {content.cardTitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${titleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(titleLines || 2),
+                    }}
+                    className="font-extrabold"
+                  >
+                    {content.cardTitle}
+                  </div>
+                )}
+                {content.cardSubtitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${subtitleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(subtitleLines || 2),
+                    }}
+                    className="opacity-90"
+                  >
+                    {content.cardSubtitle}
+                  </div>
+                )}
+              </div>
+            </div>
+            {content.cardImage && (
+              <div
+                style={{
+                  width: `${mediaW}px`,
+                  height: `${mediaH}px`,
+                  borderRadius: `${mediaRadius}px`,
+                }}
+                className="shrink-0 overflow-hidden bg-white/15 border border-white/20 self-end"
+              >
+                <img
+                  src={content.cardImage}
+                  alt={content.cardTitle || 'Tokoh'}
+                  referrerPolicy="no-referrer"
+                  style={{ ...imgStyle, objectPosition: 'top center' }}
+                />
+              </div>
+            )}
           </div>
         )}
+        {bodySlot && <div className="w-full px-3 py-2">{bodySlot}</div>}
+        {renderOptionalFooterStrip()}
       </div>
     );
   }
@@ -195,54 +221,62 @@ export function ShowcaseCardView({
       <div
         style={{
           borderRadius: `${radius}px`,
-          height: mediaHeight ? `${mediaHeight}px` : undefined,
           minHeight: minHStyle,
           maxHeight: maxHStyle,
           letterSpacing,
         }}
-        className={`relative overflow-hidden bg-slate-200 shadow-sm ${mediaHeight ? '' : 'aspect-[16/9]'}`}
+        className="relative overflow-hidden bg-white shadow-sm flex flex-col"
       >
-        {content.cardImage && (
-          <img
-            src={content.cardImage}
-            alt={content.cardTitle || 'Berita'}
-            referrerPolicy="no-referrer"
-            style={imgStyle}
-          />
-        )}
-        <div
-          style={{
-            background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%)`,
-            color: textColor,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: `${textGap}px`,
-          }}
-          className="absolute inset-x-0 bottom-0 px-3 py-2 pt-5 text-center"
-        >
+        {!hideDefaultContent && (
           <div
-            style={{
-              fontSize: `${titleSize}px`,
-              lineHeight,
-              ...buildLineClampStyle(titleLines || 2),
-            }}
-            className="font-bold drop-shadow-sm"
+            style={{ height: mediaHeight ? `${mediaHeight}px` : undefined }}
+            className={`relative overflow-hidden bg-slate-200 ${mediaHeight ? '' : 'aspect-[16/9]'}`}
           >
-            {content.cardTitle || 'Judul Informasi'}
-          </div>
-          {content.cardSubtitle?.trim() && (
+            {content.cardImage && (
+              <img
+                src={content.cardImage}
+                alt={content.cardTitle || 'Berita'}
+                referrerPolicy="no-referrer"
+                style={imgStyle}
+              />
+            )}
             <div
               style={{
-                fontSize: `${subtitleSize}px`,
-                lineHeight,
-                ...buildLineClampStyle(subtitleLines || 2),
+                background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%)`,
+                color: textColor,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: `${textGap}px`,
               }}
-              className="opacity-90"
+              className="absolute inset-x-0 bottom-0 px-3 py-2 pt-5 text-center"
             >
-              {content.cardSubtitle}
+              <div
+                style={{
+                  fontSize: `${titleSize}px`,
+                  lineHeight,
+                  ...buildLineClampStyle(titleLines || 2),
+                }}
+                className="font-bold drop-shadow-sm"
+              >
+                {content.cardTitle || 'Judul Informasi'}
+              </div>
+              {content.cardSubtitle?.trim() && (
+                <div
+                  style={{
+                    fontSize: `${subtitleSize}px`,
+                    lineHeight,
+                    ...buildLineClampStyle(subtitleLines || 2),
+                  }}
+                  className="opacity-90"
+                >
+                  {content.cardSubtitle}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+        {bodySlot && <div className="w-full p-2.5 bg-white text-[#17243D]">{bodySlot}</div>}
+        {renderOptionalFooterStrip()}
       </div>
     );
   }
@@ -262,52 +296,62 @@ export function ShowcaseCardView({
         }}
         className="overflow-hidden border-2 bg-white shadow-sm flex flex-col"
       >
-        <div
-          style={{ height: mediaHeight ? `${mediaHeight}px` : undefined }}
-          className={`w-full bg-slate-100 overflow-hidden ${mediaHeight ? '' : 'aspect-[3/4]'}`}
-        >
-          {content.cardImage && (
-            <img
-              src={content.cardImage}
-              alt={content.cardTitle || 'Poster Event'}
-              referrerPolicy="no-referrer"
-              style={imgStyle}
-            />
-          )}
-        </div>
-        <div
-          style={{
-            backgroundColor: accent,
-            color: textColor,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: `${textGap}px`,
-          }}
-          className="px-2 py-2 text-center"
-        >
+        {!hideDefaultContent && (
+          <div
+            style={{ height: mediaHeight ? `${mediaHeight}px` : undefined }}
+            className={`w-full bg-slate-100 overflow-hidden ${mediaHeight ? '' : 'aspect-[3/4]'}`}
+          >
+            {content.cardImage && (
+              <img
+                src={content.cardImage}
+                alt={content.cardTitle || 'Poster Event'}
+                referrerPolicy="no-referrer"
+                style={imgStyle}
+              />
+            )}
+          </div>
+        )}
+        {bodySlot && <div className="w-full p-2.5 bg-white text-[#17243D]">{bodySlot}</div>}
+        {(!hideDefaultFooter || footerSlot) && (
           <div
             style={{
-              fontSize: `${titleSize}px`,
-              lineHeight,
-              ...buildLineClampStyle(titleLines || 2),
+              backgroundColor: accent,
+              color: textColor,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `${textGap}px`,
             }}
-            className="font-bold"
+            className="px-2 py-2 text-center"
           >
-            {content.cardTitle || 'Nama Event / Promo'}
+            {!hideDefaultFooter && (
+              <>
+                <div
+                  style={{
+                    fontSize: `${titleSize}px`,
+                    lineHeight,
+                    ...buildLineClampStyle(titleLines || 2),
+                  }}
+                  className="font-bold"
+                >
+                  {content.cardTitle || 'Nama Event / Promo'}
+                </div>
+                {content.cardSubtitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${subtitleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(subtitleLines || 2),
+                    }}
+                    className="opacity-90"
+                  >
+                    {content.cardSubtitle}
+                  </div>
+                )}
+              </>
+            )}
+            {footerSlot}
           </div>
-          {content.cardSubtitle?.trim() && (
-            <div
-              style={{
-                fontSize: `${subtitleSize}px`,
-                lineHeight,
-                ...buildLineClampStyle(subtitleLines || 2),
-              }}
-              className="opacity-90"
-            >
-              {content.cardSubtitle}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     );
   }
@@ -328,52 +372,63 @@ export function ShowcaseCardView({
           gap: `${Math.max(4, textGap + 2)}px`,
           letterSpacing,
         }}
-        className="overflow-hidden px-2.5 py-3 flex flex-col items-center justify-between text-center shadow-sm"
+        className="overflow-hidden flex flex-col shadow-sm"
       >
-        {content.cardImage && (
-          <div
-            style={{
-              width: `${boxSize}px`,
-              height: `${boxSize}px`,
-              borderRadius: `${boxRadius}px`,
-            }}
-            className="overflow-hidden bg-white/15 border border-white/25 flex items-center justify-center shrink-0"
-          >
-            <img
-              src={content.cardImage}
-              alt={content.cardTitle || 'Badge'}
-              referrerPolicy="no-referrer"
-              style={imgStyle}
-            />
-          </div>
-        )}
         <div
-          className="w-full flex flex-col items-center"
-          style={{ gap: `${textGap}px` }}
+          style={{ gap: `${Math.max(4, textGap + 2)}px` }}
+          className="px-2.5 py-3 flex flex-col items-center justify-between text-center flex-1"
         >
-          <div
-            style={{
-              fontSize: `${titleSize}px`,
-              lineHeight,
-              ...buildLineClampStyle(titleLines),
-            }}
-            className="font-bold whitespace-pre-line"
-          >
-            {content.cardTitle || 'Sertifikasi'}
-          </div>
-          {content.cardSubtitle?.trim() && (
-            <div
-              style={{
-                fontSize: `${subtitleSize}px`,
-                lineHeight,
-                ...buildLineClampStyle(subtitleLines || 2),
-              }}
-              className="opacity-90 whitespace-pre-line"
-            >
-              {content.cardSubtitle}
-            </div>
+          {!hideDefaultContent && (
+            <>
+              {content.cardImage && (
+                <div
+                  style={{
+                    width: `${boxSize}px`,
+                    height: `${boxSize}px`,
+                    borderRadius: `${boxRadius}px`,
+                  }}
+                  className="overflow-hidden bg-white/15 border border-white/25 flex items-center justify-center shrink-0"
+                >
+                  <img
+                    src={content.cardImage}
+                    alt={content.cardTitle || 'Badge'}
+                    referrerPolicy="no-referrer"
+                    style={imgStyle}
+                  />
+                </div>
+              )}
+              <div
+                className="w-full flex flex-col items-center"
+                style={{ gap: `${textGap}px` }}
+              >
+                <div
+                  style={{
+                    fontSize: `${titleSize}px`,
+                    lineHeight,
+                    ...buildLineClampStyle(titleLines),
+                  }}
+                  className="font-bold whitespace-pre-line"
+                >
+                  {content.cardTitle || 'Sertifikasi'}
+                </div>
+                {content.cardSubtitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${subtitleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(subtitleLines || 2),
+                    }}
+                    className="opacity-90 whitespace-pre-line"
+                  >
+                    {content.cardSubtitle}
+                  </div>
+                )}
+              </div>
+            </>
           )}
+          {bodySlot && <div className="w-full">{bodySlot}</div>}
         </div>
+        {renderOptionalFooterStrip()}
       </div>
     );
   }
@@ -394,104 +449,112 @@ export function ShowcaseCardView({
           maxHeight: maxHStyle,
           letterSpacing,
         }}
-        className="relative overflow-hidden px-2.5 pt-3 pb-3 flex flex-col items-center text-center justify-between gap-2 shadow-sm"
+        className="relative overflow-hidden flex flex-col shadow-sm"
       >
-        {content.cardShowPlayIcon !== false && (
-          <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center text-white">
-            <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
-          </span>
-        )}
-        {content.cardImage && (
-          <div
-            style={{
-              width: `${boxSize}px`,
-              height: `${boxSize}px`,
-              borderRadius: `${boxRadius}px`,
-            }}
-            className="mt-2 overflow-hidden bg-white/15 border border-white/25 shadow-sm flex items-center justify-center shrink-0"
-          >
-            <img
-              src={content.cardImage}
-              alt={content.cardTitle || 'Produk'}
-              referrerPolicy="no-referrer"
-              style={imgStyle}
-            />
-          </div>
-        )}
-        <div
-          className="w-full flex flex-col items-center"
-          style={{ gap: `${textGap}px` }}
-        >
-          <div
-            style={{
-              fontSize: `${titleSize}px`,
-              lineHeight,
-              ...buildLineClampStyle(titleLines || 2),
-            }}
-            className="font-extrabold w-full"
-          >
-            {content.cardTitle || 'Nama Produk'}
-          </div>
-          {content.cardSubtitle?.trim() && (
-            <div
-              style={{
-                fontSize: `${subtitleSize}px`,
-                lineHeight,
-                ...buildLineClampStyle(subtitleLines || 2),
-              }}
-              className="opacity-85 w-full"
-            >
-              {content.cardSubtitle}
-            </div>
-          )}
-          {content.cardPrice?.trim() && !content.universalCartEnabled && (
-            <div className="text-[11px] font-semibold opacity-95 tabular-nums">
-              {content.cardPrice}
-            </div>
-          )}
-        </div>
-
-        {cartEnabled && (
-          <div
-            className="w-full pt-1 flex items-center justify-center"
-            onClick={(e) => {
-              if (isEditor) e.stopPropagation();
-            }}
-          >
-            {!isEditor && cartQty > 0 ? (
-              <div className="inline-flex items-center gap-1.5 bg-white text-slate-900 rounded-full px-1.5 py-0.5 shadow-sm">
-                <button
-                  type="button"
-                  onClick={onDecCart}
-                  className="w-5 h-5 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
-                  aria-label="Kurangi jumlah"
-                >
-                  <Minus className="w-3 h-3" />
-                </button>
-                <span className="text-[11px] font-bold min-w-[14px] text-center tabular-nums">
-                  {cartQty}
+        <div className="px-2.5 pt-3 pb-3 flex flex-col items-center text-center justify-between gap-2 flex-1">
+          {!hideDefaultContent && (
+            <>
+              {content.cardShowPlayIcon !== false && (
+                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center text-white">
+                  <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
                 </span>
-                <button
-                  type="button"
-                  onClick={onIncCart}
-                  className="w-5 h-5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center cursor-pointer"
-                  aria-label="Tambah jumlah"
+              )}
+              {content.cardImage && (
+                <div
+                  style={{
+                    width: `${boxSize}px`,
+                    height: `${boxSize}px`,
+                    borderRadius: `${boxRadius}px`,
+                  }}
+                  className="mt-2 overflow-hidden bg-white/15 border border-white/25 shadow-sm flex items-center justify-center shrink-0"
                 >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={!isEditor ? onAddCart : undefined}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white text-slate-900 text-[10.5px] font-bold shadow-sm hover:bg-slate-50 cursor-pointer"
+                  <img
+                    src={content.cardImage}
+                    alt={content.cardTitle || 'Produk'}
+                    referrerPolicy="no-referrer"
+                    style={imgStyle}
+                  />
+                </div>
+              )}
+              <div
+                className="w-full flex flex-col items-center"
+                style={{ gap: `${textGap}px` }}
               >
-                <ShoppingCart className="w-3 h-3" />
-                <span>Tambah</span>
-              </button>
-            )}
-          </div>
-        )}
+                <div
+                  style={{
+                    fontSize: `${titleSize}px`,
+                    lineHeight,
+                    ...buildLineClampStyle(titleLines || 2),
+                  }}
+                  className="font-extrabold w-full"
+                >
+                  {content.cardTitle || 'Nama Produk'}
+                </div>
+                {content.cardSubtitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${subtitleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(subtitleLines || 2),
+                    }}
+                    className="opacity-85 w-full"
+                  >
+                    {content.cardSubtitle}
+                  </div>
+                )}
+                {content.cardPrice?.trim() && !content.universalCartEnabled && (
+                  <div className="text-[11px] font-semibold opacity-95 tabular-nums">
+                    {content.cardPrice}
+                  </div>
+                )}
+              </div>
+
+              {cartEnabled && (
+                <div
+                  className="w-full pt-1 flex items-center justify-center"
+                  onClick={(e) => {
+                    if (isEditor) e.stopPropagation();
+                  }}
+                >
+                  {!isEditor && cartQty > 0 ? (
+                    <div className="inline-flex items-center gap-1.5 bg-white text-slate-900 rounded-full px-1.5 py-0.5 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={onDecCart}
+                        className="w-5 h-5 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+                        aria-label="Kurangi jumlah"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-[11px] font-bold min-w-[14px] text-center tabular-nums">
+                        {cartQty}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onIncCart}
+                        className="w-5 h-5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center cursor-pointer"
+                        aria-label="Tambah jumlah"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={!isEditor ? onAddCart : undefined}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white text-slate-900 text-[10.5px] font-bold shadow-sm hover:bg-slate-50 cursor-pointer"
+                    >
+                      <ShoppingCart className="w-3 h-3" />
+                      <span>Tambah</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          {bodySlot && <div className="w-full">{bodySlot}</div>}
+        </div>
+        {renderOptionalFooterStrip()}
       </div>
     );
   }
@@ -515,107 +578,115 @@ export function ShowcaseCardView({
           maxHeight: maxHStyle,
           letterSpacing,
         }}
-        className="border p-3 space-y-2.5 shadow-sm text-left"
+        className="border overflow-hidden shadow-sm text-left flex flex-col"
       >
-        <div className="flex items-center gap-2.5">
-          {content.cardImage && (
-            <div
-              style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
-              className="rounded-full overflow-hidden shrink-0 border border-slate-200"
-            >
-              <img
-                src={content.cardImage}
-                alt={content.cardTitle || 'Profil'}
-                referrerPolicy="no-referrer"
-                style={imgStyle}
-              />
-            </div>
-          )}
-          <div className="min-w-0 flex-1 flex flex-col" style={{ gap: `${textGap}px` }}>
-            <div
-              style={{
-                fontSize: `${titleSize}px`,
-                lineHeight,
-                ...buildLineClampStyle(titleLines || 2),
-              }}
-              className="font-extrabold"
-            >
-              {content.cardTitle || 'Nama Pengurus'}
-            </div>
-            {content.cardSubtitle?.trim() && (
-              <div
-                style={{
-                  fontSize: `${subtitleSize}px`,
-                  lineHeight,
-                  ...buildLineClampStyle(subtitleLines || 2),
-                }}
-                className="opacity-70"
-              >
-                {content.cardSubtitle}
+        <div className="p-3 space-y-2.5">
+          {!hideDefaultContent && (
+            <>
+              <div className="flex items-center gap-2.5">
+                {content.cardImage && (
+                  <div
+                    style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
+                    className="rounded-full overflow-hidden shrink-0 border border-slate-200"
+                  >
+                    <img
+                      src={content.cardImage}
+                      alt={content.cardTitle || 'Profil'}
+                      referrerPolicy="no-referrer"
+                      style={imgStyle}
+                    />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 flex flex-col" style={{ gap: `${textGap}px` }}>
+                  <div
+                    style={{
+                      fontSize: `${titleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(titleLines || 2),
+                    }}
+                    className="font-extrabold"
+                  >
+                    {content.cardTitle || 'Nama Pengurus'}
+                  </div>
+                  {content.cardSubtitle?.trim() && (
+                    <div
+                      style={{
+                        fontSize: `${subtitleSize}px`,
+                        lineHeight,
+                        ...buildLineClampStyle(subtitleLines || 2),
+                      }}
+                      className="opacity-70"
+                    >
+                      {content.cardSubtitle}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        <div className="flex items-center justify-between gap-2 text-[11px] opacity-75">
-          <span className="font-medium truncate">
-            {content.cardHeaderTitle?.trim() || content.cardQuote?.trim() || 'Judul Kegiatan'}
-          </span>
-          {content.cardDate?.trim() && (
-            <span className="shrink-0 tabular-nums">{content.cardDate}</span>
-          )}
-        </div>
-
-        {gallery.length > 0 && (
-          <div className="grid grid-cols-3 gap-1.5">
-            {gallery.map((imgUrl, idx) => (
-              <div
-                key={`gal_${idx}`}
-                style={{
-                  borderRadius: `${galleryRadius}px`,
-                  height: content.cardMediaHeight ? `${content.cardMediaHeight}px` : undefined,
-                }}
-                className={`${content.cardMediaHeight ? '' : 'aspect-square'} overflow-hidden bg-slate-100`}
-              >
-                <img
-                  src={imgUrl}
-                  alt={`Foto ${idx + 1}`}
-                  referrerPolicy="no-referrer"
-                  style={imgStyle}
-                />
+              <div className="flex items-center justify-between gap-2 text-[11px] opacity-75">
+                <span className="font-medium truncate">
+                  {content.cardHeaderTitle?.trim() || content.cardQuote?.trim() || 'Judul Kegiatan'}
+                </span>
+                {content.cardDate?.trim() && (
+                  <span className="shrink-0 tabular-nums">{content.cardDate}</span>
+                )}
               </div>
-            ))}
-          </div>
-        )}
 
-        <div className="flex items-center justify-between pt-1 text-[11px]">
-          {!isEditor && !hasUniversalAction && moreUrl ? (
-            <a
-              href={moreUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: accent }}
-              className="font-semibold hover:underline"
-            >
-              {moreLabel}
-            </a>
-          ) : (
-            <span style={{ color: accent }} className="font-semibold">
-              {moreLabel}
-            </span>
+              {gallery.length > 0 && (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {gallery.map((imgUrl, idx) => (
+                    <div
+                      key={`gal_${idx}`}
+                      style={{
+                        borderRadius: `${galleryRadius}px`,
+                        height: content.cardMediaHeight ? `${content.cardMediaHeight}px` : undefined,
+                      }}
+                      className={`${content.cardMediaHeight ? '' : 'aspect-square'} overflow-hidden bg-slate-100`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Foto ${idx + 1}`}
+                        referrerPolicy="no-referrer"
+                        style={imgStyle}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1 text-[11px]">
+                {!isEditor && !hasUniversalAction && moreUrl ? (
+                  <a
+                    href={moreUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: accent }}
+                    className="font-semibold hover:underline"
+                  >
+                    {moreLabel}
+                  </a>
+                ) : (
+                  <span style={{ color: accent }} className="font-semibold">
+                    {moreLabel}
+                  </span>
+                )}
+                {content.cardViews?.trim() && (
+                  <span className="inline-flex items-center gap-1 opacity-65 tabular-nums">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{content.cardViews}</span>
+                  </span>
+                )}
+              </div>
+            </>
           )}
-          {content.cardViews?.trim() && (
-            <span className="inline-flex items-center gap-1 opacity-65 tabular-nums">
-              <Eye className="w-3.5 h-3.5" />
-              <span>{content.cardViews}</span>
-            </span>
-          )}
+          {bodySlot && <div className="w-full">{bodySlot}</div>}
         </div>
+        {renderOptionalFooterStrip()}
       </div>
     );
   }
 
-  // membership_ticket
+  // membership_ticket (Dual-Zone Composable Card: Bagian Atas Putih + Bagian Bawah Strip Warna)
   const feeItems = content.cardFeeItems ?? [];
   const totalLabel = content.cardTotalLabel?.trim() || 'Total :';
   const totalValue = content.cardTotalValue?.trim() || content.cardPrice?.trim() || 'Rp. 500.000,-';
@@ -631,62 +702,81 @@ export function ShowcaseCardView({
       }}
       className="relative overflow-hidden bg-white border border-slate-200 shadow-sm text-left"
     >
-      <div className="px-4 pt-3.5 pb-4" style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(6, textGap)}px` }}>
-        <div
-          style={{
-            color: '#0284C7',
-            fontSize: `${titleSize}px`,
-            lineHeight,
-            ...buildLineClampStyle(titleLines),
-          }}
-          className="text-center font-extrabold"
-        >
-          {content.cardTitle || 'Anggota Pratama'}
-        </div>
-        {content.cardSubtitle?.trim() && (
-          <div
-            style={{
-              color: '#475569',
-              fontSize: `${Math.max(10, subtitleSize - 1)}px`,
-              lineHeight,
-              ...buildLineClampStyle(subtitleLines),
-            }}
-            className="text-center"
-          >
-            {content.cardSubtitle}
-          </div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(3, textGap)}px` }} className="pt-0.5">
-          {feeItems.map((fee) => (
+      {/* Zona Atas (Putih): Konten Bawaan (Opsional) + Drop-Zone Komponen Bebas */}
+      <div
+        className="px-3.5 pt-3.5 pb-4"
+        style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(6, textGap)}px` }}
+      >
+        {!hideDefaultContent && (
+          <>
             <div
-              key={fee.id}
-              style={{ color: '#0284C7', fontSize: `${subtitleSize}px`, lineHeight }}
-              className="flex items-center justify-between gap-2 font-semibold"
+              style={{
+                color: '#0284C7',
+                fontSize: `${titleSize}px`,
+                lineHeight,
+                ...buildLineClampStyle(titleLines),
+              }}
+              className="text-center font-extrabold"
             >
-              <span className="truncate">{fee.label}</span>
-              <span className="shrink-0 tabular-nums">: {fee.value}</span>
+              {content.cardTitle || 'Anggota Pratama'}
             </div>
-          ))}
-        </div>
+            {content.cardSubtitle?.trim() && (
+              <div
+                style={{
+                  color: '#475569',
+                  fontSize: `${Math.max(10, subtitleSize - 1)}px`,
+                  lineHeight,
+                  ...buildLineClampStyle(subtitleLines),
+                }}
+                className="text-center"
+              >
+                {content.cardSubtitle}
+              </div>
+            )}
+            {feeItems.length > 0 && (
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(3, textGap)}px` }}
+                className="pt-0.5"
+              >
+                {feeItems.map((fee) => (
+                  <div
+                    key={fee.id}
+                    style={{ color: '#0284C7', fontSize: `${subtitleSize}px`, lineHeight }}
+                    className="flex items-center justify-between gap-2 font-semibold"
+                  >
+                    <span className="truncate">{fee.label}</span>
+                    <span className="shrink-0 tabular-nums">: {fee.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {bodySlot}
       </div>
 
-      {/* Perforated ticket notches + colored total footer */}
+      {/* Perforated ticket notches + Zona Bawah Strip Warna (Total Bawaan Opsional + Drop-Zone Aksi/Keranjang/Tombol/Icon) */}
       <div className="relative">
         <span
           aria-hidden="true"
-          className="absolute -left-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10"
+          className="absolute -left-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10 pointer-events-none"
         />
         <span
           aria-hidden="true"
-          className="absolute -right-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10"
+          className="absolute -right-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10 pointer-events-none"
         />
         <div
           style={{ backgroundColor: accent, color: textColor }}
-          className="px-4 py-3 flex items-center justify-center gap-2 font-extrabold text-[13.5px]"
+          className="px-3.5 py-3 flex flex-col gap-2"
         >
-          <Wallet className="w-4 h-4 shrink-0" />
-          <span>{totalLabel}</span>
-          <span className="tabular-nums">{totalValue}</span>
+          {!hideDefaultFooter && (
+            <div className="flex items-center justify-center gap-2 font-extrabold text-[13.5px]">
+              <Wallet className="w-4 h-4 shrink-0" />
+              <span>{totalLabel}</span>
+              <span className="tabular-nums">{totalValue}</span>
+            </div>
+          )}
+          {footerSlot}
         </div>
       </div>
     </div>
