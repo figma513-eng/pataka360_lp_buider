@@ -2088,6 +2088,7 @@ export function MobileCanvas({
             }
             autoPlay={block.content.videoAutoplay ?? block.content.youtubeAutoplay ?? true}
             volume={block.content.videoVolume ?? block.content.youtubeVolume ?? 75}
+            videoZoom={block.content.videoZoom ?? 100}
             muted={Boolean(block.content.videoMuted)}
             borderRadius={s.borderRadius}
             accentColor={theme.accentColor}

@@ -1308,6 +1308,14 @@ ${indent}</form>`;
       const autoPlay = block.content.videoAutoplay ?? block.content.youtubeAutoplay ?? true;
       const volume = block.content.videoVolume ?? block.content.youtubeVolume ?? 75;
       const muted = Boolean(block.content.videoMuted);
+      const videoZoom =
+        typeof block.content.videoZoom === 'number' && Number.isFinite(block.content.videoZoom)
+          ? Math.max(50, Math.min(350, Math.round(block.content.videoZoom)))
+          : 100;
+      const zoomCss =
+        videoZoom !== 100
+          ? ` transform: scale(${(videoZoom / 100).toFixed(3)}); transform-origin: center center;`
+          : '';
       const poster = block.content.videoPoster?.trim() ?? '';
 
       const trimmedRawUrl = rawUrl?.trim() ?? '';
@@ -1342,12 +1350,14 @@ ${indent}</form>`;
         trimmedRawUrl || vidId
       )}" data-vid-poster="${escapeHtml(poster)}" data-vid-autoplay="${
         autoPlay ? '1' : '0'
-      }" data-vid-volume="${volume}" data-vid-muted="${muted ? '1' : '0'}" data-vid-accent="${escapeHtml(
+      }" data-vid-volume="${volume}" data-vid-muted="${muted ? '1' : '0'}" data-vid-zoom="${videoZoom}" data-vid-accent="${escapeHtml(
         theme.accentColor
       )}" style="${css}">
 ${indent}  <div data-vid-stage class="lynk-vid-stage" style="width: 100%; aspect-ratio: ${ratio}; border-radius: ${block.style.borderRadius}px; overflow: hidden; background: #020617; position: relative;">
-${indent}    <div data-vid-cover style="position: absolute; inset: 0; z-index: 2; transition: opacity 0.3s ease; opacity: 1;">
-${indent}      ${initialStageInner}
+${indent}    <div data-vid-media style="position: absolute; inset: 0;${zoomCss}">
+${indent}      <div data-vid-cover style="position: absolute; inset: 0; z-index: 2; transition: opacity 0.3s ease; opacity: 1;">
+${indent}        ${initialStageInner}
+${indent}      </div>
 ${indent}    </div>
 ${indent}    <button type="button" data-vid-toggle data-vid-playing="0" aria-label="Putar video" style="position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; border: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.3s ease; opacity: 1;">
 ${indent}      <span data-vid-icon-wrap style="width: 56px; height: 56px; border-radius: 9999px; background: rgba(15, 23, 42, 0.72); border: 1.5px solid rgba(255, 255, 255, 0.32); backdrop-filter: blur(4px); color: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);">

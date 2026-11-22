@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Loader2, Pause, Play, Video, Volume2, VolumeX } from 'lucide-react';
+import { Pause, Play, Video, Volume2, VolumeX } from 'lucide-react';
 import {
   VideoEmbedPlatform,
   extractInstagramInfo,
@@ -20,6 +20,7 @@ interface CleanVideoEmbedProps {
   autoPlay?: boolean;
   muted?: boolean;
   volume?: number;
+  videoZoom?: number;
   borderRadius?: number;
   accentColor?: string;
   isEditor?: boolean;
@@ -40,6 +41,7 @@ export function CleanVideoEmbed({
   autoPlay = true,
   muted = false,
   volume = 75,
+  videoZoom = 100,
   borderRadius = 14,
   accentColor = '#2563EB',
   isEditor = false,
@@ -105,7 +107,6 @@ export function CleanVideoEmbed({
   const revealTimerRef = useRef<number | null>(null);
   const fallbackTimerRef = useRef<number | null>(null);
   const autoplayCheckTimerRef = useRef<number | null>(null);
-  const pauseFlashTimerRef = useRef<number | null>(null);
   const playerId = useId();
 
   useEffect(() => {
@@ -271,12 +272,19 @@ export function CleanVideoEmbed({
       window.clearTimeout(autoplayCheckTimerRef.current);
       autoplayCheckTimerRef.current = null;
     }
-    if (pauseFlashTimerRef.current !== null) {
-      window.clearTimeout(pauseFlashTimerRef.current);
-      pauseFlashTimerRef.current = null;
-    }
     revealScheduledRef.current = false;
   };
+
+  // Timer terisolasi untuk flash singkat ikon Pause saat user klik Play (tidak pernah dibatalkan oleh clearTimers)
+  useEffect(() => {
+    if (!transientPauseFlash) return;
+    const timer = window.setTimeout(() => {
+      setTransientPauseFlash(false);
+    }, 650);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [transientPauseFlash]);
 
   // Reset saat URL atau mode autoplay berubah
   useEffect(() => {
@@ -284,6 +292,7 @@ export function CleanVideoEmbed({
     hasPlayedOnceRef.current = false;
     autoUnmuteAttemptedAtRef.current = 0;
     setThumbLevel(0);
+    setTransientPauseFlash(false);
     setIsRevealed(false);
     setIsPaused(false);
     mutedRef.current = false;
@@ -453,24 +462,13 @@ export function CleanVideoEmbed({
     };
   }, [platform, hasMountPlayer, isPlaying, isPaused, activeDirectUrl]);
 
-  const triggerPauseFlash = () => {
-    if (pauseFlashTimerRef.current !== null) {
-      window.clearTimeout(pauseFlashTimerRef.current);
-    }
-    setTransientPauseFlash(true);
-    pauseFlashTimerRef.current = window.setTimeout(() => {
-      setTransientPauseFlash(false);
-      pauseFlashTimerRef.current = null;
-    }, 950);
-  };
-
   const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isValid) return;
     autoStartedRef.current = false;
     setIsPaused(false);
     setIsPlaying(true);
-    triggerPauseFlash();
+    setTransientPauseFlash(true);
 
     if (!isPlayableReady) {
       return;
@@ -481,7 +479,6 @@ export function CleanVideoEmbed({
       setHasMountPlayer(true);
     } else {
       clearTimers();
-      triggerPauseFlash();
       if (!activeDirectUrl) {
         setIsRevealed(false);
       } else {
@@ -613,205 +610,217 @@ export function CleanVideoEmbed({
     !activeDirectUrl && (platform === 'instagram' || platform === 'facebook') && isRevealed;
 
   const isActivelyPlaying = isPlaying && !isPaused;
+  const safeZoom =
+    typeof videoZoom === 'number' && Number.isFinite(videoZoom)
+      ? Math.max(50, Math.min(350, Math.round(videoZoom)))
+      : 100;
+  const mediaZoomStyle: React.CSSProperties | undefined =
+    safeZoom !== 100
+      ? {
+          transform: `scale(${(safeZoom / 100).toFixed(3)})`,
+          transformOrigin: 'center center',
+        }
+      : undefined;
 
   return (
     <div className="w-full">
       <div
-        className="group/vid w-full overflow-hidden bg-slate-950 relative select-none"
+        className="w-full overflow-hidden bg-slate-950 relative select-none"
         style={{
           borderRadius: `${borderRadius}px`,
           aspectRatio,
         }}
       >
-        {hasMountPlayer && activeDirectUrl && (
-          <video
-            ref={videoRef}
-            src={activeDirectUrl}
-            poster={activePoster || undefined}
-            playsInline
-            preload="auto"
-            onLoadedMetadata={(e) => {
-              const vid = e.currentTarget;
-              vid.volume = Math.max(0, Math.min(1, volumeRef.current / 100));
-              vid.muted = mutedRef.current || volumeRef.current === 0;
-              if (isPlaying && !isPaused) {
-                vid.play().catch(() => {
-                  vid.muted = true;
-                  mutedRef.current = true;
-                  setIsMuted(true);
-                  vid.play().catch(() => {});
-                });
-              }
-            }}
-            onPlaying={() => {
-              hasPlayedOnceRef.current = true;
-              setIsRevealed(true);
-            }}
-            onEnded={() => {
-              clearTimers();
-              hasPlayedOnceRef.current = false;
-              setTransientPauseFlash(false);
-              setIsRevealed(false);
-              setIsPaused(false);
-              setIsPlaying(false);
-            }}
-            onError={() => {
-              // Jika stream langsung gagal/kedaluwarsa, otomatis fallback ke iframe embed
-              setResolvedDirectUrl(null);
-            }}
-            className="w-full h-full object-cover block"
-          />
-        )}
-
-        {hasMountPlayer && !activeDirectUrl && iframeSrc && (
-          <>
-            <iframe
-              ref={iframeRef}
-              src={iframeSrc}
-              title={`Video ${platformLabel}`}
-              allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
-              onLoad={() => {
-                const win = iframeRef.current?.contentWindow;
-                if (platform === 'instagram' || platform === 'facebook') {
-                  if (isPlaying && !isPaused && !revealScheduledRef.current) {
-                    revealScheduledRef.current = true;
-                    if (fallbackTimerRef.current !== null) {
-                      window.clearTimeout(fallbackTimerRef.current);
-                      fallbackTimerRef.current = null;
-                    }
-                    revealTimerRef.current = window.setTimeout(() => {
-                      setIsRevealed(true);
-                    }, 1500);
-                  }
-                  return;
+        <div
+          className="absolute inset-0 transition-transform duration-150"
+          style={mediaZoomStyle}
+        >
+          {hasMountPlayer && activeDirectUrl && (
+            <video
+              ref={videoRef}
+              src={activeDirectUrl}
+              poster={activePoster || undefined}
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(e) => {
+                const vid = e.currentTarget;
+                vid.volume = Math.max(0, Math.min(1, volumeRef.current / 100));
+                vid.muted = mutedRef.current || volumeRef.current === 0;
+                if (isPlaying && !isPaused) {
+                  vid.play().catch(() => {
+                    vid.muted = true;
+                    mutedRef.current = true;
+                    setIsMuted(true);
+                    vid.play().catch(() => {});
+                  });
                 }
-                if (!win) return;
-                if (platform === 'youtube') {
-                  win.postMessage(JSON.stringify({ event: 'listening', id: playerId }), '*');
-                  win.postMessage(
-                    JSON.stringify({
-                      event: 'command',
-                      func: 'addEventListener',
-                      args: ['onStateChange'],
-                      id: playerId,
-                    }),
-                    '*'
-                  );
-                  if (!mutedRef.current && volumeRef.current > 0) {
+              }}
+              onPlaying={() => {
+                hasPlayedOnceRef.current = true;
+                setIsRevealed(true);
+              }}
+              onEnded={() => {
+                clearTimers();
+                hasPlayedOnceRef.current = false;
+                setTransientPauseFlash(false);
+                setIsRevealed(false);
+                setIsPaused(false);
+                setIsPlaying(false);
+              }}
+              onError={() => {
+                // Jika stream langsung gagal/kedaluwarsa, otomatis fallback ke iframe embed
+                setResolvedDirectUrl(null);
+              }}
+              className="w-full h-full object-cover block"
+            />
+          )}
+
+          {hasMountPlayer && !activeDirectUrl && iframeSrc && (
+            <>
+              <iframe
+                ref={iframeRef}
+                src={iframeSrc}
+                title={`Video ${platformLabel}`}
+                allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
+                onLoad={() => {
+                  const win = iframeRef.current?.contentWindow;
+                  if (platform === 'instagram' || platform === 'facebook') {
+                    if (isPlaying && !isPaused && !revealScheduledRef.current) {
+                      revealScheduledRef.current = true;
+                      if (fallbackTimerRef.current !== null) {
+                        window.clearTimeout(fallbackTimerRef.current);
+                        fallbackTimerRef.current = null;
+                      }
+                      revealTimerRef.current = window.setTimeout(() => {
+                        setIsRevealed(true);
+                      }, 1500);
+                    }
+                    return;
+                  }
+                  if (!win) return;
+                  if (platform === 'youtube') {
+                    win.postMessage(JSON.stringify({ event: 'listening', id: playerId }), '*');
                     win.postMessage(
                       JSON.stringify({
                         event: 'command',
-                        func: 'setVolume',
-                        args: [volumeRef.current],
+                        func: 'addEventListener',
+                        args: ['onStateChange'],
                         id: playerId,
                       }),
                       '*'
                     );
-                  }
-                } else if (platform === 'tiktok') {
-                  if (!mutedRef.current && volumeRef.current > 0) {
-                    sendPlatformCommand('unMute');
-                    sendPlatformCommand('setVolume', volumeRef.current);
-                  } else {
-                    sendPlatformCommand('mute');
-                  }
-                  sendPlatformCommand('play');
-                }
-              }}
-              style={
-                platform === 'instagram'
-                  ? {
-                      position: 'absolute',
-                      top: '-54px',
-                      left: '-2px',
-                      width: 'calc(100% + 4px)',
-                      height: 'calc(100% + 132px)',
+                    if (!mutedRef.current && volumeRef.current > 0) {
+                      win.postMessage(
+                        JSON.stringify({
+                          event: 'command',
+                          func: 'setVolume',
+                          args: [volumeRef.current],
+                          id: playerId,
+                        }),
+                        '*'
+                      );
                     }
-                  : undefined
-              }
-              className={`border-0 block ${
-                platform === 'instagram' ? '' : 'w-full h-full'
-              } ${allowDirectTapInsideIframe ? 'pointer-events-auto' : 'pointer-events-none'}`}
-            />
-            {!allowDirectTapInsideIframe && (
-              <div className="absolute inset-0 pointer-events-auto bg-transparent" />
-            )}
-          </>
-        )}
-
-        {/* Cover thumbnail bersih */}
-        <div
-          className={`absolute inset-0 z-10 transition-opacity duration-300 ${
-            isActivelyPlaying && isRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
-        >
-          {activePoster && thumbLevel < 2 ? (
-            <img
-              src={activePoster}
-              alt="Sampul video"
-              referrerPolicy="no-referrer"
-              onError={() => {
-                if (platform === 'youtube') {
-                  setThumbLevel((prev) => (prev === 0 ? 1 : 2));
-                } else {
-                  setThumbLevel(2);
+                  } else if (platform === 'tiktok') {
+                    if (!mutedRef.current && volumeRef.current > 0) {
+                      sendPlatformCommand('unMute');
+                      sendPlatformCommand('setVolume', volumeRef.current);
+                    } else {
+                      sendPlatformCommand('mute');
+                    }
+                    sendPlatformCommand('play');
+                  }
+                }}
+                style={
+                  platform === 'instagram'
+                    ? {
+                        position: 'absolute',
+                        top: '-54px',
+                        left: '-2px',
+                        width: 'calc(100% + 4px)',
+                        height: 'calc(100% + 132px)',
+                      }
+                    : undefined
                 }
-              }}
-              className="w-full h-full object-cover block"
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-xs text-slate-300 bg-gradient-to-br from-slate-900 to-slate-950">
-              <Video className="w-5 h-5 text-slate-400" />
-              <span className="font-medium">
-                {resolving
-                  ? 'Menyiapkan video...'
-                  : isActivelyPlaying
-                  ? 'Memutar video...'
-                  : 'Video siap diputar'}
-              </span>
-            </div>
+                className={`border-0 block ${
+                  platform === 'instagram' ? '' : 'w-full h-full'
+                } ${allowDirectTapInsideIframe ? 'pointer-events-auto' : 'pointer-events-none'}`}
+              />
+              {!allowDirectTapInsideIframe && (
+                <div className="absolute inset-0 pointer-events-auto bg-transparent" />
+              )}
+            </>
           )}
-          {!isActivelyPlaying && (
-            <div className="absolute inset-0 bg-slate-950/25 pointer-events-none" />
-          )}
+
+          {/* Cover thumbnail bersih */}
+          <div
+            className={`absolute inset-0 z-10 transition-opacity duration-300 ${
+              isActivelyPlaying && isRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}
+          >
+            {activePoster && thumbLevel < 2 ? (
+              <img
+                src={activePoster}
+                alt="Sampul video"
+                referrerPolicy="no-referrer"
+                onError={() => {
+                  if (platform === 'youtube') {
+                    setThumbLevel((prev) => (prev === 0 ? 1 : 2));
+                  } else {
+                    setThumbLevel(2);
+                  }
+                }}
+                className="w-full h-full object-cover block"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-xs text-slate-300 bg-gradient-to-br from-slate-900 to-slate-950">
+                <Video className="w-5 h-5 text-slate-400" />
+                <span className="font-medium">
+                  {resolving
+                    ? 'Menyiapkan video...'
+                    : isActivelyPlaying
+                    ? 'Memutar video...'
+                    : 'Video siap diputar'}
+                </span>
+              </div>
+            )}
+            {!isActivelyPlaying && (
+              <div className="absolute inset-0 bg-slate-950/25 pointer-events-none" />
+            )}
+          </div>
         </div>
 
-        {/* Lapisan klik & Ikon Play / Pause terpusat pada thumbnail/video */}
+        {/* Lapisan klik & Ikon Play / Pause terpusat pada thumbnail/video (sembunyi penuh saat video berjalan) */}
         <button
           type="button"
           onClick={handleStageToggle}
           onDragStart={(e) => e.stopPropagation()}
           aria-label={isActivelyPlaying ? 'Jeda video' : 'Putar video'}
           title={isActivelyPlaying ? 'Klik untuk jeda video' : 'Klik untuk putar video'}
-          className={`absolute inset-0 z-20 flex items-center justify-center cursor-pointer transition-opacity duration-300 ${
+          className={`absolute inset-0 z-20 flex items-center justify-center cursor-pointer ${
             allowDirectTapInsideIframe ? 'pointer-events-none' : 'pointer-events-auto'
           }`}
         >
-          <span
-            onClick={allowDirectTapInsideIframe ? handleStageToggle : undefined}
-            style={{
-              backgroundColor: !isActivelyPlaying ? accentColor : 'rgba(15, 23, 42, 0.72)',
-            }}
-            className={`w-14 h-14 rounded-full text-white shadow-xl border border-white/30 backdrop-blur-xs flex items-center justify-center transition-all duration-300 ${
-              allowDirectTapInsideIframe ? 'pointer-events-auto' : ''
-            } ${
-              !isActivelyPlaying
-                ? 'opacity-100 scale-100 hover:scale-105 active:scale-95'
-                : transientPauseFlash
-                ? 'opacity-100 scale-100'
-                : 'opacity-0 scale-90 group-hover/vid:opacity-90 group-hover/vid:scale-100'
-            }`}
-          >
-            {isActivelyPlaying ? (
-              !isRevealed && !transientPauseFlash ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
+          {(!isActivelyPlaying || transientPauseFlash) && (
+            <span
+              onClick={allowDirectTapInsideIframe && !isActivelyPlaying ? handleStageToggle : undefined}
+              style={{
+                backgroundColor: !isActivelyPlaying ? accentColor : 'rgba(15, 23, 42, 0.72)',
+              }}
+              className={`w-14 h-14 rounded-full text-white shadow-xl border border-white/30 backdrop-blur-xs flex items-center justify-center transition-transform duration-200 ${
+                !isActivelyPlaying
+                  ? `hover:scale-105 active:scale-95 ${
+                      allowDirectTapInsideIframe ? 'pointer-events-auto' : ''
+                    }`
+                  : 'pointer-events-none'
+              }`}
+            >
+              {isActivelyPlaying ? (
                 <Pause className="w-6 h-6 fill-current" />
-              )
-            ) : (
-              <Play className="w-6 h-6 fill-current ml-0.5" />
-            )}
-          </span>
+              ) : (
+                <Play className="w-6 h-6 fill-current ml-0.5" />
+              )}
+            </span>
+          )}
         </button>
       </div>
 

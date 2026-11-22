@@ -661,6 +661,8 @@ export interface BlockContent {
   videoAutoplay?: boolean;
   videoMuted?: boolean;
   videoVolume?: number;
+  /** Manual zoom/scale video embed di dalam bingkai (50% - 350%, default 100) */
+  videoZoom?: number;
   // Divider
   lineColor?: string;
   thickness?: number;

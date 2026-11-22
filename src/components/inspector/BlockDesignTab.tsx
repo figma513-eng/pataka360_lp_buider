@@ -2372,8 +2372,14 @@ export function BlockDesignTab({
           c.videoAspectRatio ??
           c.youtubeAspectRatio ??
           (selectedBlock.type === 'tiktok_video' || isIg ? '9/16' : '16/9');
+        const currentZoom =
+          typeof c.videoZoom === 'number' && Number.isFinite(c.videoZoom)
+            ? Math.max(50, Math.min(350, Math.round(c.videoZoom)))
+            : 100;
+        const setZoom = (val: number) =>
+          updateContent({ videoZoom: Math.max(50, Math.min(350, Math.round(val))) });
         return (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
                 Rasio Embed Video
@@ -2401,6 +2407,89 @@ export function BlockDesignTab({
                 ))}
               </div>
             </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="font-semibold text-[#17243D] leading-tight">
+                  Zoom / Scale Video (Manual)
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {currentZoom !== 100 && (
+                    <button
+                      type="button"
+                      onClick={() => setZoom(100)}
+                      title="Reset ke 100%"
+                      className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] hover:bg-[#F8FAFC] cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <input
+                    type="number"
+                    min={50}
+                    max={350}
+                    step={5}
+                    value={currentZoom}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (!Number.isNaN(n)) setZoom(n);
+                    }}
+                    className="w-14 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-right rounded border border-[#DCE5EF] bg-white text-[#17243D] tabular-nums outline-none focus:border-[#00C98A]"
+                  />
+                  <span className="text-[10px] font-semibold text-[#64748B]">%</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setZoom(currentZoom - 5)}
+                  disabled={currentZoom <= 50}
+                  title="Perkecil video (-5%)"
+                  className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F8FAFC] disabled:opacity-40 flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <input
+                  type="range"
+                  min={50}
+                  max={350}
+                  step={1}
+                  value={currentZoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  style={rangeProgressStyle(currentZoom, 50, 350)}
+                  className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer accent-[#00C98A]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setZoom(currentZoom + 5)}
+                  disabled={currentZoom >= 350}
+                  title="Perbesar video (+5%)"
+                  className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F8FAFC] disabled:opacity-40 flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                {[100, 135, 178, 225, 320].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setZoom(pct)}
+                    className={`py-1 rounded text-[10px] font-semibold border cursor-pointer tabular-nums ${
+                      currentZoom === pct
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#475569] border-[#DCE5EF] hover:bg-[#F8FAFC]'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#64748B] leading-snug">
+                Perbesar scale untuk menghilangkan garis hitam saat memakai rasio 1:1, 4:5, atau 9:16.
+              </p>
+            </div>
+
             <p className="text-[10.5px] text-[#8FA4BF]">
               Pengaturan Putar Otomatis, Mute, dan Volume tersedia pada tab <strong>Konten</strong>.
             </p>
