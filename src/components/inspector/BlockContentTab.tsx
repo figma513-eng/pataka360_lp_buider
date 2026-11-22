@@ -14,6 +14,7 @@ import {
   MousePointerClick,
   Plus,
   RotateCcw,
+  Search,
   Settings2,
   ShoppingBag,
   Trash2,
@@ -26,6 +27,7 @@ import {
   AdvanceOptions,
   BlockStyle,
   BlockType,
+  BottomNavbarConfig,
   BuilderBlock,
   BuilderSubPage,
   CarouselItem,
@@ -35,6 +37,7 @@ import {
   CatalogShippingOptionConfig,
   CategoryJumpItem,
   CustomFieldInputType,
+  FloatingCartPosition,
   FnbMenuItem,
   MenuIconAction,
   MenuIconSheetPosition,
@@ -65,10 +68,12 @@ import {
   CAROUSEL_SAMPLE_3_SVG,
   DEFAULT_STYLE,
   MAPS_LOCATION_SVG,
+  PREBUILT_SECTIONS,
   PRODUCT_CARD_SVG,
   createBlock,
   createId,
 } from '../../data/presets';
+import { TOOL_ITEMS, getSectionIcon } from '../LeftSidebar';
 import {
   cloneDefaultCatalogShippingOptions,
   getDefaultCustomerFields,
@@ -85,11 +90,22 @@ import { readVideoFileSafe, uploadCompressedImageOrFallback } from '../../utils/
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import { cloneBlockDeep } from '../../utils/treeHelpers';
 import { removeSelectedItemByIdOrIndex } from '../../utils/itemListHelpers';
-import { supportsUniversalCart } from '../../utils/universalLayerHelpers';
+import {
+  resolveProjectFloatingCartConfig,
+  supportsUniversalCart,
+} from '../../utils/universalLayerHelpers';
+import { IconPicker } from '../IconPicker';
 import { RichTextEditor } from '../RichTextEditor';
 import { SocialGlyph } from '../SocialIcon';
 import { useUiLabel } from '../../contexts/UiLabelsContext';
 import { ThemeOverrideTokenKey, withLocalThemeTokenPatch } from '../../utils/blockThemeHelpers';
+import {
+  ContentSectionKey,
+  ExtractedSubLayer,
+  isSubLayerDeleted,
+  isSubLayerHidden,
+  restoreSubLayer,
+} from '../../utils/layerStructure';
 import {
   AccordionSection,
   ItemOverflowMenu,
@@ -102,8 +118,12 @@ import {
 
 interface BlockContentTabProps {
   selectedBlock: BuilderBlock;
+  selectedSubLayer?: ExtractedSubLayer | null;
+  onClearSubLayer?: () => void;
+  onSelectSubLayer?: (blockId: string, subLayerId: string | null) => void;
   allBlocks?: BuilderBlock[];
   pages?: BuilderSubPage[];
+  bottomNavbar?: BottomNavbarConfig;
   activeSubPageId?: string | null;
   whatsappCenter?: WhatsappCenterConfig;
   theme: PageTheme;
@@ -120,7 +140,7 @@ interface BlockContentTabProps {
   onSetUploadError: (msg: string | null) => void;
 }
 
-type ContentSectionId = 'general' | 'main' | 'typo' | 'items' | 'nav' | 'actions' | 'extra';
+type ContentSectionId = ContentSectionKey;
 
 function rangeProgressStyle(current: number, min: number, max: number): CSSProperties {
   const span = max - min;
@@ -174,8 +194,12 @@ function flattenTargetBlocks(
 
 export function BlockContentTab({
   selectedBlock,
+  selectedSubLayer = null,
+  onClearSubLayer,
+  onSelectSubLayer,
   allBlocks = [],
   pages = [],
+  bottomNavbar,
   activeSubPageId = null,
   whatsappCenter,
   theme,
@@ -192,15 +216,40 @@ export function BlockContentTab({
   onSetUploadError,
 }: BlockContentTabProps) {
   const { label, isVisible } = useUiLabel();
-  const [openSections, setOpenSections] = useState<Record<ContentSectionId, boolean>>({
-    general: true,
-    main: true,
-    typo: true,
-    items: true,
-    nav: true,
-    actions: true,
-    extra: true,
-  });
+  const resolvePrimaryContentSection = (): ContentSectionId => {
+    if (selectedSubLayer && selectedSubLayer.contentSections.length > 0) {
+      return selectedSubLayer.contentSections[0];
+    }
+    if (
+      selectedBlock.type === 'carousel' ||
+      selectedBlock.type === 'catalog' ||
+      selectedBlock.type === 'fnb_catalog' ||
+      selectedBlock.type === 'training_catalog' ||
+      selectedBlock.type === 'category_tabs' ||
+      selectedBlock.type === 'social' ||
+      selectedBlock.type === 'social_follower' ||
+      selectedBlock.type === 'social_feed' ||
+      selectedBlock.type === 'container' ||
+      selectedBlock.type === 'row'
+    ) {
+      return 'items';
+    }
+    if (selectedBlock.type === 'divider') return 'general';
+    return 'main';
+  };
+  const [activeOpenSection, setActiveOpenSection] = useState<ContentSectionId | null>(() =>
+    resolvePrimaryContentSection()
+  );
+  const openSections: Record<ContentSectionId, boolean> = {
+    general: activeOpenSection === 'general',
+    main: activeOpenSection === 'main',
+    typo: activeOpenSection === 'typo',
+    items: activeOpenSection === 'items',
+    nav: activeOpenSection === 'nav',
+    actions: activeOpenSection === 'actions',
+    extra: activeOpenSection === 'extra',
+  };
+  const [heroTemplateSearch, setHeroTemplateSearch] = useState('');
 
   // Drill-down key: e.g., "catalog:item_1", "fnb:fnb_1", "shipping:makan_ditempat", "cf:cf_1"
   const [editingItemKey, setEditingItemKey] = useState<string | null>(null);
@@ -219,11 +268,51 @@ export function BlockContentTab({
   const [uploadingHeroPhoto, setUploadingHeroPhoto] = useState(false);
 
   useEffect(() => {
-    setEditingItemKey(null);
-  }, [selectedBlock.id]);
+    setActiveOpenSection(resolvePrimaryContentSection());
+    if (!selectedSubLayer) {
+      setEditingItemKey(null);
+      return;
+    }
 
+    if (selectedSubLayer.subListTab) {
+      if (selectedBlock.type === 'catalog') {
+        if (
+          selectedSubLayer.subListTab === 'products' ||
+          selectedSubLayer.subListTab === 'customer' ||
+          selectedSubLayer.subListTab === 'shipping'
+        ) {
+          setCatalogSubList(selectedSubLayer.subListTab);
+        }
+      } else if (selectedBlock.type === 'fnb_catalog') {
+        if (
+          selectedSubLayer.subListTab === 'menu' ||
+          selectedSubLayer.subListTab === 'customer' ||
+          selectedSubLayer.subListTab === 'shipping'
+        ) {
+          setFnbSubList(selectedSubLayer.subListTab);
+        }
+      } else if (selectedBlock.type === 'training_catalog') {
+        if (
+          selectedSubLayer.subListTab === 'programs' ||
+          selectedSubLayer.subListTab === 'boxes' ||
+          selectedSubLayer.subListTab === 'media' ||
+          selectedSubLayer.subListTab === 'checklist' ||
+          selectedSubLayer.subListTab === 'form'
+        ) {
+          setTrainingSubList(selectedSubLayer.subListTab);
+        }
+      }
+    }
+
+    setEditingItemKey(selectedSubLayer.itemKey ?? null);
+  }, [selectedBlock.id, selectedBlock.type, selectedSubLayer?.id, selectedSubLayer?.itemKey, selectedSubLayer?.subListTab]);
+
+  const isContentSectionAllowed = (sec: ContentSectionId) =>
+    !selectedSubLayer || selectedSubLayer.contentSections.includes(sec);
+
+  // Single-accordion discipline: opening one section cleanly collapses others
   const toggleSection = (id: ContentSectionId) => {
-    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+    setActiveOpenSection((prev) => (prev === id ? null : id));
   };
 
   const c = selectedBlock.content;
@@ -259,394 +348,7 @@ export function BlockContentTab({
     );
   };
 
-  const renderTypographyControls = (opts?: { showVariantAndWeight?: boolean; syncMenuIconColor?: boolean }) => (
-    <div className="space-y-2.5">
-      {/* Alignment */}
-      <SegmentedControl<'left' | 'center' | 'right'>
-        columns={3}
-        value={s.align}
-        onChange={(align) => updateStyle({ align })}
-        options={[
-          { id: 'left', label: <AlignLeft className="w-3.5 h-3.5" /> },
-          { id: 'center', label: <AlignCenter className="w-3.5 h-3.5" /> },
-          { id: 'right', label: <AlignRight className="w-3.5 h-3.5" /> },
-        ]}
-      />
 
-      {opts?.showVariantAndWeight && (
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-              Jenis Teks
-            </label>
-            <select
-              value={c.variant ?? 'body'}
-              onChange={(e) =>
-                updateContent({ variant: e.target.value as 'h1' | 'h2' | 'body' })
-              }
-              className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-            >
-              <option value="h1">Judul Besar</option>
-              <option value="h2">Subjudul</option>
-              <option value="body">Paragraf</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-              Ketebalan Teks
-            </label>
-            <select
-              value={c.fontWeight ?? 'normal'}
-              onChange={(e) =>
-                updateContent({ fontWeight: e.target.value as 'normal' | 'semibold' | 'bold' })
-              }
-              className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-            >
-              <option value="normal">Normal</option>
-              <option value="semibold">Semi Tebal</option>
-              <option value="bold">Tebal</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-[11px] font-semibold text-[#17243D]">
-            {label('desain.field.jenisFont', 'Jenis Font')}
-          </label>
-          {s.fontFamily && (
-            <button
-              type="button"
-              onClick={() =>
-                updateStyle({
-                  fontFamily: undefined,
-                  themeOverrideTokens: s.themeOverrideTokens
-                    ? { ...s.themeOverrideTokens, fontFamily: false }
-                    : undefined,
-                })
-              }
-              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[#00C98A] hover:underline cursor-pointer"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Ikuti Global</span>
-            </button>
-          )}
-        </div>
-        <select
-          value={s.fontFamily ?? ''}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (!val) {
-              updateStyle({
-                fontFamily: undefined,
-                themeOverrideTokens: s.themeOverrideTokens
-                  ? { ...s.themeOverrideTokens, fontFamily: false }
-                  : undefined,
-              });
-            } else {
-              updateStyleWithToken({ fontFamily: val }, ['fontFamily']);
-            }
-          }}
-          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-        >
-          <option value="">Ikuti Font Default Tema</option>
-          {(['Sans', 'Display', 'Serif', 'Script', 'Mono'] as const).map((cat) => (
-            <optgroup key={cat} label={cat}>
-              {FONT_OPTIONS.filter((f) => f.category === cat).map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-[#17243D]">
-            {label('desain.field.ukuranTeks', 'Ukuran Teks (Font Size)')}
-          </span>
-          <div className="flex items-center gap-1.5">
-            {s.fontSize !== undefined && (
-              <button
-                type="button"
-                onClick={() => updateStyle({ fontSize: undefined })}
-                className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
-              >
-                Auto
-              </button>
-            )}
-            <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
-              {s.fontSize ? `${s.fontSize}px` : 'Auto'}
-            </span>
-          </div>
-        </div>
-        <input
-          type="range"
-          min={10}
-          max={42}
-          value={s.fontSize ?? 15}
-          onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })}
-          style={rangeProgressStyle(s.fontSize ?? 15, 10, 42)}
-          className="w-full cursor-pointer"
-        />
-      </div>
-
-      <div>
-        <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-          {label('desain.field.ketebalanTeks', 'Ketebalan Teks (Weight)')}
-        </label>
-        <div className="grid grid-cols-5 gap-1">
-          {(['400', '500', '600', '700', '800'] as const).map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() =>
-                updateStyle({ fontWeightCss: s.fontWeightCss === w ? undefined : w })
-              }
-              className={`py-1 rounded border text-[10.5px] font-semibold cursor-pointer tabular-nums ${
-                s.fontWeightCss === w
-                  ? 'bg-[#17243D] text-white border-[#17243D]'
-                  : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
-              }`}
-            >
-              {w}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-[#17243D]">
-            {label('desain.field.tinggiBaris', 'Tinggi Baris (Line Height)')}
-          </span>
-          <div className="flex items-center gap-1.5">
-            {s.lineHeight !== undefined && (
-              <button
-                type="button"
-                onClick={() => updateStyle({ lineHeight: undefined })}
-                className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
-              >
-                Auto
-              </button>
-            )}
-            <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
-              {s.lineHeight ? s.lineHeight.toFixed(1) : 'Auto'}
-            </span>
-          </div>
-        </div>
-        <input
-          type="range"
-          min={1.0}
-          max={2.4}
-          step={0.1}
-          value={s.lineHeight ?? 1.5}
-          onChange={(e) => updateStyle({ lineHeight: Number(e.target.value) })}
-          style={rangeProgressStyle(s.lineHeight ?? 1.5, 1.0, 2.4)}
-          className="w-full cursor-pointer"
-        />
-      </div>
-
-      {/* Jarak Antar Huruf (Letter Spacing) */}
-      <div>
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-[#17243D]">Jarak Antar Huruf</span>
-          <div className="flex items-center gap-1.5">
-            {s.letterSpacing !== undefined && s.letterSpacing !== 0 && (
-              <button
-                type="button"
-                onClick={() => updateStyle({ letterSpacing: undefined })}
-                className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
-              >
-                0px
-              </button>
-            )}
-            <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
-              {s.letterSpacing ? `${s.letterSpacing.toFixed(1)}px` : '0px'}
-            </span>
-          </div>
-        </div>
-        <input
-          type="range"
-          min={-1}
-          max={6}
-          step={0.5}
-          value={s.letterSpacing ?? 0}
-          onChange={(e) => updateStyle({ letterSpacing: Number(e.target.value) })}
-          style={rangeProgressStyle(s.letterSpacing ?? 0, -1, 6)}
-          className="w-full cursor-pointer"
-        />
-      </div>
-
-      {/* Jarak Antar Paragraf / Teks */}
-      <div>
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="font-medium text-[#17243D]">Jarak Antar Teks / Paragraf</span>
-          <span className="font-mono text-[10.5px] font-semibold text-[#17243D] bg-[#F0F5FA] px-1.5 py-0.5 rounded tabular-nums">
-            {s.paragraphGap !== undefined ? `${s.paragraphGap}px` : 'Auto'}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={24}
-          step={1}
-          value={s.paragraphGap ?? 6}
-          onChange={(e) => updateStyle({ paragraphGap: Number(e.target.value) })}
-          style={rangeProgressStyle(s.paragraphGap ?? 6, 0, 24)}
-          className="w-full cursor-pointer"
-        />
-      </div>
-
-      {/* Batas Baris / Paragraf */}
-      <div>
-        <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-          Batas Baris Teks (1 / 2 Paragraf)
-        </label>
-        <div className="grid grid-cols-5 gap-1">
-          {(
-            [
-              { val: 0, label: 'Auto' },
-              { val: 1, label: '1 Baris' },
-              { val: 2, label: '2 Baris' },
-              { val: 3, label: '3 Baris' },
-              { val: 4, label: '4 Baris' },
-            ] as const
-          ).map((opt) => (
-            <button
-              key={opt.val}
-              type="button"
-              onClick={() => updateStyle({ maxLines: opt.val })}
-              className={`py-1 rounded border text-[10px] font-semibold cursor-pointer ${
-                (s.maxLines ?? 0) === opt.val
-                  ? 'bg-[#17243D] text-white border-[#17243D]'
-                  : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Warna Teks */}
-      <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold text-[#17243D]">
-            {label('desain.field.warnaTeks', 'Warna Teks')}
-          </span>
-          <div className="inline-flex rounded-md bg-white border border-[#DCE5EF] p-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                onUpdateBlock(selectedBlock.id, (blk) => ({
-                  ...blk,
-                  style: {
-                    ...blk.style,
-                    useThemeTextColor: true,
-                    textColor: theme.textColor,
-                    themeOverrideTokens: blk.style.themeOverrideTokens
-                      ? { ...blk.style.themeOverrideTokens, textColor: false }
-                      : undefined,
-                  },
-                  content: opts?.syncMenuIconColor
-                    ? { ...blk.content, menuIconTextColor: undefined }
-                    : blk.content,
-                }));
-              }}
-              className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                !isCustomTextColor
-                  ? 'bg-[#17243D] text-white'
-                  : 'text-[#8FA4BF] hover:text-[#17243D]'
-              }`}
-            >
-              Ikut Template
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const chosen = s.textColor || c.menuIconTextColor || theme.textColor;
-                onUpdateBlock(selectedBlock.id, (blk) =>
-                  withLocalThemeTokenPatch(
-                    blk,
-                    { useThemeTextColor: false, textColor: chosen },
-                    opts?.syncMenuIconColor ? { menuIconTextColor: chosen } : undefined,
-                    ['textColor']
-                  )
-                );
-              }}
-              className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                isCustomTextColor
-                  ? 'bg-[#17243D] text-white'
-                  : 'text-[#8FA4BF] hover:text-[#17243D]'
-              }`}
-            >
-              Kustom
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={
-              isCustomTextColor
-                ? s.textColor || c.menuIconTextColor || theme.textColor
-                : theme.textColor
-            }
-            onChange={(e) => {
-              const col = e.target.value;
-              onUpdateBlock(selectedBlock.id, (blk) =>
-                withLocalThemeTokenPatch(
-                  blk,
-                  { useThemeTextColor: false, textColor: col },
-                  opts?.syncMenuIconColor ? { menuIconTextColor: col } : undefined,
-                  ['textColor']
-                )
-              );
-            }}
-            className="w-7 h-7 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer shrink-0 bg-white"
-          />
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { color: '#FFFFFF', title: 'Putih' },
-              { color: '#0F172A', title: 'Gelap' },
-              { color: theme.textColor, title: 'Warna Template' },
-              { color: theme.accentColor, title: 'Aksen Tema' },
-            ].map((sw, idx) => {
-              const activeColor = isCustomTextColor ? s.textColor : theme.textColor;
-              return (
-                <button
-                  key={`${sw.color}_${idx}`}
-                  type="button"
-                  title={sw.title}
-                  onClick={() =>
-                    onUpdateBlock(selectedBlock.id, (blk) =>
-                      withLocalThemeTokenPatch(
-                        blk,
-                        { useThemeTextColor: false, textColor: sw.color },
-                        opts?.syncMenuIconColor ? { menuIconTextColor: sw.color } : undefined,
-                        ['textColor']
-                      )
-                    )
-                  }
-                  style={{ backgroundColor: sw.color }}
-                  className={`w-5 h-5 rounded-full border border-[#DCE5EF] cursor-pointer ${
-                    activeColor.toLowerCase() === sw.color.toLowerCase() && isCustomTextColor
-                      ? 'ring-2 ring-[#00C98A] ring-offset-1'
-                      : ''
-                  }`}
-                />
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   const handleCompressAndSet = async (
     file: File,
@@ -677,42 +379,149 @@ export function BlockContentTab({
     switch (selectedBlock.type) {
       case 'text':
         return (
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-[#17243D]">
-              {label('konten.field.isiTeks', 'Isi Teks')}
-            </label>
-            <textarea
-              rows={4}
-              value={c.text ?? ''}
-              placeholder="Tulis teks (kosongkan jika tidak digunakan)"
-              onChange={(e) => updateContent({ text: e.target.value })}
-              className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none resize-y"
-            />
-            {!(c.text ?? '').trim() && isVisible('konten.desc.teksKosong') && (
-              <p className="text-[11px] text-[#8FA4BF]">
-                {label(
-                  'konten.desc.teksKosong',
-                  'Teks kosong otomatis disembunyikan di pratinjau & halaman publik.'
-                )}
-              </p>
-            )}
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Jenis Teks (Semantik)
+              </label>
+              <select
+                value={c.variant ?? 'body'}
+                onChange={(e) =>
+                  updateContent({ variant: e.target.value as 'h1' | 'h2' | 'body' })
+                }
+                className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              >
+                <option value="h1">Judul Besar (H1)</option>
+                <option value="h2">Subjudul (H2)</option>
+                <option value="body">Paragraf</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[#17243D]">
+                {label('konten.field.isiTeks', 'Isi Teks')}
+              </label>
+              <textarea
+                rows={4}
+                value={c.text ?? ''}
+                placeholder="Tulis teks (kosongkan jika tidak digunakan)"
+                onChange={(e) => updateContent({ text: e.target.value })}
+                className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none resize-y"
+              />
+              {!(c.text ?? '').trim() && isVisible('konten.desc.teksKosong') && (
+                <p className="text-[11px] text-[#8FA4BF]">
+                  {label(
+                    'konten.desc.teksKosong',
+                    'Teks kosong otomatis disembunyikan di pratinjau & halaman publik.'
+                  )}
+                </p>
+              )}
+            </div>
           </div>
         );
 
       case 'image':
         return (
-          <MediaSourceInput
-            label={label('konten.field.gambarUtama', 'Gambar Utama (Upload atau URL)')}
-            value={c.src ?? ''}
-            onChangeUrl={(url) => updateContent({ src: url })}
-            onUploadFile={(file) =>
-              handleCompressAndSet(
-                file,
-                { maxDimension: 1080, quality: 0.82 },
-                (blk, url) => ({ ...blk, content: { ...blk.content, src: url } })
-              )
-            }
-          />
+          <div className="space-y-2.5">
+            <MediaSourceInput
+              label={label('konten.field.gambarUtama', 'Sumber Gambar (Upload WebP / URL)')}
+              value={c.src ?? ''}
+              onChangeUrl={(url) => updateContent({ src: url })}
+              onSavePreparedUrl={(url, meta) =>
+                updateContent({
+                  src: url,
+                  imageName: c.imageName?.trim() ? c.imageName : meta.fileName,
+                })
+              }
+              onUploadFile={(file) =>
+                handleCompressAndSet(
+                  file,
+                  { maxDimension: 1080, quality: 0.82 },
+                  (blk, url) => ({ ...blk, content: { ...blk.content, src: url } })
+                )
+              }
+              onClear={c.src ? () => updateContent({ src: '' }) : undefined}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Nama Gambar
+                </label>
+                <input
+                  type="text"
+                  value={c.imageName ?? ''}
+                  placeholder="banner-utama.webp"
+                  onChange={(e) => updateContent({ imageName: e.target.value })}
+                  className="w-full px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Teks Alt (SEO / Aksesibilitas)
+                </label>
+                <input
+                  type="text"
+                  value={c.alt ?? ''}
+                  placeholder="Deskripsi gambar"
+                  onChange={(e) => updateContent({ alt: e.target.value })}
+                  className="w-full px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Object Fit
+                </label>
+                <select
+                  value={c.objectFit ?? 'cover'}
+                  onChange={(e) =>
+                    updateContent({
+                      objectFit: e.target.value as 'cover' | 'contain' | 'fill' | 'none' | 'scale-down',
+                    })
+                  }
+                  className="w-full px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                >
+                  <option value="cover">Cover (Penuh)</option>
+                  <option value="contain">Contain (Utuh)</option>
+                  <option value="fill">Fill (Regang)</option>
+                  <option value="scale-down">Scale Down</option>
+                  <option value="none">None (Asli)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Posisi Fokus
+                </label>
+                <select
+                  value={c.objectPosition ?? 'center'}
+                  onChange={(e) => updateContent({ objectPosition: e.target.value })}
+                  className="w-full px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                >
+                  <option value="center">Tengah</option>
+                  <option value="top">Atas</option>
+                  <option value="bottom">Bawah</option>
+                  <option value="left">Kiri</option>
+                  <option value="right">Kanan</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Rasio Aspek
+              </label>
+              <SegmentedControl<'auto' | '16/9' | '4/3' | '1/1'>
+                columns={4}
+                value={c.aspectRatio ?? 'auto'}
+                onChange={(val) => updateContent({ aspectRatio: val })}
+                options={[
+                  { id: 'auto', label: 'Auto' },
+                  { id: '16/9', label: '16:9' },
+                  { id: '4/3', label: '4:3' },
+                  { id: '1/1', label: '1:1' },
+                ]}
+              />
+            </div>
+          </div>
         );
 
       case 'hero_profile': {
@@ -765,9 +574,15 @@ export function BlockContentTab({
           }
         };
 
+        const subId = selectedSubLayer?.id;
+        const showHeroCoverPanel = !subId || subId === 'hero_cover';
+        const showHeroPhotoPanel = !subId || subId === 'hero_avatar' || subId === 'hero_profile_card';
+        const showHeroInfoPanel = !subId || subId === 'hero_profile_card';
+
         return (
           <div className="space-y-3">
             {/* PENGATURAN COVER (TERPISAH & INDEPENDEN) */}
+            {showHeroCoverPanel && (
             <div
               data-hero-setting="cover"
               className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5"
@@ -844,8 +659,10 @@ export function BlockContentTab({
                 />
               )}
             </div>
+            )}
 
             {/* PENGATURAN FOTO (TERPISAH & INDEPENDEN) */}
+            {showHeroPhotoPanel && (
             <div
               data-hero-setting="foto"
               className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5"
@@ -944,7 +761,9 @@ export function BlockContentTab({
                 </div>
               </div>
             </div>
+            )}
 
+            {showHeroInfoPanel && (
             <div className="space-y-2">
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
@@ -1006,6 +825,7 @@ export function BlockContentTab({
                 />
               </div>
             </div>
+            )}
           </div>
         );
       }
@@ -1175,142 +995,419 @@ export function BlockContentTab({
         );
       }
 
-      case 'maps_place':
+      case 'maps_place': {
+        const subId = selectedSubLayer?.id;
+        const showMapsPhoto = !subId || subId === 'maps_photo';
+        const showMapsInfo = !subId || subId === 'maps_info';
         return (
           <div className="space-y-2.5">
-            <MediaSourceInput
-              label="Foto Lokasi Maps"
-              value={c.mapsPhotoUrl ?? ''}
-              previewFallback={MAPS_LOCATION_SVG}
-              onChangeUrl={(url) =>
-                updateContent({ mapsPhotoUrl: url || MAPS_LOCATION_SVG })
-              }
-              onUploadFile={(f) =>
-                handleCompressAndSet(f, { maxDimension: 1080, quality: 0.82 }, (blk, url) => ({
-                  ...blk,
-                  content: { ...blk.content, mapsPhotoUrl: url },
-                }))
-              }
-            />
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Badge Foto (opsional)
-              </label>
-              <input
-                type="text"
-                value={c.mapsPhotoBadgeLabel ?? 'Lihat foto'}
-                placeholder="Lihat foto"
-                onChange={(e) => updateContent({ mapsPhotoBadgeLabel: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                {label('konten.main.label.namaTempatMaps', 'Nama Tempat / Lokasi')}
-              </label>
-              <input
-                type="text"
-                value={c.mapsTitle ?? ''}
-                placeholder="Lokasi Usaha"
-                onChange={(e) => updateContent({ mapsTitle: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Rating (0–5)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={5}
-                  step={0.1}
-                  value={c.mapsRating ?? 4.9}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    updateContent({
-                      mapsRating: Number.isFinite(val) ? Math.max(0, Math.min(5, val)) : 0,
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none tabular-nums"
+            {showMapsPhoto && (
+              <>
+                <MediaSourceInput
+                  label="Foto Lokasi Maps"
+                  value={c.mapsPhotoUrl ?? ''}
+                  previewFallback={MAPS_LOCATION_SVG}
+                  onChangeUrl={(url) =>
+                    updateContent({ mapsPhotoUrl: url || MAPS_LOCATION_SVG })
+                  }
+                  onUploadFile={(f) =>
+                    handleCompressAndSet(f, { maxDimension: 1080, quality: 0.82 }, (blk, url) => ({
+                      ...blk,
+                      content: { ...blk.content, mapsPhotoUrl: url },
+                    }))
+                  }
+                />
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Badge Foto (opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={c.mapsPhotoBadgeLabel ?? 'Lihat foto'}
+                    placeholder="Lihat foto"
+                    onChange={(e) => updateContent({ mapsPhotoBadgeLabel: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+              </>
+            )}
+            {showMapsInfo && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    {label('konten.main.label.namaTempatMaps', 'Nama Tempat / Lokasi')}
+                  </label>
+                  <input
+                    type="text"
+                    value={c.mapsTitle ?? ''}
+                    placeholder="Lokasi Usaha"
+                    onChange={(e) => updateContent({ mapsTitle: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                      Rating (0–5)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={5}
+                      step={0.1}
+                      value={c.mapsRating ?? 4.9}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        updateContent({
+                          mapsRating: Number.isFinite(val) ? Math.max(0, Math.min(5, val)) : 0,
+                        });
+                      }}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                      Jumlah Ulasan
+                    </label>
+                    <input
+                      type="text"
+                      value={c.mapsReviewCount ?? ''}
+                      placeholder="1.643"
+                      onChange={(e) => updateContent({ mapsReviewCount: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none tabular-nums"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Kategori / Layanan Utama
+                  </label>
+                  <input
+                    type="text"
+                    value={c.mapsService ?? ''}
+                    onChange={(e) => updateContent({ mapsService: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#17243D]">
+                    Ikon Aksesibilitas (Kursi Roda)
+                  </span>
+                  <ToggleSwitch
+                    checked={c.mapsAccessible ?? true}
+                    onChange={(next) => updateContent({ mapsAccessible: next })}
+                    label="Ikon Aksesibilitas"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Layanan Tambahan (pisah koma)
+                  </label>
+                  <input
+                    type="text"
+                    value={c.mapsServicesList ?? ''}
+                    placeholder="Parkir Luas, WiFi Gratis"
+                    onChange={(e) => updateContent({ mapsServicesList: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Alamat / Jam Operasional
+                  </label>
+                  <input
+                    type="text"
+                    value={c.mapsAddress ?? ''}
+                    placeholder="Jl. Merdeka No. 10 · 08.00–17.00"
+                    onChange={(e) => updateContent({ mapsAddress: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        );
+      }
+
+      case 'button': {
+        const subId = selectedSubLayer?.id;
+        const iconDeleted = isSubLayerDeleted(selectedBlock, 'button_icon');
+        const textDeleted = isSubLayerDeleted(selectedBlock, 'button_text');
+        const iconHidden = isSubLayerHidden(selectedBlock, 'button_icon');
+        const textHidden = isSubLayerHidden(selectedBlock, 'button_text');
+
+        // Sub-Layer 1: Ikon Tombol
+        if (subId === 'button_icon') {
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Ikon pada Tombol
+                </span>
+                <ToggleSwitch
+                  checked={!iconHidden}
+                  onChange={(show) => updateContent({ buttonHideIcon: !show })}
+                  label="Tampilkan Ikon Tombol"
                 />
               </div>
+              <IconPicker
+                selectedIcon={c.buttonIcon ?? 'none'}
+                iconUrl={c.buttonIconUrl ?? ''}
+                allowNone
+                accentVariant="emerald"
+                onSelectIcon={(icon) =>
+                  updateContent({ buttonIcon: icon, buttonHideIcon: icon === 'none' })
+                }
+                onChangeIconUrl={(url) =>
+                  updateContent({ buttonIconUrl: url, buttonHideIcon: false })
+                }
+              />
               <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Jumlah Ulasan
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Tooltip Ikon (Opsional)
                 </label>
                 <input
                   type="text"
-                  value={c.mapsReviewCount ?? ''}
-                  placeholder="1.643"
-                  onChange={(e) => updateContent({ mapsReviewCount: e.target.value })}
-                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none tabular-nums"
+                  value={c.buttonIconTooltip ?? ''}
+                  placeholder="Contoh: Buka tautan resmi"
+                  onChange={(e) => updateContent({ buttonIconTooltip: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Kategori / Layanan Utama
-              </label>
-              <input
-                type="text"
-                value={c.mapsService ?? ''}
-                onChange={(e) => updateContent({ mapsService: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[#17243D]">
-                Ikon Aksesibilitas (Kursi Roda)
-              </span>
-              <ToggleSwitch
-                checked={c.mapsAccessible ?? true}
-                onChange={(next) => updateContent({ mapsAccessible: next })}
-                label="Ikon Aksesibilitas"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Layanan Tambahan (pisah koma)
-              </label>
-              <input
-                type="text"
-                value={c.mapsServicesList ?? ''}
-                placeholder="Parkir Luas, WiFi Gratis"
-                onChange={(e) => updateContent({ mapsServicesList: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Alamat / Jam Operasional
-              </label>
-              <input
-                type="text"
-                value={c.mapsAddress ?? ''}
-                placeholder="Jl. Merdeka No. 10 · 08.00–17.00"
-                onChange={(e) => updateContent({ mapsAddress: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none"
-              />
-            </div>
-          </div>
-        );
+          );
+        }
 
-      case 'button':
+        // Sub-Layer 2: Teks Tombol
+        if (subId === 'button_text') {
+          return (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Teks pada Tombol
+                </span>
+                <ToggleSwitch
+                  checked={!textHidden}
+                  onChange={(show) => updateContent({ buttonHideText: !show })}
+                  label="Tampilkan Teks Tombol"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                  {label('konten.field.teksTombol', 'Teks Tombol')}
+                </label>
+                <input
+                  type="text"
+                  value={c.label ?? ''}
+                  placeholder="Contoh: Pesan Sekarang"
+                  onChange={(e) => updateContent({ label: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+            </div>
+          );
+        }
+
+        // Parent Layer: Wadah Tombol (Struktur 3-Layer + Aksi Tombol)
+        const actionKind = c.buttonActionKind ?? 'url';
         return (
-          <div>
-            <label className="block text-xs font-semibold text-[#17243D] mb-1">
-              {label('konten.field.teksTombol', 'Teks Tombol')}
-            </label>
-            <input
-              type="text"
-              value={c.label ?? ''}
-              onChange={(e) => updateContent({ label: e.target.value })}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
-            />
+          <div className="space-y-3">
+            {/* 3-Layer Quick Navigator & Restore */}
+            <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+              <div className="text-[10px] font-bold text-[#51637D] uppercase tracking-wide">
+                Struktur 3-Lapisan Tombol
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {iconDeleted ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateBlock(selectedBlock.id, (blk) => restoreSubLayer(blk, 'button_icon'))
+                    }
+                    className="px-2 py-1.5 rounded-md border border-dashed border-[#00C98A] bg-white text-[10.5px] font-semibold text-[#008F63] hover:bg-[#ECFDF6] cursor-pointer"
+                  >
+                    + Pulihkan Ikon
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSelectSubLayer?.(selectedBlock.id, 'button_icon')}
+                    className="px-2 py-1.5 rounded-md border border-[#DCE5EF] bg-white hover:border-[#00C98A] text-[10.5px] font-semibold text-[#17243D] text-left cursor-pointer truncate"
+                  >
+                    Edit Ikon Tombol →
+                  </button>
+                )}
+                {textDeleted ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateBlock(selectedBlock.id, (blk) => restoreSubLayer(blk, 'button_text'))
+                    }
+                    className="px-2 py-1.5 rounded-md border border-dashed border-[#00C98A] bg-white text-[10.5px] font-semibold text-[#008F63] hover:bg-[#ECFDF6] cursor-pointer"
+                  >
+                    + Pulihkan Teks
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSelectSubLayer?.(selectedBlock.id, 'button_text')}
+                    className="px-2 py-1.5 rounded-md border border-[#DCE5EF] bg-white hover:border-[#00C98A] text-[10.5px] font-semibold text-[#17243D] text-left cursor-pointer truncate"
+                  >
+                    Edit Teks Tombol →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                {label('konten.field.teksTombol', 'Teks Tombol')}
+              </label>
+              <input
+                type="text"
+                value={c.label ?? ''}
+                onChange={(e) => updateContent({ label: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Jenis Aksi Tombol
+              </label>
+              <select
+                value={actionKind}
+                onChange={(e) =>
+                  updateContent({
+                    buttonActionKind: e.target.value as NonNullable<
+                      BuilderBlock['content']['buttonActionKind']
+                    >,
+                  })
+                }
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              >
+                <option value="url">Buka URL / Tautan</option>
+                <option value="whatsapp">Kirim Pesan WhatsApp</option>
+                <option value="page">Pindah Halaman</option>
+                <option value="scroll">Gulir ke Bagian / Kartu</option>
+                <option value="form">Buka Form / Sheet</option>
+                <option value="action">Aksi Kustom</option>
+              </select>
+            </div>
+
+            {actionKind === 'url' && (
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    URL Tujuan
+                  </label>
+                  <input
+                    type="url"
+                    value={c.url ?? ''}
+                    placeholder="https://contoh.com"
+                    onChange={(e) => updateContent({ url: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">Buka di Tab Baru</span>
+                  <ToggleSwitch
+                    checked={c.buttonOpenInNewTab !== false}
+                    onChange={(val) => updateContent({ buttonOpenInNewTab: val })}
+                    label="Buka di Tab Baru"
+                  />
+                </div>
+              </div>
+            )}
+
+            {actionKind === 'whatsapp' && (
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Nomor WhatsApp (Format 628...)
+                  </label>
+                  <input
+                    type="text"
+                    value={c.buttonWhatsappNumber ?? ''}
+                    placeholder="6281234567890"
+                    onChange={(e) => updateContent({ buttonWhatsappNumber: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Pesan Otomatis
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={c.buttonWhatsappMessage ?? ''}
+                    placeholder="Halo, saya ingin bertanya tentang..."
+                    onChange={(e) => updateContent({ buttonWhatsappMessage: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none resize-y"
+                  />
+                </div>
+              </div>
+            )}
+
+            {actionKind === 'action' && (
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Nama / Target Aksi Kustom
+                </label>
+                <input
+                  type="text"
+                  value={c.buttonCustomAction ?? ''}
+                  placeholder="Contoh: open-promo-modal"
+                  onChange={(e) => updateContent({ buttonCustomAction: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-2 pt-1 border-t border-[#E6EEF5]">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                  Tooltip Tombol (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={c.buttonTooltip ?? ''}
+                  placeholder="Muncul saat kursor diarahkan"
+                  onChange={(e) => updateContent({ buttonTooltip: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-[#17243D]">Nonaktifkan Tombol</span>
+                <ToggleSwitch
+                  checked={Boolean(c.buttonDisabled)}
+                  onChange={(val) => updateContent({ buttonDisabled: val })}
+                  label="Nonaktifkan Tombol"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Konfirmasi Sebelum Aksi
+                </span>
+                <ToggleSwitch
+                  checked={Boolean(c.buttonConfirmAction)}
+                  onChange={(val) => updateContent({ buttonConfirmAction: val })}
+                  label="Konfirmasi Sebelum Aksi"
+                />
+              </div>
+              {c.buttonConfirmAction && (
+                <input
+                  type="text"
+                  value={c.buttonConfirmMessage ?? ''}
+                  placeholder="Pesan konfirmasi (mis. Lanjutkan ke tautan?)"
+                  onChange={(e) => updateContent({ buttonConfirmMessage: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              )}
+            </div>
           </div>
         );
+      }
 
       case 'form':
         return (
@@ -1329,8 +1426,11 @@ export function BlockContentTab({
         const isFb = selectedBlock.type === 'facebook_video';
         const isIg = selectedBlock.type === 'instagram_video';
         const currentUrl = isYt ? c.youtubeUrl ?? '' : c.videoUrl ?? '';
+        const currentAuto = c.videoAutoplay ?? c.youtubeAutoplay ?? true;
+        const currentMuted = Boolean(c.videoMuted);
+        const currentVol = c.videoVolume ?? c.youtubeVolume ?? 75;
         return (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1">
                 {isYt
@@ -1367,225 +1467,204 @@ export function BlockContentTab({
                 />
               </div>
             )}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">Perilaku Pemutaran Video</div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-[#17243D]">Putar Otomatis (Autoplay)</span>
+                <ToggleSwitch
+                  checked={currentAuto}
+                  onChange={(checked) =>
+                    updateContent(
+                      isYt
+                        ? { youtubeAutoplay: checked, videoAutoplay: checked }
+                        : { videoAutoplay: checked }
+                    )
+                  }
+                  label="Putar Otomatis Video"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-[#17243D]">Bisukan Audio (Mute)</span>
+                <ToggleSwitch
+                  checked={currentMuted}
+                  onChange={(checked) => updateContent({ videoMuted: checked })}
+                  label="Bisukan Audio"
+                />
+              </div>
+              {!currentMuted && (
+                <SliderRow
+                  label="Volume Audio"
+                  value={`${currentVol}%`}
+                  min={0}
+                  max={100}
+                  current={currentVol}
+                  onChange={(val) =>
+                    updateContent(
+                      isYt ? { youtubeVolume: val, videoVolume: val } : { videoVolume: val }
+                    )
+                  }
+                />
+              )}
+            </div>
           </div>
         );
       }
 
       case 'menu_icon': {
-        const iconSize = Math.max(36, Math.min(160, c.menuIconSize ?? 64));
-        const photoSize = Math.max(
-          16,
-          Math.min(160, c.menuIconImageSize ?? iconSize)
-        );
-        const fit = c.menuIconImageFit ?? 'cover';
+        const subId = selectedSubLayer?.id;
+        const showIconVisual = !subId || subId === 'menu_icon_visual';
+        const showIconLabel = !subId || subId === 'menu_icon_label';
         return (
           <div className="space-y-3">
-            <SliderRow
-              label="Ukuran Ikon"
-              value={`${iconSize}px`}
-              min={36}
-              max={160}
-              step={2}
-              current={iconSize}
-              onChange={(val) => updateContent({ menuIconSize: val })}
-            />
-
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1.5">
-                Tampilan Gambar
-              </label>
-              <SegmentedControl<'cover' | 'contain'>
-                columns={2}
-                value={fit}
-                onChange={(nextFit) => updateContent({ menuIconImageFit: nextFit })}
-                options={[
-                  { id: 'cover', label: 'Penuh (Cover)' },
-                  { id: 'contain', label: 'Utuh (Contain)' },
-                ]}
+            {showIconVisual && (
+              <MediaSourceInput
+                label="Gambar / Ikon Menu (Upload atau Link URL)"
+                value={c.menuIconImage ?? ''}
+                placeholder="https://.../icon.png"
+                onChangeUrl={(url) => updateContent({ menuIconImage: url })}
+                onUploadFile={(file) =>
+                  handleCompressAndSet(
+                    file,
+                    { maxDimension: 640, quality: 0.85 },
+                    (blk, url) => ({
+                      ...blk,
+                      content: { ...blk.content, menuIconImage: url },
+                    })
+                  )
+                }
+                onClear={() => updateContent({ menuIconImage: '' })}
               />
-            </div>
+            )}
 
-            <div className="flex items-center justify-between gap-2 pt-0.5">
-              <span className="text-[11px] font-semibold text-[#17243D]">
-                Tampilkan Label Teks
-              </span>
-              <ToggleSwitch
-                label="Tampilkan Label Teks"
-                checked={c.menuIconShowLabel !== false}
-                onChange={(checked) => updateContent({ menuIconShowLabel: checked })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-[#51637D] mb-1">
-                Warna Latar Ikon
-              </label>
-              <input
-                type="color"
-                value={c.menuIconBg || theme.accentColor}
-                onChange={(e) => updateAccentContent({ menuIconBg: e.target.value })}
-                className="w-full h-7 rounded-lg border border-[#DCE5EF] bg-white p-0.5 cursor-pointer"
-              />
-            </div>
-
-            <MediaSourceInput
-              label="Gambar / Ikon Menu (Upload atau Link URL)"
-              value={c.menuIconImage ?? ''}
-              placeholder="https://.../icon.png"
-              onChangeUrl={(url) => updateContent({ menuIconImage: url })}
-              onUploadFile={(file) =>
-                handleCompressAndSet(
-                  file,
-                  { maxDimension: 640, quality: 0.85 },
-                  (blk, url) => ({
-                    ...blk,
-                    content: { ...blk.content, menuIconImage: url },
-                  })
-                )
-              }
-              onClear={() => updateContent({ menuIconImage: '' })}
-            />
-
-            {/* Ukuran Foto (px) */}
-            <div>
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span className="font-medium text-[#17243D]">Ukuran Foto (px)</span>
-                <div className="flex items-center gap-1.5">
-                  {c.menuIconImageSize !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => updateContent({ menuIconImageSize: undefined })}
-                      className="px-1.5 py-0.5 rounded border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#17243D] cursor-pointer"
-                    >
-                      Auto
-                    </button>
-                  )}
-                  <span className="font-mono text-[10.5px] font-semibold text-[#17243D] tabular-nums">
-                    {c.menuIconImageSize ? `${photoSize}px` : `${iconSize}px`}
+            {showIconLabel && (
+              <>
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Tampilkan Label Teks
                   </span>
+                  <ToggleSwitch
+                    label="Tampilkan Label Teks"
+                    checked={c.menuIconShowLabel !== false}
+                    onChange={(checked) => updateContent({ menuIconShowLabel: checked })}
+                  />
                 </div>
-              </div>
-              <input
-                type="range"
-                min={16}
-                max={160}
-                step={1}
-                value={photoSize}
-                onChange={(e) => updateContent({ menuIconImageSize: Number(e.target.value) })}
-                style={rangeProgressStyle(photoSize, 16, 160)}
-                className="w-full cursor-pointer"
-              />
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                {label('konten.main.label.labelMenuIcon', 'Label Menu Icon')}
-              </label>
-              <input
-                type="text"
-                value={c.menuIconLabel ?? 'Menu Icon'}
-                onChange={(e) => updateContent({ menuIconLabel: e.target.value })}
-                placeholder="Contoh: Promo, Lokasi, Menu"
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
-              />
-            </div>
-
-            {/* Inline Tipografi controls matching Gambar 1 top-right */}
-            <div className="pt-2 border-t border-[#DCE5EF]">
-              {renderTypographyControls({ showVariantAndWeight: true, syncMenuIconColor: true })}
-            </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    {label('konten.main.label.labelMenuIcon', 'Label Menu Icon')}
+                  </label>
+                  <input
+                    type="text"
+                    value={c.menuIconLabel ?? 'Menu Icon'}
+                    onChange={(e) => updateContent({ menuIconLabel: e.target.value })}
+                    placeholder="Contoh: Promo, Lokasi, Menu"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                  />
+                </div>
+              </>
+            )}
           </div>
         );
       }
 
-      case 'cart_button':
+      case 'cart_button': {
+        const subId = selectedSubLayer?.id;
+        const showCartProduct = !subId || subId === 'cart_product';
+        const showCartAction = !subId || subId === 'cart_action';
         return (
           <div className="space-y-2.5">
-            <MediaSourceInput
-              label="Foto Produk (Opsional)"
-              value={c.cartProductImage ?? ''}
-              placeholder="https://..."
-              onChangeUrl={(url) => updateContent({ cartProductImage: url })}
-              onUploadFile={(f) =>
-                handleCompressAndSet(f, { maxDimension: 640, quality: 0.84 }, (blk, url) => ({
-                  ...blk,
-                  content: { ...blk.content, cartProductImage: url },
-                }))
-              }
-              onClear={c.cartProductImage ? () => updateContent({ cartProductImage: '' }) : undefined}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Nama Produk
-                </label>
-                <input
-                  type="text"
-                  value={c.cartProductName ?? 'Produk Pilihan'}
-                  onChange={(e) => updateContent({ cartProductName: e.target.value })}
-                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+            {showCartProduct && (
+              <>
+                <MediaSourceInput
+                  label="Foto Produk (Opsional)"
+                  value={c.cartProductImage ?? ''}
+                  placeholder="https://..."
+                  onChangeUrl={(url) => updateContent({ cartProductImage: url })}
+                  onUploadFile={(f) =>
+                    handleCompressAndSet(f, { maxDimension: 640, quality: 0.84 }, (blk, url) => ({
+                      ...blk,
+                      content: { ...blk.content, cartProductImage: url },
+                    }))
+                  }
+                  onClear={c.cartProductImage ? () => updateContent({ cartProductImage: '' }) : undefined}
                 />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                      Nama Produk
+                    </label>
+                    <input
+                      type="text"
+                      value={c.cartProductName ?? 'Produk Pilihan'}
+                      onChange={(e) => updateContent({ cartProductName: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                      Harga
+                    </label>
+                    <input
+                      type="text"
+                      value={c.cartProductPrice ?? 'Rp 50.000'}
+                      onChange={(e) => updateContent({ cartProductPrice: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Keterangan Produk
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={c.cartProductDesc ?? ''}
+                    placeholder="Deskripsi singkat produk..."
+                    onChange={(e) => updateContent({ cartProductDesc: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white resize-y"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-xs font-medium text-[#17243D]">
+                    Tampilkan Info Produk & Harga
+                  </span>
+                  <ToggleSwitch
+                    checked={c.cartShowProductInfo !== false}
+                    onChange={(val) => updateContent({ cartShowProductInfo: val })}
+                    label="Tampilkan Info Produk"
+                  />
+                </div>
+              </>
+            )}
+            {showCartAction && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Label Tombol Tambah
+                  </label>
+                  <input
+                    type="text"
+                    value={c.cartButtonLabel ?? 'Tambah'}
+                    onChange={(e) => updateContent({ cartButtonLabel: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Warna Tombol
+                  </label>
+                  <input
+                    type="color"
+                    value={c.cartAccentColor || theme.accentColor || '#059669'}
+                    onChange={(e) => updateContent({ cartAccentColor: e.target.value })}
+                    className="w-full h-8 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Harga
-                </label>
-                <input
-                  type="text"
-                  value={c.cartProductPrice ?? 'Rp 50.000'}
-                  onChange={(e) => updateContent({ cartProductPrice: e.target.value })}
-                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                Keterangan Produk
-              </label>
-              <textarea
-                rows={2}
-                value={c.cartProductDesc ?? ''}
-                placeholder="Deskripsi singkat produk..."
-                onChange={(e) => updateContent({ cartProductDesc: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white resize-y"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Label Tombol Tambah
-                </label>
-                <input
-                  type="text"
-                  value={c.cartButtonLabel ?? 'Tambah'}
-                  onChange={(e) => updateContent({ cartButtonLabel: e.target.value })}
-                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  Warna Tombol
-                </label>
-                <input
-                  type="color"
-                  value={c.cartAccentColor || theme.accentColor || '#059669'}
-                  onChange={(e) => updateContent({ cartAccentColor: e.target.value })}
-                  className="w-full h-8 rounded-lg border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <span className="text-xs font-medium text-[#17243D]">
-                Tampilkan Info Produk & Harga
-              </span>
-              <ToggleSwitch
-                checked={c.cartShowProductInfo !== false}
-                onChange={(val) => updateContent({ cartShowProductInfo: val })}
-                label="Tampilkan Info Produk"
-              />
-            </div>
+            )}
           </div>
         );
+      }
 
       case 'showcase_card': {
         const variant: ShowcaseCardVariant = c.cardVariant ?? 'quote_banner';
@@ -1621,9 +1700,120 @@ export function BlockContentTab({
           { type: 'back_button', label: '+ Back' },
         ];
 
+        const subId = selectedSubLayer?.id;
+
+        // Dedicated Sub-Layer: Header Kartu (independent of media, body, footer)
+        if (subId === 'card_header') {
+          return (
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Judul Header Kartu
+                </label>
+                <input
+                  type="text"
+                  value={c.cardHeaderTitle ?? ''}
+                  placeholder="Contoh: Info Terbaru"
+                  onChange={(e) => updateContent({ cardHeaderTitle: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Label Tautan Header (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={c.cardMoreLabel ?? ''}
+                  placeholder="Contoh: Selengkapnya"
+                  onChange={(e) => updateContent({ cardMoreLabel: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  URL Tautan Header
+                </label>
+                <input
+                  type="url"
+                  value={c.cardMoreUrl ?? ''}
+                  placeholder="https://..."
+                  onChange={(e) => updateContent({ cardMoreUrl: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
+                />
+              </div>
+            </div>
+          );
+        }
+
+        const showCardTypePicker = !subId;
+        const showCardTopZone = !subId || subId === 'card_body';
+        const showCardFooterZone = !subId || subId === 'card_footer';
+        const showCardTextFields = !subId || subId === 'card_body';
+        const showCardMediaFields = !subId || subId === 'card_media';
+        const showCardFeeFields =
+          !subId || subId === 'card_body' || subId === 'card_footer' || subId.startsWith('card_fee_');
+        const showCardColorsAndLink = !subId || subId === 'card_body' || subId === 'card_footer';
+
+        const hasHeaderNow =
+          Boolean(c.cardHeaderTitle?.trim() || c.cardMoreLabel?.trim()) &&
+          !isSubLayerDeleted(selectedBlock, 'card_header');
+        const deletedParts = (c.deletedSubLayers ?? []).filter((id) =>
+          ['card_header', 'card_media', 'card_body', 'card_footer'].includes(id)
+        );
+
         return (
           <div className="space-y-2.5">
-            {isVisible('konten.field.jenisTampilanKartu') && (
+            {!subId && (
+              <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+                <div className="text-[10px] font-bold text-[#51637D] uppercase tracking-wide">
+                  Struktur Bagian Kartu
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {!hasHeaderNow ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onUpdateBlock(selectedBlock.id, (blk) => restoreSubLayer(blk, 'card_header'));
+                        onSelectSubLayer?.(selectedBlock.id, 'card_header');
+                      }}
+                      className="px-2 py-1 rounded-md border border-dashed border-[#00C98A] bg-white text-[10px] font-semibold text-[#008F63] hover:bg-[#ECFDF6] cursor-pointer"
+                    >
+                      + Tambah Header
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onSelectSubLayer?.(selectedBlock.id, 'card_header')}
+                      className="px-2 py-1 rounded-md border border-[#DCE5EF] bg-white hover:border-[#00C98A] text-[10px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      Header →
+                    </button>
+                  )}
+                  {deletedParts
+                    .filter((id) => id !== 'card_header')
+                    .map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => restoreSubLayer(blk, id))
+                        }
+                        className="px-2 py-1 rounded-md border border-dashed border-amber-400 bg-amber-50 text-[10px] font-semibold text-amber-800 hover:bg-amber-100 cursor-pointer"
+                      >
+                        + Pulihkan{' '}
+                        {id === 'card_media'
+                          ? 'Gambar'
+                          : id === 'card_body'
+                          ? 'Konten'
+                          : 'Footer'}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {showCardTypePicker && isVisible('konten.field.jenisTampilanKartu') && (
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                   {label('konten.field.jenisTampilanKartu', 'Jenis Tampilan Kartu')}
@@ -1647,6 +1837,7 @@ export function BlockContentTab({
             )}
 
             {/* Mode Dinamis & Drag-Drop Isi Kartu (Zona Atas & Strip Bawah) */}
+            {(showCardTopZone || showCardFooterZone) && (
             <div className="p-2.5 rounded-xl bg-[#F0F7FF] border border-sky-200/80 space-y-2.5">
               {(isVisible('konten.field.modeDinamisKartu') ||
                 isVisible('konten.desc.modeDinamisKartu')) && (
@@ -1704,7 +1895,7 @@ export function BlockContentTab({
               )}
 
               {/* Zona Atas / Bagian Putih */}
-              {isVisible('konten.field.zonaAtasKartu') && (
+              {showCardTopZone && isVisible('konten.field.zonaAtasKartu') && (
                 <div className="bg-white rounded-lg border border-[#DCE5EF] p-2 space-y-1.5">
                   <div className="flex items-center justify-between gap-1">
                     <span className="text-[10.5px] font-bold text-[#17243D]">
@@ -1759,6 +1950,7 @@ export function BlockContentTab({
               )}
 
               {/* Zona Bawah / Strip Warna (Biru/Merah/Aksen) */}
+              {showCardFooterZone && (
               <div className="bg-white rounded-lg border border-sky-200 p-2 space-y-1.5">
                 <div className="flex items-center justify-between gap-1">
                   {isVisible('konten.field.stripBawahKartu') && (
@@ -1821,8 +2013,12 @@ export function BlockContentTab({
                   </div>
                 )}
               </div>
+              )}
             </div>
+            )}
 
+            {showCardTextFields && (
+              <>
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                 {variant === 'quote_banner'
@@ -1865,8 +2061,10 @@ export function BlockContentTab({
                 />
               </div>
             )}
+              </>
+            )}
 
-            {variant === 'quote_banner' && (
+            {showCardMediaFields && variant === 'quote_banner' && (
               <div>
                 <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                   Posisi Foto Tokoh
@@ -1883,7 +2081,7 @@ export function BlockContentTab({
               </div>
             )}
 
-            {hasMainImage && (
+            {showCardMediaFields && hasMainImage && (
               <MediaSourceInput
                 label={variant === 'activity_post' ? 'Foto Profil Penulis' : 'Gambar / Foto Kartu'}
                 value={c.cardImage ?? ''}
@@ -1900,7 +2098,7 @@ export function BlockContentTab({
             )}
 
             {/* Ukuran Box Foto & Perbesar/Perkecil Foto di Dalam Card */}
-            {hasMainImage && (
+            {showCardMediaFields && hasMainImage && (
               <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
                 <div className="text-[11px] font-bold text-[#17243D]">
                   Ukuran Box Foto &amp; Zoom Foto
@@ -2020,6 +2218,7 @@ export function BlockContentTab({
             )}
 
             {/* Tipografi & Baris Teks Kartu */}
+            {showCardTextFields && (
             <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
               <div className="text-[11px] font-bold text-[#17243D]">
                 Ukuran Teks Judul &amp; Paragraf Kartu
@@ -2120,8 +2319,9 @@ export function BlockContentTab({
                 />
               </div>
             </div>
+            )}
 
-            {variant === 'store_card' && (
+            {showCardTextFields && variant === 'store_card' && (
               <div className="space-y-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
@@ -2244,7 +2444,7 @@ export function BlockContentTab({
               </div>
             )}
 
-            {variant === 'membership_ticket' && (
+            {showCardFeeFields && variant === 'membership_ticket' && (
               <div className="space-y-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
                 <div className="text-[11px] font-bold text-[#17243D]">Rincian Biaya</div>
                 {feeItems.map((fee, idx) => (
@@ -2317,6 +2517,8 @@ export function BlockContentTab({
               </div>
             )}
 
+            {showCardColorsAndLink && (
+              <>
             <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
               <div className="text-[11px] font-bold text-[#17243D]">Warna & Gradasi Kartu</div>
               <div className="grid grid-cols-2 gap-2">
@@ -2392,6 +2594,8 @@ export function BlockContentTab({
                 />
               </div>
             </div>
+              </>
+            )}
           </div>
         );
       }
@@ -2412,6 +2616,18 @@ export function BlockContentTab({
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Ikon Tombol Kembali
+              </label>
+              <IconPicker
+                selectedIcon={c.backButtonIcon ?? 'arrow-left'}
+                iconUrl={c.buttonIconUrl ?? ''}
+                accentVariant="emerald"
+                onSelectIcon={(icon) => updateContent({ backButtonIcon: icon })}
+                onChangeIconUrl={(url) => updateContent({ buttonIconUrl: url })}
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
                 Tujuan Saat Diklik
               </label>
               <select
@@ -2427,30 +2643,6 @@ export function BlockContentTab({
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                  Warna Latar Tombol
-                </label>
-                <input
-                  type="color"
-                  value={c.backButtonBg ?? '#F1F5F9'}
-                  onChange={(e) => updateAccentContent({ backButtonBg: e.target.value })}
-                  className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
-                  Warna Teks &amp; Ikon
-                </label>
-                <input
-                  type="color"
-                  value={c.backButtonText ?? '#0F172A'}
-                  onChange={(e) => updateContent({ backButtonText: e.target.value })}
-                  className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-                />
-              </div>
             </div>
           </div>
         );
@@ -4654,6 +4846,41 @@ export function BlockContentTab({
         badge: items.length,
         body: (
           <div className="space-y-2">
+            <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-1.5">
+              <div className="text-[10.5px] font-bold text-[#5B708B]">
+                Opsi Tampilan Slide
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Titik Slide (Dots)
+                </span>
+                <ToggleSwitch
+                  checked={c.carouselShowDots !== false}
+                  onChange={(v) => updateContent({ carouselShowDots: v })}
+                  label="Tampilkan atau sembunyikan titik indikator slide carousel"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Tombol Panah
+                </span>
+                <ToggleSwitch
+                  checked={c.carouselShowArrows !== false}
+                  onChange={(v) => updateContent({ carouselShowArrows: v })}
+                  label="Tampilkan atau sembunyikan tombol navigasi panah dan nomor slide"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Scrollbar
+                </span>
+                <ToggleSwitch
+                  checked={Boolean(c.carouselShowScrollbar)}
+                  onChange={(v) => updateContent({ carouselShowScrollbar: v })}
+                  label="Tampilkan atau sembunyikan garis scrollbar horizontal carousel"
+                />
+              </div>
+            </div>
             <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
               <span className="text-xs font-semibold text-[#17243D]">Jumlah Foto</span>
               <div className="inline-flex items-center gap-1">
@@ -5488,6 +5715,18 @@ export function BlockContentTab({
         badge: buttons.length,
         body: (
           <div className="space-y-2">
+            {(c.categoryScrollMode ?? 'vertical') !== 'wrap' && (
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Scrollbar
+                </span>
+                <ToggleSwitch
+                  checked={Boolean(c.categoryShowScrollbar)}
+                  onChange={(v) => updateContent({ categoryShowScrollbar: v })}
+                  label="Tampilkan atau sembunyikan garis scrollbar daftar kategori"
+                />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -5540,6 +5779,137 @@ export function BlockContentTab({
         ),
       };
     }
+
+    // Helper bersama: daftar alat lengkap (19 elemen) + pencarian Template Blok & Card untuk seluruh wadah Data & Daftar Item
+    const renderUniversalContainerPicker = (opts: {
+      disabled?: boolean;
+      excludeHeroTemplates?: boolean;
+      onAddTool: (toolType: BlockType) => void;
+      onAddTemplate: (sectionId: string) => void;
+    }) => {
+      const baseTemplates = opts.excludeHeroTemplates
+        ? PREBUILT_SECTIONS.filter(
+            (sec) =>
+              sec.id !== 'hero-profil-kompak' &&
+              sec.id !== 'hero-profil-banner' &&
+              sec.id !== 'hero-profile'
+          )
+        : PREBUILT_SECTIONS;
+      const q = heroTemplateSearch.trim().toLowerCase();
+      const filteredTemplates = q
+        ? baseTemplates.filter(
+            (sec) =>
+              sec.title.toLowerCase().includes(q) || sec.description.toLowerCase().includes(q)
+          )
+        : baseTemplates;
+
+      return (
+        <>
+          {/* + Tambah Elemen ke Wadah (Semua Alat Standar) */}
+          <div>
+            <div className="text-[11px] font-semibold text-[#17243D] mb-1.5">
+              {label('konten.field.tambahElemenWadah', '+ Tambah Elemen ke Wadah')}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {TOOL_ITEMS.map((tool) => (
+                <button
+                  key={tool.key}
+                  type="button"
+                  disabled={opts.disabled}
+                  onClick={() => opts.onAddTool(tool.type)}
+                  title={tool.desc}
+                  className="group inline-flex items-center gap-1.5 py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] hover:bg-[#ECFDF6]/60 text-[11px] font-medium text-[#17243D] text-left transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span className="text-[#5B708B] group-hover:text-[#008F63] shrink-0">
+                    {tool.icon}
+                  </span>
+                  <span className="truncate">
+                    {label(`alat.item.${tool.key}.label`, tool.label)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Template Blok & Card */}
+          <div className="pt-2 border-t border-[#DCE5EF] space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-[#5B708B]">
+                Template Blok &amp; Card ({filteredTemplates.length})
+              </span>
+            </div>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={heroTemplateSearch}
+                onChange={(e) => setHeroTemplateSearch(e.target.value)}
+                placeholder="Cari template blok..."
+                className="w-full pl-8 pr-7 py-1.5 text-[11px] rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#8FA4BF] focus:border-[#00C98A] outline-none"
+              />
+              {heroTemplateSearch && (
+                <button
+                  type="button"
+                  onClick={() => setHeroTemplateSearch('')}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-0.5">
+              {filteredTemplates.length === 0 ? (
+                <SectionEmptyNote message="Template tidak ditemukan untuk kata kunci tersebut." />
+              ) : (
+                filteredTemplates.map((sec) => (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    disabled={opts.disabled}
+                    onClick={() => opts.onAddTemplate(sec.id)}
+                    className="group w-full p-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] hover:bg-[#ECFDF6]/45 flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#F0F5FA] group-hover:bg-[#ECFDF6] border border-[#DCE5EF] group-hover:border-[#00C98A]/40 flex items-center justify-center text-[#5B708B] group-hover:text-[#008F63] shrink-0 transition-colors">
+                      {getSectionIcon(sec.id)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-bold text-[#17243D] truncate">
+                        {label(`blok.sec.${sec.id}.title`, sec.title)}
+                      </div>
+                      <div className="text-[10px] text-[#8FA4BF] truncate">
+                        {label(`blok.sec.${sec.id}.desc`, sec.description)}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      );
+    };
+
+    const appendTemplateToBlock = (sectionId: string, maxItems?: number) => {
+      const sec = PREBUILT_SECTIONS.find((item) => item.id === sectionId);
+      if (!sec) return;
+      const createdBlocks = sec.createBlocks(theme);
+      if (!createdBlocks.length) return;
+      onUpdateBlock(selectedBlock.id, (blk) => {
+        const current = blk.children ?? [];
+        const remaining =
+          typeof maxItems === 'number'
+            ? Math.max(0, maxItems - current.length)
+            : createdBlocks.length;
+        if (remaining <= 0) return blk;
+        return {
+          ...blk,
+          children: [...current, ...createdBlocks.slice(0, remaining)],
+        };
+      });
+    };
 
     // --- ROW ---
     if (selectedBlock.type === 'row') {
@@ -5626,11 +5996,40 @@ export function BlockContentTab({
       });
 
       const canAddMore = rowChildren.length < 20;
+      const isRowHorizontal = (c.rowLayoutMode ?? 'grid') === 'horizontal';
 
       return {
         badge: rowChildren.length,
         body: (
           <div className="space-y-2.5">
+            {/* Opsi Tampilan Slide Horizontal: Hide/Show Scrollbar & Titik Indikator (Dots) */}
+            {isRowHorizontal && (
+              <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-1.5">
+                <div className="text-[10.5px] font-bold text-[#5B708B]">
+                  Opsi Tampilan Slide
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Tampilkan Scrollbar
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(c.rowShowScrollbar)}
+                    onChange={(v) => updateContent({ rowShowScrollbar: v })}
+                    label="Tampilkan atau sembunyikan garis scrollbar horizontal"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Tampilkan Titik Slide (Dots)
+                  </span>
+                  <ToggleSwitch
+                    checked={c.rowShowDots !== false}
+                    onChange={(v) => updateContent({ rowShowDots: v })}
+                    label="Tampilkan atau sembunyikan 3 titik indikator progress slide"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Buat Slide Kosong Horizontal / Vertikal */}
             <div className="grid grid-cols-2 gap-1.5">
@@ -5700,72 +6099,233 @@ export function BlockContentTab({
                 <Plus className="w-3 h-3 text-[#00C98A]" />
                 <span>Kolom Kotak</span>
               </button>
-              <button
-                type="button"
-                disabled={!canAddMore}
-                onClick={() => onAddChildToContainer(selectedBlock.id, 'image')}
-                className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] text-[11px] font-semibold text-[#17243D] disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="w-3 h-3 text-[#00C98A]" />
-                <span>Kolom Gambar</span>
-              </button>
-              <button
-                type="button"
-                disabled={!canAddMore}
-                onClick={() => onAddChildToContainer(selectedBlock.id, 'button')}
-                className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] text-[11px] font-semibold text-[#17243D] disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="w-3 h-3 text-[#00C98A]" />
-                <span>Kolom Tombol</span>
-              </button>
-              <button
-                type="button"
-                disabled={!canAddMore}
-                onClick={() => onAddChildToContainer(selectedBlock.id, 'cart_button')}
-                className="col-span-2 inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-[11px] font-semibold text-emerald-800 disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="w-3 h-3 text-emerald-600" />
-                <span>Tambah Tombol Keranjang (- 1 +)</span>
-              </button>
             </div>
 
-            {rowChildren.map((child, idx) => (
-              <div
-                key={child.id}
-                onClick={() => onSelectBlock?.(child.id)}
-                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer"
-              >
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-[#17243D] truncate">
-                    {idx + 1}. {child.label || label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])}
-                  </div>
-                  <div className="text-[10.5px] text-[#8FA4BF]">
-                    {label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} · Klik untuk edit
-                  </div>
+            <div className="space-y-1.5">
+              {isVisible('konten.items.title.isiWadah') && (
+                <div className="text-[11px] font-semibold text-[#17243D]">
+                  {label('konten.items.title.isiWadah', 'Isi Komponen Wadah')} ({rowChildren.length}/20)
                 </div>
-                <ItemOverflowMenu
-                  onEdit={() => onSelectBlock?.(child.id)}
-                  editLabel="Buka Komponen"
-                  onDuplicate={() => {
-                    if (rowChildren.length >= 20) return;
-                    const dup = cloneBlockDeep(child);
-                    dup.label = `${child.label || label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} Salinan`;
-                    const next = [...rowChildren];
-                    next.splice(idx + 1, 0, dup);
-                    updateRowChildren(next);
-                  }}
-                  onMoveUp={() => updateRowChildren(moveArrayItem(rowChildren, idx, -1))}
-                  onMoveDown={() => updateRowChildren(moveArrayItem(rowChildren, idx, 1))}
-                  disableMoveUp={idx === 0}
-                  disableMoveDown={idx === rowChildren.length - 1}
-                  onDelete={() =>
-                    updateRowChildren(
-                      removeSelectedItemByIdOrIndex(rowChildren, child.id, idx)
-                    )
-                  }
+              )}
+              {rowChildren.length === 0 ? (
+                <SectionEmptyNote message="Baris ini masih kosong. Pilih elemen atau template blok di bawah untuk menambah kolom / slide." />
+              ) : (
+                rowChildren.map((child, idx) => (
+                  <div
+                    key={child.id}
+                    onClick={() => onSelectBlock?.(child.id)}
+                    className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#17243D] truncate">
+                        {idx + 1}.{' '}
+                        {child.label ||
+                          label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])}
+                      </div>
+                      <div className="text-[10.5px] text-[#8FA4BF]">
+                        {label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} · Klik
+                        untuk edit
+                      </div>
+                    </div>
+                    <div
+                      className="flex items-center gap-0.5 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        title="Hapus komponen"
+                        onClick={() =>
+                          updateRowChildren(
+                            removeSelectedItemByIdOrIndex(rowChildren, child.id, idx)
+                          )
+                        }
+                        className="p-1 rounded-md text-[#8FA4BF] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <ItemOverflowMenu
+                        onEdit={() => onSelectBlock?.(child.id)}
+                        editLabel="Buka Komponen"
+                        onDuplicate={() => {
+                          if (rowChildren.length >= 20) return;
+                          const dup = cloneBlockDeep(child);
+                          dup.label = `${
+                            child.label ||
+                            label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])
+                          } Salinan`;
+                          const next = [...rowChildren];
+                          next.splice(idx + 1, 0, dup);
+                          updateRowChildren(next);
+                        }}
+                        onMoveUp={() => updateRowChildren(moveArrayItem(rowChildren, idx, -1))}
+                        onMoveDown={() => updateRowChildren(moveArrayItem(rowChildren, idx, 1))}
+                        disableMoveUp={idx === 0}
+                        disableMoveDown={idx === rowChildren.length - 1}
+                        onDelete={() =>
+                          updateRowChildren(
+                            removeSelectedItemByIdOrIndex(rowChildren, child.id, idx)
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {renderUniversalContainerPicker({
+              disabled: !canAddMore,
+              onAddTool: (toolType) => onAddChildToContainer(selectedBlock.id, toolType),
+              onAddTemplate: (sectionId) => appendTemplateToBlock(sectionId, 20),
+            })}
+          </div>
+        ),
+      };
+    }
+
+    // --- HERO_PROFILE (COMPOSABLE CONTAINER: ISI WADAH + ELEMEN ALAT + TEMPLATE BLOK & CARD) ---
+    if (selectedBlock.type === 'hero_profile') {
+      const children = selectedBlock.children ?? [];
+      const heroVariant = c.heroVariant ?? 'compact';
+      const rawChildrenPos = c.heroChildrenPosition ?? 'on_cover';
+      const childrenPos: 'on_cover' | 'inside_card' | 'below_card' =
+        rawChildrenPos === 'overlap_cover' ? 'on_cover' : rawChildrenPos;
+
+      const appendHeroTool = (childType: BlockType) => {
+        const created = createBlock(childType, theme);
+        onUpdateBlock(selectedBlock.id, (blk) => ({
+          ...blk,
+          children: [...(blk.children ?? []), created],
+        }));
+      };
+
+      return {
+        badge: children.length,
+        body: (
+          <div className="space-y-3" data-hero-container-panel="true">
+            {/* Pengaturan Tampilan Isi Wadah Hero */}
+            <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Info Profil Bawaan
+                </span>
+                <ToggleSwitch
+                  checked={!c.heroHideDefaultContent}
+                  onChange={(show) => updateContent({ heroHideDefaultContent: !show })}
+                  label="Tampilkan logo dan teks profil bawaan Hero"
                 />
               </div>
-            ))}
+
+              {heroVariant === 'banner' && (
+                <div className="pt-1.5 border-t border-[#E6EEF6] space-y-1">
+                  <div className="text-[10.5px] font-semibold text-[#5B708B]">
+                    Posisi Isi Wadah
+                  </div>
+                  <SegmentedControl<'on_cover' | 'inside_card' | 'below_card'>
+                    value={childrenPos}
+                    onChange={(val) => updateContent({ heroChildrenPosition: val })}
+                    options={[
+                      { id: 'on_cover', label: 'Di Atas Cover' },
+                      { id: 'inside_card', label: 'Dalam Kartu' },
+                      { id: 'below_card', label: 'Bawah Kartu' },
+                    ]}
+                  />
+                  {childrenPos === 'on_cover' && (
+                    <p className="text-[10px] text-[#5B708B] leading-snug">
+                      Lapisan 1: Cover (Background) · Lapisan 2: Data &amp; Daftar Item di atas cover.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 1. Isi Komponen Wadah */}
+            <div className="space-y-1.5">
+              {isVisible('konten.items.title.isiWadah') && (
+                <div className="text-[11px] font-semibold text-[#17243D]">
+                  {label('konten.items.title.isiWadah', 'Isi Komponen Wadah')}
+                </div>
+              )}
+              {children.length === 0 ? (
+                <SectionEmptyNote message="Wadah Profile Hero masih kosong. Pilih elemen atau template blok di bawah untuk menambah isi." />
+              ) : (
+                children.map((child, idx) => (
+                  <div
+                    key={child.id}
+                    onClick={() => onSelectBlock?.(child.id)}
+                    className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#17243D] truncate">
+                        {idx + 1}.{' '}
+                        {child.label.trim() ||
+                          label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])}
+                      </div>
+                      <div className="text-[10.5px] text-[#8FA4BF]">
+                        {label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} · Klik
+                        untuk edit
+                      </div>
+                    </div>
+                    <div
+                      className="flex items-center gap-0.5 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        title="Hapus komponen"
+                        onClick={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: removeSelectedItemByIdOrIndex(
+                              blk.children ?? [],
+                              child.id,
+                              idx
+                            ),
+                          }))
+                        }
+                        className="p-1 rounded-md text-[#8FA4BF] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <ItemOverflowMenu
+                        onEdit={() => onSelectBlock?.(child.id)}
+                        editLabel="Buka Komponen"
+                        onMoveUp={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: moveArrayItem(blk.children ?? [], idx, -1),
+                          }))
+                        }
+                        onMoveDown={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: moveArrayItem(blk.children ?? [], idx, 1),
+                          }))
+                        }
+                        disableMoveUp={idx === 0}
+                        disableMoveDown={idx === children.length - 1}
+                        onDelete={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: removeSelectedItemByIdOrIndex(
+                              blk.children ?? [],
+                              child.id,
+                              idx
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {renderUniversalContainerPicker({
+              excludeHeroTemplates: true,
+              onAddTool: appendHeroTool,
+              onAddTemplate: (sectionId) => appendTemplateToBlock(sectionId),
+            })}
           </div>
         ),
       };
@@ -5780,10 +6340,6 @@ export function BlockContentTab({
         (selectedBlock.content.menuIconAction ?? 'sheet') === 'sheet')
     ) {
       const children = selectedBlock.children ?? [];
-      const addableTypes: BlockType[] =
-        selectedBlock.type === 'bottom_sheet' || selectedBlock.type === 'menu_icon'
-          ? ['cart_button', 'maps_place', 'text', 'image', 'button', 'form', 'catalog', 'showcase_card', 'carousel', 'social']
-          : ['cart_button', 'text', 'image', 'button', 'form', 'showcase_card', 'youtube', 'divider'];
 
       const applySheetTemplate = (tplId: 'maps' | 'contact' | 'promo' | 'form') => {
         let nextTitle = 'Lokasi & Ulasan';
@@ -5914,67 +6470,78 @@ export function BlockContentTab({
                   <div
                     key={child.id}
                     onClick={() => onSelectBlock?.(child.id)}
-                    className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer"
+                    className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer transition-colors"
                   >
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-[#17243D] truncate">
-                        {idx + 1}. {child.label.trim() || label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])}
+                        {idx + 1}.{' '}
+                        {child.label.trim() ||
+                          label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])}
                       </div>
                       <div className="text-[10.5px] text-[#8FA4BF]">
-                        {label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} · Klik untuk edit
+                        {label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} · Klik
+                        untuk edit
                       </div>
                     </div>
-                    <ItemOverflowMenu
-                      onEdit={() => onSelectBlock?.(child.id)}
-                      editLabel="Buka Komponen"
-                      onMoveUp={() =>
-                        onUpdateBlock(selectedBlock.id, (blk) => ({
-                          ...blk,
-                          children: moveArrayItem(blk.children ?? [], idx, -1),
-                        }))
-                      }
-                      onMoveDown={() =>
-                        onUpdateBlock(selectedBlock.id, (blk) => ({
-                          ...blk,
-                          children: moveArrayItem(blk.children ?? [], idx, 1),
-                        }))
-                      }
-                      disableMoveUp={idx === 0}
-                      disableMoveDown={idx === children.length - 1}
-                      onDelete={() =>
-                        onUpdateBlock(selectedBlock.id, (blk) => ({
-                          ...blk,
-                          children: removeSelectedItemByIdOrIndex(
-                            blk.children ?? [],
-                            child.id,
-                            idx
-                          ),
-                        }))
-                      }
-                    />
+                    <div
+                      className="flex items-center gap-0.5 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        title="Hapus komponen"
+                        onClick={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: removeSelectedItemByIdOrIndex(
+                              blk.children ?? [],
+                              child.id,
+                              idx
+                            ),
+                          }))
+                        }
+                        className="p-1 rounded-md text-[#8FA4BF] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <ItemOverflowMenu
+                        onEdit={() => onSelectBlock?.(child.id)}
+                        editLabel="Buka Komponen"
+                        onMoveUp={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: moveArrayItem(blk.children ?? [], idx, -1),
+                          }))
+                        }
+                        onMoveDown={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: moveArrayItem(blk.children ?? [], idx, 1),
+                          }))
+                        }
+                        disableMoveUp={idx === 0}
+                        disableMoveDown={idx === children.length - 1}
+                        onDelete={() =>
+                          onUpdateBlock(selectedBlock.id, (blk) => ({
+                            ...blk,
+                            children: removeSelectedItemByIdOrIndex(
+                              blk.children ?? [],
+                              child.id,
+                              idx
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 ))
               )}
             </div>
 
-            <div>
-              <div className="text-[11px] font-semibold text-[#17243D] mb-1.5">
-                {label('konten.field.tambahElemenWadah', '+ Tambah Elemen ke Wadah')}
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {addableTypes.map((childType) => (
-                  <button
-                    key={childType}
-                    type="button"
-                    onClick={() => onAddChildToContainer(selectedBlock.id, childType)}
-                    className="inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] hover:border-[#00C98A] text-[11px] font-medium text-[#17243D] cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3 text-[#00C98A] shrink-0" />
-                    <span className="truncate">{label(`komponen.type.${childType}`, BLOCK_TYPE_NAMES[childType])}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            {renderUniversalContainerPicker({
+              onAddTool: (toolType) => onAddChildToContainer(selectedBlock.id, toolType),
+              onAddTemplate: (sectionId) => appendTemplateToBlock(sectionId),
+            })}
           </div>
         ),
       };
@@ -5986,22 +6553,6 @@ export function BlockContentTab({
   // --- 4. TAUTAN & NAVIGASI ---
   const renderNavSection = () => {
     switch (selectedBlock.type) {
-      case 'button':
-        return (
-          <div>
-            <label className="block text-xs font-semibold text-[#17243D] mb-1">
-              {label('konten.field.urlTujuan', 'URL Tujuan')}
-            </label>
-            <input
-              type="url"
-              value={c.url ?? ''}
-              placeholder="https://..."
-              onChange={(e) => updateContent({ url: e.target.value })}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white focus:border-[#00C98A] outline-none"
-            />
-          </div>
-        );
-
       case 'maps_place':
         return (
           <div className="space-y-2.5">
@@ -6530,22 +7081,63 @@ export function BlockContentTab({
                     <label className="block text-[10px] font-semibold text-[#64748B] mb-1">
                       Posisi Label Mengambang
                     </label>
-                    <SegmentedControl<'bottom-floating' | 'bottom-docked' | 'top-floating'>
-                      columns={3}
-                      value={
-                        c.cartFloatingPosition === 'bottom-docked' ||
-                        c.cartFloatingPosition === 'top-floating'
-                          ? c.cartFloatingPosition
-                          : 'bottom-floating'
+                    <select
+                      value={c.cartFloatingPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          cartFloatingPosition: e.target.value as FloatingCartPosition,
+                        })
                       }
-                      onChange={(pos) => updateContent({ cartFloatingPosition: pos })}
-                      options={[
-                        { id: 'bottom-floating', label: 'Bawah' },
-                        { id: 'bottom-docked', label: 'Menempel' },
-                        { id: 'top-floating', label: 'Atas' },
-                      ]}
-                    />
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
                   </div>
+                  {(() => {
+                    const globalCart = resolveProjectFloatingCartConfig(
+                      allBlocks,
+                      bottomNavbar?.items,
+                      pages
+                    );
+                    if (!globalCart || globalCart.totalSources <= 1) return null;
+                    const isPrimary = globalCart.sourceBlockId === selectedBlock.id;
+                    return (
+                      <div
+                        className={`p-2 rounded-lg border text-[10px] leading-relaxed ${
+                          isPrimary
+                            ? 'bg-[#ECFDF6] border-[#00C98A]/40 text-[#0F5132]'
+                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                        }`}
+                      >
+                        {isPrimary ? (
+                          <span>
+                            Pengendali aktif Floating Cart global ({globalCart.totalSources} komponen keranjang terdeteksi).
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <div>
+                              Floating Cart global saat ini dikendalikan oleh <strong>{globalCart.sourceBlockLabel}</strong>.
+                            </div>
+                            {onSelectBlock && (
+                              <button
+                                type="button"
+                                onClick={() => onSelectBlock(globalCart.sourceBlockId)}
+                                className="underline font-bold cursor-pointer"
+                              >
+                                Buka komponen pengendali
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -6723,6 +7315,34 @@ export function BlockContentTab({
                 onChange={(e) => updateContent({ sheetTitle: e.target.value })}
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
               />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                Arah Buka Sheet
+              </label>
+              <div className="grid grid-cols-4 gap-1">
+                {(
+                  [
+                    { id: 'bottom', label: 'Bawah' },
+                    { id: 'top', label: 'Atas' },
+                    { id: 'right', label: 'Kanan' },
+                    { id: 'left', label: 'Kiri' },
+                  ] as const
+                ).map((pos) => (
+                  <button
+                    key={pos.id}
+                    type="button"
+                    onClick={() => updateContent({ sheetPosition: pos.id })}
+                    className={`py-1 px-1.5 rounded-md border text-[10.5px] font-semibold cursor-pointer transition-colors ${
+                      (c.sheetPosition ?? 'bottom') === pos.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-[#F0F5FA] text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                    }`}
+                  >
+                    {pos.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         );
@@ -6920,10 +7540,16 @@ export function BlockContentTab({
     ) {
       return null;
     }
-    const actionType: UniversalActionType = c.actionType ?? 'none';
+    const isButtonBlock = selectedBlock.type === 'button';
+    const legacyButtonUrl = isButtonBlock ? (c.url ?? '').trim() : '';
+    const actionType: UniversalActionType =
+      c.actionType ?? (isButtonBlock && legacyButtonUrl && legacyButtonUrl !== '#' ? 'url' : 'none');
     const sheetPos: MenuIconSheetPosition = c.actionSheetPosition ?? 'bottom';
     const sheetBlocks = c.actionSheetBlocks ?? [];
     const targetCandidates = flattenTargetBlocks(allBlocks, selectedBlock.id);
+    const currentUrlValue = isButtonBlock
+      ? (c.actionUrl ?? c.url ?? '')
+      : (c.actionUrl ?? '');
 
     const sheetQuickTypes: { type: BlockType; label: string }[] = [
       { type: 'text', label: '+ Teks' },
@@ -6941,7 +7567,9 @@ export function BlockContentTab({
         <div>
           {isVisible('konten.nav.title.aksiKlikUniversal') && (
             <label className="block text-[11px] font-bold text-[#17243D] mb-1">
-              {label('konten.nav.title.aksiKlikUniversal', 'Aksi Saat Lapisan / Kartu Diklik')}
+              {isButtonBlock
+                ? 'Aksi Saat Tombol Diklik'
+                : label('konten.nav.title.aksiKlikUniversal', 'Aksi Saat Lapisan / Kartu Diklik')}
             </label>
           )}
           <select
@@ -6950,17 +7578,22 @@ export function BlockContentTab({
               const nextAction = e.target.value as UniversalActionType;
               updateContent({
                 actionType: nextAction,
+                ...(isButtonBlock && nextAction === 'url' && !c.actionUrl && c.url
+                  ? { actionUrl: c.url }
+                  : {}),
                 ...(nextAction === 'sheet' && !c.actionSheetPosition
                   ? { actionSheetPosition: 'bottom' }
                   : {}),
                 ...(nextAction === 'sheet' && !c.actionSheetTitle
-                  ? { actionSheetTitle: c.cardTitle || selectedBlock.label || 'Detail Panel' }
+                  ? { actionSheetTitle: c.cardTitle || c.label || selectedBlock.label || 'Detail Panel' }
                   : {}),
               });
             }}
             className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-semibold text-[#17243D]"
           >
-            <option value="none">Tidak Ada Aksi Tambahan</option>
+            <option value="none">
+              {isButtonBlock ? 'Tidak Ada Aksi' : 'Tidak Ada Aksi Tambahan'}
+            </option>
             <option value="url">Buka Tautan Link (URL)</option>
             <option value="sheet">Buka Sheet (Bawah / Kanan / Kiri / Atas)</option>
             <option value="page">Buka Halaman Baru / Halaman Lain</option>
@@ -6970,17 +7603,37 @@ export function BlockContentTab({
         </div>
 
         {actionType === 'url' && (
-          <div>
-            <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-              {label('konten.field.urlTujuan', 'URL Tujuan')}
-            </label>
-            <input
-              type="url"
-              value={c.actionUrl ?? ''}
-              placeholder="https://..."
-              onChange={(e) => updateContent({ actionUrl: e.target.value })}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
-            />
+          <div className="space-y-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                {label('konten.field.urlTujuan', 'URL Tujuan')}
+              </label>
+              <input
+                type="url"
+                value={currentUrlValue}
+                placeholder="https://..."
+                onChange={(e) =>
+                  updateContent(
+                    isButtonBlock
+                      ? { actionUrl: e.target.value, url: e.target.value, actionType: 'url' }
+                      : { actionUrl: e.target.value }
+                  )
+                }
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            {isButtonBlock && (
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Buka di tab baru
+                </span>
+                <ToggleSwitch
+                  checked={c.buttonOpenInNewTab !== false}
+                  onChange={(checked) => updateContent({ buttonOpenInNewTab: checked })}
+                  label="Buka tautan di tab baru"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -7360,21 +8013,67 @@ export function BlockContentTab({
                       />
                     </div>
                   </div>
-                  <SegmentedControl<'bottom-floating' | 'bottom-right' | 'bottom-left'>
-                    columns={3}
-                    value={
-                      c.universalCartFloatingPosition === 'bottom-right' ||
-                      c.universalCartFloatingPosition === 'bottom-left'
-                        ? c.universalCartFloatingPosition
-                        : 'bottom-floating'
-                    }
-                    onChange={(pos) => updateContent({ universalCartFloatingPosition: pos })}
-                    options={[
-                      { id: 'bottom-floating', label: 'Bawah Penuh' },
-                      { id: 'bottom-right', label: 'Kanan Bawah' },
-                      { id: 'bottom-left', label: 'Kiri Bawah' },
-                    ]}
-                  />
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#51637D] mb-1">
+                      Posisi Bar Mengambang
+                    </label>
+                    <select
+                      value={c.universalCartFloatingPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          universalCartFloatingPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  {(() => {
+                    const globalCart = resolveProjectFloatingCartConfig(
+                      allBlocks,
+                      bottomNavbar?.items,
+                      pages
+                    );
+                    if (!globalCart || globalCart.totalSources <= 1) return null;
+                    const isPrimary = globalCart.sourceBlockId === selectedBlock.id;
+                    return (
+                      <div
+                        className={`p-2 rounded-lg border text-[10px] leading-relaxed ${
+                          isPrimary
+                            ? 'bg-[#ECFDF6] border-[#00C98A]/40 text-[#0F5132]'
+                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                        }`}
+                      >
+                        {isPrimary ? (
+                          <span>
+                            Pengendali aktif Floating Cart global ({globalCart.totalSources} komponen keranjang terdeteksi).
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <div>
+                              Floating Cart global saat ini dikendalikan oleh <strong>{globalCart.sourceBlockLabel}</strong>.
+                            </div>
+                            {onSelectBlock && (
+                              <button
+                                type="button"
+                                onClick={() => onSelectBlock(globalCart.sourceBlockId)}
+                                className="underline font-bold cursor-pointer"
+                              >
+                                Buka komponen pengendali
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>
@@ -7408,27 +8107,6 @@ export function BlockContentTab({
 
   const extraContent = renderExtraSection();
 
-  const showTypographyAccordion =
-    selectedBlock.type === 'text' ||
-    selectedBlock.type === 'button' ||
-    selectedBlock.type === 'cart_button' ||
-    selectedBlock.type === 'back_button' ||
-    selectedBlock.type === 'showcase_card' ||
-    selectedBlock.type === 'container' ||
-    selectedBlock.type === 'row' ||
-    selectedBlock.type === 'image' ||
-    selectedBlock.type === 'hero_profile' ||
-    selectedBlock.type === 'catalog' ||
-    selectedBlock.type === 'fnb_catalog' ||
-    selectedBlock.type === 'training_catalog' ||
-    selectedBlock.type === 'maps_place' ||
-    selectedBlock.type === 'form' ||
-    selectedBlock.type === 'toggle_container' ||
-    selectedBlock.type === 'bottom_sheet' ||
-    selectedBlock.type === 'category_tabs' ||
-    selectedBlock.type === 'social_feed' ||
-    selectedBlock.type === 'social_follower';
-
   const resolvedWaCenter = resolveWhatsappCenter({ whatsappCenter });
   const supportsWaCenterIntegration =
     selectedBlock.type === 'button' ||
@@ -7442,7 +8120,7 @@ export function BlockContentTab({
   return (
     <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2 bg-[#F4F7FB]">
       {/* 1. DATA & DAFTAR ITEM — Tampil paling atas jika tersedia */}
-      {itemsInfo && isVisible('konten.sec.items') && (
+      {itemsInfo && isVisible('konten.sec.items') && isContentSectionAllowed('items') && (
         <AccordionSection
           id="items"
           title={label('konten.sec.items', 'Data & Daftar Item')}
@@ -7456,7 +8134,7 @@ export function BlockContentTab({
       )}
 
       {/* 2. KONTEN UTAMA */}
-      {mainContent && isVisible('konten.sec.main') && (
+      {mainContent && isVisible('konten.sec.main') && isContentSectionAllowed('main') && (
         <AccordionSection
           id="main"
           title={label('konten.sec.main', 'Konten Utama')}
@@ -7469,7 +8147,7 @@ export function BlockContentTab({
       )}
 
       {/* 3. TAUTAN & NAVIGASI */}
-      {navContent && isVisible('konten.sec.nav') && (
+      {navContent && isVisible('konten.sec.nav') && isContentSectionAllowed('nav') && (
         <AccordionSection
           id="nav"
           title={label('konten.sec.nav', 'Tautan & Navigasi')}
@@ -7482,7 +8160,7 @@ export function BlockContentTab({
       )}
 
       {/* 4. PENGATURAN UMUM */}
-      {isVisible('konten.sec.general') && (
+      {isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
         <AccordionSection
           id="general"
           title={label('konten.sec.general', 'Pengaturan Umum')}
@@ -7612,7 +8290,7 @@ export function BlockContentTab({
       )}
 
       {/* 5. AKSI & INTERAKSI */}
-      {actionsContent && isVisible('konten.sec.actions') && (
+      {actionsContent && isVisible('konten.sec.actions') && isContentSectionAllowed('actions') && (
         <AccordionSection
           id="actions"
           title={label('konten.sec.actions', 'Aksi & Interaksi')}
@@ -7624,22 +8302,7 @@ export function BlockContentTab({
         </AccordionSection>
       )}
 
-      {/* PENDUKUNG: TIPOGRAFI & PENGATURAN TAMBAHAN */}
-      {showTypographyAccordion && isVisible('desain.sec.typo') && (
-        <AccordionSection
-          id="typo"
-          title={label('desain.sec.typo', 'Tipografi')}
-          icon={<Type className="w-3.5 h-3.5" />}
-          isOpen={openSections.typo}
-          onToggle={() => toggleSection('typo')}
-        >
-          {renderTypographyControls({
-            showVariantAndWeight: selectedBlock.type === 'text',
-          })}
-        </AccordionSection>
-      )}
-
-      {extraContent && isVisible('konten.sec.extra') && (
+      {extraContent && isVisible('konten.sec.extra') && isContentSectionAllowed('extra') && (
         <AccordionSection
           id="extra"
           title={label('konten.sec.extra', 'Pengaturan Tambahan')}
@@ -7649,6 +8312,16 @@ export function BlockContentTab({
         >
           {extraContent}
         </AccordionSection>
+      )}
+
+      {selectedSubLayer && onClearSubLayer && (
+        <button
+          type="button"
+          onClick={onClearSubLayer}
+          className="w-full py-2 px-3 rounded-lg border border-dashed border-[#00C98A]/60 bg-white text-[11px] font-semibold text-[#008F63] hover:bg-[#ECFDF6] transition-colors cursor-pointer"
+        >
+          Tampilkan Semua Pengaturan Konten Komponen Induk
+        </button>
       )}
     </div>
   );

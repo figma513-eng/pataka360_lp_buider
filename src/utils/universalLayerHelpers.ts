@@ -31,11 +31,27 @@ export interface ResolvedUniversalCartMeta {
 export interface ResolvedBlockAction {
   type: UniversalActionType;
   url: string;
+  openInNewTab: boolean;
   sheetPosition: MenuIconSheetPosition;
   sheetTitle: string;
   sheetBlocks: BuilderBlock[];
   targetPageId: string;
   targetBlockId: string;
+}
+
+export interface ResolvedProjectFloatingCart {
+  label: string;
+  bg: string;
+  position: FloatingCartPosition;
+  offsetY: number;
+  sourceBlockId: string;
+  sourceBlockLabel: string;
+  sourceType: 'fnb_catalog' | 'cart_button' | 'universal_cart';
+  totalSources: number;
+}
+
+export function isTopFloatingCartPosition(pos?: FloatingCartPosition): boolean {
+  return pos === 'top-floating' || pos === 'top-left' || pos === 'top-right';
 }
 
 export const UNIVERSAL_CART_EXCLUDED_TYPES = new Set([
@@ -94,15 +110,26 @@ export function resolveUniversalCartMeta(
 export function resolveBlockAction(block: BuilderBlock): ResolvedBlockAction {
   const c = block.content || {};
   let type: UniversalActionType = c.actionType || 'none';
+  let resolvedUrl = (c.actionUrl || '').trim();
 
-  // Keep seamless compatibility with menu_icon & showcase_card legacy action properties
+  // Keep seamless compatibility with back_button & legacy button.content.url
   if (type === 'none' && block.type === 'back_button') {
     type = 'back';
+  }
+  if (block.type === 'button') {
+    const legacyUrl = (c.url || '').trim();
+    if (!c.actionType && legacyUrl && legacyUrl !== '#') {
+      type = 'url';
+    }
+    if (type === 'url' && !resolvedUrl) {
+      resolvedUrl = legacyUrl;
+    }
   }
 
   return {
     type,
-    url: (c.actionUrl || '').trim(),
+    url: resolvedUrl,
+    openInNewTab: c.buttonOpenInNewTab !== false,
     sheetPosition: c.actionSheetPosition || 'bottom',
     sheetTitle: (c.actionSheetTitle || block.label || 'Detail Informasi').trim(),
     sheetBlocks: Array.isArray(c.actionSheetBlocks) ? c.actionSheetBlocks : [],
@@ -180,35 +207,31 @@ export function walkProjectBlocks(
   }
 }
 
-export function findFirstFloatingCartConfig(
+export function resolveProjectFloatingCartConfig(
   blocks: BuilderBlock[],
   navItems?: { children?: BuilderBlock[] }[],
   pages?: BuilderSubPage[]
-): {
-  label: string;
-  bg: string;
-  position: FloatingCartPosition;
-  offsetY: number;
-} | null {
+): ResolvedProjectFloatingCart | null {
   let fnbMatch: BuilderBlock | null = null;
   let cartBtnMatch: BuilderBlock | null = null;
   let universalCartMatch: BuilderBlock | null = null;
+  let totalSources = 0;
 
   const inspect = (list: BuilderBlock[]) => {
     walkAllBlocks(list, (b) => {
-      if (!fnbMatch && b.type === 'fnb_catalog' && b.content.fnbFloatingCartEnabled !== false) {
-        fnbMatch = b;
-      }
-      if (!cartBtnMatch && b.type === 'cart_button' && b.content.cartFloatingEnabled !== false) {
-        cartBtnMatch = b;
-      }
-      if (
-        !universalCartMatch &&
+      if (b.type === 'fnb_catalog' && b.content.fnbFloatingCartEnabled !== false) {
+        totalSources += 1;
+        if (!fnbMatch) fnbMatch = b;
+      } else if (b.type === 'cart_button' && b.content.cartFloatingEnabled !== false) {
+        totalSources += 1;
+        if (!cartBtnMatch) cartBtnMatch = b;
+      } else if (
         b.content.universalCartEnabled &&
         b.content.universalCartFloatingEnabled !== false &&
         supportsUniversalCart(b.type)
       ) {
-        universalCartMatch = b;
+        totalSources += 1;
+        if (!universalCartMatch) universalCartMatch = b;
       }
     });
   };
@@ -222,31 +245,66 @@ export function findFirstFloatingCartConfig(
   }
 
   if (fnbMatch) {
-    const c = (fnbMatch as BuilderBlock).content;
+    const blk = fnbMatch as BuilderBlock;
+    const c = blk.content;
     return {
       label: c.fnbFloatingCartLabel || 'Lanjut',
-      bg: c.fnbFloatingCartBg || '#EA580C',
+      bg: c.fnbFloatingCartBg || c.fnbAccentColor || '#EA580C',
       position: c.fnbFloatingCartPosition || 'bottom-floating',
       offsetY: typeof c.fnbFloatingCartOffsetY === 'number' ? c.fnbFloatingCartOffsetY : 16,
+      sourceBlockId: blk.id,
+      sourceBlockLabel: blk.label || 'Katalog FnB',
+      sourceType: 'fnb_catalog',
+      totalSources,
     };
   }
   if (cartBtnMatch) {
-    const c = (cartBtnMatch as BuilderBlock).content;
+    const blk = cartBtnMatch as BuilderBlock;
+    const c = blk.content;
     return {
       label: c.cartFloatingLabel || 'Lihat Keranjang',
-      bg: c.cartFloatingBg || '#059669',
+      bg: c.cartFloatingBg || c.cartAccentColor || '#059669',
       position: c.cartFloatingPosition || 'bottom-floating',
       offsetY: 16,
+      sourceBlockId: blk.id,
+      sourceBlockLabel: blk.label || 'Tombol Keranjang',
+      sourceType: 'cart_button',
+      totalSources,
     };
   }
   if (universalCartMatch) {
-    const c = (universalCartMatch as BuilderBlock).content;
+    const blk = universalCartMatch as BuilderBlock;
+    const c = blk.content;
     return {
       label: c.universalCartFloatingLabel || 'Lihat Keranjang',
-      bg: c.universalCartFloatingBg || '#059669',
+      bg: c.universalCartFloatingBg || c.universalCartAccentColor || '#059669',
       position: c.universalCartFloatingPosition || 'bottom-floating',
       offsetY: 16,
+      sourceBlockId: blk.id,
+      sourceBlockLabel: blk.label || 'Keranjang Universal',
+      sourceType: 'universal_cart',
+      totalSources,
     };
   }
   return null;
+}
+
+export function findFirstFloatingCartConfig(
+  blocks: BuilderBlock[],
+  navItems?: { children?: BuilderBlock[] }[],
+  pages?: BuilderSubPage[]
+): {
+  label: string;
+  bg: string;
+  position: FloatingCartPosition;
+  offsetY: number;
+} | null {
+  const resolved = resolveProjectFloatingCartConfig(blocks, navItems, pages);
+  if (!resolved) return null;
+  return {
+    label: resolved.label,
+    bg: resolved.bg,
+    position: resolved.position,
+    offsetY: resolved.offsetY,
+  };
 }

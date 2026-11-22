@@ -369,7 +369,10 @@ export function SocialFeedCard({
   return (
     <div style={{ color: textColor }} className="w-full space-y-3 text-left">
       {/* 1. Header: Logo Sosmed & Nama Akun + Follower/Subscribe + Tombol Ikuti */}
-      <div className="flex items-center justify-between gap-2">
+      <div
+        data-canvas-sublayer="social_feed_profile"
+        className="flex items-center justify-between gap-2 rounded-lg"
+      >
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="relative shrink-0">
             {avatar?.trim() && !brokenImages[`av_${avatar}`] ? (
@@ -461,6 +464,7 @@ export function SocialFeedCard({
         <div
           className="relative select-none"
           onDragStart={(e) => {
+            if (e.currentTarget.closest('[data-canvas-mode="drag"]')) return;
             e.preventDefault();
             e.stopPropagation();
           }}
@@ -485,6 +489,7 @@ export function SocialFeedCard({
                 return (
                   <div key={post.id} className="w-full shrink-0 snap-start">
                     <div
+                      data-canvas-sublayer={`sfp_${post.id || idx}`}
                       style={{ borderColor, borderRadius: `${mediaRadius}px` }}
                       className="border overflow-hidden bg-slate-500/5"
                     >

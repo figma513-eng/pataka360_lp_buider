@@ -13,6 +13,9 @@ interface PhotoCarouselProps {
   textColor: string;
   accentColor: string;
   align: TextAlign;
+  showDots?: boolean;
+  showArrows?: boolean;
+  showScrollbar?: boolean;
   isEditor?: boolean;
 }
 
@@ -26,6 +29,9 @@ export function PhotoCarousel({
   textColor,
   accentColor,
   align,
+  showDots = true,
+  showArrows = true,
+  showScrollbar = false,
   isEditor = false,
 }: PhotoCarouselProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +123,7 @@ export function PhotoCarousel({
     <div
       className="relative w-full select-none"
       onDragStart={(e) => {
+        if (e.currentTarget.closest('[data-canvas-mode="drag"]')) return;
         // Prevent outer block HTML5 drag from hijacking horizontal mouse swipe
         e.preventDefault();
         e.stopPropagation();
@@ -131,7 +138,9 @@ export function PhotoCarousel({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           onPointerLeave={handlePointerUp}
-          className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing"
+          className={`flex overflow-x-auto snap-x snap-mandatory scroll-smooth touch-pan-x cursor-grab active:cursor-grabbing ${
+            showScrollbar ? 'pb-1.5' : 'no-scrollbar'
+          }`}
           style={{ borderRadius: `${borderRadius}px` }}
         >
           {items.map((item, idx) => {
@@ -143,6 +152,7 @@ export function PhotoCarousel({
 
             const slideInner = (
               <div
+                data-canvas-sublayer={`slide_${item.id || idx}`}
                 style={{
                   backgroundColor: cardBg,
                   borderColor,
@@ -223,14 +233,14 @@ export function PhotoCarousel({
         </div>
 
         {/* Slide counter pill */}
-        {items.length > 1 && (
+        {showArrows && items.length > 1 && (
           <div className="absolute top-2.5 right-2.5 z-10 px-2 py-0.5 rounded-full bg-slate-900/65 text-white text-[10px] font-semibold tabular-nums backdrop-blur-xs pointer-events-none">
             {activeIndex + 1} / {items.length}
           </div>
         )}
 
         {/* Prev / Next Navigation Buttons */}
-        {items.length > 1 && (
+        {showArrows && items.length > 1 && (
           <>
             <button
               type="button"
@@ -271,7 +281,7 @@ export function PhotoCarousel({
       </div>
 
       {/* Dot Indicators */}
-      {items.length > 1 && (
+      {showDots && items.length > 1 && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
           className="flex items-center justify-center gap-1.5 mt-2.5"

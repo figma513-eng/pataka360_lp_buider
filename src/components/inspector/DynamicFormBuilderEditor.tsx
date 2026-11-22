@@ -497,6 +497,87 @@ export function DynamicFormBuilderEditor({
                           </div>
                         )}
 
+                        {(field.type === 'text' ||
+                          field.type === 'textarea' ||
+                          field.type === 'name' ||
+                          field.type === 'email' ||
+                          field.type === 'phone' ||
+                          field.type === 'tel' ||
+                          field.type === 'address') && (
+                          <div className="pt-1 border-t border-[#E6EEF6] space-y-2">
+                            <div className="text-[10px] font-bold text-[#17243D]">
+                              Validasi Tambahan (Opsional)
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#51637D] block mb-0.5">
+                                  Panjang Min (Karakter)
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={2000}
+                                  value={field.minLength ?? ''}
+                                  placeholder="Bebas"
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const n = Number(raw);
+                                    updateField(field.id, {
+                                      minLength:
+                                        raw === '' || !Number.isFinite(n) || n <= 0
+                                          ? undefined
+                                          : Math.min(2000, Math.round(n)),
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 text-[11px] bg-white border border-[#DCE5EF] rounded-md"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#51637D] block mb-0.5">
+                                  Panjang Maks (Karakter)
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={5000}
+                                  value={field.maxLength ?? ''}
+                                  placeholder="Bebas"
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const n = Number(raw);
+                                    updateField(field.id, {
+                                      maxLength:
+                                        raw === '' || !Number.isFinite(n) || n <= 0
+                                          ? undefined
+                                          : Math.min(5000, Math.round(n)),
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 text-[11px] bg-white border border-[#DCE5EF] rounded-md"
+                                />
+                              </div>
+                            </div>
+                            {(field.type === 'phone' || field.type === 'tel') && (
+                              <div>
+                                <label className="text-[10px] font-semibold text-[#51637D] block mb-0.5">
+                                  Format Nomor Telepon / WhatsApp
+                                </label>
+                                <select
+                                  value={field.phoneFormat ?? 'general'}
+                                  onChange={(e) =>
+                                    updateField(field.id, {
+                                      phoneFormat: e.target.value as 'general' | 'whatsapp',
+                                    })
+                                  }
+                                  className="w-full px-2 py-1 text-[11px] bg-white border border-[#DCE5EF] rounded-md"
+                                >
+                                  <option value="general">Umum (8–16 digit angka)</option>
+                                  <option value="whatsapp">Khusus WhatsApp ID (08 / 628, 10–15 digit)</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-[10px] font-semibold text-[#51637D] block mb-0.5">

@@ -100,6 +100,7 @@ export function MapsPlaceCard({
     <div style={{ color: textColor }} className="w-full overflow-hidden">
       {/* Foto Lokasi Maps */}
       <div
+        data-canvas-sublayer="maps_photo"
         className="relative w-full bg-slate-200 overflow-hidden"
         style={{
           aspectRatio: photoRatio,
@@ -142,7 +143,10 @@ export function MapsPlaceCard({
       </div>
 
       {/* Info Lokasi, Bintang & Layanan */}
-      <div className={`px-4 py-3.5 flex flex-col gap-1.5 ${alignClass}`}>
+      <div
+        data-canvas-sublayer="maps_info"
+        className={`px-4 py-3.5 flex flex-col gap-1.5 ${alignClass}`}
+      >
         <div className="text-base font-bold leading-snug tracking-tight">
           {title || 'Nama Lokasi'}
         </div>
@@ -197,7 +201,7 @@ export function MapsPlaceCard({
 
         {/* Tombol Buka Google Maps */}
         {cleanMapsUrl && buttonLabel.trim() && (
-          <div className="w-full pt-2">
+          <div data-canvas-sublayer="maps_action" className="w-full pt-2 rounded-lg">
             {isEditor ? (
               <div
                 style={{ backgroundColor: accentColor }}

@@ -1,8 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Link2, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { ButtonIconId } from '../types/builder';
-import { BUTTON_ICON_LIST, sanitizeIconUrl } from '../utils/buttonIcons';
+import {
+  BUTTON_ICON_CATEGORIES,
+  BUTTON_ICON_LIST,
+  ButtonIconCategory,
+  getButtonIconCategory,
+  sanitizeIconUrl,
+} from '../utils/buttonIcons';
 import { ButtonGlyph } from './ButtonIcon';
+import { MediaSourceInput } from './inspector/InspectorPrimitives';
 
 interface IconPickerProps {
   selectedIcon: ButtonIconId;
@@ -17,28 +24,32 @@ export function IconPicker({
   selectedIcon,
   iconUrl = '',
   allowNone = true,
-  accentVariant = 'blue',
+  accentVariant = 'emerald',
   onSelectIcon,
   onChangeIconUrl,
 }: IconPickerProps) {
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<ButtonIconCategory>('Semua');
 
   const icons = useMemo(() => {
     const base = allowNone ? BUTTON_ICON_LIST : BUTTON_ICON_LIST.filter((ic) => ic.id !== 'none');
     const q = query.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter(
-      (ic) => ic.label.toLowerCase().includes(q) || ic.id.toLowerCase().includes(q)
-    );
-  }, [allowNone, query]);
+    return base.filter((ic) => {
+      if (category !== 'Semua' && ic.id !== 'none' && getButtonIconCategory(ic.id) !== category) {
+        return false;
+      }
+      if (!q) return true;
+      return ic.label.toLowerCase().includes(q) || ic.id.toLowerCase().includes(q);
+    });
+  }, [allowNone, query, category]);
 
   const activeCls =
     accentVariant === 'emerald'
-      ? 'bg-emerald-600 text-white border-emerald-600'
+      ? 'bg-[#17243D] text-white border-[#17243D]'
       : 'bg-blue-600 text-white border-blue-600';
 
   const focusBorderCls =
-    accentVariant === 'emerald' ? 'focus:border-emerald-500' : 'focus:border-blue-500';
+    accentVariant === 'emerald' ? 'focus:border-[#00C98A]' : 'focus:border-blue-500';
 
   const hasCustomUrl = Boolean(sanitizeIconUrl(iconUrl));
 
@@ -64,6 +75,27 @@ export function IconPicker({
             <X className="w-3 h-3" />
           </button>
         )}
+      </div>
+
+      {/* Filter Kategori Ikon */}
+      <div className="flex flex-wrap gap-1">
+        {BUTTON_ICON_CATEGORIES.map((cat) => {
+          const isCatActive = category === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategory(cat)}
+              className={`px-2 py-0.5 rounded-md text-[9.5px] font-semibold border transition-colors cursor-pointer ${
+                isCatActive
+                  ? 'bg-[#ECFDF6] border-[#00C98A] text-[#008F63]'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              {cat}
+            </button>
+          );
+        })}
       </div>
 
       {/* Grid Ikon */}
@@ -98,37 +130,16 @@ export function IconPicker({
         )}
       </div>
 
-      {/* Link Ikon Kustom (URL gambar / SVG) */}
-      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <label className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
-            <Link2 className="w-3 h-3 text-slate-500" />
-            <span>Link Ikon Kustom (URL)</span>
-          </label>
-          {iconUrl.trim() && (
-            <button
-              type="button"
-              onClick={() => onChangeIconUrl('')}
-              className="text-[10.5px] font-semibold text-red-600 hover:underline cursor-pointer"
-            >
-              Hapus Link
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {hasCustomUrl && (
-            <span className="w-7 h-7 rounded-md border border-slate-200 bg-white flex items-center justify-center shrink-0 p-1">
-              <ButtonGlyph icon="info" iconUrl={iconUrl} className="w-4 h-4" />
-            </span>
-          )}
-          <input
-            type="url"
-            value={iconUrl}
-            onChange={(e) => onChangeIconUrl(e.target.value)}
-            placeholder="https://.../icon.png atau .svg"
-            className={`flex-1 min-w-0 px-2 py-1 text-[11px] rounded-md border border-slate-200 bg-white outline-none ${focusBorderCls}`}
-          />
-        </div>
+      {/* Upload / Link Ikon Kustom (WebP / SVG dengan preview & simpan) */}
+      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+        <MediaSourceInput
+          label="Ikon Kustom (Upload / URL SVG & Gambar)"
+          value={iconUrl}
+          placeholder="https://.../icon.svg atau .png"
+          onChangeUrl={(nextUrl) => onChangeIconUrl(nextUrl)}
+          onSavePreparedUrl={(url) => onChangeIconUrl(url)}
+          onClear={iconUrl.trim() ? () => onChangeIconUrl('') : undefined}
+        />
       </div>
     </div>
   );

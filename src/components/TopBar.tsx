@@ -19,6 +19,7 @@ import {
 import { AuthUser, FeaturePermissionsMap, ProjectRecord, ServerSyncState } from '../types/builder';
 import { CollabPeer } from '../utils/collabClient';
 import { resolveProjectPublishing } from '../utils/publishingHelpers';
+import { useUiLabel } from '../contexts/UiLabelsContext';
 
 export type WorkspacePageId =
   | 'editor'
@@ -86,6 +87,7 @@ export function TopBar({
   onOpenLogin,
   onLogout,
 }: TopBarProps) {
+  const { label, isVisible } = useUiLabel();
   const [bizOpen, setBizOpen] = useState(false);
   const [bizSearch, setBizSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -342,25 +344,27 @@ export function TopBar({
         aria-label="Navigasi Halaman Utama"
         className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar min-w-0"
       >
-        <button
-          type="button"
-          onClick={() => onNavigatePage('editor')}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-            activePage === 'editor'
-              ? 'bg-[#17243D] text-white'
-              : 'text-[#5B708B] hover:text-[#17243D] hover:bg-[#F0F5FA]'
-          }`}
-        >
-          <PenTool
-            className={`w-3.5 h-3.5 shrink-0 ${
-              activePage === 'editor' ? 'text-[#00C98A]' : 'text-[#8FA4BF]'
+        {isVisible('topbar.nav.editor') && (
+          <button
+            type="button"
+            onClick={() => onNavigatePage('editor')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              activePage === 'editor'
+                ? 'bg-[#17243D] text-white'
+                : 'text-[#5B708B] hover:text-[#17243D] hover:bg-[#F0F5FA]'
             }`}
-            strokeWidth={1.9}
-          />
-          <span>Editor</span>
-        </button>
+          >
+            <PenTool
+              className={`w-3.5 h-3.5 shrink-0 ${
+                activePage === 'editor' ? 'text-[#00C98A]' : 'text-[#8FA4BF]'
+              }`}
+              strokeWidth={1.9}
+            />
+            <span>{label('topbar.nav.editor', 'Editor')}</span>
+          </button>
+        )}
 
-        {canAnalytics && (
+        {canAnalytics && isVisible('topbar.nav.analytics') && (
           <button
             type="button"
             onClick={() => onNavigatePage('analitik')}
@@ -377,11 +381,11 @@ export function TopBar({
               }`}
               strokeWidth={1.9}
             />
-            <span>Analitik</span>
+            <span>{label('topbar.nav.analytics', 'Analitik')}</span>
           </button>
         )}
 
-        {canAds && (
+        {canAds && isVisible('topbar.nav.ads') && (
           <button
             type="button"
             onClick={() => onNavigatePage('ads')}
@@ -398,11 +402,11 @@ export function TopBar({
               }`}
               strokeWidth={1.9}
             />
-            <span>Iklan</span>
+            <span>{label('topbar.nav.ads', 'Iklan')}</span>
           </button>
         )}
 
-        {canSystemSettings && (
+        {canSystemSettings && isVisible('topbar.nav.settings') && (
           <button
             type="button"
             onClick={() => onNavigatePage('setting_sistem')}
@@ -419,7 +423,7 @@ export function TopBar({
               }`}
               strokeWidth={1.9}
             />
-            <span>Pengaturan</span>
+            <span>{label('topbar.nav.settings', 'Pengaturan')}</span>
           </button>
         )}
       </nav>
@@ -462,12 +466,12 @@ export function TopBar({
                 ? 'Konflik Versi'
                 : syncState === 'error'
                 ? 'Simpan Ulang'
-                : 'Simpan'}
+                : label('topbar.action.save', 'Simpan')}
             </span>
           </button>
         )}
 
-        {onOpenPreview && (
+        {onOpenPreview && isVisible('topbar.action.preview') && (
           <button
             type="button"
             onClick={onOpenPreview}
@@ -476,7 +480,7 @@ export function TopBar({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F0F5FA] hover:border-[#8FA4BF] text-[12.5px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Eye className="w-3.5 h-3.5 text-[#00C98A] shrink-0" strokeWidth={1.9} />
-            <span>Pratinjau</span>
+            <span>{label('topbar.action.preview', 'Pratinjau')}</span>
           </button>
         )}
 
@@ -498,15 +502,17 @@ export function TopBar({
         )}
 
         {authUser ? (
-          <button
-            type="button"
-            onClick={onLogout}
-            title={`Keluar dari akun ${authUser.name} (${authUser.email})`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-[#17243D] text-[12.5px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5 text-[#8FA4BF]" />
-            <span>Keluar</span>
-          </button>
+          isVisible('topbar.action.logout') && (
+            <button
+              type="button"
+              onClick={onLogout}
+              title={`Keluar dari akun ${authUser.name} (${authUser.email})`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-[#17243D] text-[12.5px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-[#8FA4BF]" />
+              <span>{label('topbar.action.logout', 'Keluar')}</span>
+            </button>
+          )
         ) : (
           <button
             type="button"
@@ -515,7 +521,7 @@ export function TopBar({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#17243D] hover:bg-[#223456] text-white text-[12.5px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <LogIn className="w-3.5 h-3.5 text-[#00C98A]" />
-            <span>Masuk</span>
+            <span>{label('topbar.action.login', 'Masuk')}</span>
           </button>
         )}
       </div>

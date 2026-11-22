@@ -61,6 +61,20 @@ import {
 } from '../../utils/publishingHelpers';
 import { resolveCssFontFamily } from '../../utils/fontHelpers';
 import { buildLinearGradientCss, resolveBackgroundInlineProps } from '../../utils/gradientHelpers';
+import {
+  VIEWPORT_PRESET_HEIGHTS,
+  VIEWPORT_PRESET_WIDTHS,
+  resolveEffectiveBlockStyle,
+  resolveViewportBreakpoint,
+} from '../../utils/responsiveStyle';
+import {
+  DynamicFormValues,
+  isDynamicFormFieldVisible,
+  resolveFieldRequiredRule,
+  validateDynamicForm,
+  validateDynamicFormField,
+} from '../../utils/formValidation';
+import { hydrateDefaultFormFields } from '../inspector/DynamicFormBuilderEditor';
 import { ButtonGlyph } from '../ButtonIcon';
 import { CleanVideoEmbed } from '../CleanVideoEmbed';
 import { DeviceViewportSelector } from '../DeviceViewportSelector';
@@ -79,11 +93,13 @@ import { ShowcaseCardView } from '../ShowcaseCardView';
 import { TrainingCatalogCard } from '../TrainingCatalogCard';
 import {
   buildLineClampStyle,
-  findFirstFloatingCartConfig,
+  isTopFloatingCartPosition,
   resolveBlockAction,
+  resolveProjectFloatingCartConfig,
   resolveUniversalCartMeta,
   supportsUniversalCart,
 } from '../../utils/universalLayerHelpers';
+import { isSubLayerDeleted, isSubLayerHidden } from '../../utils/layerStructure';
 import type { BuilderSubPage } from '../../types/builder';
 
 type PreviewSubPage =
@@ -172,75 +188,7 @@ function findFirstCatalogBlock(
   return null;
 }
 
-function findFirstFnbCatalogBlock(
-  blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[],
-  pages?: BuilderSubPage[]
-): BuilderBlock | null {
-  for (const blk of blocks) {
-    if (blk.type === 'fnb_catalog' && blk.content.fnbFloatingCartEnabled !== false) return blk;
-    if (blk.children?.length) {
-      const found = findFirstFnbCatalogBlock(blk.children);
-      if (found) return found;
-    }
-    if (blk.content.actionSheetBlocks?.length) {
-      const found = findFirstFnbCatalogBlock(blk.content.actionSheetBlocks);
-      if (found) return found;
-    }
-    if (blk.content.cardFooterBlocks?.length) {
-      const found = findFirstFnbCatalogBlock(blk.content.cardFooterBlocks);
-      if (found) return found;
-    }
-  }
-  if (navItems?.length) {
-    for (const item of navItems) {
-      const found = findFirstFnbCatalogBlock(item.children);
-      if (found) return found;
-    }
-  }
-  if (pages?.length) {
-    for (const pg of pages) {
-      const found = findFirstFnbCatalogBlock(pg.blocks);
-      if (found) return found;
-    }
-  }
-  return null;
-}
 
-function findFirstCartButtonFloatBlock(
-  blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[],
-  pages?: BuilderSubPage[]
-): BuilderBlock | null {
-  for (const blk of blocks) {
-    if (blk.type === 'cart_button' && blk.content.cartFloatingEnabled !== false) return blk;
-    if (blk.children?.length) {
-      const found = findFirstCartButtonFloatBlock(blk.children);
-      if (found) return found;
-    }
-    if (blk.content.actionSheetBlocks?.length) {
-      const found = findFirstCartButtonFloatBlock(blk.content.actionSheetBlocks);
-      if (found) return found;
-    }
-    if (blk.content.cardFooterBlocks?.length) {
-      const found = findFirstCartButtonFloatBlock(blk.content.cardFooterBlocks);
-      if (found) return found;
-    }
-  }
-  if (navItems?.length) {
-    for (const item of navItems) {
-      const found = findFirstCartButtonFloatBlock(item.children);
-      if (found) return found;
-    }
-  }
-  if (pages?.length) {
-    for (const pg of pages) {
-      const found = findFirstCartButtonFloatBlock(pg.blocks);
-      if (found) return found;
-    }
-  }
-  return null;
-}
 
 export function PreviewModal({
   projectId,
@@ -284,6 +232,8 @@ export function PreviewModal({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [checklistCheckedMap, setChecklistCheckedMap] = useState<Record<number, boolean>>({});
   const [formChecklistMap, setFormChecklistMap] = useState<Record<string, Record<number, boolean>>>({});
+  const [formValuesMap, setFormValuesMap] = useState<Record<string, DynamicFormValues>>({});
+  const [formFieldErrorsMap, setFormFieldErrorsMap] = useState<Record<string, Record<string, string>>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [cartCheckoutError, setCartCheckoutError] = useState<string>('');
   const scrollBodyRef = useRef<HTMLDivElement>(null);
@@ -400,7 +350,7 @@ export function PreviewModal({
           position:
             activeSheetBlock.type === 'menu_icon'
               ? activeSheetBlock.content.menuIconSheetPosition ?? 'bottom'
-              : 'bottom',
+              : activeSheetBlock.content.sheetPosition ?? 'bottom',
         }
       : {
           title:
@@ -416,7 +366,7 @@ export function PreviewModal({
         title:
           activeNavSheetItem.sheetTitle?.trim() || activeNavSheetItem.label || 'Menu',
         children: activeNavSheetItem.children,
-        position: 'bottom',
+        position: activeNavSheetItem.sheetPosition ?? 'bottom',
       }
     : null;
 
@@ -580,52 +530,20 @@ export function PreviewModal({
     () => findFirstCatalogBlock(project.blocks, bottomNavbar.items, projectPages),
     [project.blocks, bottomNavbar.items, projectPages]
   );
-  const firstFnbCatalog = useMemo(
-    () => findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items, projectPages),
-    [project.blocks, bottomNavbar.items, projectPages]
-  );
-  const firstCartButtonFloat = useMemo(
-    () => findFirstCartButtonFloatBlock(project.blocks, bottomNavbar.items, projectPages),
-    [project.blocks, bottomNavbar.items, projectPages]
-  );
   const floatingCartConfig = useMemo(() => {
-    if (firstFnbCatalog) {
-      return {
-        position: firstFnbCatalog.content.fnbFloatingCartPosition ?? 'bottom-floating',
-        offsetY: firstFnbCatalog.content.fnbFloatingCartOffsetY ?? 16,
-        bgColor:
-          firstFnbCatalog.content.fnbFloatingCartBg ||
-          firstFnbCatalog.content.fnbAccentColor ||
-          project.theme.accentColor,
-        actionLabel: firstFnbCatalog.content.fnbFloatingCartLabel || 'Lanjut',
-      };
-    }
-    if (firstCartButtonFloat) {
-      return {
-        position: firstCartButtonFloat.content.cartFloatingPosition ?? 'bottom-floating',
-        offsetY: 16,
-        bgColor:
-          firstCartButtonFloat.content.cartFloatingBg ||
-          firstCartButtonFloat.content.cartAccentColor ||
-          project.theme.accentColor,
-        actionLabel: firstCartButtonFloat.content.cartFloatingLabel || 'Lihat Keranjang',
-      };
-    }
-    const universalFloat = findFirstFloatingCartConfig(
+    const resolved = resolveProjectFloatingCartConfig(
       project.blocks,
       bottomNavbar.items,
       projectPages
     );
-    if (universalFloat) {
-      return {
-        position: universalFloat.position,
-        offsetY: universalFloat.offsetY,
-        bgColor: universalFloat.bg || project.theme.accentColor || '#059669',
-        actionLabel: universalFloat.label,
-      };
-    }
-    return null;
-  }, [firstFnbCatalog, firstCartButtonFloat, project.blocks, bottomNavbar.items, projectPages, project.theme]);
+    if (!resolved) return null;
+    return {
+      position: resolved.position,
+      offsetY: resolved.offsetY,
+      bgColor: resolved.bg || project.theme.accentColor || '#059669',
+      actionLabel: resolved.label,
+    };
+  }, [project.blocks, bottomNavbar.items, projectPages, project.theme.accentColor]);
   const hasCartFeature = Boolean(
     firstCatalog &&
       (firstCatalog.type === 'cart_button' ||
@@ -690,7 +608,7 @@ export function PreviewModal({
   ): React.ReactNode => {
     const rendered = renderPreviewBlockInner(block, depth, inheritedTextColor);
     const rawAction =
-      block.type === 'menu_icon' || block.type === 'back_button'
+      block.type === 'menu_icon' || block.type === 'back_button' || block.type === 'button'
         ? null
         : resolveBlockAction(block);
     const action = rawAction && rawAction.type !== 'none' ? rawAction : null;
@@ -786,12 +704,14 @@ export function PreviewModal({
     );
   };
 
+  const activePreviewBreakpoint = resolveViewportBreakpoint(previewSize.width);
+
   const renderPreviewBlockInner = (
     block: BuilderBlock,
     depth = 0,
     inheritedTextColor?: string
   ): React.ReactNode => {
-    const s = block.style;
+    const s = resolveEffectiveBlockStyle(block.style, activePreviewBreakpoint);
     const padX = s.paddingX ?? s.padding;
     const padTop = s.paddingTop ?? s.padding;
     const padBottom = s.paddingBottom ?? s.padding;
@@ -854,6 +774,17 @@ export function PreviewModal({
     };
 
     if (block.type === 'container') {
+      const layoutMode = block.content.containerLayoutMode || 'normal';
+      const isHSlider = layoutMode === 'slider_horizontal';
+      const isVSlider = layoutMode === 'slider_vertical';
+      const isSlider = isHSlider || isVSlider;
+      const visibleItems = Math.max(1, Math.min(6, Number(block.content.sliderVisibleItems || 1)));
+      const sliderGap = Math.max(0, Math.min(48, Number(block.content.sliderGap ?? 12)));
+      const children = block.children ?? [];
+      const showDots = block.content.sliderShowDots !== false;
+      const showScrollbar = Boolean(block.content.sliderShowScrollbar);
+      const dotCount = Math.min(children.length, 6);
+
       return (
         <div
           key={block.id}
@@ -861,8 +792,68 @@ export function PreviewModal({
           style={style}
           className={s.hoverLift ? 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg' : undefined}
         >
-          {(block.children ?? []).map((child) =>
-            renderPreviewBlock(child, depth + 1, nextInheritedTextColor)
+          {isHSlider ? (
+            <div
+              className={`flex flex-row overflow-x-auto touch-pan-x ${
+                showScrollbar ? 'pb-1.5' : 'pb-0.5 no-scrollbar'
+              }`}
+              style={{
+                gap: `${sliderGap}px`,
+                scrollSnapType: block.content.sliderSnap !== false ? 'x mandatory' : undefined,
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {children.map((child) => (
+                <div
+                  key={child.id}
+                  style={{
+                    flex: `0 0 calc((100% - ${Math.max(0, visibleItems - 1) * sliderGap}px) / ${visibleItems})`,
+                    scrollSnapAlign: block.content.sliderSnap !== false ? 'start' : undefined,
+                    minWidth: 0,
+                  }}
+                >
+                  {renderPreviewBlock(child, depth + 1, nextInheritedTextColor)}
+                </div>
+              ))}
+            </div>
+          ) : isVSlider ? (
+            <div
+              className={`flex flex-col overflow-y-auto ${showScrollbar ? 'pr-1' : 'no-scrollbar'}`}
+              style={{
+                gap: `${sliderGap}px`,
+                maxHeight: `${Math.max(220, s.maxHeight || 340)}px`,
+                scrollSnapType: block.content.sliderSnap !== false ? 'y mandatory' : undefined,
+              }}
+            >
+              {children.map((child) => (
+                <div
+                  key={child.id}
+                  style={{
+                    flexShrink: 0,
+                    scrollSnapAlign: block.content.sliderSnap !== false ? 'start' : undefined,
+                  }}
+                >
+                  {renderPreviewBlock(child, depth + 1, nextInheritedTextColor)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            children.map((child) =>
+              renderPreviewBlock(child, depth + 1, nextInheritedTextColor)
+            )
+          )}
+          {isSlider && showDots && dotCount > 1 && (
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              {Array.from({ length: dotCount }).map((_, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    backgroundColor: idx === 0 ? project.theme.accentColor : '#CBD5E1',
+                  }}
+                  className={`rounded-full ${idx === 0 ? 'w-4 h-1.5' : 'w-1.5 h-1.5'}`}
+                />
+              ))}
+            </div>
           )}
         </div>
       );
@@ -1175,6 +1166,8 @@ export function PreviewModal({
 
       if (rowMode === 'horizontal') {
         const activeDot = rowActiveDots[block.id] ?? 0;
+        const showScrollbar = Boolean(block.content.rowShowScrollbar);
+        const showDots = block.content.rowShowDots !== false;
         return (
           <div key={block.id} style={style}>
             <div
@@ -1200,7 +1193,7 @@ export function PreviewModal({
                 scrollSnapType: 'x proximity',
                 WebkitOverflowScrolling: 'touch',
               }}
-              className="pb-1.5 touch-pan-x no-scrollbar"
+              className={`touch-pan-x ${showScrollbar ? 'pb-2' : 'pb-1 no-scrollbar'}`}
             >
               {rowChildren.map((child) => (
                 <div
@@ -1218,7 +1211,7 @@ export function PreviewModal({
                 </div>
               ))}
             </div>
-            {rowChildren.length > 1 && (
+            {showDots && rowChildren.length > 1 && (
               <div
                 data-row-dots="3"
                 className="flex items-center justify-center gap-1.5 pt-2"
@@ -1280,6 +1273,10 @@ export function PreviewModal({
         );
       }
 
+      const rowGridRows =
+        typeof block.content.rowGridRows === 'number' && block.content.rowGridRows > 0
+          ? Math.max(1, Math.min(10, Math.round(block.content.rowGridRows)))
+          : 0;
       return (
         <div
           key={block.id}
@@ -1287,6 +1284,10 @@ export function PreviewModal({
             ...style,
             display: 'grid',
             gridTemplateColumns: `repeat(${rowCols}, minmax(0, 1fr))`,
+            gridTemplateRows:
+              rowGridRows > 0
+                ? `repeat(${rowGridRows}, minmax(${rowColMinH > 0 ? `${rowColMinH}px` : 'auto'}, 1fr))`
+                : undefined,
             gap: `${rowGap}px`,
             alignItems: 'stretch',
           }}
@@ -1312,6 +1313,7 @@ export function PreviewModal({
           data-jump-title={(block.content.text ?? '').trim().toLowerCase()}
           style={{
             ...style,
+            fontStyle: s.fontStyle ?? 'normal',
             ...buildLineClampStyle(s.maxLines),
           }}
           className={`leading-relaxed break-words whitespace-pre-line ${
@@ -1346,6 +1348,7 @@ export function PreviewModal({
     }
 
     if (block.type === 'image') {
+      const objPos = block.content.objectPosition ?? 'center';
       if (block.content.imageShape === 'circle') {
         const circleSize = Math.max(40, Math.min(280, block.content.circleSize ?? 112));
         const imageZoom = Math.max(40, Math.min(250, block.content.imageZoom ?? 100));
@@ -1380,6 +1383,7 @@ export function PreviewModal({
                 className="w-full h-full block"
                 style={{
                   objectFit: block.content.objectFit ?? 'cover',
+                  objectPosition: objPos,
                   transform: `scale(${imageZoom / 100})`,
                   transformOrigin: 'center center',
                 }}
@@ -1399,6 +1403,7 @@ export function PreviewModal({
             className="w-full h-full block"
             style={{
               objectFit: block.content.objectFit ?? 'cover',
+              objectPosition: objPos,
               borderRadius: `${s.borderRadius}px`,
               aspectRatio:
                 block.content.aspectRatio && block.content.aspectRatio !== 'auto'
@@ -1416,60 +1421,223 @@ export function PreviewModal({
       const btnLabel = block.content.label || 'Tautan';
       const leftIcon = resolveButtonIcon(block.content.buttonIcon, btnLabel);
       const btnGrad = buildLinearGradientCss(s);
-      return (
-        <a
-          key={block.id}
-          href={sanitizeExternalUrl(block.content.url, '#')}
-          target="_blank"
-          rel="noopener noreferrer"
+      const action = resolveBlockAction(block);
+      const isDisabled = Boolean(block.content.buttonDisabled);
+      const disabledState = isDisabled ? block.content.buttonStateStyles?.disabled : undefined;
+      const iconVisible =
+        !block.content.buttonHideIcon &&
+        !isSubLayerHidden(block, 'button_icon') &&
+        !isSubLayerDeleted(block, 'button_icon') &&
+        (leftIcon !== 'none' || Boolean(sanitizeIconUrl(block.content.buttonIconUrl)));
+      const textVisible =
+        !block.content.buttonHideText &&
+        !isSubLayerHidden(block, 'button_text') &&
+        !isSubLayerDeleted(block, 'button_text');
+
+      const iconSizePx = Math.max(10, Math.min(40, block.content.buttonIconSize ?? 16));
+      const iconSt = block.content.buttonIconStyle;
+      const textSt = block.content.buttonTextStyle;
+
+      const btnInlineStyle: React.CSSProperties = {
+        ...style,
+        backgroundColor:
+          disabledState?.bg ??
+          (btnGrad
+            ? s.gradientColor1 || '#EA580C'
+            : block.content.buttonBg ?? project.theme.accentColor),
+        backgroundImage: disabledState?.bg ? undefined : btnGrad || undefined,
+        color: disabledState?.textColor ?? block.content.buttonText ?? '#FFFFFF',
+        borderColor: disabledState?.borderColor ?? style.borderColor,
+        opacity:
+          disabledState?.opacity !== undefined
+            ? disabledState.opacity / 100
+            : isDisabled
+            ? 0.55
+            : style.opacity,
+      };
+
+      const iconNode = iconVisible && (
+        <span
+          title={block.content.buttonIconTooltip || undefined}
           style={{
-            ...style,
-            backgroundColor: btnGrad
-              ? s.gradientColor1 || '#EA580C'
-              : block.content.buttonBg ?? project.theme.accentColor,
-            backgroundImage: btnGrad || undefined,
-            color: block.content.buttonText ?? '#FFFFFF',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: block.content.buttonIconColor || iconSt?.textColor || undefined,
+            backgroundColor: iconSt?.backgroundColor || undefined,
+            padding: iconSt?.padding !== undefined ? `${iconSt.padding}px` : undefined,
+            borderRadius: iconSt?.borderRadius !== undefined ? `${iconSt.borderRadius}px` : undefined,
+            opacity: iconSt?.opacity !== undefined ? iconSt.opacity / 100 : undefined,
+            transform:
+              iconSt?.transformRotate && iconSt.transformRotate !== 0
+                ? `rotate(${iconSt.transformRotate}deg)`
+                : undefined,
           }}
-          className="flex items-center justify-center gap-2 py-3 px-4 font-semibold text-sm hover:opacity-90 transition-opacity"
         >
-          {(leftIcon !== 'none' || Boolean(sanitizeIconUrl(block.content.buttonIconUrl))) && (
-            <ButtonGlyph
-              icon={leftIcon}
-              iconUrl={block.content.buttonIconUrl}
-              className="w-4 h-4 shrink-0"
-            />
-          )}
-          <span>{btnLabel}</span>
-          <ExternalLink className="w-3.5 h-3.5 opacity-75 shrink-0" />
-        </a>
+          <ButtonGlyph
+            icon={leftIcon}
+            iconUrl={block.content.buttonIconUrl}
+            strokeWidth={block.content.buttonIconStrokeWidth}
+            style={{ width: `${iconSizePx}px`, height: `${iconSizePx}px` }}
+            className="shrink-0"
+          />
+        </span>
+      );
+
+      const textNode = textVisible && (
+        <span
+          style={{
+            fontFamily: textSt?.fontFamily ? resolveCssFontFamily(textSt.fontFamily) : undefined,
+            fontSize: textSt?.fontSize ? `${textSt.fontSize}px` : undefined,
+            fontWeight: textSt?.fontWeightCss ?? undefined,
+            fontStyle: textSt?.fontStyle ?? undefined,
+            lineHeight: textSt?.lineHeight ?? undefined,
+            letterSpacing:
+              textSt?.letterSpacing !== undefined ? `${textSt.letterSpacing}px` : undefined,
+            textTransform: textSt?.textTransform ?? undefined,
+            textDecoration: textSt?.textDecoration ?? undefined,
+            color: textSt?.textColor || undefined,
+            opacity: textSt?.opacity !== undefined ? textSt.opacity / 100 : undefined,
+          }}
+        >
+          {btnLabel}
+        </span>
+      );
+
+      const waDigits = normalizeWhatsappNumber(block.content.buttonWhatsappNumber || '');
+      const isWaDirect = block.content.buttonActionKind === 'whatsapp' && Boolean(waDigits);
+      const waDirectHref = isWaDirect
+        ? `https://wa.me/${waDigits}${
+            block.content.buttonWhatsappMessage?.trim()
+              ? `?text=${encodeURIComponent(block.content.buttonWhatsappMessage.trim())}`
+              : ''
+          }`
+        : '';
+
+      if (isDisabled) {
+        return (
+          <button
+            key={block.id}
+            type="button"
+            disabled
+            title={block.content.buttonTooltip || undefined}
+            style={btnInlineStyle}
+            className="flex items-center justify-center gap-2 py-3 px-4 font-semibold text-sm cursor-not-allowed"
+          >
+            {iconNode}
+            {textNode}
+          </button>
+        );
+      }
+
+      if (isWaDirect || action.type === 'url') {
+        const safeHref = isWaDirect ? waDirectHref : sanitizeExternalUrl(action.url, '#');
+        const openNew = isWaDirect ? true : action.openInNewTab;
+        return (
+          <a
+            key={block.id}
+            href={safeHref}
+            target={openNew ? '_blank' : undefined}
+            rel={openNew ? 'noopener noreferrer' : undefined}
+            title={block.content.buttonTooltip || undefined}
+            style={btnInlineStyle}
+            className="flex items-center justify-center gap-2 py-3 px-4 font-semibold text-sm hover:opacity-90 transition-opacity"
+          >
+            {iconNode}
+            {textNode}
+            {openNew && textVisible && <ExternalLink className="w-3.5 h-3.5 opacity-75 shrink-0" />}
+          </a>
+        );
+      }
+
+      return (
+        <button
+          key={block.id}
+          type="button"
+          title={block.content.buttonTooltip || undefined}
+          onClick={() => {
+            if (action.type === 'sheet') openBottomSheet(block.id);
+            else if (action.type === 'page') openCustomPage(action.targetPageId);
+            else if (action.type === 'card') jumpToBlockId(action.targetBlockId);
+            else if (action.type === 'back') goBackPage(action.targetPageId);
+          }}
+          style={btnInlineStyle}
+          className={`flex items-center justify-center gap-2 py-3 px-4 font-semibold text-sm transition-opacity ${
+            action.type === 'none' ? 'cursor-default' : 'cursor-pointer hover:opacity-90'
+          }`}
+        >
+          {iconNode}
+          {textNode}
+        </button>
       );
     }
 
     if (block.type === 'form') {
       const done = submittedForms[block.id];
-      const nameReq = block.content.formNameRequired !== false;
-      const emailReq = block.content.formEmailRequired !== false;
+      const fields = hydrateDefaultFormFields(block);
+      const blockValues: DynamicFormValues = formValuesMap[block.id] ?? (() => {
+        const init: DynamicFormValues = {};
+        fields.forEach((f) => {
+          if (f.type === 'section') return;
+          if (f.type === 'checkbox_group') init[f.id] = [];
+          else if (f.defaultValue) init[f.id] = f.defaultValue;
+        });
+        return init;
+      })();
+      const blockFieldErrors = formFieldErrorsMap[block.id] ?? {};
       const chkEnabled = Boolean(block.content.formChecklistEnabled);
       const chkItems = (block.content.formChecklistItems ?? []).filter((x) => x.trim());
-      const chkReq = Boolean(block.content.formChecklistRequired);
+      const chkRule =
+        block.content.formChecklistRule ||
+        (block.content.formChecklistRequired ? 'required_consent_all' : 'optional');
+      const chkReq = chkRule !== 'optional';
+      const chkMin = Math.max(1, Number(block.content.formChecklistMinChoices || 1));
       const blockChkMap = formChecklistMap[block.id] ?? {};
       const blockErr = formErrors[block.id] ?? '';
+
+      const setFieldVal = (fldId: string, val: string | string[]) => {
+        const nextVals: DynamicFormValues = { ...blockValues, [fldId]: val };
+        setFormValuesMap((prev) => ({ ...prev, [block.id]: nextVals }));
+        const fldObj = fields.find((f) => f.id === fldId);
+        if (fldObj) {
+          const singleErr = validateDynamicFormField(fldObj, val, nextVals);
+          setFormFieldErrorsMap((prev) => {
+            const cur = { ...(prev[block.id] ?? {}) };
+            if (singleErr) cur[fldId] = singleErr;
+            else delete cur[fldId];
+            return { ...prev, [block.id]: cur };
+          });
+        }
+      };
 
       return (
         <form
           key={block.id}
           style={style}
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (chkEnabled && chkReq && chkItems.length > 0) {
-              const allChecked = chkItems.every((_, idx) => Boolean(blockChkMap[idx]));
-              if (!allChecked) {
-                setFormErrors((prev) => ({
-                  ...prev,
-                  [block.id]: `Mohon centang seluruh checklist wajib (${block.content.formChecklistTitle?.trim() || 'Checklist'}).`,
-                }));
-                return;
+            const validation = validateDynamicForm(fields, blockValues);
+            setFormFieldErrorsMap((prev) => ({
+              ...prev,
+              [block.id]: validation.fieldErrors,
+            }));
+            let firstErr = validation.firstError || '';
+            if (!firstErr && chkEnabled && chkReq && chkItems.length > 0) {
+              const checkedCount = chkItems.filter((_, idx) => Boolean(blockChkMap[idx])).length;
+              const chkTitle = block.content.formChecklistTitle?.trim() || 'Persetujuan';
+              if (chkRule === 'required_consent_all' && checkedCount < chkItems.length) {
+                firstErr = `Wajib mencentang seluruh persetujuan pada "${chkTitle}".`;
+              } else if (chkRule === 'required_multi' && checkedCount === 0) {
+                firstErr = `Wajib memilih minimal satu item pada "${chkTitle}".`;
+              } else if (chkRule === 'required_min_choices' && checkedCount < chkMin) {
+                firstErr = `"${chkTitle}" wajib memilih minimal ${chkMin} pilihan.`;
               }
+            }
+            if (firstErr) {
+              setFormErrors((prev) => ({ ...prev, [block.id]: firstErr }));
+              setSubmittedForms((prev) => ({ ...prev, [block.id]: false }));
+              return;
             }
             setFormErrors((prev) => ({ ...prev, [block.id]: '' }));
             setSubmittedForms((prev) => ({ ...prev, [block.id]: true }));
@@ -1484,19 +1652,152 @@ export function PreviewModal({
           }}
           className="space-y-2.5 text-left"
         >
-          <div className="font-bold text-sm">{block.content.formTitle}</div>
-          <input
-            type="text"
-            required={nameReq}
-            placeholder={`${block.content.namePlaceholder || 'Nama Lengkap'}${nameReq ? ' *' : ' (Opsional)'}`}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs outline-none focus:border-blue-500"
-          />
-          <input
-            type="text"
-            required={emailReq}
-            placeholder={`${block.content.emailPlaceholder || 'Email / WhatsApp'}${emailReq ? ' *' : ' (Opsional)'}`}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs outline-none focus:border-blue-500"
-          />
+          {block.content.formTitle && (
+            <div className="font-bold text-sm">{block.content.formTitle}</div>
+          )}
+          {fields.map((fld) => {
+            if (!isDynamicFormFieldVisible(fld, blockValues)) return null;
+            const rule = resolveFieldRequiredRule(fld);
+            const isReq = rule !== 'optional';
+            const fErr = blockFieldErrors[fld.id];
+            const opts = (fld.options ?? []).map((o) => o.trim()).filter(Boolean);
+
+            if (fld.type === 'section') {
+              return (
+                <div key={fld.id} className="pt-2 border-t border-slate-200/80 space-y-0.5">
+                  <div className="text-xs font-bold">{fld.label || 'Bagian'}</div>
+                  {fld.description && (
+                    <div className="text-[11px] opacity-75">{fld.description}</div>
+                  )}
+                </div>
+              );
+            }
+
+            const rawVal = blockValues[fld.id];
+            const strVal = typeof rawVal === 'string' ? rawVal : '';
+            const arrVal = Array.isArray(rawVal) ? rawVal : [];
+
+            return (
+              <div key={fld.id} className="space-y-1">
+                <label className="block text-[11px] font-bold">
+                  {fld.label || 'Kolom'}
+                  {isReq && <span className="text-rose-600 ml-0.5">*</span>}
+                </label>
+
+                {fld.type === 'textarea' || fld.type === 'address' ? (
+                  <textarea
+                    rows={3}
+                    value={strVal}
+                    onChange={(e) => setFieldVal(fld.id, e.target.value)}
+                    placeholder={fld.placeholder || ''}
+                    className={`w-full px-3 py-2 rounded-lg border bg-white text-slate-900 text-xs outline-none resize-y ${
+                      fErr ? 'border-rose-400 focus:border-rose-500' : 'border-slate-300 focus:border-blue-500'
+                    }`}
+                  />
+                ) : fld.type === 'select' ? (
+                  <select
+                    value={strVal}
+                    onChange={(e) => setFieldVal(fld.id, e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border bg-white text-slate-900 text-xs outline-none ${
+                      fErr ? 'border-rose-400 focus:border-rose-500' : 'border-slate-300 focus:border-blue-500'
+                    }`}
+                  >
+                    <option value="">{fld.placeholder || '-- Pilih --'}</option>
+                    {opts.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ) : fld.type === 'radio' ? (
+                  <div
+                    className={`rounded-lg border p-2 space-y-1.5 bg-white text-slate-900 ${
+                      fErr ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  >
+                    {(opts.length > 0 ? opts : ['Pilihan 1', 'Pilihan 2']).map((opt) => (
+                      <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`prev_${block.id}_${fld.id}`}
+                          checked={strVal === opt}
+                          onChange={() => setFieldVal(fld.id, opt)}
+                          className="accent-emerald-600 cursor-pointer"
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : fld.type === 'checkbox_group' ? (
+                  <div
+                    className={`rounded-lg border p-2 space-y-1.5 bg-white text-slate-900 ${
+                      fErr ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  >
+                    {(opts.length > 0 ? opts : ['Pilihan 1', 'Pilihan 2']).map((opt) => {
+                      const checked = arrVal.includes(opt);
+                      return (
+                        <label key={opt} className="flex items-start gap-2 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...arrVal, opt]
+                                : arrVal.filter((x) => x !== opt);
+                              setFieldVal(fld.id, next);
+                            }}
+                            className="mt-0.5 accent-emerald-600 cursor-pointer"
+                          />
+                          <span>{opt}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : fld.type === 'file' ? (
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      const fileName = e.target.files?.[0]?.name || '';
+                      setFieldVal(fld.id, fileName);
+                    }}
+                    className={`w-full px-2.5 py-1.5 rounded-lg border bg-white text-slate-900 text-xs ${
+                      fErr ? 'border-rose-400' : 'border-slate-300'
+                    }`}
+                  />
+                ) : (
+                  <input
+                    type={
+                      fld.type === 'email'
+                        ? 'email'
+                        : fld.type === 'number'
+                        ? 'number'
+                        : fld.type === 'date'
+                        ? 'date'
+                        : fld.type === 'time'
+                        ? 'time'
+                        : fld.type === 'phone' || fld.type === 'tel'
+                        ? 'tel'
+                        : 'text'
+                    }
+                    value={strVal}
+                    onChange={(e) => setFieldVal(fld.id, e.target.value)}
+                    placeholder={fld.placeholder || ''}
+                    className={`w-full px-3 py-2 rounded-lg border bg-white text-slate-900 text-xs outline-none ${
+                      fErr ? 'border-rose-400 focus:border-rose-500' : 'border-slate-300 focus:border-blue-500'
+                    }`}
+                  />
+                )}
+
+                {fld.helpText && (
+                  <div className="text-[10.5px] opacity-70">{fld.helpText}</div>
+                )}
+                {fErr && (
+                  <div className="text-[10.5px] font-semibold text-rose-600">{fErr}</div>
+                )}
+              </div>
+            );
+          })}
           {chkEnabled && chkItems.length > 0 && (
             <div
               style={{ borderColor: project.theme.borderColor }}
@@ -1535,7 +1836,7 @@ export function PreviewModal({
             style={{ backgroundColor: block.content.buttonColor ?? project.theme.accentColor }}
             className="w-full py-2.5 px-4 rounded-lg text-white text-xs font-semibold cursor-pointer hover:opacity-90"
           >
-            {block.content.submitLabel}
+            {block.content.submitLabel || 'Kirim Formulir'}
           </button>
           {done && (
             <div className="text-xs font-medium text-emerald-600 pt-1">
@@ -1592,6 +1893,7 @@ export function PreviewModal({
             }
             autoPlay={block.content.videoAutoplay ?? block.content.youtubeAutoplay ?? true}
             volume={block.content.videoVolume ?? block.content.youtubeVolume ?? 75}
+            muted={Boolean(block.content.videoMuted)}
             borderRadius={s.borderRadius}
             accentColor={project.theme.accentColor}
           />
@@ -2100,6 +2402,9 @@ export function PreviewModal({
             textColor={resolvedTextColor}
             accentColor={project.theme.accentColor}
             align={s.align}
+            showDots={block.content.carouselShowDots !== false}
+            showArrows={block.content.carouselShowArrows !== false}
+            showScrollbar={Boolean(block.content.carouselShowScrollbar)}
           />
         </div>
       );
@@ -2176,12 +2481,25 @@ export function PreviewModal({
     }
 
     if (block.type === 'hero_profile') {
+      const heroChildren = block.children ?? [];
+      const heroPos = block.content.heroChildrenPosition ?? 'on_cover';
+      const isOnCover =
+        (block.content.heroVariant ?? 'compact') === 'banner' &&
+        (heroPos === 'on_cover' || heroPos === 'overlap_cover');
+      const childInheritedColor = isOnCover ? '#FFFFFF' : resolvedTextColor;
+      const heroChildrenSlot =
+        heroChildren.length > 0 ? (
+          <div className="space-y-1.5">
+            {heroChildren.map((ch) => renderPreviewBlock(ch, depth + 1, childInheritedColor))}
+          </div>
+        ) : undefined;
       return (
         <div key={block.id} style={style}>
           <HeroProfileCard
             block={block}
             theme={project.theme}
             resolvedTextColor={resolvedTextColor}
+            childrenSlot={heroChildrenSlot}
           />
         </div>
       );
@@ -2375,6 +2693,18 @@ export function PreviewModal({
     }
 
     if (block.type === 'back_button') {
+      const backRadius = Math.max(0, Math.min(9999, Math.round(s.borderRadius ?? 12)));
+      const backFontSize = Math.max(11, Math.min(24, Math.round(s.fontSize ?? 13)));
+      const backIconId = block.content.backButtonIcon ?? 'arrow-left';
+      const backTextColor = block.content.backButtonText || '#0F172A';
+      const backIconColor = block.content.backButtonIconColor || backTextColor;
+      const backBorderWidth = s.borderWidth > 0 ? s.borderWidth : 1;
+      const backBorderStyle = s.borderStyle ?? 'solid';
+      const backBorderColor = s.borderWidth > 0 ? s.borderColor : 'rgba(15, 23, 42, 0.1)';
+      const padTop = s.paddingTop ?? Math.max(6, Math.min(24, s.padding || 8));
+      const padBottom = s.paddingBottom ?? Math.max(6, Math.min(24, s.padding || 8));
+      const padLeft = s.paddingLeft ?? s.paddingX ?? 14;
+      const padRight = s.paddingRight ?? s.paddingX ?? 14;
       return (
         <div
           key={block.id}
@@ -2390,12 +2720,26 @@ export function PreviewModal({
             onClick={() => goBackPage(block.content.backTargetPageId)}
             style={{
               backgroundColor: block.content.backButtonBg || '#F1F5F9',
-              color: block.content.backButtonText || '#0F172A',
-              borderRadius: `${Math.max(8, Math.min(28, s.borderRadius))}px`,
+              color: backTextColor,
+              borderRadius: `${backRadius}px`,
+              fontSize: `${backFontSize}px`,
+              padding: `${padTop}px ${padRight}px ${padBottom}px ${padLeft}px`,
+              borderWidth: backBorderStyle === 'none' ? 0 : `${backBorderWidth}px`,
+              borderStyle: backBorderStyle,
+              borderColor: backBorderColor,
             }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold border border-black/10 shadow-xs cursor-pointer hover:opacity-90"
+            className="inline-flex items-center gap-1.5 font-bold shadow-xs cursor-pointer hover:opacity-90"
           >
-            <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+            {(backIconId !== 'none' || Boolean(block.content.buttonIconUrl)) && (
+              <span style={{ color: backIconColor }} className="inline-flex shrink-0">
+                <ButtonGlyph
+                  icon={backIconId}
+                  iconUrl={block.content.buttonIconUrl}
+                  className="shrink-0"
+                  style={{ width: `${Math.max(12, backFontSize)}px`, height: `${Math.max(12, backFontSize)}px` }}
+                />
+              </span>
+            )}
             <span>{block.content.backButtonLabel || 'Kembali'}</span>
           </button>
         </div>
@@ -2648,36 +2992,33 @@ export function PreviewModal({
             )}
 
             <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDeviceId('mobile-440');
-                  setRotated(false);
-                  setPreviewSize({ width: 440, height: 844 });
-                }}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                  previewSize.width === 440
-                    ? 'bg-[#17243D] text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Mobile 440 px
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDeviceId('mobile-576');
-                  setRotated(false);
-                  setPreviewSize({ width: 576, height: 844 });
-                }}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                  previewSize.width === 576
-                    ? 'bg-[#17243D] text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Mobile 576 px
-              </button>
+              {(
+                [
+                  { id: 'mobile-440', bp: 'mobile' as const, label: 'Mobile 440' },
+                  { id: 'tablet-768', bp: 'tablet' as const, label: 'Tablet 768' },
+                  { id: 'desktop-1024', bp: 'desktop' as const, label: 'Desktop 1024' },
+                ] as const
+              ).map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeviceId(preset.id);
+                    setRotated(false);
+                    setPreviewSize({
+                      width: VIEWPORT_PRESET_WIDTHS[preset.bp],
+                      height: VIEWPORT_PRESET_HEIGHTS[preset.bp],
+                    });
+                  }}
+                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    activePreviewBreakpoint === preset.bp
+                      ? 'bg-[#17243D] text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
 
             <DeviceViewportSelector
@@ -2758,12 +3099,12 @@ export function PreviewModal({
         >
           {subPage.type === 'home' &&
             floatingCartConfig &&
-            floatingCartConfig.position === 'top-floating' &&
+            isTopFloatingCartPosition(floatingCartConfig.position) &&
             totalCartCount > 0 && (
               <FnbFloatingCartCapsule
                 count={totalCartCount}
                 totalAmount={totalCartAmount}
-                position="top-floating"
+                position={floatingCartConfig.position}
                 offsetY={floatingCartConfig.offsetY}
                 bgColor={floatingCartConfig.bgColor}
                 actionLabel={floatingCartConfig.actionLabel}
@@ -2772,7 +3113,11 @@ export function PreviewModal({
             )}
 
           {subPage.type === 'home' && (
-            <div className={`app-container w-full max-w-[576px] mx-auto box-border ${totalCartCount > 0 && hasCartFeature ? 'pb-16' : ''}`}>
+            <div
+              className={`app-container w-full mx-auto box-border ${
+                previewSize.width >= 768 ? 'max-w-full' : 'max-w-[576px]'
+              } ${totalCartCount > 0 && hasCartFeature ? 'pb-16' : ''}`}
+            >
               {currentCustomPage && currentCustomPage.showBackButton !== false && (
                 <div className="px-4 py-2.5 mb-2 border-b border-black/10 flex items-center justify-between gap-2 bg-white/85 backdrop-blur-xs sticky top-0 z-10">
                   <button
@@ -2805,7 +3150,7 @@ export function PreviewModal({
 
           {subPage.type === 'home' &&
             floatingCartConfig &&
-            floatingCartConfig.position !== 'top-floating' &&
+            !isTopFloatingCartPosition(floatingCartConfig.position) &&
             totalCartCount > 0 && (
               <FnbFloatingCartCapsule
                 count={totalCartCount}
@@ -3866,11 +4211,7 @@ export function PreviewModal({
         {subPage.type !== 'cart' &&
           hasCartFeature &&
           totalCartCount > 0 &&
-          !(
-            subPage.type === 'home' &&
-            firstFnbCatalog &&
-            firstFnbCatalog.content.fnbFloatingCartEnabled !== false
-          ) && (
+          !(subPage.type === 'home' && Boolean(floatingCartConfig)) && (
             <div className="px-4 py-2.5 border-t border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0 shadow-sm">
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold text-slate-500 tabular-nums">

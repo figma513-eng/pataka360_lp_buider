@@ -1,10 +1,79 @@
 import type { ButtonIconId } from '../types/builder.ts';
 import { sanitizeExternalUrl } from './urlHelpers.ts';
 
+export type ButtonIconCategory =
+  | 'Semua'
+  | 'Komunikasi'
+  | 'Belanja'
+  | 'Navigasi'
+  | 'Media'
+  | 'Informasi';
+
 export interface ButtonIconMeta {
   id: ButtonIconId;
   label: string;
   svgInner: string;
+  category?: Exclude<ButtonIconCategory, 'Semua'>;
+}
+
+export const BUTTON_ICON_CATEGORIES: ButtonIconCategory[] = [
+  'Semua',
+  'Komunikasi',
+  'Belanja',
+  'Navigasi',
+  'Media',
+  'Informasi',
+];
+
+const ICON_CATEGORY_MAP: Partial<Record<ButtonIconId, Exclude<ButtonIconCategory, 'Semua'>>> = {
+  'message-circle': 'Komunikasi',
+  whatsapp: 'Komunikasi',
+  phone: 'Komunikasi',
+  mail: 'Komunikasi',
+  send: 'Komunikasi',
+  users: 'Komunikasi',
+  'share-2': 'Komunikasi',
+  'shopping-bag': 'Belanja',
+  'shopping-cart': 'Belanja',
+  store: 'Belanja',
+  tag: 'Belanja',
+  ticket: 'Belanja',
+  gift: 'Belanja',
+  'credit-card': 'Belanja',
+  wallet: 'Belanja',
+  truck: 'Belanja',
+  package: 'Belanja',
+  home: 'Navigasi',
+  'map-pin': 'Navigasi',
+  navigation: 'Navigasi',
+  globe: 'Navigasi',
+  'external-link': 'Navigasi',
+  'arrow-left': 'Navigasi',
+  'chevron-left': 'Navigasi',
+  download: 'Navigasi',
+  image: 'Media',
+  camera: 'Media',
+  play: 'Media',
+  music: 'Media',
+  'file-text': 'Media',
+  'book-open': 'Media',
+  'graduation-cap': 'Informasi',
+  award: 'Informasi',
+  calendar: 'Informasi',
+  clock: 'Informasi',
+  user: 'Informasi',
+  star: 'Informasi',
+  heart: 'Informasi',
+  sparkles: 'Informasi',
+  'shield-check': 'Informasi',
+  bell: 'Informasi',
+  info: 'Informasi',
+  'help-circle': 'Informasi',
+  eye: 'Informasi',
+};
+
+export function getButtonIconCategory(id: ButtonIconId): Exclude<ButtonIconCategory, 'Semua'> {
+  return ICON_CATEGORY_MAP[id] ?? 'Informasi';
 }
 
 export const BUTTON_ICON_LIST: ButtonIconMeta[] = [
@@ -259,6 +328,16 @@ export const BUTTON_ICON_LIST: ButtonIconMeta[] = [
     label: 'Tautan',
     svgInner:
       '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  },
+  {
+    id: 'arrow-left',
+    label: 'Kembali',
+    svgInner: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  },
+  {
+    id: 'chevron-left',
+    label: 'Panah Kiri',
+    svgInner: '<path d="m15 18-6-6 6-6"/>',
   },
 ];
 

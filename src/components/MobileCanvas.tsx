@@ -12,17 +12,21 @@ import {
   ClipboardPaste,
   Copy,
   Eye,
-  FilePlus2,
   GripVertical,
+  Home,
   ImageOff,
+  Lock,
   Minus,
   Monitor,
+  MousePointer2,
+  Move,
   PanelBottomOpen,
   Plus,
   Redo2,
   Shapes,
   ShoppingCart,
   Smartphone,
+  Tablet,
   Trash2,
   Undo2,
   X,
@@ -36,6 +40,7 @@ import {
   CategoryJumpItem,
   FnbMenuItem,
   PageTheme,
+  ViewportBreakpoint,
 } from '../types/builder';
 import { BLOCK_TYPE_NAMES, resolveNavbarMetrics } from '../data/presets';
 import { resolveBlockTextColor, shadowToCss } from '../utils/htmlExporter';
@@ -46,8 +51,16 @@ import { resolveCssFontFamily } from '../utils/fontHelpers';
 import { buildLinearGradientCss, resolveBackgroundInlineProps } from '../utils/gradientHelpers';
 import { clampDimension } from '../utils/devicePresets';
 import {
+  VIEWPORT_PRESET_HEIGHTS,
+  VIEWPORT_PRESET_WIDTHS,
+  resolveEffectiveBlockStyle,
+  resolveViewportBreakpoint,
+} from '../utils/responsiveStyle';
+import {
   buildLineClampStyle,
   getActionBadgeLabel,
+  isTopFloatingCartPosition,
+  resolveProjectFloatingCartConfig,
   resolveUniversalCartMeta,
 } from '../utils/universalLayerHelpers';
 import { ButtonGlyph } from './ButtonIcon';
@@ -73,6 +86,7 @@ import {
   resolveFieldRequiredRule,
 } from '../utils/formValidation';
 import { hydrateDefaultFormFields } from './inspector/DynamicFormBuilderEditor';
+import { useUiLabel } from '../contexts/UiLabelsContext';
 
 interface MobileCanvasProps {
   blocks: BuilderBlock[];
@@ -85,6 +99,12 @@ interface MobileCanvasProps {
   bottomNavbar: BottomNavbarConfig;
   inspectorMode: 'element' | 'navbar';
   selectedId: string | null;
+  selectedSubLayerId?: string | null;
+  selectedSubLayerLabel?: string | null;
+  onSelectSubLayer?: (blockId: string, subLayerId: string | null) => void;
+  interactionMode?: 'pointer' | 'drag';
+  onChangeInteractionMode?: (mode: 'pointer' | 'drag') => void;
+  canvasScrollNonce?: number;
   remotePeersByBlock?: Record<string, CollabPeer[]>;
   canUndo?: boolean;
   onUndo?: () => void;
@@ -94,6 +114,8 @@ interface MobileCanvasProps {
   onCopyBlock?: (id: string) => void;
   onPasteBlock?: () => void;
   onOpenPreview: () => void;
+  viewportBreakpoint?: ViewportBreakpoint;
+  onViewportBreakpointChange?: (bp: ViewportBreakpoint) => void;
   onSelectBlock: (id: string | null) => void;
   onOpenNavbarSettings: (itemId?: string) => void;
   onMoveBlock: (id: string, dir: 'up' | 'down') => void;
@@ -125,12 +147,17 @@ export function MobileCanvas({
   pages = [],
   activeSubPageId = null,
   onSelectSubPage,
-  onAddSubPage,
   theme,
   advanceOptions,
   bottomNavbar,
   inspectorMode,
   selectedId,
+  selectedSubLayerId = null,
+  selectedSubLayerLabel = null,
+  onSelectSubLayer,
+  interactionMode = 'pointer',
+  onChangeInteractionMode,
+  canvasScrollNonce = 0,
   remotePeersByBlock = {},
   canUndo = false,
   onUndo,
@@ -140,6 +167,8 @@ export function MobileCanvas({
   onCopyBlock,
   onPasteBlock,
   onOpenPreview,
+  viewportBreakpoint,
+  onViewportBreakpointChange,
   onSelectBlock,
   onOpenNavbarSettings,
   onMoveBlock,
@@ -153,6 +182,7 @@ export function MobileCanvas({
   onDropSectionToCardFooter,
   onMoveBlockToCardFooter,
 }: MobileCanvasProps) {
+  const { label, isVisible } = useUiLabel();
   const activeSubPage = activeSubPageId
     ? pages.find((p) => p.id === activeSubPageId) ?? null
     : null;
@@ -184,8 +214,53 @@ export function MobileCanvas({
   const zoomMenuRef = useRef<HTMLDivElement>(null);
   const rowTrackRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const zoomStageRef = useRef<HTMLDivElement>(null);
   const canvasFrameRef = useRef<HTMLDivElement>(null);
   const canvasRootRef = useRef<HTMLDivElement>(null);
+  const floatingBarRef = useRef<HTMLDivElement>(null);
+  const [floatingBarWidth, setFloatingBarWidth] = useState<number>(280);
+  const [selectedOverlayRect, setSelectedOverlayRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+    stageWidth: number;
+  } | null>(null);
+  const [hoveredOverlayRect, setHoveredOverlayRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+    stageWidth: number;
+  } | null>(null);
+
+  const findBlockByIdInCanvas = (
+    list: BuilderBlock[] | undefined,
+    targetId: string
+  ): BuilderBlock | null => {
+    if (!Array.isArray(list) || !targetId) return null;
+    for (const item of list) {
+      if (item.id === targetId) return item;
+      const inChildren = findBlockByIdInCanvas(item.children, targetId);
+      if (inChildren) return inChildren;
+      const inSheet = findBlockByIdInCanvas(item.content?.actionSheetBlocks, targetId);
+      if (inSheet) return inSheet;
+      const inFooter = findBlockByIdInCanvas(item.content?.cardFooterBlocks, targetId);
+      if (inFooter) return inFooter;
+    }
+    return null;
+  };
+
+  const navSheetAllChildren = bottomNavbar.items.flatMap((it) => it.children ?? []);
+  const selectedBlockObj = selectedId
+    ? findBlockByIdInCanvas(blocks, selectedId) ??
+      findBlockByIdInCanvas(navSheetAllChildren, selectedId)
+    : null;
+  const hoveredBlockObj =
+    hoveredBlockId && hoveredBlockId !== selectedId
+      ? findBlockByIdInCanvas(blocks, hoveredBlockId) ??
+        findBlockByIdInCanvas(navSheetAllChildren, hoveredBlockId)
+      : null;
 
   useEffect(() => {
     if (!isZoomMenuOpen) return;
@@ -206,6 +281,27 @@ export function MobileCanvas({
   }, [isZoomMenuOpen]);
 
   useEffect(() => {
+    if (!selectedId || canvasScrollNonce <= 0) return;
+    const container = scrollAreaRef.current;
+    if (!container) return;
+    const nodes = container.querySelectorAll<HTMLElement>('[data-block-id]');
+    let targetEl: HTMLElement | null = null;
+    for (let i = 0; i < nodes.length; i += 1) {
+      if (nodes[i].getAttribute('data-block-id') === selectedId) {
+        targetEl = nodes[i];
+        break;
+      }
+    }
+    if (!targetEl) return;
+    const cRect = container.getBoundingClientRect();
+    const tRect = targetEl.getBoundingClientRect();
+    const isVisibleInView = tRect.top >= cRect.top + 12 && tRect.bottom <= cRect.bottom - 12;
+    if (!isVisibleInView) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    }
+  }, [selectedId, canvasScrollNonce]);
+
+  useEffect(() => {
     const el = canvasFrameRef.current;
     if (!el) return;
     const syncHeight = () => {
@@ -219,6 +315,142 @@ export function MobileCanvas({
       return () => ro.disconnect();
     }
   }, [blocks, viewportSize.height, bottomNavbar.enabled]);
+
+  // Sinkronkan highlight visual [data-canvas-sublayer-active="true"] pada kanvas untuk sub-layer aktif
+  useEffect(() => {
+    const root = canvasRootRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>('[data-canvas-sublayer-active="true"]').forEach((el) => {
+      el.removeAttribute('data-canvas-sublayer-active');
+    });
+    if (!selectedId || !selectedSubLayerId) return;
+    const blockNodes = root.querySelectorAll<HTMLElement>('[data-block-id]');
+    let ownerBlockEl: HTMLElement | null = null;
+    for (let i = 0; i < blockNodes.length; i += 1) {
+      if (blockNodes[i].getAttribute('data-block-id') === selectedId) {
+        ownerBlockEl = blockNodes[i];
+        break;
+      }
+    }
+    if (!ownerBlockEl) return;
+    const subNodes = ownerBlockEl.querySelectorAll<HTMLElement>('[data-canvas-sublayer]');
+    for (let i = 0; i < subNodes.length; i += 1) {
+      const node = subNodes[i];
+      if (
+        node.getAttribute('data-canvas-sublayer') === selectedSubLayerId &&
+        node.closest('[data-block-id]') === ownerBlockEl
+      ) {
+        node.setAttribute('data-canvas-sublayer-active', 'true');
+      }
+    }
+  }, [selectedId, selectedSubLayerId, blocks, interactionMode]);
+
+  // Ukur posisi objek terpilih & hovered relatif terhadap stage zoom agar floating bar selalu berada di atasnya tanpa menutupi objek/shadow/outline
+  useEffect(() => {
+    const findBlockDomEl = (targetId: string | null): HTMLElement | null => {
+      if (!targetId) return null;
+      const scope = canvasFrameRef.current;
+      if (!scope) return null;
+      const nodes = scope.querySelectorAll<HTMLElement>('[data-block-id]');
+      for (let i = 0; i < nodes.length; i += 1) {
+        if (nodes[i].getAttribute('data-block-id') === targetId) {
+          return nodes[i];
+        }
+      }
+      return null;
+    };
+
+    const measure = () => {
+      const stageEl = zoomStageRef.current;
+      if (!stageEl) {
+        setSelectedOverlayRect(null);
+        setHoveredOverlayRect(null);
+        return;
+      }
+      const stageRect = stageEl.getBoundingClientRect();
+
+      const selEl = findBlockDomEl(selectedId);
+      if (selEl) {
+        const r = selEl.getBoundingClientRect();
+        setSelectedOverlayRect({
+          top: r.top - stageRect.top,
+          left: r.left - stageRect.left,
+          width: r.width,
+          height: r.height,
+          stageWidth: stageRect.width,
+        });
+      } else {
+        setSelectedOverlayRect(null);
+      }
+
+      const hovEl =
+        hoveredBlockId && hoveredBlockId !== selectedId
+          ? findBlockDomEl(hoveredBlockId)
+          : null;
+      if (hovEl) {
+        const r = hovEl.getBoundingClientRect();
+        setHoveredOverlayRect({
+          top: r.top - stageRect.top,
+          left: r.left - stageRect.left,
+          width: r.width,
+          height: r.height,
+          stageWidth: stageRect.width,
+        });
+      } else {
+        setHoveredOverlayRect(null);
+      }
+    };
+
+    const rafId = window.requestAnimationFrame(measure);
+    const frameEl = canvasFrameRef.current;
+    const selEl = findBlockDomEl(selectedId);
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => measure())
+        : null;
+    if (ro && frameEl) ro.observe(frameEl);
+    if (ro && selEl) ro.observe(selEl);
+
+    const handleScrollCapture = () => measure();
+    frameEl?.addEventListener('scroll', handleScrollCapture, true);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      ro?.disconnect();
+      frameEl?.removeEventListener('scroll', handleScrollCapture, true);
+      window.removeEventListener('resize', measure);
+    };
+  }, [
+    selectedId,
+    hoveredBlockId,
+    blocks,
+    zoom,
+    viewportSize.width,
+    viewportSize.height,
+    measuredFrameHeight,
+    activeSubPageId,
+    openNavSheetId,
+    openToggles,
+    openSheets,
+    bottomNavbar,
+    selectedSubLayerLabel,
+  ]);
+
+  useEffect(() => {
+    const barEl = floatingBarRef.current;
+    if (!barEl) return;
+    const syncBarWidth = () => {
+      const w = barEl.offsetWidth;
+      if (w > 0) setFloatingBarWidth(w);
+    };
+    syncBarWidth();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(syncBarWidth);
+      ro.observe(barEl);
+      return () => ro.disconnect();
+    }
+  }, [selectedId, selectedSubLayerLabel, blocks, interactionMode]);
 
   const jumpToMatchingHeadingInCanvas = (targetTitle: string) => {
     const query = targetTitle.trim().toLowerCase();
@@ -280,14 +512,24 @@ export function MobileCanvas({
 
   const frameWidth = viewportSize.width;
   const frameHeight = viewportSize.height;
+  const activeBreakpoint = resolveViewportBreakpoint(frameWidth);
   const isWideViewport = frameWidth >= 576;
 
-  const handleSelectPresetWidth = (mode: 'mobile-440' | 'mobile-576') => {
-    if (mode === 'mobile-440') {
-      setViewportSize({ width: 440, height: 844 });
-    } else {
-      setViewportSize({ width: 576, height: 844 });
-    }
+  useEffect(() => {
+    if (!viewportBreakpoint) return;
+    if (resolveViewportBreakpoint(viewportSize.width) === viewportBreakpoint) return;
+    setViewportSize({
+      width: VIEWPORT_PRESET_WIDTHS[viewportBreakpoint],
+      height: VIEWPORT_PRESET_HEIGHTS[viewportBreakpoint],
+    });
+  }, [viewportBreakpoint]);
+
+  const handleSelectPresetWidth = (mode: ViewportBreakpoint) => {
+    setViewportSize({
+      width: VIEWPORT_PRESET_WIDTHS[mode],
+      height: VIEWPORT_PRESET_HEIGHTS[mode],
+    });
+    onViewportBreakpointChange?.(mode);
   };
 
   const handleStartResizeResponsive = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -298,8 +540,9 @@ export function MobileCanvas({
     const startH = viewportSize.height;
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / zoom;
-      const nextW = clampDimension(startW + dx * 2, 320, 960);
+      const nextW = clampDimension(startW + dx * 2, 320, 1280);
       setViewportSize({ width: nextW, height: startH });
+      onViewportBreakpointChange?.(resolveViewportBreakpoint(nextW));
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
@@ -314,7 +557,7 @@ export function MobileCanvas({
     depth = 0,
     inheritedTextColor?: string
   ) => {
-    const s = block.style;
+    const s = resolveEffectiveBlockStyle(block.style, activeBreakpoint);
     const isSelected = block.id === selectedId;
     const isEmptyText = block.type === 'text' && !(block.content.text ?? '').trim();
     const isCircleImage = block.type === 'image' && block.content.imageShape === 'circle';
@@ -450,8 +693,12 @@ export function MobileCanvas({
 
         <div
           data-block-id={block.id}
-          draggable
+          draggable={interactionMode === 'drag' && !s.locked}
           onDragStart={(e) => {
+            if (interactionMode !== 'drag' || s.locked) {
+              e.preventDefault();
+              return;
+            }
             e.stopPropagation();
             e.dataTransfer.setData('application/lynk-existing-block', block.id);
             e.dataTransfer.effectAllowed = 'move';
@@ -473,7 +720,8 @@ export function MobileCanvas({
               block.type === 'toggle_container' ||
               block.type === 'bottom_sheet' ||
               block.type === 'menu_icon' ||
-              block.type === 'showcase_card'
+              block.type === 'showcase_card' ||
+              block.type === 'hero_profile'
             ) {
               if (relY < rect.height * 0.25) pos = 'before';
               else if (relY > rect.height * 0.75) pos = 'after';
@@ -505,110 +753,68 @@ export function MobileCanvas({
           }}
           onClick={(e) => {
             e.stopPropagation();
+            if (interactionMode === 'pointer' && onSelectSubLayer) {
+              const targetEl = e.target as HTMLElement | null;
+              const subEl = targetEl?.closest<HTMLElement>('[data-canvas-sublayer]');
+              if (subEl) {
+                const ownerBlock = subEl.closest<HTMLElement>('[data-block-id]');
+                const subId = subEl.getAttribute('data-canvas-sublayer');
+                if (ownerBlock?.getAttribute('data-block-id') === block.id && subId) {
+                  onSelectSubLayer(block.id, subId);
+                  return;
+                }
+              }
+            }
             onSelectBlock(block.id);
           }}
           style={{
             ...inlineStyle,
             outline:
-              !isSelected && primaryRemoteEditor
+              isDropTarget && dragState.position === 'inside'
+                ? '2px dashed #2563EB'
+                : isSelected
+                ? '2px solid #2563EB'
+                : hoveredBlockId === block.id
+                ? '1.5px solid rgba(59, 130, 246, 0.7)'
+                : primaryRemoteEditor
                 ? `2px dashed ${primaryRemoteEditor.color}`
                 : inlineStyle.outline,
-            outlineOffset: !isSelected && primaryRemoteEditor ? '2px' : undefined,
+            outlineOffset:
+              isDropTarget && dragState.position === 'inside'
+                ? '5px'
+                : isSelected
+                ? s.fullBleed
+                  ? '2px'
+                  : '6px'
+                : hoveredBlockId === block.id
+                ? s.fullBleed
+                  ? '1px'
+                  : '5px'
+                : primaryRemoteEditor
+                ? '5px'
+                : undefined,
           }}
-          className={`relative transition-all cursor-grab active:cursor-grabbing ${
+          className={`relative transition-all ${
+            interactionMode === 'drag'
+              ? s.locked
+                ? 'cursor-not-allowed'
+                : 'cursor-grab active:cursor-grabbing'
+              : 'cursor-pointer'
+          } ${
             isSelected ? 'z-30' : hoveredBlockId === block.id ? 'z-20' : 'z-0'
           } ${
             s.hoverLift ? 'hover:-translate-y-0.5 hover:shadow-lg' : ''
           } ${isDraggingThis ? 'opacity-40 scale-[0.99]' : ''} ${
-            isDropTarget && dragState.position === 'inside'
-              ? 'ring-2 ring-dashed ring-blue-600 bg-blue-50/20'
-              : isSelected
-              ? depth > 0 || s.fullBleed
-                ? 'ring-2 ring-inset ring-blue-600'
-                : 'ring-2 ring-blue-600 ring-offset-1 ring-offset-transparent'
-              : hoveredBlockId === block.id
-              ? depth > 0 || s.fullBleed
-                ? 'ring-1 ring-inset ring-blue-400/80'
-                : 'ring-1 ring-blue-400/80'
-              : ''
+            isDropTarget && dragState.position === 'inside' ? 'bg-blue-50/20' : ''
           }`}
         >
-          {/* Drag Handle Badge — only for selected OR single innermost hovered block (no ancestor stacking) */}
-          {(isSelected || hoveredBlockId === block.id) && (
-            <div
-              title="Tarik untuk geser posisi"
-              className={`absolute ${
-                depth > 0 || s.fullBleed ? 'top-1 left-1.5' : '-top-2.5 left-2'
-              } z-30 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-900/95 text-white text-[9.5px] font-medium shadow-sm pointer-events-none max-w-[140px] truncate`}
-            >
-              <GripVertical className="w-2.5 h-2.5 shrink-0" />
-              <span className="truncate">{block.label.trim() || BLOCK_TYPE_NAMES[block.type]}</span>
-            </div>
-          )}
-
-          {primaryRemoteEditor && (
+          {primaryRemoteEditor && !isSelected && (
             <div
               style={{ backgroundColor: primaryRemoteEditor.color }}
-              className={`absolute ${isSelected ? '-bottom-2.5' : 'top-1'} right-1.5 z-30 px-1.5 py-0.5 rounded-md text-white text-[10px] font-semibold shadow-sm pointer-events-none whitespace-nowrap`}
+              className="absolute -top-7 right-0 z-30 px-1.5 py-0.5 rounded-md text-white text-[10px] font-semibold shadow-sm pointer-events-none whitespace-nowrap"
             >
               Sedang diedit: {primaryRemoteEditor.name}
               {remoteEditors.length > 1 ? ` +${remoteEditors.length - 1}` : ''}
-            </div>
-          )}
-
-          {/* Quick Toolbar when Selected — placed cleanly inside on nested/full-bleed blocks so never clipped */}
-          {isSelected && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              onDragStart={(e) => e.stopPropagation()}
-              className={`absolute ${
-                depth > 0 || s.fullBleed ? 'top-1 right-1.5' : '-top-7 right-0'
-              } z-40 flex items-center gap-0.5 bg-slate-900/95 text-white rounded-lg px-1 py-0.5 shadow-md`}
-            >
-              <button
-                type="button"
-                onClick={() => onMoveBlock(block.id, 'up')}
-                title="Naikkan"
-                className="p-1 hover:bg-slate-700 rounded cursor-pointer"
-              >
-                <ArrowUp className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onMoveBlock(block.id, 'down')}
-                title="Turunkan"
-                className="p-1 hover:bg-slate-700 rounded cursor-pointer"
-              >
-                <ArrowDown className="w-3 h-3" />
-              </button>
-              {onToggleFullBleed && (
-                <button
-                  type="button"
-                  onClick={() => onToggleFullBleed(block.id)}
-                  title={s.fullBleed ? 'Kembalikan margin kanan-kiri' : 'Full kanan-kiri (tanpa margin)'}
-                  className={`p-1 rounded cursor-pointer transition-colors ${
-                    s.fullBleed ? 'bg-blue-600 text-white' : 'hover:bg-slate-700'
-                  }`}
-                >
-                  <ArrowLeftRight className="w-3 h-3" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onDuplicateBlock(block.id)}
-                title="Duplikat"
-                className="p-1 hover:bg-slate-700 rounded cursor-pointer"
-              >
-                <Copy className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onDeleteBlock(block.id)}
-                title="Hapus"
-                className="p-1 hover:bg-red-600 rounded cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
             </div>
           )}
 
@@ -654,7 +860,9 @@ export function MobileCanvas({
                 {children.length > 0 ? (
                   isHSlider ? (
                     <div
-                      className="flex flex-row overflow-x-auto pb-1"
+                      className={`flex flex-row overflow-x-auto ${
+                        block.content.sliderShowScrollbar ? 'pb-1.5' : 'pb-0.5 no-scrollbar'
+                      }`}
                       style={{
                         gap: `${sliderGap}px`,
                         scrollSnapType: block.content.sliderSnap !== false ? 'x mandatory' : undefined,
@@ -675,7 +883,9 @@ export function MobileCanvas({
                     </div>
                   ) : isVSlider ? (
                     <div
-                      className="flex flex-col overflow-y-auto pr-0.5"
+                      className={`flex flex-col overflow-y-auto ${
+                        block.content.sliderShowScrollbar ? 'pr-1' : 'no-scrollbar'
+                      }`}
                       style={{
                         gap: `${sliderGap}px`,
                         maxHeight: `${Math.max(220, s.maxHeight || 340)}px`,
@@ -740,9 +950,14 @@ export function MobileCanvas({
               <div>
                 <button
                   type="button"
+                  data-canvas-sublayer="toggle_trigger"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onSelectBlock(block.id);
+                    if (interactionMode === 'pointer' && onSelectSubLayer) {
+                      onSelectSubLayer(block.id, 'toggle_trigger');
+                    } else {
+                      onSelectBlock(block.id);
+                    }
                     setOpenToggles((prev) => ({ ...prev, [block.id]: !isOpen }));
                   }}
                   style={
@@ -841,12 +1056,17 @@ export function MobileCanvas({
                   {triggerStyle === 'icon' && (
                     <button
                       type="button"
+                      data-canvas-sublayer="sheet_trigger"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectBlock(block.id);
+                        if (interactionMode === 'pointer' && onSelectSubLayer) {
+                          onSelectSubLayer(block.id, 'sheet_trigger');
+                        } else {
+                          onSelectBlock(block.id);
+                        }
                         setOpenSheets((prev) => ({ ...prev, [block.id]: !isOpen }));
                       }}
-                      className="inline-flex flex-col items-center gap-1.5 cursor-pointer group/trig"
+                      className="inline-flex flex-col items-center gap-1.5 cursor-pointer group/trig rounded-xl"
                     >
                       <span
                         style={{
@@ -885,9 +1105,14 @@ export function MobileCanvas({
                   {triggerStyle === 'pill' && (
                     <button
                       type="button"
+                      data-canvas-sublayer="sheet_trigger"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectBlock(block.id);
+                        if (interactionMode === 'pointer' && onSelectSubLayer) {
+                          onSelectSubLayer(block.id, 'sheet_trigger');
+                        } else {
+                          onSelectBlock(block.id);
+                        }
                         setOpenSheets((prev) => ({ ...prev, [block.id]: !isOpen }));
                       }}
                       style={{
@@ -919,9 +1144,14 @@ export function MobileCanvas({
                   {triggerStyle === 'button' && (
                     <button
                       type="button"
+                      data-canvas-sublayer="sheet_trigger"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectBlock(block.id);
+                        if (interactionMode === 'pointer' && onSelectSubLayer) {
+                          onSelectSubLayer(block.id, 'sheet_trigger');
+                        } else {
+                          onSelectBlock(block.id);
+                        }
                         setOpenSheets((prev) => ({ ...prev, [block.id]: !isOpen }));
                       }}
                       style={{
@@ -951,7 +1181,6 @@ export function MobileCanvas({
 
                 {isOpen && (
                   <div
-                    onClick={(e) => e.stopPropagation()}
                     onDragOver={(e) => {
                       e.preventDefault();
                     }}
@@ -966,7 +1195,11 @@ export function MobileCanvas({
                     }}
                     className="mt-3 rounded-t-2xl rounded-b-xl border shadow-lg overflow-hidden"
                   >
-                    <div className="pt-2 pb-2 px-3.5 border-b flex flex-col items-center gap-1.5" style={{ borderColor: theme.borderColor }}>
+                    <div
+                      data-canvas-sublayer="sheet_header"
+                      className="pt-2 pb-2 px-3.5 border-b flex flex-col items-center gap-1.5"
+                      style={{ borderColor: theme.borderColor }}
+                    >
                       <div className="w-9 h-1 rounded-full bg-slate-300/80" />
                       <div className="w-full flex items-center justify-between gap-2">
                         <span className="text-xs font-bold truncate">
@@ -1072,7 +1305,17 @@ export function MobileCanvas({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelectBlock(block.id);
+                      const hitSub =
+                        interactionMode === 'pointer' && onSelectSubLayer
+                          ? (e.target as HTMLElement | null)
+                              ?.closest<HTMLElement>('[data-canvas-sublayer]')
+                              ?.getAttribute('data-canvas-sublayer') ?? null
+                          : null;
+                      if (hitSub && onSelectSubLayer) {
+                        onSelectSubLayer(block.id, hitSub);
+                      } else {
+                        onSelectBlock(block.id);
+                      }
                       if (action === 'sheet') {
                         setOpenSheets((prev) => ({ ...prev, [block.id]: !isOpen }));
                       } else if (targetId && canvasRootRef.current) {
@@ -1087,6 +1330,7 @@ export function MobileCanvas({
                     className="inline-flex flex-col items-center gap-1.5 cursor-pointer group/mico"
                   >
                     <span
+                      data-canvas-sublayer="menu_icon_visual"
                       style={{
                         width: `${iconWidth}px`,
                         height: `${size}px`,
@@ -1122,6 +1366,7 @@ export function MobileCanvas({
                     </span>
                     {showLabel && iconLabel.trim() && (
                       <span
+                        data-canvas-sublayer="menu_icon_label"
                         style={{
                           color: labelColor,
                           fontSize: `${labelFontSize}px`,
@@ -1129,7 +1374,7 @@ export function MobileCanvas({
                           lineHeight: s.lineHeight ? String(s.lineHeight) : '1.25',
                           textAlign: s.align,
                         }}
-                        className="leading-tight"
+                        className="leading-tight rounded px-0.5"
                       >
                         {iconLabel}
                       </span>
@@ -1149,7 +1394,6 @@ export function MobileCanvas({
 
                 {isOpen && (
                   <div
-                    onClick={(e) => e.stopPropagation()}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
                       if (block.children && block.children.length > 0) return;
@@ -1220,6 +1464,8 @@ export function MobileCanvas({
 
           if (rowMode === 'horizontal') {
             const activeDot = rowActiveDots[block.id] ?? 0;
+            const showScrollbar = Boolean(block.content.rowShowScrollbar);
+            const showDots = block.content.rowShowDots !== false;
             return (
               <div>
                 <div
@@ -1240,7 +1486,9 @@ export function MobileCanvas({
                     WebkitOverflowScrolling: 'touch',
                     scrollSnapType: 'x proximity',
                   }}
-                  className="flex flex-row flex-nowrap items-stretch overflow-x-auto pt-1.5 pb-2 px-0.5 touch-pan-x no-scrollbar"
+                  className={`flex flex-row flex-nowrap items-stretch overflow-x-auto pt-1 px-0.5 touch-pan-x ${
+                    showScrollbar ? 'pb-2' : 'pb-1 no-scrollbar'
+                  }`}
                 >
                   {rowChildren.map((child) => (
                     <div
@@ -1258,7 +1506,7 @@ export function MobileCanvas({
                     </div>
                   ))}
                 </div>
-                {rowChildren.length > 1 && (
+                {showDots && rowChildren.length > 1 && (
                   <div
                     data-row-dots="3"
                     className="flex items-center justify-center gap-1.5 pt-2"
@@ -1319,11 +1567,19 @@ export function MobileCanvas({
             );
           }
 
+          const rowGridRows =
+            typeof block.content.rowGridRows === 'number' && block.content.rowGridRows > 0
+              ? Math.max(1, Math.min(10, Math.round(block.content.rowGridRows)))
+              : 0;
           return (
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${rowCols}, minmax(0, 1fr))`,
+                gridTemplateRows:
+                  rowGridRows > 0
+                    ? `repeat(${rowGridRows}, minmax(${rowColMinH > 0 ? `${rowColMinH}px` : 'auto'}, 1fr))`
+                    : undefined,
                 gap: `${rowGap}px`,
               }}
               className="items-stretch"
@@ -1363,6 +1619,7 @@ export function MobileCanvas({
                 fontSize: s.fontSize ? `${s.fontSize}px` : undefined,
                 fontFamily: resolvedFontFamily,
                 fontWeight: s.fontWeightCss ? Number(s.fontWeightCss) : undefined,
+                fontStyle: s.fontStyle,
                 lineHeight: s.lineHeight ? String(s.lineHeight) : undefined,
                 letterSpacing: s.letterSpacing ? `${s.letterSpacing}px` : undefined,
                 ...buildLineClampStyle(s.maxLines),
@@ -1439,6 +1696,7 @@ export function MobileCanvas({
                       className="w-full h-full block"
                       style={{
                         objectFit: block.content.objectFit ?? 'cover',
+                        objectPosition: block.content.objectPosition || 'center',
                         transform: `scale(${imageZoom / 100})`,
                         transformOrigin: 'center center',
                       }}
@@ -1474,6 +1732,7 @@ export function MobileCanvas({
                     className="w-full h-full block"
                     style={{
                       objectFit: block.content.objectFit ?? 'cover',
+                      objectPosition: block.content.objectPosition || 'center',
                       borderRadius: `${s.borderRadius}px`,
                       transform: rectZoom !== 100 ? `scale(${rectZoom / 100})` : undefined,
                       transformOrigin: 'center center',
@@ -1488,26 +1747,151 @@ export function MobileCanvas({
           const btnLabel = block.content.label || 'Tombol Link';
           const leftIcon = resolveButtonIcon(block.content.buttonIcon, btnLabel);
           const btnGrad = buildLinearGradientCss(s);
+          const hiddenSubs = new Set(block.content.hiddenSubLayers ?? []);
+          const deletedSubs = new Set(block.content.deletedSubLayers ?? []);
+          const showIconLayer =
+            !block.content.buttonHideIcon &&
+            !hiddenSubs.has('button_icon') &&
+            !deletedSubs.has('button_icon') &&
+            (leftIcon !== 'none' || Boolean(sanitizeIconUrl(block.content.buttonIconUrl)));
+          const showTextLayer =
+            !block.content.buttonHideText &&
+            !hiddenSubs.has('button_text') &&
+            !deletedSubs.has('button_text');
+
+          const activeStateKey = block.content.buttonDisabled
+            ? 'disabled'
+            : block.content.buttonVisualState || 'normal';
+          const statePatch = block.content.buttonStateStyles?.[activeStateKey];
+          const iconSubStyle = block.content.buttonIconStyle ?? block.content.subLayerStyles?.button_icon;
+          const textSubStyle = block.content.buttonTextStyle ?? block.content.subLayerStyles?.button_text;
+          const iconPx = Math.max(10, Math.min(48, block.content.buttonIconSize ?? 16));
+          const resolvedBtnBg =
+            statePatch?.bg ||
+            (btnGrad ? s.gradientColor1 || '#EA580C' : block.content.buttonBg ?? theme.accentColor);
+          const resolvedBtnText =
+            statePatch?.textColor || textSubStyle?.textColor || block.content.buttonText || '#FFFFFF';
+          const resolvedIconColor =
+            block.content.buttonIconColor || iconSubStyle?.textColor || resolvedBtnText;
+          const isIconSelected = isSelected && selectedSubLayerId === 'button_icon';
+          const isTextSelected = isSelected && selectedSubLayerId === 'button_text';
+
           return (
             <div
-              className="w-full py-3 px-4 font-semibold text-sm flex items-center justify-center gap-2 transition-opacity"
+              title={block.content.buttonTooltip || undefined}
+              className={`w-full py-3 px-4 font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+                block.content.buttonDisabled ? 'opacity-55 cursor-not-allowed' : ''
+              }`}
               style={{
-                backgroundColor: btnGrad
-                  ? s.gradientColor1 || '#EA580C'
-                  : block.content.buttonBg ?? theme.accentColor,
-                backgroundImage: btnGrad || undefined,
-                color: block.content.buttonText ?? '#FFFFFF',
+                backgroundColor: resolvedBtnBg,
+                backgroundImage: statePatch?.bg ? undefined : btnGrad || undefined,
+                color: resolvedBtnText,
                 borderRadius: `${s.borderRadius}px`,
+                borderColor: statePatch?.borderColor || undefined,
+                borderWidth: statePatch?.borderColor ? '1px' : undefined,
+                borderStyle: statePatch?.borderColor ? 'solid' : undefined,
+                opacity:
+                  typeof statePatch?.opacity === 'number'
+                    ? statePatch.opacity / 100
+                    : undefined,
+                transform:
+                  typeof statePatch?.scale === 'number' && statePatch.scale !== 100
+                    ? `scale(${statePatch.scale / 100})`
+                    : undefined,
+                justifyContent:
+                  s.align === 'left'
+                    ? 'flex-start'
+                    : s.align === 'right'
+                    ? 'flex-end'
+                    : 'center',
               }}
             >
-              {(leftIcon !== 'none' || Boolean(sanitizeIconUrl(block.content.buttonIconUrl))) && (
-                <ButtonGlyph
-                  icon={leftIcon}
-                  iconUrl={block.content.buttonIconUrl}
-                  className="w-4 h-4 shrink-0"
-                />
+              {showIconLayer && (
+                <span
+                  data-canvas-sublayer="button_icon"
+                  data-button-sublayer="button_icon"
+                  title={block.content.buttonIconTooltip || undefined}
+                  style={{
+                    color: resolvedIconColor,
+                    backgroundColor:
+                      iconSubStyle?.backgroundColor && iconSubStyle.backgroundColor !== 'transparent'
+                        ? iconSubStyle.backgroundColor
+                        : undefined,
+                    borderRadius:
+                      typeof iconSubStyle?.borderRadius === 'number'
+                        ? `${iconSubStyle.borderRadius}px`
+                        : undefined,
+                    padding:
+                      typeof iconSubStyle?.padding === 'number' && iconSubStyle.padding > 0
+                        ? `${iconSubStyle.padding}px`
+                        : undefined,
+                    opacity:
+                      typeof iconSubStyle?.opacity === 'number'
+                        ? iconSubStyle.opacity / 100
+                        : undefined,
+                    transform:
+                      typeof iconSubStyle?.transformRotate === 'number' && iconSubStyle.transformRotate !== 0
+                        ? `rotate(${iconSubStyle.transformRotate}deg)`
+                        : undefined,
+                  }}
+                  className={`inline-flex items-center justify-center shrink-0 transition-all ${
+                    isIconSelected ? 'outline-2 outline-[#00C98A] outline-offset-2 rounded' : ''
+                  }`}
+                >
+                  <ButtonGlyph
+                    icon={leftIcon}
+                    iconUrl={block.content.buttonIconUrl}
+                    strokeWidth={block.content.buttonIconStrokeWidth ?? 2}
+                    className="shrink-0"
+                    style={{ width: `${iconPx}px`, height: `${iconPx}px`, color: resolvedIconColor }}
+                  />
+                </span>
               )}
-              <span className="truncate">{btnLabel}</span>
+              {showTextLayer && (
+                <span
+                  data-canvas-sublayer="button_text"
+                  data-button-sublayer="button_text"
+                  style={{
+                    color: resolvedBtnText,
+                    fontFamily: textSubStyle?.fontFamily
+                      ? resolveCssFontFamily(textSubStyle.fontFamily)
+                      : resolvedFontFamily,
+                    fontSize: textSubStyle?.fontSize
+                      ? `${textSubStyle.fontSize}px`
+                      : s.fontSize
+                      ? `${s.fontSize}px`
+                      : undefined,
+                    fontWeight: textSubStyle?.fontWeightCss
+                      ? Number(textSubStyle.fontWeightCss)
+                      : s.fontWeightCss
+                      ? Number(s.fontWeightCss)
+                      : undefined,
+                    fontStyle: textSubStyle?.fontStyle ?? s.fontStyle,
+                    lineHeight: textSubStyle?.lineHeight
+                      ? String(textSubStyle.lineHeight)
+                      : s.lineHeight
+                      ? String(s.lineHeight)
+                      : undefined,
+                    letterSpacing:
+                      typeof textSubStyle?.letterSpacing === 'number'
+                        ? `${textSubStyle.letterSpacing}px`
+                        : typeof s.letterSpacing === 'number' && s.letterSpacing !== 0
+                        ? `${s.letterSpacing}px`
+                        : undefined,
+                    textTransform: textSubStyle?.textTransform ?? s.textTransform,
+                    textDecoration: textSubStyle?.textDecoration ?? s.textDecoration,
+                    opacity:
+                      typeof textSubStyle?.opacity === 'number'
+                        ? textSubStyle.opacity / 100
+                        : undefined,
+                  }}
+                  className={`truncate transition-all ${
+                    isTextSelected ? 'outline-2 outline-[#00C98A] outline-offset-2 rounded px-0.5' : ''
+                  }`}
+                >
+                  {btnLabel}
+                </span>
+              )}
             </div>
           );
         })()}
@@ -1521,7 +1905,10 @@ export function MobileCanvas({
             (block.content.formChecklistRequired ? 'required_consent_all' : 'optional');
           return (
             <div className="space-y-2.5 text-left">
-              <div className="flex items-center justify-between gap-2">
+              <div
+                data-canvas-sublayer="form_header"
+                className="flex items-center justify-between gap-2 rounded-md"
+              >
                 <div className="font-bold text-sm">{block.content.formTitle || 'Formulir'}</div>
                 {block.content.formWhatsappEnabled && (
                   <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1529,11 +1916,15 @@ export function MobileCanvas({
                   </span>
                 )}
               </div>
-              {dynFields.map((fld) => {
+              {dynFields.map((fld, fldIdx) => {
                 const rule = resolveFieldRequiredRule(fld);
                 if (fld.type === 'section') {
                   return (
-                    <div key={fld.id} className="pt-1.5 border-t border-slate-200">
+                    <div
+                      key={fld.id}
+                      data-canvas-sublayer={`form_field_${fld.id || fldIdx}`}
+                      className="pt-1.5 border-t border-slate-200 rounded"
+                    >
                       <div className="text-xs font-bold text-slate-800">{fld.label}</div>
                       {fld.description && (
                         <div className="text-[11px] text-slate-500 mt-0.5">{fld.description}</div>
@@ -1542,7 +1933,11 @@ export function MobileCanvas({
                   );
                 }
                 return (
-                  <div key={fld.id} className="space-y-1">
+                  <div
+                    key={fld.id}
+                    data-canvas-sublayer={`form_field_${fld.id || fldIdx}`}
+                    className="space-y-1 rounded-md"
+                  >
                     <div className="flex items-center justify-between gap-1 text-[11px]">
                       <span className="font-semibold text-slate-700 truncate">
                         {fld.label || 'Kolom'}
@@ -1663,6 +2058,7 @@ export function MobileCanvas({
             }
             autoPlay={block.content.videoAutoplay ?? block.content.youtubeAutoplay ?? true}
             volume={block.content.videoVolume ?? block.content.youtubeVolume ?? 75}
+            muted={Boolean(block.content.videoMuted)}
             borderRadius={s.borderRadius}
             accentColor={theme.accentColor}
             isEditor
@@ -1682,7 +2078,7 @@ export function MobileCanvas({
                     : 'flex flex-col gap-2.5 text-left'
                 }
               >
-                {(block.content.catalogItems ?? []).map((item) => {
+                {(block.content.catalogItems ?? []).map((item, itemIdx) => {
                   const unitSoldText = advanceOptions.showUnitSold
                     ? ` · ${item.unitSold} terjual`
                     : '';
@@ -1690,6 +2086,7 @@ export function MobileCanvas({
                   const hasImgError = brokenImages[imgKey];
                   const fit = item.imageObjectFit ?? 'cover';
                   const ratio = item.imageAspectRatio;
+                  const catalogSubId = `catalog_${item.id || itemIdx}`;
 
                   const renderThumb = (
                     className: string,
@@ -1733,6 +2130,7 @@ export function MobileCanvas({
                     return (
                       <div
                         key={item.id}
+                        data-canvas-sublayer={catalogSubId}
                         style={{
                           backgroundColor: theme.cardBg,
                           borderColor: theme.borderColor,
@@ -1783,6 +2181,7 @@ export function MobileCanvas({
                     return (
                       <div
                         key={item.id}
+                        data-canvas-sublayer={catalogSubId}
                         style={{
                           backgroundColor: theme.cardBg,
                           borderColor: theme.borderColor,
@@ -1834,6 +2233,7 @@ export function MobileCanvas({
                     return (
                       <div
                         key={item.id}
+                        data-canvas-sublayer={catalogSubId}
                         style={{
                           backgroundColor: theme.cardBg,
                           borderColor: theme.borderColor,
@@ -1891,6 +2291,7 @@ export function MobileCanvas({
                   return (
                     <div
                       key={item.id}
+                      data-canvas-sublayer={catalogSubId}
                       style={{
                         backgroundColor: theme.cardBg,
                         borderColor: theme.borderColor,
@@ -1981,6 +2382,7 @@ export function MobileCanvas({
               className={`flex flex-wrap items-center ${justifyClass}`}
             >
               {visibleItems.map((item) => {
+                const origIdx = allItems.indexOf(item);
                 const meta = SOCIAL_PLATFORMS[item.platform];
                 const activeColor = useBrand ? meta.brandColor : customColor;
                 const itemStyle: React.CSSProperties = {
@@ -2000,6 +2402,7 @@ export function MobileCanvas({
                 return (
                   <div
                     key={item.id}
+                    data-canvas-sublayer={`soc_${item.id || (origIdx >= 0 ? origIdx : 0)}`}
                     title={meta.label}
                     style={itemStyle}
                     className={`${shapeClass} inline-flex items-center justify-center transition-transform shrink-0`}
@@ -2043,6 +2446,9 @@ export function MobileCanvas({
             textColor={resolvedTextColor}
             accentColor={theme.accentColor}
             align={s.align}
+            showDots={block.content.carouselShowDots !== false}
+            showArrows={block.content.carouselShowArrows !== false}
+            showScrollbar={Boolean(block.content.carouselShowScrollbar)}
             isEditor
           />
         )}
@@ -2109,13 +2515,38 @@ export function MobileCanvas({
           />
         )}
 
-        {block.type === 'hero_profile' && (
-          <HeroProfileCard
-            block={block}
-            theme={theme}
-            resolvedTextColor={resolvedTextColor}
-          />
-        )}
+        {block.type === 'hero_profile' && (() => {
+          const heroChildren = block.children ?? [];
+          const heroPos = block.content.heroChildrenPosition ?? 'on_cover';
+          const isOnCover =
+            (block.content.heroVariant ?? 'compact') === 'banner' &&
+            (heroPos === 'on_cover' || heroPos === 'overlap_cover');
+          const childInheritedColor = isOnCover ? '#FFFFFF' : nextInheritedTextColor;
+          const showEmptyDropHint =
+            heroChildren.length === 0 &&
+            (Boolean(block.content.heroHideDefaultContent) ||
+              (isDropTarget && dragState.position === 'inside'));
+          const heroChildrenSlot =
+            heroChildren.length > 0 ? (
+              <div className="space-y-1.5">
+                {heroChildren.map((ch) =>
+                  renderBlockContent(ch, depth + 1, childInheritedColor)
+                )}
+              </div>
+            ) : showEmptyDropHint ? (
+              <div className="mx-3 rounded-lg border border-dashed border-[#00C98A] bg-[#ECFDF6]/90 px-3 py-3 text-center text-[11px] font-medium text-[#008F63]">
+                Lepas komponen di sini (Lapisan 2 di atas Cover) atau tambah lewat Data &amp; Daftar Item
+              </div>
+            ) : undefined;
+          return (
+            <HeroProfileCard
+              block={block}
+              theme={theme}
+              resolvedTextColor={resolvedTextColor}
+              childrenSlot={heroChildrenSlot}
+            />
+          );
+        })()}
 
         {block.type === 'category_tabs' && (
           <CategoryJumpTabs
@@ -2124,7 +2555,12 @@ export function MobileCanvas({
             activeId={activeCategoryTabIds[block.id] ?? null}
             onSelect={(catItem: CategoryJumpItem, e) => {
               e.stopPropagation();
-              onSelectBlock(block.id);
+              if (interactionMode === 'pointer' && onSelectSubLayer) {
+                const catIdx = (block.content.categoryButtons ?? []).indexOf(catItem);
+                onSelectSubLayer(block.id, `cat_${catItem.id || (catIdx >= 0 ? catIdx : 0)}`);
+              } else {
+                onSelectBlock(block.id);
+              }
               setActiveCategoryTabIds((prev) => ({ ...prev, [block.id]: catItem.id }));
               jumpToMatchingHeadingInCanvas(catItem.targetTitle || catItem.label);
             }}
@@ -2163,7 +2599,10 @@ export function MobileCanvas({
           return (
             <div className="flex items-center justify-between gap-2.5 text-left">
               {showInfo && (
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div
+                  data-canvas-sublayer="cart_product"
+                  className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg"
+                >
                   {block.content.cartProductImage && (
                     <img
                       src={block.content.cartProductImage}
@@ -2190,8 +2629,16 @@ export function MobileCanvas({
               )}
 
               <div
-                className={`shrink-0 flex items-center ${!showInfo ? 'w-full justify-center' : ''}`}
-                onClick={(e) => e.stopPropagation()}
+                data-canvas-sublayer="cart_action"
+                className={`shrink-0 flex items-center rounded-full ${!showInfo ? 'w-full justify-center' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (interactionMode === 'pointer' && onSelectSubLayer) {
+                    onSelectSubLayer(block.id, 'cart_action');
+                  } else {
+                    onSelectBlock(block.id);
+                  }
+                }}
               >
                 {qty > 0 ? (
                   <div
@@ -2260,8 +2707,6 @@ export function MobileCanvas({
             dragOverCardZone?.cardId === block.id && dragOverCardZone.zone === 'body';
           const isDragOverFooter =
             dragOverCardZone?.cardId === block.id && dragOverCardZone.zone === 'footer';
-          const isCardOrChildSelected =
-            isSelected || (selectedId !== null && hasDescendantId(block, selectedId));
           const isDraggingAny =
             Boolean(dragState.draggedId && dragState.draggedId !== block.id) ||
             isDropTarget ||
@@ -2271,16 +2716,13 @@ export function MobileCanvas({
           const showBodyDropZone =
             bodyChildren.length > 0 ||
             Boolean(block.content.cardHideDefaultContent) ||
-            isCardOrChildSelected ||
             isDraggingAny;
           const isDualZoneVariant =
             cardVariant === 'membership_ticket' || cardVariant === 'event_poster';
           const showFooterDropZone =
             footerChildren.length > 0 ||
             (isDualZoneVariant &&
-              (Boolean(block.content.cardHideDefaultFooter) ||
-                isCardOrChildSelected ||
-                isDraggingAny)) ||
+              (Boolean(block.content.cardHideDefaultFooter) || isDraggingAny)) ||
             (!isDualZoneVariant && (isDragOverFooter || Boolean(block.content.cardHideDefaultFooter)));
 
           const handleFooterZoneDrop = (e: React.DragEvent) => {
@@ -2413,38 +2855,66 @@ export function MobileCanvas({
               borderRadius={s.borderRadius}
               blockStyle={s}
               isEditor
+              enableSubLayerClick={interactionMode === 'pointer'}
+              selectedSubLayerId={isSelected ? selectedSubLayerId : null}
+              onSelectSubLayer={(subId) => onSelectSubLayer?.(block.id, subId)}
               bodySlot={bodySlotNode}
               footerSlot={footerSlotNode}
             />
           );
         })()}
 
-        {block.type === 'back_button' && (
-          <div
-            className="w-full flex"
-            style={{
-              justifyContent:
-                s.align === 'center' ? 'center' : s.align === 'right' ? 'flex-end' : 'flex-start',
-            }}
-          >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectBlock(block.id);
-              }}
+        {block.type === 'back_button' && (() => {
+          const backRadius = Math.max(0, Math.min(9999, Math.round(s.borderRadius ?? 12)));
+          const backFontSize = Math.max(11, Math.min(24, Math.round(s.fontSize ?? 13)));
+          const backIconId = block.content.backButtonIcon ?? 'arrow-left';
+          const backTextColor = block.content.backButtonText || '#0F172A';
+          const backIconColor = block.content.backButtonIconColor || backTextColor;
+          const backBorderWidth = s.borderWidth > 0 ? s.borderWidth : 1;
+          const backBorderStyle = s.borderStyle ?? 'solid';
+          const backBorderColor = s.borderWidth > 0 ? s.borderColor : 'rgba(15, 23, 42, 0.1)';
+          const padTop = s.paddingTop ?? Math.max(6, Math.min(24, s.padding || 8));
+          const padBottom = s.paddingBottom ?? Math.max(6, Math.min(24, s.padding || 8));
+          const padLeft = s.paddingLeft ?? s.paddingX ?? 14;
+          const padRight = s.paddingRight ?? s.paddingX ?? 14;
+          return (
+            <div
+              className="w-full flex"
               style={{
-                backgroundColor: block.content.backButtonBg || '#F1F5F9',
-                color: block.content.backButtonText || '#0F172A',
-                borderRadius: `${Math.max(8, Math.min(28, s.borderRadius))}px`,
+                justifyContent:
+                  s.align === 'center' ? 'center' : s.align === 'right' ? 'flex-end' : 'flex-start',
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold border border-black/10 shadow-xs cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-              <span>{block.content.backButtonLabel || 'Kembali'}</span>
-            </button>
-          </div>
-        )}
+              <button
+                type="button"
+                data-canvas-sublayer="back_label"
+                style={{
+                  backgroundColor: block.content.backButtonBg || '#F1F5F9',
+                  color: backTextColor,
+                  borderRadius: `${backRadius}px`,
+                  fontSize: `${backFontSize}px`,
+                  padding: `${padTop}px ${padRight}px ${padBottom}px ${padLeft}px`,
+                  borderWidth: backBorderStyle === 'none' ? 0 : `${backBorderWidth}px`,
+                  borderStyle: backBorderStyle,
+                  borderColor: backBorderColor,
+                }}
+                className="inline-flex items-center gap-1.5 font-bold shadow-xs cursor-pointer"
+              >
+                {(backIconId !== 'none' || Boolean(block.content.buttonIconUrl)) && (
+                  <span style={{ color: backIconColor }} className="inline-flex shrink-0">
+                    <ButtonGlyph
+                      icon={backIconId}
+                      iconUrl={block.content.buttonIconUrl}
+                      className="shrink-0"
+                      style={{ width: `${Math.max(12, backFontSize)}px`, height: `${Math.max(12, backFontSize)}px` }}
+                    />
+                  </span>
+                )}
+                <span>{block.content.backButtonLabel || 'Kembali'}</span>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Universal Cart Overlay on ANY Card/Layer when universalCartEnabled is active */}
         {(() => {
@@ -2453,8 +2923,16 @@ export function MobileCanvas({
           const qty = fnbPreviewQtys[uc.compositeKey] ?? 0;
           return (
             <div
-              onClick={(e) => e.stopPropagation()}
-              className="mt-2 pt-2 border-t border-black/10 flex flex-wrap items-center justify-between gap-1.5 px-1"
+              data-canvas-sublayer="universal_cart"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (interactionMode === 'pointer' && onSelectSubLayer) {
+                  onSelectSubLayer(block.id, 'universal_cart');
+                } else {
+                  onSelectBlock(block.id);
+                }
+              }}
+              className="mt-2 pt-2 border-t border-black/10 flex flex-wrap items-center justify-between gap-1.5 px-1 rounded-md"
             >
               <div className="min-w-0 text-left">
                 <div className="text-xs font-extrabold tabular-nums" style={{ color: uc.accentColor }}>
@@ -2520,18 +2998,6 @@ export function MobileCanvas({
           );
         })()}
 
-        {/* Subtle editor action indicator when Universal Action is configured */}
-        {(() => {
-          const badge = getActionBadgeLabel(block);
-          if (!badge || (!isSelected && hoveredBlockId !== block.id)) return null;
-          return (
-            <div className="mt-1.5 flex justify-end pointer-events-none">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#17243D]/85 text-white text-[9.5px] font-semibold">
-                {badge}
-              </span>
-            </div>
-          );
-        })()}
         </div>
 
         {isDropTarget && dragState.position === 'after' && (
@@ -2552,7 +3018,7 @@ export function MobileCanvas({
         data-canvas-toolbar="1"
         className="h-10 px-3 bg-white/95 backdrop-blur-xs border-b border-[#E6EDF5] flex items-center justify-between gap-3 text-[12px] text-[#334155] shrink-0 relative z-20"
       >
-        {/* Kiri: Beranda, Sub-Halaman, + Site */}
+        {/* Kiri: Ikon Beranda & Sub-Halaman */}
         <div
           data-canvas-page-bar="1"
           role="group"
@@ -2563,16 +3029,16 @@ export function MobileCanvas({
             <button
               type="button"
               onClick={() => onSelectSubPage?.(null)}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-6 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+              title={label('canvas.toolbar.home', 'Beranda')}
+              aria-label={label('canvas.toolbar.home', 'Beranda')}
+              aria-pressed={activeSubPageId === null}
+              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
                 activeSubPageId === null
-                  ? 'bg-white text-[#0F172A] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
                   : 'text-[#64748B] hover:text-[#0F172A]'
               }`}
             >
-              {activeSubPageId === null && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00C98A] shrink-0" />
-              )}
-              <span>Beranda</span>
+              <Home className="w-3.5 h-3.5" />
             </button>
             {pages.map((pg) => (
               <button
@@ -2592,62 +3058,110 @@ export function MobileCanvas({
               </button>
             ))}
           </div>
-          {onAddSubPage && (
-            <button
-              type="button"
-              data-add-site-btn="1"
-              onClick={() => onAddSubPage()}
-              title="Tambah Halaman / Site Baru"
-              aria-label="Tambah Site"
-              className="inline-flex items-center gap-1 px-2 h-7 rounded-md text-[#64748B] hover:text-[#0F766E] hover:bg-[#ECFDF6] text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
-              <span>+ Site</span>
-            </button>
-          )}
         </div>
 
-        {/* Tengah: Segmented Mobile/PC + Ikon Riwayat Tanpa Border Ramai */}
+        {/* Tengah: Perangkat (PC, Tablet, HP) | Mode Pointer (Klik / Drag) | Undo & Redo */}
         <div
           className="flex items-center gap-2 shrink-0"
           role="group"
-          aria-label="Preview Mobile & Undo"
+          aria-label="Preview Perangkat, Mode Pointer & Riwayat"
         >
           <div className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5">
             <button
               type="button"
-              data-viewport-preset="mobile-440"
-              onClick={() => handleSelectPresetWidth('mobile-440')}
-              aria-pressed={!isWideViewport}
-              title="Mobile 440 px"
-              aria-label="Mobile 440 px"
+              data-viewport-preset="desktop"
+              onClick={() => handleSelectPresetWidth('desktop')}
+              aria-pressed={activeBreakpoint === 'desktop'}
+              title={label('canvas.toolbar.desktop', 'PC / Desktop (1024 px)')}
+              aria-label={label('canvas.toolbar.desktop', 'PC / Desktop (1024 px)')}
               className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
-                !isWideViewport
-                  ? 'bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                activeBreakpoint === 'desktop'
+                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
                   : 'text-[#64748B] hover:text-[#0F172A]'
               }`}
             >
-              <Smartphone
-                className={`w-3.5 h-3.5 ${!isWideViewport ? 'text-[#059669]' : 'text-current'}`}
-              />
+              <Monitor className="w-3.5 h-3.5" />
             </button>
 
             <button
               type="button"
-              data-viewport-preset="mobile-576"
-              onClick={() => handleSelectPresetWidth('mobile-576')}
-              aria-pressed={isWideViewport}
-              title="Mobile 576 px"
-              aria-label="Mobile 576 px"
+              data-viewport-preset="tablet"
+              onClick={() => handleSelectPresetWidth('tablet')}
+              aria-pressed={activeBreakpoint === 'tablet'}
+              title={label('canvas.toolbar.tablet', 'Tablet (768 px)')}
+              aria-label={label('canvas.toolbar.tablet', 'Tablet (768 px)')}
               className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
-                isWideViewport
-                  ? 'bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                activeBreakpoint === 'tablet'
+                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
                   : 'text-[#64748B] hover:text-[#0F172A]'
               }`}
             >
-              <Monitor
-                className={`w-3.5 h-3.5 ${isWideViewport ? 'text-[#059669]' : 'text-current'}`}
+              <Tablet className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              data-viewport-preset="mobile"
+              onClick={() => handleSelectPresetWidth('mobile')}
+              aria-pressed={activeBreakpoint === 'mobile'}
+              title={label('canvas.toolbar.mobile', 'HP / Mobile (440 px)')}
+              aria-label={label('canvas.toolbar.mobile', 'HP / Mobile (440 px)')}
+              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+                activeBreakpoint === 'mobile'
+                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                  : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <span className="w-px h-4 bg-[#E2E8F0] shrink-0" aria-hidden="true" />
+
+          {/* Mode Pointer Penunjuk: Klik vs Drag */}
+          <div
+            className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5 shrink-0"
+            role="group"
+            aria-label="Mode Pointer Penunjuk Kanvas"
+          >
+            <button
+              type="button"
+              data-canvas-mode-btn="pointer"
+              aria-pressed={interactionMode === 'pointer'}
+              onClick={() => onChangeInteractionMode?.('pointer')}
+              title="Mode Klik (V) — Klik objek & sub-layer di kanvas untuk edit Konten & Desain"
+              className={`h-6 px-2 inline-flex items-center justify-center gap-1 rounded-md text-[10.5px] font-semibold transition-all shrink-0 cursor-pointer ${
+                interactionMode === 'pointer'
+                  ? 'bg-[#17243D] text-white shadow-[0_1px_2px_rgba(15,23,42,0.14)]'
+                  : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <MousePointer2
+                className={`w-3 h-3 shrink-0 ${
+                  interactionMode === 'pointer' ? 'text-[#00C98A]' : 'text-current'
+                }`}
               />
+              <span>{label('canvas.toolbar.modeClick', 'Klik')}</span>
+            </button>
+
+            <button
+              type="button"
+              data-canvas-mode-btn="drag"
+              aria-pressed={interactionMode === 'drag'}
+              onClick={() => onChangeInteractionMode?.('drag')}
+              title="Mode Drag (D) — Tarik & lepas blok untuk mengatur posisi di kanvas"
+              className={`h-6 px-2 inline-flex items-center justify-center gap-1 rounded-md text-[10.5px] font-semibold transition-all shrink-0 cursor-pointer ${
+                interactionMode === 'drag'
+                  ? 'bg-[#17243D] text-white shadow-[0_1px_2px_rgba(15,23,42,0.14)]'
+                  : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Move
+                className={`w-3 h-3 shrink-0 ${
+                  interactionMode === 'drag' ? 'text-[#00C98A]' : 'text-current'
+                }`}
+              />
+              <span>{label('canvas.toolbar.modeDrag', 'Drag')}</span>
             </button>
           </div>
 
@@ -2659,15 +3173,20 @@ export function MobileCanvas({
               data-toolbar-undo="1"
               disabled={!canUndo || !onUndo}
               onClick={() => onUndo?.()}
-              title={canUndo ? 'Batalkan perubahan terakhir (Ctrl+Z)' : 'Belum ada riwayat pembatalan'}
-              aria-label="Batalkan"
-              className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors shrink-0 ${
+              title={
+                canUndo
+                  ? `${label('canvas.toolbar.undo', 'Undo')} (Ctrl+Z)`
+                  : 'Belum ada riwayat pembatalan'
+              }
+              aria-label={label('canvas.toolbar.undo', 'Undo')}
+              className={`h-7 px-2 inline-flex items-center justify-center gap-1 rounded-md text-[10.5px] font-semibold transition-colors shrink-0 ${
                 canUndo && onUndo
                   ? 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer'
                   : 'text-[#CBD5E1] cursor-not-allowed'
               }`}
             >
-              <Undo2 className="w-3.5 h-3.5" />
+              <Undo2 className="w-3.5 h-3.5 shrink-0" />
+              <span>{label('canvas.toolbar.undo', 'Undo')}</span>
             </button>
 
             <button
@@ -2675,8 +3194,12 @@ export function MobileCanvas({
               data-toolbar-redo="1"
               disabled={!canRedo || !onRedo}
               onClick={() => onRedo?.()}
-              title={canRedo ? 'Ulangi perubahan (Ctrl+Y)' : 'Belum ada riwayat ulangi'}
-              aria-label="Ulangi"
+              title={
+                canRedo
+                  ? `${label('canvas.toolbar.redo', 'Redo')} (Ctrl+Y)`
+                  : 'Belum ada riwayat ulangi'
+              }
+              aria-label={label('canvas.toolbar.redo', 'Redo')}
               className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors shrink-0 ${
                 canRedo && onRedo
                   ? 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer'
@@ -2847,8 +3370,9 @@ export function MobileCanvas({
       </div>
 
       {/* Scrollable Canvas Area (Zoom scales Canvas only) */}
-      <div ref={scrollAreaRef} className="flex-1 overflow-auto py-8 px-4">
+      <div ref={scrollAreaRef} className="flex-1 overflow-auto py-10 px-4">
         <div
+          ref={zoomStageRef}
           data-canvas-zoom-stage
           data-canvas-zoom={Math.round(zoom * 100)}
           style={{
@@ -2861,6 +3385,7 @@ export function MobileCanvas({
         <div
           ref={canvasFrameRef}
           data-canvas-frame
+          data-canvas-mode={interactionMode}
           style={{
             width: `${frameWidth}px`,
             minHeight: `${Math.max(640, frameHeight)}px`,
@@ -2929,6 +3454,101 @@ export function MobileCanvas({
             const showNavbar = bottomNavbar.enabled && enabledNavItems.length > 0;
             const navMetrics = resolveNavbarMetrics(bottomNavbar);
             const isRoundedOrFloating = navMetrics.floating || navMetrics.borderRadius > 0;
+
+            const collectNestedBlocks = (list: BuilderBlock[]): BuilderBlock[] => {
+              const acc: BuilderBlock[] = [];
+              list.forEach((b) => {
+                acc.push(b);
+                if (b.children?.length) acc.push(...collectNestedBlocks(b.children));
+                if (b.content.actionSheetBlocks?.length) {
+                  acc.push(...collectNestedBlocks(b.content.actionSheetBlocks));
+                }
+                if (b.content.cardFooterBlocks?.length) {
+                  acc.push(...collectNestedBlocks(b.content.cardFooterBlocks));
+                }
+              });
+              return acc;
+            };
+            const allFlatCanvasBlocks = collectNestedBlocks(blocks);
+            const canvasFloatingCart = resolveProjectFloatingCartConfig(
+              blocks,
+              bottomNavbar.items,
+              pages
+            );
+            const floatingCartRenderData = (() => {
+              if (!canvasFloatingCart) return null;
+              const fnbBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'fnb_catalog');
+              const cartBtnBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'cart_button');
+              const universalCartBlocks = allFlatCanvasBlocks.filter(
+                (b) => resolveUniversalCartMeta(b, theme) !== null
+              );
+              const fnbItems = fnbBlocks.flatMap((b) => b.content.fnbItems ?? []);
+              const fnbCount = fnbItems.reduce(
+                (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
+                0
+              );
+              const cbCount = cartBtnBlocks.reduce(
+                (sum, cb) => sum + (fnbPreviewQtys[`cb_${cb.id}`] ?? 0),
+                0
+              );
+              const ucCount = universalCartBlocks.reduce(
+                (sum, ub) => sum + (fnbPreviewQtys[`uc_${ub.id}`] ?? 0),
+                0
+              );
+              const activeCount = fnbCount + cbCount + ucCount;
+              const pricedEntries: Array<{ price: string; qty: number }> = [
+                ...fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 })),
+                ...cartBtnBlocks.map((cb) => ({
+                  price: cb.content.cartProductPrice || '0',
+                  qty: fnbPreviewQtys[`cb_${cb.id}`] ?? 0,
+                })),
+                ...universalCartBlocks.map((ub) => ({
+                  price: String(resolveUniversalCartMeta(ub, theme)?.price ?? 0),
+                  qty: fnbPreviewQtys[`uc_${ub.id}`] ?? 0,
+                })),
+              ];
+              const activeAmount = fnbPriceSum(pricedEntries);
+
+              const sourceBlk = allFlatCanvasBlocks.find(
+                (b) => b.id === canvasFloatingCart.sourceBlockId
+              );
+              const isPosPreview =
+                activeCount === 0 &&
+                Boolean(
+                  selectedId &&
+                    (selectedId === canvasFloatingCart.sourceBlockId ||
+                      fnbBlocks.some((b) => b.id === selectedId) ||
+                      cartBtnBlocks.some((b) => b.id === selectedId) ||
+                      universalCartBlocks.some((b) => b.id === selectedId))
+                );
+
+              const displayCount = activeCount > 0 ? activeCount : isPosPreview ? 1 : 0;
+              const previewUnitPrice =
+                sourceBlk?.type === 'fnb_catalog'
+                  ? sourceBlk.content.fnbItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'cart_button'
+                  ? sourceBlk.content.cartProductPrice || '0'
+                  : sourceBlk
+                  ? String(resolveUniversalCartMeta(sourceBlk, theme)?.price ?? 0)
+                  : '0';
+              const displayAmount =
+                activeCount > 0
+                  ? activeAmount
+                  : isPosPreview
+                  ? fnbPriceSum([{ price: previewUnitPrice, qty: 1 }])
+                  : 0;
+
+              if (displayCount <= 0) return null;
+              return {
+                count: displayCount,
+                totalAmount: displayAmount,
+                position: canvasFloatingCart.position,
+                offsetY: canvasFloatingCart.offsetY,
+                bgColor: canvasFloatingCart.bg || theme.accentColor,
+                actionLabel: canvasFloatingCart.label,
+              };
+            })();
+
             return (
               <div
                 ref={canvasRootRef}
@@ -2947,52 +3567,18 @@ export function MobileCanvas({
                   isWideViewport ? '' : 'rounded-[24px] overflow-hidden'
                 }`}
               >
-                {(() => {
-                  const firstFnbBlock = blocks.find((b) => b.type === 'fnb_catalog');
-                  if (!firstFnbBlock || firstFnbBlock.content.fnbFloatingCartEnabled === false) {
-                    return null;
-                  }
-                  const fnbItems = firstFnbBlock.content.fnbItems ?? [];
-                  const activeCount = fnbItems.reduce(
-                    (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
-                    0
-                  );
-                  const activeAmount = fnbPriceSum(
-                    fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 }))
-                  );
-                  const isPosPreview =
-                    selectedId === firstFnbBlock.id &&
-                    activeCount === 0 &&
-                    fnbItems.length > 0;
-                  const displayCount = activeCount > 0 ? activeCount : isPosPreview ? 1 : 0;
-                  const displayAmount =
-                    activeCount > 0
-                      ? activeAmount
-                      : isPosPreview
-                      ? fnbPriceSum([{ price: fnbItems[0].price, qty: 1 }])
-                      : 0;
-                  if (
-                    displayCount <= 0 ||
-                    firstFnbBlock.content.fnbFloatingCartPosition !== 'top-floating'
-                  ) {
-                    return null;
-                  }
-                  return (
+                {floatingCartRenderData &&
+                  isTopFloatingCartPosition(floatingCartRenderData.position) && (
                     <FnbFloatingCartCapsule
-                      count={displayCount}
-                      totalAmount={displayAmount}
-                      position="top-floating"
-                      offsetY={firstFnbBlock.content.fnbFloatingCartOffsetY ?? 16}
-                      bgColor={
-                        firstFnbBlock.content.fnbFloatingCartBg ||
-                        firstFnbBlock.content.fnbAccentColor ||
-                        theme.accentColor
-                      }
-                      actionLabel={firstFnbBlock.content.fnbFloatingCartLabel || 'Lanjut'}
+                      count={floatingCartRenderData.count}
+                      totalAmount={floatingCartRenderData.totalAmount}
+                      position={floatingCartRenderData.position}
+                      offsetY={floatingCartRenderData.offsetY}
+                      bgColor={floatingCartRenderData.bgColor}
+                      actionLabel={floatingCartRenderData.actionLabel}
                       onClick={onOpenPreview}
                     />
-                  );
-                })()}
+                  )}
 
                 {/* Sub-page automatic Back Header Bar preview */}
                 {activeSubPage && activeSubPage.showBackButton !== false && (
@@ -3021,10 +3607,19 @@ export function MobileCanvas({
                         <div className="w-10 h-10 rounded-full bg-[#EFF7F4] text-emerald-600 mx-auto flex items-center justify-center">
                           <Plus className="w-5 h-5" />
                         </div>
-                        <div className="text-sm font-semibold">Kanvas Masih Kosong</div>
-                        <p className="text-xs opacity-70 leading-relaxed">
-                          Pilih komponen dari panel <strong>Alat</strong> atau <strong>Blok</strong> di sebelah kiri untuk mulai menyusun halaman.
-                        </p>
+                        {isVisible('canvas.empty.title') && (
+                          <div className="text-sm font-semibold">
+                            {label('canvas.empty.title', 'Kanvas Masih Kosong')}
+                          </div>
+                        )}
+                        {isVisible('canvas.empty.desc') && (
+                          <p className="text-xs opacity-70 leading-relaxed">
+                            {label(
+                              'canvas.empty.desc',
+                              'Pilih komponen dari panel Alat atau Blok di sebelah kiri untuk mulai menyusun halaman.'
+                            )}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -3032,137 +3627,18 @@ export function MobileCanvas({
                   )}
                 </div>
 
-                {(() => {
-                  const collectNested = (list: BuilderBlock[]): BuilderBlock[] => {
-                    const acc: BuilderBlock[] = [];
-                    list.forEach((b) => {
-                      acc.push(b);
-                      if (b.children?.length) acc.push(...collectNested(b.children));
-                      if (b.content.actionSheetBlocks?.length) {
-                        acc.push(...collectNested(b.content.actionSheetBlocks));
-                      }
-                      if (b.content.cardFooterBlocks?.length) {
-                        acc.push(...collectNested(b.content.cardFooterBlocks));
-                      }
-                    });
-                    return acc;
-                  };
-                  const allFlat = collectNested(blocks);
-                  const firstFnbBlock = allFlat.find(
-                    (b) => b.type === 'fnb_catalog' && b.content.fnbFloatingCartEnabled !== false
-                  );
-                  const cartBtnBlocks = allFlat.filter((b) => b.type === 'cart_button');
-                  const firstCartBtn = cartBtnBlocks.find(
-                    (b) => b.content.cartFloatingEnabled !== false
-                  );
-                  const universalCartBlocks = allFlat.filter(
-                    (b) => resolveUniversalCartMeta(b, theme) !== null
-                  );
-                  const firstUniversalFloat = universalCartBlocks.find(
-                    (b) => b.content.universalCartFloatingEnabled !== false
-                  );
-
-                  const floatSource = firstFnbBlock ?? firstCartBtn ?? firstUniversalFloat;
-                  if (!floatSource) return null;
-
-                  const pos =
-                    floatSource.type === 'fnb_catalog'
-                      ? floatSource.content.fnbFloatingCartPosition ?? 'bottom-floating'
-                      : floatSource.type === 'cart_button'
-                      ? floatSource.content.cartFloatingPosition ?? 'bottom-floating'
-                      : floatSource.content.universalCartFloatingPosition === 'bottom-right'
-                      ? 'bottom-floating'
-                      : floatSource.content.universalCartFloatingPosition === 'bottom-left'
-                      ? 'bottom-floating'
-                      : 'bottom-floating';
-                  if (pos === 'top-floating') return null;
-
-                  const fnbItems = firstFnbBlock?.content.fnbItems ?? [];
-                  const fnbCount = fnbItems.reduce(
-                    (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
-                    0
-                  );
-                  const cbCount = cartBtnBlocks.reduce(
-                    (sum, cb) => sum + (fnbPreviewQtys[`cb_${cb.id}`] ?? 0),
-                    0
-                  );
-                  const ucCount = universalCartBlocks.reduce(
-                    (sum, ub) => sum + (fnbPreviewQtys[`uc_${ub.id}`] ?? 0),
-                    0
-                  );
-                  const activeCount = fnbCount + cbCount + ucCount;
-
-                  const pricedEntries: Array<{ price: string; qty: number }> = [
-                    ...fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 })),
-                    ...cartBtnBlocks.map((cb) => ({
-                      price: cb.content.cartProductPrice || '0',
-                      qty: fnbPreviewQtys[`cb_${cb.id}`] ?? 0,
-                    })),
-                    ...universalCartBlocks.map((ub) => ({
-                      price: String(resolveUniversalCartMeta(ub, theme)?.price ?? 0),
-                      qty: fnbPreviewQtys[`uc_${ub.id}`] ?? 0,
-                    })),
-                  ];
-                  const activeAmount = fnbPriceSum(pricedEntries);
-
-                  const isPosPreview =
-                    activeCount === 0 &&
-                    ((firstFnbBlock && selectedId === firstFnbBlock.id && fnbItems.length > 0) ||
-                      (firstCartBtn && selectedId === firstCartBtn.id) ||
-                      (firstUniversalFloat && selectedId === firstUniversalFloat.id));
-
-                  const displayCount = activeCount > 0 ? activeCount : isPosPreview ? 1 : 0;
-                  const displayAmount =
-                    activeCount > 0
-                      ? activeAmount
-                      : isPosPreview
-                      ? fnbPriceSum([
-                          {
-                            price:
-                              floatSource.type === 'fnb_catalog'
-                                ? fnbItems[0]?.price || '0'
-                                : floatSource.type === 'cart_button'
-                                ? floatSource.content.cartProductPrice || '0'
-                                : String(resolveUniversalCartMeta(floatSource, theme)?.price ?? 0),
-                            qty: 1,
-                          },
-                        ])
-                      : 0;
-                  if (displayCount <= 0) return null;
-                  return (
+                {floatingCartRenderData &&
+                  !isTopFloatingCartPosition(floatingCartRenderData.position) && (
                     <FnbFloatingCartCapsule
-                      count={displayCount}
-                      totalAmount={displayAmount}
-                      position={pos}
-                      offsetY={
-                        floatSource.type === 'fnb_catalog'
-                          ? floatSource.content.fnbFloatingCartOffsetY ?? 16
-                          : 16
-                      }
-                      bgColor={
-                        floatSource.type === 'fnb_catalog'
-                          ? floatSource.content.fnbFloatingCartBg ||
-                            floatSource.content.fnbAccentColor ||
-                            theme.accentColor
-                          : floatSource.type === 'cart_button'
-                          ? floatSource.content.cartFloatingBg ||
-                            floatSource.content.cartAccentColor ||
-                            theme.accentColor
-                          : floatSource.content.universalCartFloatingBg ||
-                            floatSource.content.universalCartAccentColor ||
-                            '#17243D'
-                      }
-                      actionLabel={
-                        floatSource.type === 'fnb_catalog'
-                          ? floatSource.content.fnbFloatingCartLabel || 'Lanjut'
-                          : floatSource.type === 'cart_button'
-                          ? floatSource.content.cartFloatingLabel || 'Lihat Keranjang'
-                          : floatSource.content.universalCartFloatingLabel || 'Lihat Keranjang'
-                      }
+                      count={floatingCartRenderData.count}
+                      totalAmount={floatingCartRenderData.totalAmount}
+                      position={floatingCartRenderData.position}
+                      offsetY={floatingCartRenderData.offsetY}
+                      bgColor={floatingCartRenderData.bgColor}
+                      actionLabel={floatingCartRenderData.actionLabel}
                       onClick={onOpenPreview}
                     />
-                  );
-                })()}
+                  )}
 
                 {showNavbar && (
                   <div
@@ -3352,6 +3828,195 @@ export function MobileCanvas({
             );
           })()}
         </div>
+
+        {/* Hover Pill Ringan (di atas objek, berjarak dari outline & shadow) */}
+        {hoveredBlockObj && hoveredOverlayRect && hoveredBlockId !== selectedId && (() => {
+          const hovActionBadge = getActionBadgeLabel(hoveredBlockObj);
+          const hovGap = Math.max(12, Math.round(9 * zoom) + 4);
+          const hovLeft = Math.max(
+            4,
+            Math.min(hoveredOverlayRect.left, Math.max(4, hoveredOverlayRect.stageWidth - 180))
+          );
+          return (
+            <div
+              data-canvas-hover-pill="1"
+              style={{
+                top: `${Math.round(hoveredOverlayRect.top - hovGap)}px`,
+                left: `${Math.round(hovLeft)}px`,
+                transform: 'translateY(-100%)',
+              }}
+              className="absolute z-40 pointer-events-none flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#0F172A]/88 text-white text-[10px] font-medium shadow-md border border-white/10 backdrop-blur-xs whitespace-nowrap max-w-[260px]"
+            >
+              {interactionMode === 'drag' ? (
+                <GripVertical className="w-2.5 h-2.5 shrink-0 text-slate-300" />
+              ) : (
+                <MousePointer2 className="w-2.5 h-2.5 shrink-0 text-[#00C98A]" />
+              )}
+              <span className="truncate">
+                {hoveredBlockObj.label.trim() || BLOCK_TYPE_NAMES[hoveredBlockObj.type]}
+              </span>
+              {hovActionBadge && (
+                <span className="px-1 py-px rounded bg-white/15 text-slate-200 text-[9px] font-semibold shrink-0">
+                  {hovActionBadge}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Unified Floating Bar Terpilih: Informasi (kiri) bersebelahan dengan Copy, Duplikat, Hapus dll (kanan), di atas objek & berjarak dari shadow/outline */}
+        {selectedBlockObj && selectedOverlayRect && (() => {
+          const selStyle = resolveEffectiveBlockStyle(selectedBlockObj.style, activeBreakpoint);
+          const selActionBadge = getActionBadgeLabel(selectedBlockObj);
+          const selGap = Math.max(14, Math.round(10 * zoom) + 6);
+          const maxLeft = selectedOverlayRect.stageWidth - floatingBarWidth - 4;
+          const clampedLeft =
+            floatingBarWidth + 8 > selectedOverlayRect.stageWidth
+              ? Math.round((selectedOverlayRect.stageWidth - floatingBarWidth) / 2)
+              : Math.max(4, Math.min(selectedOverlayRect.left, maxLeft));
+          const selRemoteEditors = Array.from(
+            new Map((remotePeersByBlock[selectedBlockObj.id] ?? []).map((p) => [p.userId, p])).values()
+          );
+          const selPrimaryRemote = selRemoteEditors[0] ?? null;
+
+          return (
+            <div
+              ref={floatingBarRef}
+              data-selected-block-floating-bar="1"
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(e) => e.stopPropagation()}
+              style={{
+                top: `${Math.round(selectedOverlayRect.top - selGap)}px`,
+                left: `${Math.round(clampedLeft)}px`,
+                transform: 'translateY(-100%)',
+              }}
+              className="absolute z-50 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#0F172A]/95 text-white shadow-lg border border-white/12 backdrop-blur-xs whitespace-nowrap"
+            >
+              {/* Bagian Informasi */}
+              <div className="flex items-center gap-1.5 min-w-0">
+                {interactionMode === 'drag' ? (
+                  <GripVertical className="w-3 h-3 shrink-0 text-slate-300" />
+                ) : (
+                  <MousePointer2 className="w-3 h-3 shrink-0 text-[#00C98A]" />
+                )}
+                <span className="text-[10.5px] font-semibold truncate max-w-[110px]">
+                  {selectedBlockObj.label.trim() || BLOCK_TYPE_NAMES[selectedBlockObj.type]}
+                </span>
+                {selectedSubLayerLabel && (
+                  <span
+                    title={`Sub-layer aktif: ${selectedSubLayerLabel}`}
+                    className="px-1.5 py-0.5 rounded bg-[#00C98A] text-[#052E20] text-[9px] font-bold shrink-0 max-w-[96px] truncate"
+                  >
+                    {selectedSubLayerLabel}
+                  </span>
+                )}
+                {selActionBadge && (
+                  <span
+                    title={`Aksi komponen: ${selActionBadge}`}
+                    className="px-1.5 py-0.5 rounded bg-white/12 border border-white/10 text-slate-100 text-[9px] font-semibold shrink-0"
+                  >
+                    {selActionBadge}
+                  </span>
+                )}
+                {selStyle.locked && (
+                  <span
+                    title="Lapisan terkunci"
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold shrink-0"
+                  >
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Kunci</span>
+                  </span>
+                )}
+                {selPrimaryRemote && (
+                  <span
+                    style={{ backgroundColor: selPrimaryRemote.color }}
+                    className="px-1.5 py-0.5 rounded text-white text-[9px] font-semibold shrink-0"
+                  >
+                    {selPrimaryRemote.name}
+                    {selRemoteEditors.length > 1 ? ` +${selRemoteEditors.length - 1}` : ''}
+                  </span>
+                )}
+              </div>
+
+              <span className="w-px h-3.5 bg-white/20 shrink-0" aria-hidden="true" />
+
+              {/* Bagian Aksi Cepat: Naik, Turun, Full-Bleed, Copy, Duplikat, Hapus */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={Boolean(selStyle.locked)}
+                  onClick={() => onMoveBlock(selectedBlockObj.id, 'up')}
+                  title={label('canvas.floating.up', 'Naikkan')}
+                  aria-label={label('canvas.floating.up', 'Naikkan')}
+                  className="p-1 hover:bg-slate-700 rounded cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                >
+                  <ArrowUp className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(selStyle.locked)}
+                  onClick={() => onMoveBlock(selectedBlockObj.id, 'down')}
+                  title={label('canvas.floating.down', 'Turunkan')}
+                  aria-label={label('canvas.floating.down', 'Turunkan')}
+                  className="p-1 hover:bg-slate-700 rounded cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                >
+                  <ArrowDown className="w-3 h-3" />
+                </button>
+                {onToggleFullBleed && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleFullBleed(selectedBlockObj.id)}
+                    title={
+                      selStyle.fullBleed
+                        ? 'Kembalikan margin kanan-kiri'
+                        : label('canvas.floating.fullBleed', 'Full kanan-kiri')
+                    }
+                    aria-label={label('canvas.floating.fullBleed', 'Full kanan-kiri')}
+                    className={`p-1 rounded cursor-pointer transition-colors ${
+                      selStyle.fullBleed ? 'bg-blue-600 text-white' : 'hover:bg-slate-700'
+                    }`}
+                  >
+                    <ArrowLeftRight className="w-3 h-3" />
+                  </button>
+                )}
+                {onCopyBlock && (
+                  <button
+                    type="button"
+                    onClick={() => onCopyBlock(selectedBlockObj.id)}
+                    title={label('canvas.floating.copy', 'Salin (Copy)')}
+                    aria-label={label('canvas.floating.copy', 'Salin (Copy)')}
+                    className="p-1 hover:bg-slate-700 rounded cursor-pointer"
+                  >
+                    <ClipboardCopy className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onDuplicateBlock(selectedBlockObj.id)}
+                  title={label('canvas.floating.duplicate', 'Duplikat')}
+                  aria-label={label('canvas.floating.duplicate', 'Duplikat')}
+                  className="p-1 hover:bg-slate-700 rounded cursor-pointer"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(selStyle.locked)}
+                  onClick={() => onDeleteBlock(selectedBlockObj.id)}
+                  title={
+                    selStyle.locked
+                      ? 'Lapisan terkunci'
+                      : label('canvas.floating.delete', 'Hapus')
+                  }
+                  aria-label={label('canvas.floating.delete', 'Hapus')}
+                  className="p-1 hover:bg-red-600 rounded cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Drag handle for quick horizontal responsive testing */}
         <div

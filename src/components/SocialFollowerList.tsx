@@ -36,7 +36,7 @@ export function SocialFollowerList({
 
   return (
     <div style={{ gap: `${gap}px` }} className="w-full flex flex-col text-left">
-      {accounts.map((acc) => {
+      {accounts.map((acc, idx) => {
         const meta = SOCIAL_PLATFORMS[acc.platform] ?? SOCIAL_PLATFORMS.instagram;
         const cleanUrl = sanitizeExternalUrl(acc.accountUrl, meta.placeholderUrl);
         const avatarSrc = acc.avatar?.trim() ?? '';
@@ -67,6 +67,7 @@ export function SocialFollowerList({
         return (
           <div
             key={acc.id}
+            data-canvas-sublayer={`sfa_${acc.id || idx}`}
             style={{
               backgroundColor: cardBg,
               borderColor,

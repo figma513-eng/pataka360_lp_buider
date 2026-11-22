@@ -6,11 +6,13 @@ export function ButtonGlyph({
   icon,
   iconUrl,
   className = 'w-4 h-4 shrink-0',
+  strokeWidth = 2,
   style,
 }: {
   icon: ButtonIconId;
   iconUrl?: string;
   className?: string;
+  strokeWidth?: number;
   style?: React.CSSProperties;
 }) {
   const safeUrl = sanitizeIconUrl(iconUrl);
@@ -35,7 +37,7 @@ export function ButtonGlyph({
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}

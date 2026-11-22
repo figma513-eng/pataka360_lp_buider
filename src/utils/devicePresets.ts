@@ -58,6 +58,20 @@ export const BUILTIN_DEVICE_PRESETS: DevicePreset[] = [
   },
   // Tablets & Desktops
   {
+    id: 'tablet-768',
+    name: 'Tablet 768 px',
+    category: 'tablets-desktops',
+    width: 768,
+    height: 1024,
+  },
+  {
+    id: 'desktop-1024',
+    name: 'Desktop 1024 px',
+    category: 'tablets-desktops',
+    width: 1024,
+    height: 844,
+  },
+  {
     id: 'ipad-mini',
     name: 'iPad Mini',
     category: 'tablets-desktops',

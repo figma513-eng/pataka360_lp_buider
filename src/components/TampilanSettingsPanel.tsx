@@ -1,14 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Check,
+  Copy,
+  Download,
   Eye,
   EyeOff,
+  FileCode2,
   Loader2,
   RotateCcw,
   Save,
   Search,
   Type,
+  Upload,
   X,
 } from 'lucide-react';
 import { useUiLabel } from '../contexts/UiLabelsContext';
@@ -16,11 +20,17 @@ import { saveUiAppearanceSettingsToServer } from '../utils/authClient';
 import {
   UI_LABEL_CATALOG,
   UI_LABEL_CATEGORIES,
+  UI_LABEL_DEFAULT_MAP,
   getUiLabelKind,
   type UiLabelCatalogItem,
   type UiLabelCategory,
   type UiLabelKind,
 } from '../utils/uiAppearanceLabels';
+import {
+  buildUiAppearanceHtmlFilename,
+  generateUiAppearanceHtml,
+  parseUiAppearanceHtml,
+} from '../utils/uiAppearanceHtmlCodec';
 import { ToggleSwitch } from './inspector/InspectorPrimitives';
 
 type FilterCategory = 'all' | UiLabelCategory;
@@ -52,6 +62,13 @@ export function TampilanSettingsPanel() {
   const [confirmResetAll, setConfirmResetAll] = useState(false);
   const [isResettingAll, setIsResettingAll] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importRawText, setImportRawText] = useState('');
+  const [importFileName, setImportFileName] = useState<string | null>(null);
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [isApplyingImport, setIsApplyingImport] = useState(false);
+  const [copiedHtmlFlash, setCopiedHtmlFlash] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   const customCount = useMemo(() => Object.keys(labels).length, [labels]);
   const hiddenCount = useMemo(
@@ -386,6 +403,235 @@ export function TampilanSettingsPanel() {
     });
   };
 
+  const buildCurrentExportMaps = () => {
+    const mergedLabels: Record<string, string> = { ...labels };
+    for (const [k, rawVal] of Object.entries(drafts)) {
+      const trimmed = rawVal.trim();
+      const def = UI_LABEL_DEFAULT_MAP[k];
+      if (!trimmed || (def && trimmed === def)) {
+        delete mergedLabels[k];
+      } else {
+        mergedLabels[k] = trimmed;
+      }
+    }
+    return { exportLabels: mergedLabels, exportHidden: hiddenKeys };
+  };
+
+  const handleExportHtml = () => {
+    const { exportLabels, exportHidden } = buildCurrentExportMaps();
+    const html = generateUiAppearanceHtml(exportLabels, exportHidden);
+    const filename = buildUiAppearanceHtmlFilename();
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setFeedback({
+      type: 'ok',
+      text: `File "${filename}" (${UI_LABEL_CATALOG.length} item teks) berhasil diekspor. Anda dapat mengeditnya di browser/editor teks lalu mengimpornya kembali.`,
+    });
+  };
+
+  const handleCopyHtml = async () => {
+    const { exportLabels, exportHidden } = buildCurrentExportMaps();
+    const html = generateUiAppearanceHtml(exportLabels, exportHidden);
+    try {
+      await navigator.clipboard.writeText(html);
+      setCopiedHtmlFlash(true);
+      window.setTimeout(() => setCopiedHtmlFlash(false), 1800);
+      setFeedback({
+        type: 'ok',
+        text: `Kode HTML Pengaturan Tampilan (${UI_LABEL_CATALOG.length} item) disalin ke clipboard.`,
+      });
+    } catch {
+      setFeedback({
+        type: 'error',
+        text: 'Gagal menyalin HTML ke clipboard. Gunakan tombol Export HTML untuk mengunduh file.',
+      });
+    }
+  };
+
+  const parsedImport = useMemo(() => {
+    if (!importRawText.trim()) return null;
+    return parseUiAppearanceHtml(importRawText);
+  }, [importRawText]);
+
+  const importDiffSummary = useMemo(() => {
+    if (!parsedImport || !parsedImport.ok) return null;
+
+    const nextLabels: Record<string, string> =
+      importMode === 'replace' ? { ...parsedImport.labels } : { ...labels };
+    const nextHidden: Record<string, boolean> =
+      importMode === 'replace' ? { ...parsedImport.hiddenKeys } : { ...hiddenKeys };
+
+    if (importMode === 'merge') {
+      if (parsedImport.source === 'html-table') {
+        for (const key of parsedImport.presentKeys) {
+          if (parsedImport.labels[key]) {
+            nextLabels[key] = parsedImport.labels[key];
+          } else {
+            delete nextLabels[key];
+          }
+          if (parsedImport.hiddenKeys[key]) {
+            nextHidden[key] = true;
+          } else {
+            delete nextHidden[key];
+          }
+        }
+      } else {
+        for (const [k, v] of Object.entries(parsedImport.labels)) {
+          nextLabels[k] = v;
+        }
+        for (const [k, v] of Object.entries(parsedImport.hiddenKeys)) {
+          if (v) nextHidden[k] = true;
+        }
+      }
+    }
+
+    const allCandidateKeys = Array.from(
+      new Set([
+        ...Object.keys(labels),
+        ...Object.keys(hiddenKeys),
+        ...Object.keys(nextLabels),
+        ...Object.keys(nextHidden),
+      ])
+    );
+
+    let labelChangedCount = 0;
+    let labelResetCount = 0;
+    let newlyHiddenCount = 0;
+    let newlyShownCount = 0;
+
+    const previewItems: Array<{
+      key: string;
+      defaultLabel: string;
+      prevText: string;
+      nextText: string;
+      textChanged: boolean;
+      prevVisible: boolean;
+      nextVisible: boolean;
+      visibilityChanged: boolean;
+    }> = [];
+
+    for (const key of allCandidateKeys) {
+      const def = UI_LABEL_DEFAULT_MAP[key] ?? key;
+      const prevCustom = labels[key] ?? '';
+      const nextCustom = nextLabels[key] ?? '';
+      const prevText = prevCustom || def;
+      const nextText = nextCustom || def;
+      const textChanged = prevText !== nextText;
+
+      const prevVisible = !hiddenKeys[key];
+      const nextVisible = !nextHidden[key];
+      const visibilityChanged = prevVisible !== nextVisible;
+
+      if (!textChanged && !visibilityChanged) continue;
+
+      if (textChanged) {
+        if (!nextCustom && prevCustom) labelResetCount += 1;
+        else labelChangedCount += 1;
+      }
+      if (visibilityChanged) {
+        if (!nextVisible) newlyHiddenCount += 1;
+        else newlyShownCount += 1;
+      }
+
+      previewItems.push({
+        key,
+        defaultLabel: def,
+        prevText,
+        nextText,
+        textChanged,
+        prevVisible,
+        nextVisible,
+        visibilityChanged,
+      });
+    }
+
+    return {
+      nextLabels,
+      nextHidden,
+      totalChanges: previewItems.length,
+      labelChangedCount,
+      labelResetCount,
+      newlyHiddenCount,
+      newlyShownCount,
+      previewItems,
+    };
+  }, [parsedImport, importMode, labels, hiddenKeys]);
+
+  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      setImportRawText(text);
+    };
+    reader.onerror = () => {
+      setFeedback({
+        type: 'error',
+        text: `Gagal membaca file "${file.name}".`,
+      });
+    };
+    reader.readAsText(file, 'utf-8');
+    e.target.value = '';
+  };
+
+  const handleApplyImportHtml = async () => {
+    if (!parsedImport || !parsedImport.ok || !importDiffSummary) return;
+
+    setFeedback(null);
+    setIsApplyingImport(true);
+    let res;
+    if (importMode === 'replace') {
+      res = await saveUiAppearanceSettingsToServer({
+        labels: importDiffSummary.nextLabels,
+        hiddenKeys: importDiffSummary.nextHidden,
+      });
+    } else if (parsedImport.source === 'html-table') {
+      const patch: Record<string, string> = {};
+      const hiddenPatch: Record<string, boolean> = {};
+      for (const key of parsedImport.presentKeys) {
+        patch[key] = parsedImport.labels[key] ?? '';
+        hiddenPatch[key] = Boolean(parsedImport.hiddenKeys[key]);
+      }
+      res = await saveUiAppearanceSettingsToServer({ patch, hiddenPatch });
+    } else {
+      res = await saveUiAppearanceSettingsToServer({
+        patch: parsedImport.labels,
+        hiddenPatch: parsedImport.hiddenKeys,
+      });
+    }
+    setIsApplyingImport(false);
+
+    if (!res.ok || !res.settings) {
+      setFeedback({
+        type: 'error',
+        text: res.error || 'Gagal menerapkan hasil Import HTML ke database.',
+      });
+      return;
+    }
+
+    setAppearanceSettings(res.settings);
+    setDrafts({});
+    setShowImportPanel(false);
+    setImportRawText('');
+    setImportFileName(null);
+    setFeedback({
+      type: 'ok',
+      text:
+        importDiffSummary.totalChanges > 0
+          ? `Import HTML berhasil (${importMode === 'replace' ? 'Timpa Semua' : 'Gabungkan'}). ${importDiffSummary.totalChanges} pengaturan tampilan diperbarui dan disimpan.`
+          : 'Import HTML selesai diproses. Tidak ada perbedaan dengan pengaturan tampilan aktif saat ini.',
+    });
+  };
+
   return (
     <div className="max-w-5xl w-full mx-auto space-y-4 pb-6">
       {/* Header Summary & Actions */}
@@ -426,6 +672,44 @@ export function TampilanSettingsPanel() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleExportHtml}
+            title="Unduh seluruh Pengaturan Tampilan sebagai file HTML yang dapat diedit & diimpor ulang"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#ECFDF6] hover:border-[#00C98A] text-xs font-semibold text-[#17243D] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Download className="w-3.5 h-3.5 text-[#00A873]" />
+            <span>Export HTML</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void handleCopyHtml()}
+            title="Salin kode HTML Pengaturan Tampilan ke clipboard"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-xs font-semibold text-[#5B708B] hover:text-[#17243D] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            {copiedHtmlFlash ? (
+              <Check className="w-3.5 h-3.5 text-[#00A873]" />
+            ) : (
+              <Copy className="w-3.5 h-3.5 text-[#8FA4BF]" />
+            )}
+            <span>{copiedHtmlFlash ? 'Tersalin' : 'Salin HTML'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowImportPanel((v) => !v)}
+            aria-expanded={showImportPanel}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              showImportPanel
+                ? 'bg-[#17243D] border-[#17243D] text-white'
+                : 'bg-[#ECFDF6] border-[#00C98A]/45 text-[#065F46] hover:border-[#00C98A]'
+            }`}
+          >
+            <Upload className={`w-3.5 h-3.5 ${showImportPanel ? 'text-[#00C98A]' : 'text-[#00A873]'}`} />
+            <span>Import HTML</span>
+          </button>
+
           {dirtyEntries.length > 0 && (
             <button
               type="button"
@@ -478,6 +762,249 @@ export function TampilanSettingsPanel() {
           )}
         </div>
       </div>
+
+      {/* Import HTML Panel */}
+      {showImportPanel && (
+        <div
+          data-import-html-panel="1"
+          className="bg-white rounded-2xl border border-[#00C98A]/50 p-5 space-y-4 shadow-xs"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0 mt-0.5">
+                <FileCode2 className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-[#17243D]">
+                  Import HTML untuk Update Pengaturan Tampilan
+                </h3>
+                <p className="text-[11.5px] text-[#5B708B] leading-relaxed">
+                  Unggah file <code>.html</code> hasil <strong>Export HTML</strong> yang sudah Anda edit (di browser atau text editor), atau tempelkan langsung kode HTML di bawah ini untuk melihat pratinjau perubahan sebelum disimpan.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowImportPanel(false)}
+              aria-label="Tutup panel Import HTML"
+              className="p-1 text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept=".html,.htm,text/html,application/json"
+                onChange={handleImportFileChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => importFileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-[#00C98A]" />
+                <span>Pilih File HTML</span>
+              </button>
+              {importFileName && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] text-[11px] font-medium text-[#17243D]">
+                  <FileCode2 className="w-3 h-3 text-[#00A873]" />
+                  <span>{importFileName}</span>
+                </span>
+              )}
+              {importRawText.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportRawText('');
+                    setImportFileName(null);
+                  }}
+                  className="text-[11px] font-semibold text-[#8FA4BF] hover:text-rose-600 cursor-pointer"
+                >
+                  Bersihkan
+                </button>
+              )}
+            </div>
+
+            <div
+              role="group"
+              aria-label="Mode penerapan Import HTML"
+              className="inline-flex items-center gap-1 bg-[#F0F5FA] p-1 rounded-xl"
+            >
+              <button
+                type="button"
+                onClick={() => setImportMode('merge')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                  importMode === 'merge'
+                    ? 'bg-white text-[#17243D] shadow-xs'
+                    : 'text-[#5B708B] hover:text-[#17243D]'
+                }`}
+              >
+                Gabungkan (Update)
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportMode('replace')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                  importMode === 'replace'
+                    ? 'bg-white text-[#17243D] shadow-xs'
+                    : 'text-[#5B708B] hover:text-[#17243D]'
+                }`}
+              >
+                Timpa Semua
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            rows={5}
+            value={importRawText}
+            onChange={(e) => {
+              setImportRawText(e.target.value);
+              if (!e.target.value.trim()) setImportFileName(null);
+            }}
+            placeholder="Tempelkan isi file HTML hasil Export HTML di sini (atau klik Pilih File HTML di atas)..."
+            aria-label="Konten HTML untuk diimpor"
+            className="w-full px-3 py-2 text-[11.5px] font-mono rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/40 text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:bg-white focus:border-[#00C98A] resize-y"
+          />
+
+          {parsedImport && !parsedImport.ok && (
+            <div className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <span>{parsedImport.error}</span>
+            </div>
+          )}
+
+          {parsedImport && parsedImport.ok && importDiffSummary && (
+            <div className="rounded-xl border border-[#DCE5EF] bg-[#F8FBFE] p-3.5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-[#5B708B] tabular-nums">
+                  <span className="px-2 py-0.5 rounded-md bg-[#ECFDF6] border border-[#00C98A]/40 text-[#008F63] font-bold">
+                    {parsedImport.source === 'html-table'
+                      ? 'Tabel HTML'
+                      : parsedImport.source === 'html-json'
+                      ? 'JSON HTML'
+                      : 'JSON'}
+                  </span>
+                  <span>
+                    <strong className="text-[#17243D]">{parsedImport.parsedRowCount}</strong> item terbaca
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    <strong className="text-[#008F63]">{importDiffSummary.totalChanges}</strong> perubahan terdeteksi
+                  </span>
+                  {importDiffSummary.totalChanges > 0 && (
+                    <span className="text-[#17243D]">
+                      (
+                      {[
+                        importDiffSummary.labelChangedCount > 0
+                          ? `${importDiffSummary.labelChangedCount} ubah teks`
+                          : null,
+                        importDiffSummary.labelResetCount > 0
+                          ? `${importDiffSummary.labelResetCount} reset bawaan`
+                          : null,
+                        importDiffSummary.newlyHiddenCount > 0
+                          ? `${importDiffSummary.newlyHiddenCount} sembunyi`
+                          : null,
+                        importDiffSummary.newlyShownCount > 0
+                          ? `${importDiffSummary.newlyShownCount} tampil`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                      )
+                    </span>
+                  )}
+                </div>
+                {parsedImport.unknownKeys.length > 0 && (
+                  <span className="text-[10.5px] text-amber-700 font-medium">
+                    {parsedImport.unknownKeys.length} kunci tidak dikenal (diabaikan jika tidak terpakai)
+                  </span>
+                )}
+              </div>
+
+              {importDiffSummary.previewItems.length === 0 ? (
+                <div className="text-xs text-[#5B708B] py-1">
+                  Semua nilai dan status tampil/sembunyi pada file HTML sudah sama dengan pengaturan aktif saat ini.
+                </div>
+              ) : (
+                <div className="max-h-52 overflow-y-auto rounded-lg border border-[#DCE5EF] bg-white divide-y divide-[#EEF3F8]">
+                  {importDiffSummary.previewItems.slice(0, 20).map((diff) => (
+                    <div
+                      key={diff.key}
+                      className="px-3 py-2 text-[11px] flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="font-mono text-[10px] text-[#8FA4BF] truncate">
+                          {diff.key}
+                        </div>
+                        {diff.textChanged ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="line-through text-[#8FA4BF]">{diff.prevText}</span>
+                            <span className="text-[#8FA4BF]">→</span>
+                            <span className="font-semibold text-[#17243D]">{diff.nextText}</span>
+                          </div>
+                        ) : (
+                          <div className="font-medium text-[#17243D]">{diff.nextText}</div>
+                        )}
+                      </div>
+                      {diff.visibilityChanged && (
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                            diff.nextVisible
+                              ? 'bg-[#ECFDF6] text-[#008F63]'
+                              : 'bg-rose-50 text-rose-600'
+                          }`}
+                        >
+                          {diff.nextVisible ? 'Tampil' : 'Sembunyi'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {importDiffSummary.previewItems.length > 20 && (
+                    <div className="px-3 py-1.5 text-[10.5px] text-[#8FA4BF] bg-[#F8FBFE] text-center">
+                      + {importDiffSummary.previewItems.length - 20} perubahan lainnya...
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowImportPanel(false)}
+                  className="px-3 py-1.5 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-xs font-semibold text-[#5B708B] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isApplyingImport}
+                  onClick={() => void handleApplyImportHtml()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#00C98A] hover:bg-[#00B37B] disabled:opacity-60 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {isApplyingImport ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {isApplyingImport
+                      ? 'Menyimpan...'
+                      : importMode === 'replace'
+                      ? 'Timpa & Simpan Tampilan'
+                      : 'Terapkan & Simpan Update'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inline Feedback Banner */}
       {feedback && (
@@ -581,7 +1108,7 @@ export function TampilanSettingsPanel() {
         {/* Band 2: Bagian Editor Lainnya */}
         <div className="space-y-1.5 pt-1 border-t border-[#EEF3F8]">
           <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#8FA4BF]">
-            Bagian Editor Lainnya (Desain, Tema, Home, Alat, Blok &amp; Header)
+            Bagian Editor Lainnya (Desain, Tema, Layer, Navbar, Alat, Blok, Inspektor &amp; Navigasi Atas)
           </div>
           <div
             role="tablist"

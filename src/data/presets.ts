@@ -2522,8 +2522,8 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   {
     id: 'tombol-kategori-scroll',
     category: 'menu_layout',
-    title: 'Tombol Kategori (Slide Horizontal / Vertikal)',
-    description: 'Tombol Favorit, Makanan, Minuman yang bisa ditambah, slide horizontal atau vertikal & lompat ke judul',
+    title: 'Template Kategori Menu (Siap Pakai)',
+    description: 'Template siap pakai tombol kategori Favorit, Makanan, Minuman dengan scroll horizontal/vertikal',
     createBlocks: (theme) => [createBlock('category_tabs', theme)],
   },
   {
@@ -2742,15 +2742,15 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   {
     id: 'bottom-sheet-maps',
     category: 'kontak_medsos',
-    title: 'Icon Maps → Bottom Sheet',
-    description: 'Klik ikon Maps untuk buka Bottom Sheet lokasi & ulasan',
+    title: 'Template Sheet Lokasi & Maps',
+    description: 'Template siap pakai pemicu ikon Maps yang membuka panel sheet lokasi & ulasan',
     createBlocks: (theme) => [createBlock('bottom_sheet', theme)],
   },
   {
     id: 'lokasi-maps',
     category: 'kontak_medsos',
-    title: 'Lokasi Maps & Ulasan',
-    description: 'Kartu foto lokasi, rating bintang & Google Maps',
+    title: 'Template Kartu Lokasi Maps',
+    description: 'Template siap pakai kartu foto lokasi, rating bintang & rute Google Maps',
     createBlocks: (theme) => [createBlock('maps_place', theme)],
   },
   {
@@ -2975,8 +2975,8 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
   {
     id: 'contact-lead',
     category: 'kontak_medsos',
-    title: 'Formulir Kontak & Newsletter',
-    description: 'Form pengumpulan nama, email & checklist konfirmasi',
+    title: 'Template Formulir Kontak & Lead',
+    description: 'Template siap pakai form pendaftaran/kontak lengkap dengan validasi & checklist',
     createBlocks: (theme) => [createBlock('form', theme)],
   },
 ];

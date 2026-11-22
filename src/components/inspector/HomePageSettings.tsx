@@ -1,20 +1,65 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
+  Award,
+  BadgeCheck,
+  CalendarDays,
   Check,
   ChevronDown,
+  ChevronsUpDown,
+  Columns2,
+  Columns3,
   Copy,
+  CornerLeftUp,
+  Eye,
+  EyeOff,
   FilePlus2,
   Files,
+  FileText,
+  GraduationCap,
+  Grid3X3,
   GripVertical,
+  Image as ImageIcon,
+  Images,
   Layers,
+  LayoutGrid,
+  Link2,
+  ListOrdered,
+  Lock,
+  Mail,
+  MapPin,
+  Minus,
+  MousePointerClick,
+  Newspaper,
+  Package,
   Palette,
   PanelBottom,
+  PanelBottomOpen,
   PanelTop,
+  Pencil,
   Plus,
+  Quote,
   RotateCcw,
+  Shapes,
+  Share2,
+  ShoppingBag,
+  ShoppingCart,
+  SlidersHorizontal,
+  Sparkles,
+  Square,
+  Store,
+  Tag,
+  Tags,
+  Ticket,
   Trash2,
+  Type,
+  Unlock,
+  UserCheck,
+  Users,
+  UtensilsCrossed,
+  Video,
 } from 'lucide-react';
 import {
   AdvanceOptions,
@@ -24,6 +69,7 @@ import {
   BottomNavbarItemAction,
   BuilderBlock,
   BuilderSubPage,
+  MenuIconSheetPosition,
   PageTheme,
   ShadowPreset,
 } from '../../types/builder';
@@ -38,11 +84,19 @@ import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import { useUiLabel } from '../../contexts/UiLabelsContext';
 import {
   countDirectNestedChildren,
+  findParentBlockId,
   hasBlockNestedChildren,
   resolveExpandedLayerGroupsForSelection,
 } from '../../utils/treeHelpers';
+import {
+  ExtractedSubLayer,
+  SubLayerIconKind,
+  extractBlockSubLayers,
+} from '../../utils/layerStructure';
+import { getBlockThemeStatus } from '../../utils/blockThemeHelpers';
 import { ButtonGlyph } from '../ButtonIcon';
 import { IconPicker } from '../IconPicker';
+import { SocialGlyph } from '../SocialIcon';
 import { AccordionSection, SliderRow, ToggleSwitch } from './InspectorPrimitives';
 
 interface HomePageSettingsProps {
@@ -55,6 +109,7 @@ interface HomePageSettingsProps {
   onDuplicateSubPage?: (pageId: string) => void;
   onDeleteSubPage?: (pageId: string) => void;
   selectedId: string | null;
+  selectedSubLayerId?: string | null;
   theme: PageTheme;
   advanceOptions: AdvanceOptions;
   bottomNavbar: BottomNavbarConfig;
@@ -66,6 +121,10 @@ interface HomePageSettingsProps {
   onUpdateBottomNavbar: (updater: (prev: BottomNavbarConfig) => BottomNavbarConfig) => void;
   onSelectNavItem: (id: string) => void;
   onSelectBlock: (id: string | null) => void;
+  onSelectSubLayer?: (blockId: string, subLayerId: string | null) => void;
+  onToggleSubLayerVisibility?: (blockId: string, subLayerId: string) => void;
+  onToggleSubLayerLock?: (blockId: string, subLayerId: string) => void;
+  onDeleteSubLayer?: (blockId: string, subLayerId: string) => void;
   onMoveBlock: (id: string, dir: 'up' | 'down') => void;
   onReorderBlock: (
     draggedId: string,
@@ -75,9 +134,209 @@ interface HomePageSettingsProps {
   onDuplicateBlock?: (id: string) => void;
   onDeleteBlock: (id: string) => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
+  onUpdateBlock?: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
+  onResetPageThemeOverrides?: () => void;
+  panelMode?: 'all' | 'tema' | 'layer';
 }
 
-type HomeSectionId = 'temaGlobal' | 'pages' | 'top' | 'body' | 'bottom';
+type HomeSectionId = 'temaGlobal' | 'pages' | 'top' | 'bottom';
+
+function hasBlockInTree(nodes: BuilderBlock[] | undefined, targetId: string): boolean {
+  if (!Array.isArray(nodes) || !targetId) return false;
+  for (const node of nodes) {
+    if (node.id === targetId) return true;
+    if (hasBlockInTree(node.children, targetId)) return true;
+    if (hasBlockInTree(node.content?.actionSheetBlocks, targetId)) return true;
+    if (hasBlockInTree(node.content?.cardFooterBlocks, targetId)) return true;
+  }
+  return false;
+}
+
+function renderSubLayerIcon(kind: SubLayerIconKind, className = 'w-3 h-3') {
+  switch (kind) {
+    case 'image':
+      return <ImageIcon className={className} />;
+    case 'text':
+      return <Type className={className} />;
+    case 'card':
+      return <LayoutGrid className={className} />;
+    case 'sliders':
+      return <SlidersHorizontal className={className} />;
+    case 'cart':
+      return <ShoppingCart className={className} />;
+    case 'link':
+      return <Link2 className={className} />;
+    case 'map':
+      return <MapPin className={className} />;
+    case 'video':
+      return <Video className={className} />;
+    case 'list':
+      return <ListOrdered className={className} />;
+    case 'form':
+      return <FileText className={className} />;
+    case 'share':
+      return <Share2 className={className} />;
+    case 'sparkles':
+      return <Sparkles className={className} />;
+    case 'divider':
+      return <Minus className={className} />;
+    case 'back':
+      return <ArrowLeft className={className} />;
+    case 'layers':
+    default:
+      return <Layers className={className} />;
+  }
+}
+
+function renderShowcaseVariantIcon(
+  variant: BuilderBlock['content']['cardVariant'],
+  className: string
+): React.ReactNode {
+  switch (variant) {
+    case 'quote_banner':
+      return <Quote className={className} strokeWidth={1.85} />;
+    case 'news_banner':
+      return <Newspaper className={className} strokeWidth={1.85} />;
+    case 'event_poster':
+      return <CalendarDays className={className} strokeWidth={1.85} />;
+    case 'badge_tile':
+      return <Award className={className} strokeWidth={1.85} />;
+    case 'store_card':
+      return <ShoppingBag className={className} strokeWidth={1.85} />;
+    case 'activity_post':
+      return <Users className={className} strokeWidth={1.85} />;
+    case 'membership_ticket':
+      return <Ticket className={className} strokeWidth={1.85} />;
+    default:
+      return <Sparkles className={className} strokeWidth={1.85} />;
+  }
+}
+
+function renderBlockLayerIcon(blk: BuilderBlock, className = 'w-3.5 h-3.5'): React.ReactNode {
+  const lbl = (blk.label || '').toLowerCase();
+
+  switch (blk.type) {
+    case 'text':
+      return <Type className={className} strokeWidth={1.85} />;
+    case 'image':
+      return <ImageIcon className={className} strokeWidth={1.85} />;
+    case 'button':
+      return <MousePointerClick className={className} strokeWidth={1.85} />;
+    case 'cart_button':
+      return <ShoppingCart className={className} strokeWidth={1.85} />;
+    case 'back_button':
+      return <ArrowLeft className={className} strokeWidth={1.85} />;
+    case 'menu_icon':
+      return <Shapes className={className} strokeWidth={1.85} />;
+    case 'row': {
+      const firstShowcaseChild = blk.children?.find((c) => c.type === 'showcase_card');
+      if (firstShowcaseChild?.content?.cardVariant) {
+        return renderShowcaseVariantIcon(firstShowcaseChild.content.cardVariant, className);
+      }
+      if (lbl.includes('kutipan') || lbl.includes('quote')) {
+        return <Quote className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('berita') || lbl.includes('informasi')) {
+        return <Newspaper className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('even') || lbl.includes('event') || lbl.includes('promo')) {
+        return <CalendarDays className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('sertifikasi')) {
+        return <Award className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('store') || lbl.includes('produk')) {
+        return <ShoppingBag className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('feed') || lbl.includes('kegiatan')) {
+        return <Users className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('tarif') || lbl.includes('tiket') || lbl.includes('keanggotaan')) {
+        return <Ticket className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('menu') || lbl.includes('grid') || lbl.includes('spesial')) {
+        return <Grid3X3 className={className} strokeWidth={1.85} />;
+      }
+      if (blk.content?.rowLayoutMode === 'horizontal' || lbl.includes('slide')) {
+        return <Columns3 className={className} strokeWidth={1.85} />;
+      }
+      return <Columns2 className={className} strokeWidth={1.85} />;
+    }
+    case 'container': {
+      if (lbl.includes('outlet') || lbl.includes('toko')) {
+        return <Store className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('promo') || lbl.includes('gradasi')) {
+        return <Sparkles className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('header') || lbl.includes('profil') || lbl.includes('hero')) {
+        return <BadgeCheck className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('tautan') || lbl.includes('link')) {
+        return <Link2 className={className} strokeWidth={1.85} />;
+      }
+      if (lbl.includes('produk') || lbl.includes('unggulan')) {
+        return <Tag className={className} strokeWidth={1.85} />;
+      }
+      return <Square className={className} strokeWidth={1.85} />;
+    }
+    case 'toggle_container':
+      return <ChevronsUpDown className={className} strokeWidth={1.85} />;
+    case 'bottom_sheet':
+      return <PanelBottomOpen className={className} strokeWidth={1.85} />;
+    case 'category_tabs':
+      return lbl.includes('slide') || lbl.includes('scroll') ? (
+        <Tags className={className} strokeWidth={1.85} />
+      ) : (
+        <LayoutGrid className={className} strokeWidth={1.85} />
+      );
+    case 'form':
+      return lbl.includes('newsletter') || lbl.includes('kontak') || lbl.includes('email') ? (
+        <Mail className={className} strokeWidth={1.85} />
+      ) : (
+        <FileText className={className} strokeWidth={1.85} />
+      );
+    case 'divider':
+      return <Minus className={className} strokeWidth={1.85} />;
+    case 'maps_place':
+      return <MapPin className={className} strokeWidth={1.85} />;
+    case 'social':
+    case 'social_feed':
+      return <Share2 className={className} strokeWidth={1.85} />;
+    case 'social_follower':
+      return <UserCheck className={className} strokeWidth={1.85} />;
+    case 'carousel':
+      return <Images className={className} strokeWidth={1.85} />;
+    case 'youtube':
+      return <Video className={className} strokeWidth={1.85} />;
+    case 'facebook_video':
+      return <SocialGlyph platform="facebook" className={className} />;
+    case 'tiktok_video':
+      return <SocialGlyph platform="tiktok" className={className} />;
+    case 'instagram_video':
+      return <SocialGlyph platform="instagram" className={className} />;
+    case 'hero_profile':
+      return blk.content?.heroVariant === 'banner' ? (
+        <PanelTop className={className} strokeWidth={1.85} />
+      ) : (
+        <UserCheck className={className} strokeWidth={1.85} />
+      );
+    case 'fnb_catalog':
+      return <UtensilsCrossed className={className} strokeWidth={1.85} />;
+    case 'catalog':
+      return blk.content?.catalogProductType === 'digital' || lbl.includes('digital') ? (
+        <ShoppingBag className={className} strokeWidth={1.85} />
+      ) : (
+        <Package className={className} strokeWidth={1.85} />
+      );
+    case 'training_catalog':
+      return <GraduationCap className={className} strokeWidth={1.85} />;
+    case 'showcase_card':
+      return renderShowcaseVariantIcon(blk.content?.cardVariant, className);
+    default:
+      return <Layers className={className} strokeWidth={1.85} />;
+  }
+}
 
 export function HomePageSettings({
   blocks,
@@ -89,6 +348,7 @@ export function HomePageSettings({
   onDuplicateSubPage,
   onDeleteSubPage,
   selectedId,
+  selectedSubLayerId = null,
   theme,
   advanceOptions,
   bottomNavbar,
@@ -100,19 +360,27 @@ export function HomePageSettings({
   onUpdateBottomNavbar,
   onSelectNavItem,
   onSelectBlock,
+  onSelectSubLayer,
+  onToggleSubLayerVisibility,
+  onToggleSubLayerLock,
+  onDeleteSubLayer,
   onMoveBlock,
   onReorderBlock,
   onDuplicateBlock,
   onDeleteBlock,
   onAddChildToContainer,
+  onUpdateBlock,
+  onResetPageThemeOverrides,
+  panelMode = 'all',
 }: HomePageSettingsProps) {
   const { label, isVisible } = useUiLabel();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const showTema = panelMode === 'all' || panelMode === 'tema';
+  const showLayer = panelMode === 'all' || panelMode === 'layer';
   const [openSections, setOpenSections] = useState<Record<HomeSectionId, boolean>>({
     temaGlobal: false,
-    pages: false,
+    pages: true,
     top: false,
-    body: true,
     bottom: false,
   });
 
@@ -131,6 +399,28 @@ export function HomePageSettings({
     id: string;
     pos: 'before' | 'after' | 'inside';
   } | null>(null);
+  const [renamingBlockId, setRenamingBlockId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+
+  const startRenameBlock = (blk: BuilderBlock) => {
+    setRenamingBlockId(blk.id);
+    setRenameDraft(
+      blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])
+    );
+  };
+
+  const commitRenameBlock = (blk: BuilderBlock) => {
+    const trimmed = renameDraft.trim();
+    if (onUpdateBlock && trimmed) {
+      onUpdateBlock(blk.id, (prev) => ({ ...prev, label: trimmed }));
+    }
+    setRenamingBlockId(null);
+  };
+
+  const cancelRenameBlock = () => {
+    setRenamingBlockId(null);
+    setRenameDraft('');
+  };
 
   const toggleLayerGroup = (groupKey: string) => {
     setExpandedLayerGroups((prev) => ({
@@ -146,15 +436,18 @@ export function HomePageSettings({
   }, [navbarFocusNonce]);
 
   useEffect(() => {
-    if (layerFocusNonce > 0 || selectedId) {
-      setOpenSections((prev) => (prev.body ? prev : { ...prev, body: true }));
+    const isInNavSheet = Boolean(
+      selectedId && bottomNavbar.items.some((it) => hasBlockInTree(it.children, selectedId))
+    );
+    if (isInNavSheet) {
+      setOpenSections((prev) => (prev.bottom ? prev : { ...prev, bottom: true }));
     }
     if (!selectedId) {
       setExpandedLayerGroups({});
       return;
     }
 
-    // Otomatis buka grup lapisan yang berkaitan dengan komponen terpilih & tutup grup lain
+    // Otomatis buka grup lapisan yang berkaitan dengan komponen terpilih & tampilkan sub-layernya
     const nextExpanded = resolveExpandedLayerGroupsForSelection(
       blocks,
       selectedId,
@@ -162,35 +455,53 @@ export function HomePageSettings({
         .filter((it) => Array.isArray(it.children) && it.children.length > 0)
         .map((it) => ({ navId: it.id, children: it.children }))
     );
+    nextExpanded[selectedId] = true;
     setExpandedLayerGroups(nextExpanded);
 
     const timer = window.setTimeout(() => {
       const root = scrollContainerRef.current;
       if (!root) return;
-      const nodes = root.querySelectorAll<HTMLElement>('[data-layer-item-id]');
-      for (let i = 0; i < nodes.length; i += 1) {
-        if (nodes[i].getAttribute('data-layer-item-id') === selectedId) {
-          const target = nodes[i];
-          const containerRect = root.getBoundingClientRect();
-          const targetRect = target.getBoundingClientRect();
-          const targetOffsetTop = targetRect.top - containerRect.top + root.scrollTop;
-          const desiredOffsetFromTop = root.clientHeight * 0.25;
-          const maxScrollTop = Math.max(0, root.scrollHeight - root.clientHeight);
-          const nextScrollTop = Math.max(
-            0,
-            Math.min(maxScrollTop, Math.round(targetOffsetTop - desiredOffsetFromTop))
-          );
-          if (typeof root.scrollTo === 'function') {
-            root.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
-          } else {
-            root.scrollTop = nextScrollTop;
+
+      let target: HTMLElement | null = null;
+      if (selectedSubLayerId) {
+        const subKey = `${selectedId}::${selectedSubLayerId}`;
+        const subNodes = root.querySelectorAll<HTMLElement>('[data-sublayer-id]');
+        for (let i = 0; i < subNodes.length; i += 1) {
+          if (subNodes[i].getAttribute('data-sublayer-id') === subKey) {
+            target = subNodes[i];
+            break;
           }
-          break;
         }
       }
-    }, 60);
+
+      if (!target) {
+        const nodes = root.querySelectorAll<HTMLElement>('[data-layer-item-id]');
+        for (let i = 0; i < nodes.length; i += 1) {
+          if (nodes[i].getAttribute('data-layer-item-id') === selectedId) {
+            target = nodes[i];
+            break;
+          }
+        }
+      }
+
+      if (!target) return;
+      const containerRect = root.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const targetOffsetTop = targetRect.top - containerRect.top + root.scrollTop;
+      const desiredOffsetFromTop = root.clientHeight * 0.28;
+      const maxScrollTop = Math.max(0, root.scrollHeight - root.clientHeight);
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(maxScrollTop, Math.round(targetOffsetTop - desiredOffsetFromTop))
+      );
+      if (typeof root.scrollTo === 'function') {
+        root.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
+      } else {
+        root.scrollTop = nextScrollTop;
+      }
+    }, 80);
     return () => window.clearTimeout(timer);
-  }, [layerFocusNonce, selectedId]);
+  }, [layerFocusNonce, selectedId, selectedSubLayerId]);
 
   const toggleSection = (id: HomeSectionId) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -301,9 +612,178 @@ export function HomePageSettings({
       children: it.children,
     }));
 
-  const totalLayerCount =
-    countLayerTree(blocks) +
-    navSheetLayers.reduce((sum, entry) => sum + countLayerTree(entry.children), 0);
+  const navSheetLayerCount = navSheetLayers.reduce(
+    (sum, entry) => sum + countLayerTree(entry.children),
+    0
+  );
+
+  const countLocalThemeOverrides = (nodes: BuilderBlock[]): number =>
+    nodes.reduce((sum, node) => {
+      const selfOverride = getBlockThemeStatus(node, theme).mode === 'local' ? 1 : 0;
+      const childrenCount = Array.isArray(node.children)
+        ? countLocalThemeOverrides(node.children)
+        : 0;
+      const sheetCount = Array.isArray(node.content?.actionSheetBlocks)
+        ? countLocalThemeOverrides(node.content.actionSheetBlocks)
+        : 0;
+      const footerCount = Array.isArray(node.content?.cardFooterBlocks)
+        ? countLocalThemeOverrides(node.content.cardFooterBlocks)
+        : 0;
+      return sum + selfOverride + childrenCount + sheetCount + footerCount;
+    }, 0);
+
+  const pageThemeOverrideCount = countLocalThemeOverrides(blocks);
+
+  const renderSubLayerRow = (blk: BuilderBlock, sub: ExtractedSubLayer) => {
+    const isSubSelected = blk.id === selectedId && selectedSubLayerId === sub.id;
+    return (
+      <div
+        key={`${blk.id}::${sub.id}`}
+        data-sublayer-id={`${blk.id}::${sub.id}`}
+        data-sublayer-kind={sub.kind}
+        data-sublayer-selected={isSubSelected ? 'true' : 'false'}
+        className={`group/sub w-full flex items-center gap-1 px-1.5 py-1.5 rounded-lg border text-left transition-all ${
+          isSubSelected
+            ? 'bg-[#ECFDF6] border-[#00C98A] border-l-[3px] text-[#17243D] shadow-2xs'
+            : sub.isHidden
+            ? 'bg-[#F8FAFC] border-dashed border-[#DCE5EF] text-[#8FA4BF] hover:border-[#8FA4BF] hover:bg-white'
+            : 'bg-white/90 border-[#E6EDF5] text-[#17243D] hover:border-[#00C98A]/60 hover:bg-[#F8FBFE]'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onSelectSubLayer) {
+              onSelectSubLayer(blk.id, sub.id);
+            } else {
+              onSelectBlock(blk.id);
+            }
+          }}
+          className="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer"
+        >
+          <span
+            className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+              isSubSelected
+                ? 'bg-[#00C98A] text-white'
+                : sub.kind === 'item'
+                ? 'bg-[#F0F5FA] text-[#008F63]'
+                : 'bg-[#F0F5FA] text-[#5B708B]'
+            }`}
+          >
+            {renderSubLayerIcon(sub.icon, 'w-3 h-3')}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1 min-w-0">
+              {sub.layerBadge && (
+                <span
+                  className={`px-1 py-0 rounded text-[8.5px] font-bold uppercase tracking-wide shrink-0 ${
+                    isSubSelected
+                      ? 'bg-[#17243D] text-[#7AF0C7]'
+                      : 'bg-[#17243D]/10 text-[#17243D]'
+                  }`}
+                >
+                  {sub.layerBadge}
+                </span>
+              )}
+              <span
+                className={`truncate text-[10.5px] leading-tight ${
+                  isSubSelected
+                    ? 'font-bold text-[#17243D]'
+                    : sub.isHidden
+                    ? 'font-medium text-[#8FA4BF] line-through'
+                    : 'font-semibold text-[#17243D]'
+                }`}
+              >
+                {sub.label}
+              </span>
+              {sub.isLocked && (
+                <Lock className="w-2.5 h-2.5 text-amber-600 shrink-0" aria-label="Terkunci" />
+              )}
+            </div>
+            <div className="flex items-center gap-1 mt-0.5 min-w-0">
+              <span
+                className={`truncate text-[9px] leading-tight ${
+                  isSubSelected ? 'text-[#008F63] font-medium' : 'text-[#8FA4BF]'
+                }`}
+              >
+                {sub.typeLabel}
+              </span>
+              {sub.isHidden && (
+                <span className="inline-flex items-center gap-0.5 text-[8.5px] font-semibold text-[#8FA4BF] shrink-0">
+                  <EyeOff className="w-2.5 h-2.5" />
+                  <span>Tersembunyi</span>
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
+
+        {/* Independent Sub-Layer Actions (NEVER deletes parent block) */}
+        <div
+          className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
+            isSubSelected ? 'opacity-100' : 'opacity-0 group-hover/sub:opacity-100'
+          }`}
+        >
+          {sub.canToggleVisibility && onToggleSubLayerVisibility && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSubLayerVisibility(blk.id, sub.id);
+              }}
+              title={sub.isHidden ? 'Tampilkan Sub-Lapisan' : 'Sembunyikan Sub-Lapisan'}
+              aria-label={sub.isHidden ? 'Tampilkan Sub-Lapisan' : 'Sembunyikan Sub-Lapisan'}
+              className={`p-1 rounded cursor-pointer transition-colors ${
+                sub.isHidden
+                  ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+                  : 'text-[#51637D] hover:bg-[#F0F5FA] hover:text-[#17243D]'
+              }`}
+            >
+              {sub.isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            </button>
+          )}
+          {sub.canLock && onToggleSubLayerLock && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSubLayerLock(blk.id, sub.id);
+              }}
+              title={sub.isLocked ? 'Buka Kunci Sub-Lapisan' : 'Kunci Sub-Lapisan'}
+              aria-label={sub.isLocked ? 'Buka Kunci Sub-Lapisan' : 'Kunci Sub-Lapisan'}
+              className={`p-1 rounded cursor-pointer transition-colors ${
+                sub.isLocked
+                  ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+                  : 'text-[#8FA4BF] hover:bg-[#F0F5FA] hover:text-[#17243D]'
+              }`}
+            >
+              {sub.isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+            </button>
+          )}
+          {sub.canDelete && onDeleteSubLayer && (
+            <button
+              type="button"
+              disabled={Boolean(sub.isLocked)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteSubLayer(blk.id, sub.id);
+              }}
+              title={
+                sub.isLocked
+                  ? 'Sub-lapisan terkunci'
+                  : `Hapus hanya ${sub.label} (induk tetap utuh)`
+              }
+              aria-label={`Hapus sub-lapisan ${sub.label}`}
+              className="p-1 rounded text-[#8FA4BF] hover:bg-red-50 hover:text-red-600 disabled:opacity-35 disabled:pointer-events-none cursor-pointer transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderLayerNode = (
     blk: BuilderBlock,
@@ -312,27 +792,54 @@ export function HomePageSettings({
     depth: number
   ): React.ReactNode => {
     const isSelected = blk.id === selectedId;
+    const isParentDirectlySelected = isSelected && !selectedSubLayerId;
     const isContainer =
       blk.type === 'container' ||
       blk.type === 'toggle_container' ||
       blk.type === 'row' ||
       blk.type === 'bottom_sheet' ||
       blk.type === 'menu_icon' ||
-      blk.type === 'showcase_card';
-    const hasChildren = hasBlockNestedChildren(blk);
-    const childCount = hasChildren ? countDirectNestedChildren(blk) : 0;
+      blk.type === 'showcase_card' ||
+      blk.type === 'hero_profile';
+    const hasNestedBlocks = hasBlockNestedChildren(blk);
+    const nestedBlockCount = hasNestedBlocks ? countDirectNestedChildren(blk) : 0;
+    const subLayers = extractBlockSubLayers(blk);
+    const hasExpandable = hasNestedBlocks || subLayers.length > 0;
+    const totalSubCount = nestedBlockCount + subLayers.length;
     const isGroupExpanded = Boolean(expandedLayerGroups[blk.id]);
     const isOver = dragOverInfo?.id === blk.id;
+    const isHidden = blk.style?.visibility === 'hidden';
+    const isLocked = Boolean(blk.style?.locked);
+    const isRenaming = renamingBlockId === blk.id;
+    const parentBlockId = isSelected ? findParentBlockId(blocks, blk.id) : null;
+    const activeSubInThisBlock =
+      isSelected && selectedSubLayerId
+        ? subLayers.find((s) => s.id === selectedSubLayerId) ?? null
+        : null;
+
+    const isHeroBanner = blk.type === 'hero_profile' && blk.content?.heroVariant === 'banner';
+    const partSubLayers = subLayers.filter((s) => s.kind === 'part');
+    const itemSubLayers = subLayers.filter((s) => s.kind === 'item');
+    const heroCoverSub = isHeroBanner ? partSubLayers.find((s) => s.id === 'hero_cover') : undefined;
+    const heroCardSub = isHeroBanner
+      ? partSubLayers.find((s) => s.id === 'hero_profile_card')
+      : undefined;
+    const heroExtraSubs = isHeroBanner
+      ? partSubLayers.filter((s) => s.id !== 'hero_cover' && s.id !== 'hero_profile_card')
+      : [];
 
     return (
       <div key={blk.id} className="space-y-1">
         <div
           data-layer-item-id={blk.id}
           data-layer-selected={isSelected ? 'true' : 'false'}
-          data-layer-has-children={hasChildren ? 'true' : 'false'}
-          data-layer-expanded={hasChildren ? (isGroupExpanded ? 'true' : 'false') : undefined}
-          draggable
+          data-layer-hidden={isHidden ? 'true' : 'false'}
+          data-layer-locked={isLocked ? 'true' : 'false'}
+          data-layer-has-children={hasExpandable ? 'true' : 'false'}
+          data-layer-expanded={hasExpandable ? (isGroupExpanded ? 'true' : 'false') : undefined}
+          draggable={!isRenaming && !isLocked}
           onDragStart={(e) => {
+            if (isRenaming || isLocked) return;
             e.stopPropagation();
             setDragLayerId(blk.id);
             e.dataTransfer.effectAllowed = 'move';
@@ -368,13 +875,15 @@ export function HomePageSettings({
             setDragLayerId(null);
             setDragOverInfo(null);
           }}
-          className={`group flex items-center gap-1 px-1.5 py-1 rounded-lg border text-[11px] transition-all ${
-            isSelected
+          className={`group relative flex items-center gap-1 px-1.5 py-1.5 rounded-lg border text-[11px] transition-all ${
+            isParentDirectlySelected
               ? 'bg-[#17243D] border-[#00C98A] border-l-4 text-white shadow-sm ring-2 ring-[#00C98A]/35'
-              : isGroupExpanded && hasChildren
+              : isSelected
+              ? 'bg-[#17243D]/90 border-[#00C98A] text-white shadow-2xs'
+              : isGroupExpanded && hasExpandable
               ? 'bg-[#F3FBF7] border-[#00C98A]/55 text-[#17243D]'
               : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#8FA4BF]'
-          } ${
+          } ${isHidden && !isSelected ? 'opacity-60 border-dashed' : ''} ${
             isOver && dragOverInfo.pos === 'before'
               ? 'border-t-2 border-t-[#00C98A]'
               : isOver && dragOverInfo.pos === 'after'
@@ -393,7 +902,7 @@ export function HomePageSettings({
             <GripVertical className="w-3 h-3" />
           </span>
 
-          {hasChildren ? (
+          {hasExpandable ? (
             <button
               type="button"
               data-layer-dropdown-toggle={blk.id}
@@ -422,131 +931,427 @@ export function HomePageSettings({
             <span className="w-2 shrink-0" aria-hidden="true" />
           )}
 
-          <button
-            type="button"
-            onClick={() => onSelectBlock(blk.id)}
-            className="min-w-0 flex-1 text-left cursor-pointer"
+          <span
+            aria-hidden="true"
+            className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+              isSelected
+                ? 'bg-white/15 text-[#7AF0C7]'
+                : isGroupExpanded && hasExpandable
+                ? 'bg-[#00C98A]/15 text-[#008F63]'
+                : 'bg-[#F0F5FA] text-[#51637D]'
+            }`}
           >
-            <div className="flex items-center gap-1 min-w-0">
+            {renderBlockLayerIcon(blk, 'w-3.5 h-3.5')}
+          </span>
+
+          {isRenaming ? (
+            <div className="min-w-0 flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                autoFocus
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onBlur={() => commitRenameBlock(blk)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRenameBlock(blk);
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelRenameBlock();
+                  }
+                }}
+                aria-label="Ubah nama lapisan"
+                className="w-full px-1.5 py-0.5 text-[11px] font-semibold rounded border border-[#00C98A] bg-white text-[#17243D] outline-none"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onSelectBlock(blk.id)}
+              onDoubleClick={(e) => {
+                if (!onUpdateBlock) return;
+                e.stopPropagation();
+                startRenameBlock(blk);
+              }}
+              title={blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
+              className="min-w-0 flex-1 text-left cursor-pointer"
+            >
+              <div className="flex items-center gap-1 min-w-0">
+                <div
+                  className={`truncate text-[11px] leading-tight ${
+                    isSelected ? 'font-bold text-white' : 'font-semibold text-[#17243D]'
+                  } ${isHidden ? 'line-through opacity-80' : ''}`}
+                >
+                  {blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
+                </div>
+                {hasExpandable && (
+                  <span
+                    className={`px-1 py-0 rounded text-[9px] font-bold tabular-nums shrink-0 ${
+                      isSelected
+                        ? 'bg-white/15 text-[#7AF0C7]'
+                        : isGroupExpanded
+                        ? 'bg-[#00C98A]/15 text-[#059669]'
+                        : 'bg-[#F0F5FA] text-[#51637D]'
+                    }`}
+                  >
+                    {totalSubCount}
+                  </span>
+                )}
+                {isLocked && (
+                  <span
+                    className={`inline-flex items-center px-1 py-0 rounded text-[8.5px] font-semibold shrink-0 ${
+                      isSelected
+                        ? 'bg-amber-400/25 text-amber-200'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                    title="Lapisan terkunci"
+                  >
+                    <Lock className="w-2.5 h-2.5" />
+                  </span>
+                )}
+                {isHidden && (
+                  <span
+                    className={`inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8.5px] font-semibold shrink-0 ${
+                      isSelected
+                        ? 'bg-amber-400/25 text-amber-200'
+                        : 'bg-[#F0F5FA] text-[#8FA4BF]'
+                    }`}
+                  >
+                    <EyeOff className="w-2.5 h-2.5" />
+                    <span>Tersembunyi</span>
+                  </span>
+                )}
+              </div>
               <div
-                className={`truncate text-[11px] leading-tight ${
-                  isSelected ? 'font-bold text-white' : 'font-semibold text-[#17243D]'
+                className={`text-[9.5px] truncate ${
+                  isSelected ? 'text-[#7AF0C7] font-medium' : 'text-[#8FA4BF]'
                 }`}
               >
-                {blk.label?.trim() || label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
+                {label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
               </div>
-              {hasChildren && (
-                <span
-                  className={`px-1 py-0 rounded text-[9px] font-bold tabular-nums shrink-0 ${
-                    isSelected
-                      ? 'bg-white/15 text-[#7AF0C7]'
-                      : isGroupExpanded
-                      ? 'bg-[#00C98A]/15 text-[#059669]'
-                      : 'bg-[#F0F5FA] text-[#51637D]'
-                  }`}
-                >
-                  {childCount}
-                </span>
-              )}
-            </div>
-            <div
-              className={`text-[9.5px] truncate ${
-                isSelected ? 'text-[#7AF0C7] font-medium' : 'text-[#8FA4BF]'
-              }`}
-            >
-              {label(`komponen.type.${blk.type}`, BLOCK_TYPE_NAMES[blk.type])}
-            </div>
-          </button>
+            </button>
+          )}
 
-          <div className="flex items-center gap-0.5 shrink-0">
-            <button
-              type="button"
-              disabled={index === 0}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveBlock(blk.id, 'up');
-              }}
-              title="Naikkan"
-              className={`p-0.5 rounded disabled:opacity-30 cursor-pointer ${
-                isSelected
-                  ? 'text-white/80 hover:bg-white/15 hover:text-white'
-                  : 'text-[#51637D] hover:bg-[#F0F5FA]'
+          {/* Action buttons appear cleanly on hover for unselected rows so full layer titles remain readable */}
+          {!isSelected && !isRenaming && (
+            <div
+              className={`hidden group-hover:flex items-center gap-0.5 shrink-0 pl-1 rounded-md ${
+                isGroupExpanded ? 'bg-[#F3FBF7]' : 'bg-white'
               }`}
             >
-              <ArrowUp className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              disabled={index === siblingsCount - 1}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveBlock(blk.id, 'down');
-              }}
-              title="Turunkan"
-              className={`p-0.5 rounded disabled:opacity-30 cursor-pointer ${
-                isSelected
-                  ? 'text-white/80 hover:bg-white/15 hover:text-white'
-                  : 'text-[#51637D] hover:bg-[#F0F5FA]'
-              }`}
-            >
-              <ArrowDown className="w-3 h-3" />
-            </button>
-            {onDuplicateBlock && (
+              {onUpdateBlock && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateBlock(blk.id, (prev) => ({
+                      ...prev,
+                      style: {
+                        ...prev.style,
+                        visibility: prev.style?.visibility === 'hidden' ? 'visible' : 'hidden',
+                      },
+                    }));
+                  }}
+                  title={isHidden ? 'Tampilkan Lapisan' : 'Sembunyikan Lapisan'}
+                  aria-label={isHidden ? 'Tampilkan Lapisan' : 'Sembunyikan Lapisan'}
+                  className="p-0.5 rounded cursor-pointer text-[#51637D] hover:bg-[#F0F5FA]"
+                >
+                  {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                </button>
+              )}
               <button
                 type="button"
+                disabled={index === 0}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDuplicateBlock(blk.id);
+                  onMoveBlock(blk.id, 'up');
                 }}
-                title="Duplikat Lapisan"
-                aria-label="Duplikat Lapisan"
-                className={`p-0.5 rounded cursor-pointer ${
-                  isSelected
-                    ? 'text-[#7AF0C7] hover:bg-white/15 hover:text-white'
-                    : 'text-[#8FA4BF] hover:bg-[#ECFDF6] hover:text-[#00A873]'
-                }`}
+                title="Naikkan"
+                className="p-0.5 rounded disabled:opacity-30 cursor-pointer text-[#51637D] hover:bg-[#F0F5FA]"
               >
-                <Copy className="w-3 h-3" />
+                <ArrowUp className="w-3 h-3" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteBlock(blk.id);
-              }}
-              title="Hapus Blok"
-              className={`p-0.5 rounded cursor-pointer ${
-                isSelected
-                  ? 'text-white/75 hover:bg-red-500/30 hover:text-red-200'
-                  : 'text-[#8FA4BF] hover:bg-red-50 hover:text-red-600'
-              }`}
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </div>
+              <button
+                type="button"
+                disabled={index === siblingsCount - 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveBlock(blk.id, 'down');
+                }}
+                title="Turunkan"
+                className="p-0.5 rounded disabled:opacity-30 cursor-pointer text-[#51637D] hover:bg-[#F0F5FA]"
+              >
+                <ArrowDown className="w-3 h-3" />
+              </button>
+              {onDuplicateBlock && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDuplicateBlock(blk.id);
+                  }}
+                  title="Duplikat Lapisan"
+                  aria-label="Duplikat Lapisan"
+                  className="p-0.5 rounded cursor-pointer text-[#8FA4BF] hover:bg-[#ECFDF6] hover:text-[#00A873]"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isLocked) onDeleteBlock(blk.id);
+                }}
+                title={isLocked ? 'Lapisan terkunci' : 'Hapus Blok'}
+                className="p-0.5 rounded cursor-pointer text-[#8FA4BF] hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {hasChildren && isGroupExpanded && (
-          <div className="space-y-1">
-            {Array.isArray(blk.children) && blk.children.length > 0 && (
-              <div className="space-y-1 border-l-2 border-[#00C98A]/35 ml-2 pl-1.5">
-                {blk.type === 'showcase_card' && (
-                  <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
-                    Zona Atas / Isi Kartu
-                  </div>
+        {/* Contextual Action Strip: Only show parent delete/actions when parent itself is directly selected */}
+        {isSelected && !activeSubInThisBlock && (
+          <div
+            data-layer-contextual-toolbar={blk.id}
+            className="mx-0.5 px-1.5 py-1 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/45 space-y-1"
+          >
+            <div className="flex items-center justify-between gap-1 flex-wrap">
+              <div className="flex items-center gap-0.5">
+                {onUpdateBlock && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRenameBlock(blk);
+                    }}
+                    title="Ubah Nama Lapisan"
+                    aria-label="Ubah Nama Lapisan"
+                    className="p-1 rounded bg-white border border-[#DCE5EF] text-[#17243D] hover:border-[#00C98A] hover:text-[#00A873] cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
                 )}
-                {blk.children.map((ch, cIdx) =>
-                  renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
+                {onUpdateBlock && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateBlock(blk.id, (prev) => ({
+                        ...prev,
+                        style: {
+                          ...prev.style,
+                          visibility: prev.style?.visibility === 'hidden' ? 'visible' : 'hidden',
+                        },
+                      }));
+                    }}
+                    title={isHidden ? 'Tampilkan Lapisan' : 'Sembunyikan Lapisan'}
+                    aria-label={isHidden ? 'Tampilkan Lapisan' : 'Sembunyikan Lapisan'}
+                    className={`p-1 rounded border cursor-pointer ${
+                      isHidden
+                        ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                        : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#00C98A] hover:text-[#00A873]'
+                    }`}
+                  >
+                    {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  </button>
                 )}
+                {onUpdateBlock && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateBlock(blk.id, (prev) => ({
+                        ...prev,
+                        style: {
+                          ...prev.style,
+                          locked: !prev.style?.locked,
+                        },
+                      }));
+                    }}
+                    title={isLocked ? 'Buka Kunci Lapisan' : 'Kunci Lapisan'}
+                    aria-label={isLocked ? 'Buka Kunci Lapisan' : 'Kunci Lapisan'}
+                    className={`p-1 rounded border cursor-pointer ${
+                      isLocked
+                        ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                        : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#00C98A] hover:text-[#00A873]'
+                    }`}
+                  >
+                    {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={index === 0 || isLocked}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveBlock(blk.id, 'up');
+                  }}
+                  title="Naikkan"
+                  aria-label="Naikkan Lapisan"
+                  className="p-1 rounded bg-white border border-[#DCE5EF] text-[#17243D] hover:border-[#00C98A] disabled:opacity-35 cursor-pointer"
+                >
+                  <ArrowUp className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={index === siblingsCount - 1 || isLocked}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveBlock(blk.id, 'down');
+                  }}
+                  title="Turunkan"
+                  aria-label="Turunkan Lapisan"
+                  className="p-1 rounded bg-white border border-[#DCE5EF] text-[#17243D] hover:border-[#00C98A] disabled:opacity-35 cursor-pointer"
+                >
+                  <ArrowDown className="w-3 h-3" />
+                </button>
+                {onDuplicateBlock && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDuplicateBlock(blk.id);
+                    }}
+                    title="Duplikat Lapisan"
+                    aria-label="Duplikat Lapisan"
+                    className="p-1 rounded bg-white border border-[#DCE5EF] text-[#00A873] hover:border-[#00C98A] cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={isLocked}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isLocked) onDeleteBlock(blk.id);
+                  }}
+                  title={isLocked ? 'Lapisan terkunci' : 'Hapus Lapisan'}
+                  aria-label="Hapus Lapisan"
+                  className="p-1 rounded bg-white border border-[#DCE5EF] text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-35 disabled:pointer-events-none cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+
+              {parentBlockId && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectBlock(parentBlockId);
+                  }}
+                  title="Pilih Lapisan Induk"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#17243D] text-white hover:bg-[#17243D]/90 text-[9.5px] font-semibold cursor-pointer"
+                >
+                  <CornerLeftUp className="w-2.5 h-2.5 text-[#7AF0C7]" />
+                  <span>Induk</span>
+                </button>
+              )}
+            </div>
+
+            {isContainer && (
+              <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-[#00C98A]/25">
+                <span className="text-[9px] font-bold text-[#008F63] uppercase tracking-wide mr-0.5">
+                  + Anak:
+                </span>
+                {(
+                  [
+                    { type: 'text', label: 'Teks' },
+                    { type: 'image', label: 'Gambar' },
+                    { type: 'button', label: 'Tombol' },
+                    { type: 'row', label: 'Kolom' },
+                  ] as { type: BlockType; label: string }[]
+                ).map((item) => (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddChildToContainer(blk.id, item.type);
+                    }}
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] hover:border-[#00C98A] text-[9.5px] font-semibold text-[#17243D] cursor-pointer"
+                  >
+                    <Plus className="w-2.5 h-2.5 text-[#00A873]" />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
               </div>
             )}
+          </div>
+        )}
 
+        {hasExpandable && isGroupExpanded && (
+          <div className="space-y-1.5 border-l-2 border-[#00C98A]/35 ml-2 pl-1.5 pt-0.5">
+            {isHeroBanner ? (
+              <>
+                {/* Lapisan 1: Cover Banner */}
+                {heroCoverSub && renderSubLayerRow(blk, heroCoverSub)}
+
+                {/* Lapisan 2: Isi Wadah (anak komponen di atas cover) */}
+                {Array.isArray(blk.children) && blk.children.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[9px] font-bold uppercase tracking-wide text-[#008F63] px-1">
+                      Lapisan 2 · Isi Wadah ({blk.children.length})
+                    </div>
+                    {blk.children.map((ch, cIdx) =>
+                      renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
+                    )}
+                  </div>
+                )}
+
+                {/* Lapisan 3: Kartu Profil */}
+                {heroCardSub && renderSubLayerRow(blk, heroCardSub)}
+
+                {/* Add-ons aktif (Keranjang / Aksi Klik) */}
+                {heroExtraSubs.map((sub) => renderSubLayerRow(blk, sub))}
+              </>
+            ) : (
+              <>
+                {/* Bagian Struktural Komponen */}
+                {partSubLayers.length > 0 && (
+                  <div className="space-y-1">
+                    {partSubLayers.map((sub) => renderSubLayerRow(blk, sub))}
+                  </div>
+                )}
+
+                {/* Komponen Anak Langsung (Wadah / Row / Kartu Dinamis / Sheet) */}
+                {Array.isArray(blk.children) && blk.children.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
+                      {blk.type === 'showcase_card'
+                        ? `Zona Atas / Isi Kartu (${blk.children.length})`
+                        : `Isi Komponen (${blk.children.length})`}
+                    </div>
+                    {blk.children.map((ch, cIdx) =>
+                      renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
+                    )}
+                  </div>
+                )}
+
+                {/* Daftar Item Data (Slide / Produk / Menu F&B / Program / Kategori / Sosmed / Kolom Form) */}
+                {itemSubLayers.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[9px] font-bold uppercase tracking-wide text-[#008F63] px-1">
+                      Daftar Item ({itemSubLayers.length})
+                    </div>
+                    {itemSubLayers.map((sub) => renderSubLayerRow(blk, sub))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Strip Bawah Kartu Dinamis */}
             {Array.isArray(blk.content?.cardFooterBlocks) &&
               blk.content.cardFooterBlocks.length > 0 && (
-                <div className="space-y-1 border-l border-dashed border-sky-500/70 ml-2 pl-1.5">
+                <div className="space-y-1 border-l border-dashed border-sky-500/70 pl-1.5">
                   <div className="text-[9px] font-bold uppercase tracking-wide text-sky-700 px-1">
-                    Strip Bawah (Warna)
+                    Strip Bawah ({blk.content.cardFooterBlocks.length})
                   </div>
                   {blk.content.cardFooterBlocks.map((ch, cIdx) =>
                     renderLayerNode(ch, cIdx, blk.content.cardFooterBlocks!.length, depth + 1)
@@ -554,9 +1359,10 @@ export function HomePageSettings({
                 </div>
               )}
 
+            {/* Isi Sheet Aksi */}
             {Array.isArray(blk.content?.actionSheetBlocks) &&
               blk.content.actionSheetBlocks.length > 0 && (
-                <div className="space-y-1 border-l border-dashed border-[#00C98A]/60 ml-2 pl-1.5">
+                <div className="space-y-1 border-l border-dashed border-[#00C98A]/60 pl-1.5">
                   <div className="text-[9px] font-bold uppercase tracking-wide text-[#00A873] px-1">
                     Isi Sheet ({blk.content.actionSheetPosition || 'bottom'})
                   </div>
@@ -574,7 +1380,7 @@ export function HomePageSettings({
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-[#F0F5FA]/50">
       {/* 1. Tema Global */}
-      {isVisible('home.sec.temaGlobal') && (
+      {showTema && isVisible('home.sec.temaGlobal') && (
         <AccordionSection
           id="temaGlobal"
           title={label('home.sec.temaGlobal', 'Tema Global')}
@@ -583,6 +1389,41 @@ export function HomePageSettings({
           isOpen={openSections.temaGlobal}
           onToggle={() => toggleSection('temaGlobal')}
         >
+        {isVisible('home.desc.temaGlobal') && (
+          <p className="text-[10.5px] text-[#51637D] leading-relaxed">
+            {label(
+              'home.desc.temaGlobal',
+              'Atur palet warna & font standar halaman. Komponen dengan warna kustom lokal tetap dipertahankan kecuali di-reset.'
+            )}
+          </p>
+        )}
+
+        {/* Status Override Tema Halaman (P3-D) */}
+        <div
+          className={`p-2 rounded-lg border flex items-center justify-between gap-2 ${
+            pageThemeOverrideCount > 0
+              ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+              : 'bg-[#ECFDF6] border-[#00C98A]/35 text-[#065F46]'
+          }`}
+        >
+          <span className="text-[10.5px] font-medium leading-snug">
+            {pageThemeOverrideCount > 0
+              ? `${pageThemeOverrideCount} komponen di halaman ini memiliki override lokal`
+              : 'Seluruh komponen mengikuti Tema Global'}
+          </span>
+          {pageThemeOverrideCount > 0 && onResetPageThemeOverrides && (
+            <button
+              type="button"
+              onClick={onResetPageThemeOverrides}
+              title="Kembalikan seluruh warna komponen di halaman ini ke Tema Global tanpa menghapus isi"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-amber-300 hover:bg-amber-100 text-[10px] font-bold text-amber-800 shrink-0 cursor-pointer"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>Reset Override</span>
+            </button>
+          )}
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-[#17243D] mb-1">
             {label('home.field.fontUtama', 'Font Utama Halaman')}
@@ -694,13 +1535,13 @@ export function HomePageSettings({
       </AccordionSection>
       )}
 
-      {/* 1b. Pengaturan Halaman (Multi-Page) */}
-      {isVisible('home.sec.pages') && (
+      {/* 1b. Multi Halaman (Beranda, Tambah Site, Duplikat Site, Hapus Site) */}
+      {showTema && isVisible('home.sec.pages') && (
         <AccordionSection
           id="pages"
-          title={label('home.sec.pages', 'Halaman (Multi-Page)')}
+          title={label('home.sec.pages', 'Multi Halaman')}
           icon={<Files className="w-3.5 h-3.5" />}
-          badge={`${pages.length + 1} hal`}
+          badge={`${pages.length + 1} site`}
           isOpen={openSections.pages}
           onToggle={() => toggleSection('pages')}
         >
@@ -708,7 +1549,7 @@ export function HomePageSettings({
           <div className="flex items-center justify-between gap-2">
             {isVisible('home.desc.pages') ? (
               <span className="text-[11px] text-[#51637D]">
-                {label('home.desc.pages', 'Tambah halaman baru & tombol Back otomatis.')}
+                {label('home.desc.pages', 'Kelola Beranda, tambah, duplikat, atau hapus site.')}
               </span>
             ) : (
               <span />
@@ -716,11 +1557,13 @@ export function HomePageSettings({
             {onAddSubPage && (
               <button
                 type="button"
+                data-add-site-btn="1"
                 onClick={() => onAddSubPage()}
+                title={label('home.action.addSite', '+ Tambah Site')}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#00C98A] hover:bg-[#00B37B] text-white text-[10.5px] font-bold cursor-pointer shrink-0"
               >
                 <FilePlus2 className="w-3 h-3" />
-                <span>Tambah</span>
+                <span>{label('home.action.addSite', '+ Tambah Site')}</span>
               </button>
             )}
           </div>
@@ -735,8 +1578,14 @@ export function HomePageSettings({
             }`}
           >
             <div>
-              <div className="text-[11.5px] font-bold">Beranda (Halaman Utama)</div>
-              <div className="text-[10px] text-[#8FA4BF]">Halaman pembuka publik</div>
+              <div className="text-[11.5px] font-bold">
+                {label('home.field.berandaTitle', 'Beranda (Halaman Utama)')}
+              </div>
+              {isVisible('home.desc.berandaSub') && (
+                <div className="text-[10px] text-[#8FA4BF]">
+                  {label('home.desc.berandaSub', 'Halaman pembuka publik')}
+                </div>
+              )}
             </div>
             {activeSubPageId === null && (
               <span className="px-1.5 py-0.5 rounded bg-[#00C98A] text-white text-[9.5px] font-bold">
@@ -774,7 +1623,8 @@ export function HomePageSettings({
                       <button
                         type="button"
                         onClick={() => onDuplicateSubPage(pg.id)}
-                        title="Duplikat Halaman"
+                        title={label('home.action.duplicateSite', 'Duplikat Site')}
+                        aria-label={label('home.action.duplicateSite', 'Duplikat Site')}
                         className="p-1 rounded hover:bg-white text-[#51637D] hover:text-[#00A873] cursor-pointer"
                       >
                         <Copy className="w-3 h-3" />
@@ -784,7 +1634,8 @@ export function HomePageSettings({
                       <button
                         type="button"
                         onClick={() => onDeleteSubPage(pg.id)}
-                        title="Hapus Halaman"
+                        title={label('home.action.deleteSite', 'Hapus Site')}
+                        aria-label={label('home.action.deleteSite', 'Hapus Site')}
                         className="p-1 rounded hover:bg-red-50 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -844,7 +1695,7 @@ export function HomePageSettings({
       )}
 
       {/* 2. Top */}
-      {isVisible('home.sec.top') && (
+      {showTema && isVisible('home.sec.top') && (
         <AccordionSection
           id="top"
           title={label('home.sec.top', 'Top')}
@@ -904,21 +1755,12 @@ export function HomePageSettings({
       </AccordionSection>
       )}
 
-      {/* 3. Body (Susunan Semua Lapisan) */}
-      {isVisible('home.sec.body') && (
-        <AccordionSection
-          id="body"
-          title={label('home.sec.body', 'Body (Lapisan)')}
-          icon={<Layers className="w-3.5 h-3.5" />}
-          badge={totalLayerCount}
-          isOpen={openSections.body}
-          onToggle={() => toggleSection('body')}
-          fullWidthBody
-        >
-        <div className="space-y-2" data-all-layers-list>
-          {blocks.length === 0 && navSheetLayers.length === 0 ? (
+      {/* 3. Daftar Lapisan Halaman — langsung tampil di Tab Layer tanpa bungkus Body (Lapisan) */}
+      {showLayer && (
+        <div className="space-y-1.5" data-all-layers-list>
+          {blocks.length === 0 ? (
             isVisible('home.desc.bodyKosong') ? (
-              <div className="py-3 px-2.5 rounded-xl border border-dashed border-[#DCE5EF] bg-[#F0F5FA]/50 text-center text-[11px] text-[#8FA4BF]">
+              <div className="py-4 px-3 rounded-xl border border-dashed border-[#DCE5EF] bg-white/80 text-center text-[11px] text-[#8FA4BF]">
                 {label(
                   'home.desc.bodyKosong',
                   'Kanvas masih kosong. Tambahkan blok dari panel kiri.'
@@ -926,73 +1768,15 @@ export function HomePageSettings({
               </div>
             ) : null
           ) : (
-            <>
-              {blocks.length > 0 && (
-                <div className="space-y-1">
-                  {blocks.map((blk, idx) => renderLayerNode(blk, idx, blocks.length, 0))}
-                </div>
-              )}
-
-              {navSheetLayers.length > 0 && (
-                <div className="pt-2 border-t border-[#DCE5EF] space-y-1.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-[#51637D]">
-                    Lapisan Modal Navbar Bawah
-                  </div>
-                  {navSheetLayers.map(({ navItem, children }) => {
-                    const navGroupKey = `nav:${navItem.id}`;
-                    const isNavExpanded = Boolean(expandedLayerGroups[navGroupKey]);
-                    return (
-                      <div key={navItem.id} className="space-y-1">
-                        <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
-                          <button
-                            type="button"
-                            data-layer-dropdown-toggle={navGroupKey}
-                            aria-expanded={isNavExpanded}
-                            onClick={() => toggleLayerGroup(navGroupKey)}
-                            className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
-                              isNavExpanded
-                                ? 'bg-[#00C98A] text-white'
-                                : 'bg-white text-[#51637D] hover:bg-[#DCE5EF]'
-                            }`}
-                          >
-                            <ChevronDown
-                              className={`w-2.5 h-2.5 transition-transform duration-150 ${
-                                isNavExpanded ? 'rotate-0' : '-rotate-90'
-                              }`}
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              toggleLayerGroup(navGroupKey);
-                              onSelectNavItem(navItem.id);
-                              setOpenSections((prev) => ({ ...prev, bottom: true }));
-                            }}
-                            className="flex-1 min-w-0 text-left text-[10px] font-semibold text-[#17243D] hover:text-[#00A873] truncate cursor-pointer"
-                          >
-                            Navbar: {navItem.label || navItem.sheetTitle || 'Menu'} ({children.length})
-                          </button>
-                        </div>
-                        {isNavExpanded && (
-                          <div className="space-y-1 border-l-2 border-[#00C98A]/35 ml-2 pl-1.5">
-                            {children.map((ch, cIdx) =>
-                              renderLayerNode(ch, cIdx, children.length, 1)
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+            <div className="space-y-1">
+              {blocks.map((blk, idx) => renderLayerNode(blk, idx, blocks.length, 0))}
+            </div>
           )}
         </div>
-      </AccordionSection>
       )}
 
-      {/* 4. Bottom (Navbar Bawah) */}
-      {isVisible('home.sec.bottom') && (
+      {/* 4. Bottom (Navbar Bawah & Lapisan Modal Navbar Bawah) */}
+      {showTema && isVisible('home.sec.bottom') && (
         <AccordionSection
           id="bottom"
           title={label('home.sec.bottom', 'Bottom (Navbar Bawah)')}
@@ -1410,6 +2194,40 @@ export function HomePageSettings({
                       </div>
 
                       <div>
+                        <div className="text-[11px] font-medium text-[#51637D] mb-1">
+                          Arah Buka Sheet
+                        </div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {(
+                            [
+                              { id: 'bottom', label: 'Bawah' },
+                              { id: 'top', label: 'Atas' },
+                              { id: 'right', label: 'Kanan' },
+                              { id: 'left', label: 'Kiri' },
+                            ] as { id: MenuIconSheetPosition; label: string }[]
+                          ).map((pos) => {
+                            const activePos = (activeNavItem.sheetPosition ?? 'bottom') === pos.id;
+                            return (
+                              <button
+                                key={pos.id}
+                                type="button"
+                                onClick={() =>
+                                  updateNavItem(activeNavItem.id, { sheetPosition: pos.id })
+                                }
+                                className={`py-1 px-1.5 rounded-lg text-[10.5px] font-semibold border transition-colors cursor-pointer ${
+                                  activePos
+                                    ? 'bg-[#17243D] text-white border-[#17243D]'
+                                    : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#8FA4BF]'
+                                }`}
+                              >
+                                {pos.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
                         <div className="text-[11px] font-semibold text-[#51637D] mb-1.5">
                           Isi Cepat Template
                         </div>
@@ -1517,6 +2335,78 @@ export function HomePageSettings({
               );
             })()}
           </div>
+
+          {/* Lapisan Modal Navbar Bawah */}
+          {isVisible('home.sec.navSheetLayers') && (
+          <div className="p-2.5 rounded-xl border border-[#DCE5EF] bg-white space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10.5px] font-bold uppercase tracking-wide text-[#51637D]">
+                {label('home.sec.navSheetLayers', 'Lapisan Modal Navbar Bawah')}
+              </div>
+              <span className="px-1.5 py-0.5 rounded-full bg-[#F0F5FA] text-[#51637D] text-[10px] font-semibold">
+                {navSheetLayerCount}
+              </span>
+            </div>
+            {navSheetLayers.length === 0 ? (
+              isVisible('home.desc.navSheetEmpty') ? (
+                <div className="py-2.5 px-2 rounded-lg border border-dashed border-[#DCE5EF] bg-[#F0F5FA]/50 text-center text-[10.5px] text-[#8FA4BF]">
+                  {label(
+                    'home.desc.navSheetEmpty',
+                    'Belum ada lapisan modal pada menu navbar bawah.'
+                  )}
+                </div>
+              ) : null
+            ) : (
+              <div className="space-y-1.5">
+                {navSheetLayers.map(({ navItem, children }) => {
+                  const navGroupKey = `nav:${navItem.id}`;
+                  const isNavExpanded = Boolean(expandedLayerGroups[navGroupKey]);
+                  return (
+                    <div key={navItem.id} className="space-y-1">
+                      <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                        <button
+                          type="button"
+                          data-layer-dropdown-toggle={navGroupKey}
+                          aria-expanded={isNavExpanded}
+                          onClick={() => toggleLayerGroup(navGroupKey)}
+                          className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                            isNavExpanded
+                              ? 'bg-[#00C98A] text-white'
+                              : 'bg-white text-[#51637D] hover:bg-[#DCE5EF]'
+                          }`}
+                        >
+                          <ChevronDown
+                            className={`w-2.5 h-2.5 transition-transform duration-150 ${
+                              isNavExpanded ? 'rotate-0' : '-rotate-90'
+                            }`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleLayerGroup(navGroupKey);
+                            onSelectNavItem(navItem.id);
+                            setOpenSections((prev) => ({ ...prev, bottom: true }));
+                          }}
+                          className="flex-1 min-w-0 text-left text-[10px] font-semibold text-[#17243D] hover:text-[#00A873] truncate cursor-pointer"
+                        >
+                          Navbar: {navItem.label || navItem.sheetTitle || 'Menu'} ({children.length})
+                        </button>
+                      </div>
+                      {isNavExpanded && (
+                        <div className="space-y-1 border-l-2 border-[#00C98A]/35 ml-2 pl-1.5">
+                          {children.map((ch, cIdx) =>
+                            renderLayerNode(ch, cIdx, children.length, 1)
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          )}
         </div>
       </AccordionSection>
       )}

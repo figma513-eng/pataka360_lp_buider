@@ -9,6 +9,9 @@ interface ShowcaseCardViewProps {
   borderRadius: number;
   blockStyle?: BlockStyle;
   isEditor?: boolean;
+  enableSubLayerClick?: boolean;
+  selectedSubLayerId?: string | null;
+  onSelectSubLayer?: (subLayerId: string) => void;
   cartQty?: number;
   onAddCart?: () => void;
   onIncCart?: () => void;
@@ -23,6 +26,9 @@ export function ShowcaseCardView({
   borderRadius,
   blockStyle,
   isEditor = false,
+  enableSubLayerClick = true,
+  selectedSubLayerId = null,
+  onSelectSubLayer,
   cartQty = 0,
   onAddCart,
   onIncCart,
@@ -38,9 +44,103 @@ export function ShowcaseCardView({
   const radius = Math.max(0, borderRadius ?? 14);
   const actionUrl = content.cardActionUrl?.trim() || '';
   const hasUniversalAction = Boolean(content.actionType && content.actionType !== 'none');
-  const hideDefaultContent = Boolean(content.cardHideDefaultContent);
-  const hideDefaultFooter = Boolean(content.cardHideDefaultFooter);
+
+  const hiddenSet = new Set(content.hiddenSubLayers ?? []);
+  const deletedSet = new Set(content.deletedSubLayers ?? []);
+  const isHeaderRemoved = deletedSet.has('card_header') || hiddenSet.has('card_header');
+  const isMediaRemoved = deletedSet.has('card_media') || hiddenSet.has('card_media');
+  const hideDefaultContent =
+    Boolean(content.cardHideDefaultContent) ||
+    deletedSet.has('card_body') ||
+    hiddenSet.has('card_body');
+  const hideDefaultFooter =
+    Boolean(content.cardHideDefaultFooter) ||
+    deletedSet.has('card_footer') ||
+    hiddenSet.has('card_footer');
   const hasInteractiveSlots = Boolean(bodySlot || footerSlot);
+
+  const subStyles = content.subLayerStyles ?? {};
+  const headerSubStyle = subStyles.card_header;
+  const mediaSubStyle = subStyles.card_media;
+  const bodySubStyle = subStyles.card_body;
+  const footerSubStyle = subStyles.card_footer;
+
+  const subSelectProps = (subId: string) =>
+    isEditor
+      ? {
+          'data-canvas-sublayer': subId,
+          'data-card-sublayer': subId,
+          ...(enableSubLayerClick && onSelectSubLayer
+            ? {
+                onClick: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onSelectSubLayer(subId);
+                },
+              }
+            : {}),
+        }
+      : {};
+
+  const subOutlineClass = (subId: string) =>
+    isEditor && selectedSubLayerId === subId
+      ? 'ring-2 ring-[#00C98A] ring-offset-1 rounded-md'
+      : '';
+
+  const renderCardHeaderBar = (darkSurface = false) => {
+    if (isHeaderRemoved) return null;
+    const hTitle = content.cardHeaderTitle?.trim();
+    const hMore = content.cardMoreLabel?.trim();
+    if (!hTitle && !hMore) return null;
+    const hUrl = content.cardMoreUrl?.trim() || actionUrl;
+    return (
+      <div
+        {...subSelectProps('card_header')}
+        style={{
+          backgroundColor:
+            headerSubStyle?.backgroundColor && headerSubStyle.backgroundColor !== 'transparent'
+              ? headerSubStyle.backgroundColor
+              : undefined,
+          color: headerSubStyle?.textColor || (darkSurface ? textColor : theme.textColor || '#17243D'),
+          fontSize: headerSubStyle?.fontSize ? `${headerSubStyle.fontSize}px` : '12px',
+          fontWeight: headerSubStyle?.fontWeightCss ? Number(headerSubStyle.fontWeightCss) : 700,
+          fontStyle: headerSubStyle?.fontStyle,
+          letterSpacing:
+            typeof headerSubStyle?.letterSpacing === 'number'
+              ? `${headerSubStyle.letterSpacing}px`
+              : undefined,
+          paddingTop: headerSubStyle?.paddingTop ?? 8,
+          paddingBottom: headerSubStyle?.paddingBottom ?? 6,
+          paddingLeft: headerSubStyle?.paddingLeft ?? 12,
+          paddingRight: headerSubStyle?.paddingRight ?? 12,
+          opacity: typeof headerSubStyle?.opacity === 'number' ? headerSubStyle.opacity / 100 : undefined,
+        }}
+        className={`w-full flex items-center justify-between gap-2 border-b ${
+          darkSurface ? 'border-white/15' : 'border-slate-200/70'
+        } ${subOutlineClass('card_header')}`}
+      >
+        <span className="truncate">{hTitle || 'Header Kartu'}</span>
+        {hMore &&
+          (!isEditor && hUrl ? (
+            <a
+              href={hUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: darkSurface ? textColor : accent }}
+              className="text-[10.5px] font-semibold shrink-0 hover:underline"
+            >
+              {hMore}
+            </a>
+          ) : (
+            <span
+              style={{ color: darkSurface ? textColor : accent }}
+              className="text-[10.5px] font-semibold shrink-0"
+            >
+              {hMore}
+            </span>
+          ))}
+      </div>
+    );
+  };
 
   const zoom =
     typeof content.cardImageZoom === 'number' && Number.isFinite(content.cardImageZoom)
@@ -55,6 +155,7 @@ export function ShowcaseCardView({
     transform: zoom !== 100 ? `scale(${zoom / 100})` : undefined,
     transformOrigin: 'center center',
     transition: 'transform 160ms ease',
+    opacity: typeof mediaSubStyle?.opacity === 'number' ? mediaSubStyle.opacity / 100 : undefined,
   };
 
   const titleLines =
@@ -111,21 +212,39 @@ export function ShowcaseCardView({
   };
 
   const renderOptionalFooterStrip = () =>
-    footerSlot ? (
+    !hideDefaultFooter && footerSlot ? (
       <div
-        style={{ backgroundColor: accent, color: textColor }}
-        className="w-full px-3 py-2.5 flex flex-col gap-1.5"
+        {...subSelectProps('card_footer')}
+        style={{
+          backgroundColor:
+            footerSubStyle?.backgroundColor && footerSubStyle.backgroundColor !== 'transparent'
+              ? footerSubStyle.backgroundColor
+              : accent,
+          color: footerSubStyle?.textColor || textColor,
+          opacity: typeof footerSubStyle?.opacity === 'number' ? footerSubStyle.opacity / 100 : undefined,
+        }}
+        className={`w-full px-3 py-2.5 flex flex-col gap-1.5 ${subOutlineClass('card_footer')}`}
       >
         {footerSlot}
       </div>
     ) : null;
 
+  const bodyTextStyleOverride: React.CSSProperties = {
+    color: bodySubStyle?.textColor || undefined,
+    fontStyle: bodySubStyle?.fontStyle,
+    fontWeight: bodySubStyle?.fontWeightCss ? Number(bodySubStyle.fontWeightCss) : undefined,
+    textAlign: bodySubStyle?.align,
+    textTransform: bodySubStyle?.textTransform,
+    textDecoration: bodySubStyle?.textDecoration,
+    opacity: typeof bodySubStyle?.opacity === 'number' ? bodySubStyle.opacity / 100 : undefined,
+  };
+
   if (variant === 'quote_banner') {
     const imgPos = content.cardImagePosition === 'left' ? 'left' : 'right';
     const mediaW = content.cardMediaSize ?? 82;
     const mediaH = content.cardMediaHeight ?? Math.round(mediaW * 1.14);
-    const mediaRadius = content.cardImageRadius ?? 10;
-    const titleSize = content.cardTitleSize ?? blockStyle?.fontSize ?? 11.5;
+    const mediaRadius = mediaSubStyle?.borderRadius ?? content.cardImageRadius ?? 10;
+    const titleSize = bodySubStyle?.fontSize ?? content.cardTitleSize ?? blockStyle?.fontSize ?? 11.5;
     const subtitleSize = content.cardSubtitleSize ?? 9.5;
     return wrapLink(
       <div
@@ -139,63 +258,68 @@ export function ShowcaseCardView({
         }}
         className="relative overflow-hidden shadow-sm flex flex-col"
       >
-        {!hideDefaultContent && (
+        {renderCardHeaderBar(true)}
+        {(!hideDefaultContent || (!isMediaRemoved && content.cardImage)) && (
           <div
             className={`flex items-end justify-between gap-2 px-3.5 pt-3 pb-2.5 flex-1 ${
               imgPos === 'left' ? 'flex-row-reverse text-right' : 'flex-row text-left'
             }`}
           >
-            <div
-              className="flex-1 min-w-0 flex flex-col justify-between z-10"
-              style={{ gap: `${Math.max(4, textGap)}px` }}
-            >
-              {content.cardQuote?.trim() && (
-                <p
-                  style={{
-                    fontSize: `${Math.max(10, titleSize - 0.5)}px`,
-                    lineHeight,
-                    ...buildLineClampStyle(titleLines),
-                  }}
-                  className="font-medium opacity-95"
-                >
-                  {content.cardQuote}
-                </p>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(1, textGap / 2)}px` }}>
-                {content.cardTitle?.trim() && (
-                  <div
-                    style={{
-                      fontSize: `${titleSize}px`,
-                      lineHeight,
-                      ...buildLineClampStyle(titleLines || 2),
-                    }}
-                    className="font-extrabold"
-                  >
-                    {content.cardTitle}
-                  </div>
-                )}
-                {content.cardSubtitle?.trim() && (
-                  <div
-                    style={{
-                      fontSize: `${subtitleSize}px`,
-                      lineHeight,
-                      ...buildLineClampStyle(subtitleLines || 2),
-                    }}
-                    className="opacity-90"
-                  >
-                    {content.cardSubtitle}
-                  </div>
-                )}
-              </div>
-            </div>
-            {content.cardImage && (
+            {!hideDefaultContent && (
               <div
+                {...subSelectProps('card_body')}
+                className={`flex-1 min-w-0 flex flex-col justify-between z-10 ${subOutlineClass('card_body')}`}
+                style={{ gap: `${Math.max(4, textGap)}px`, ...bodyTextStyleOverride }}
+              >
+                {content.cardQuote?.trim() && (
+                  <p
+                    style={{
+                      fontSize: `${Math.max(10, titleSize - 0.5)}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(titleLines),
+                    }}
+                    className="font-medium opacity-95"
+                  >
+                    {content.cardQuote}
+                  </p>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(1, textGap / 2)}px` }}>
+                  {content.cardTitle?.trim() && (
+                    <div
+                      style={{
+                        fontSize: `${titleSize}px`,
+                        lineHeight,
+                        ...buildLineClampStyle(titleLines || 2),
+                      }}
+                      className="font-extrabold"
+                    >
+                      {content.cardTitle}
+                    </div>
+                  )}
+                  {content.cardSubtitle?.trim() && (
+                    <div
+                      style={{
+                        fontSize: `${subtitleSize}px`,
+                        lineHeight,
+                        ...buildLineClampStyle(subtitleLines || 2),
+                      }}
+                      className="opacity-90"
+                    >
+                      {content.cardSubtitle}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {!isMediaRemoved && content.cardImage && (
+              <div
+                {...subSelectProps('card_media')}
                 style={{
                   width: `${mediaW}px`,
                   height: `${mediaH}px`,
                   borderRadius: `${mediaRadius}px`,
                 }}
-                className="shrink-0 overflow-hidden bg-white/15 border border-white/20 self-end"
+                className={`shrink-0 overflow-hidden bg-white/15 border border-white/20 self-end ${subOutlineClass('card_media')}`}
               >
                 <img
                   src={content.cardImage}
@@ -215,7 +339,7 @@ export function ShowcaseCardView({
 
   if (variant === 'news_banner') {
     const mediaHeight = content.cardMediaHeight;
-    const titleSize = content.cardTitleSize ?? blockStyle?.fontSize ?? 12;
+    const titleSize = bodySubStyle?.fontSize ?? content.cardTitleSize ?? blockStyle?.fontSize ?? 12;
     const subtitleSize = content.cardSubtitleSize ?? 10;
     return wrapLink(
       <div
@@ -227,52 +351,64 @@ export function ShowcaseCardView({
         }}
         className="relative overflow-hidden bg-white shadow-sm flex flex-col"
       >
-        {!hideDefaultContent && (
+        {renderCardHeaderBar(false)}
+        {(!isMediaRemoved || !hideDefaultContent) && (
           <div
             style={{ height: mediaHeight ? `${mediaHeight}px` : undefined }}
-            className={`relative overflow-hidden bg-slate-200 ${mediaHeight ? '' : 'aspect-[16/9]'}`}
+            className={`relative overflow-hidden bg-slate-200 ${
+              isMediaRemoved ? 'min-h-[72px]' : mediaHeight ? '' : 'aspect-[16/9]'
+            }`}
           >
-            {content.cardImage && (
-              <img
-                src={content.cardImage}
-                alt={content.cardTitle || 'Berita'}
-                referrerPolicy="no-referrer"
-                style={imgStyle}
-              />
-            )}
-            <div
-              style={{
-                background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%)`,
-                color: textColor,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: `${textGap}px`,
-              }}
-              className="absolute inset-x-0 bottom-0 px-3 py-2 pt-5 text-center"
-            >
+            {!isMediaRemoved && content.cardImage && (
               <div
-                style={{
-                  fontSize: `${titleSize}px`,
-                  lineHeight,
-                  ...buildLineClampStyle(titleLines || 2),
-                }}
-                className="font-bold drop-shadow-sm"
+                {...subSelectProps('card_media')}
+                className={`w-full h-full ${subOutlineClass('card_media')}`}
               >
-                {content.cardTitle || 'Judul Informasi'}
+                <img
+                  src={content.cardImage}
+                  alt={content.cardTitle || 'Berita'}
+                  referrerPolicy="no-referrer"
+                  style={imgStyle}
+                />
               </div>
-              {content.cardSubtitle?.trim() && (
+            )}
+            {!hideDefaultContent && (
+              <div
+                {...subSelectProps('card_body')}
+                style={{
+                  background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%)`,
+                  color: bodySubStyle?.textColor || textColor,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: `${textGap}px`,
+                  ...bodyTextStyleOverride,
+                }}
+                className={`${isMediaRemoved ? 'relative py-3' : 'absolute inset-x-0 bottom-0 py-2 pt-5'} px-3 text-center ${subOutlineClass('card_body')}`}
+              >
                 <div
                   style={{
-                    fontSize: `${subtitleSize}px`,
+                    fontSize: `${titleSize}px`,
                     lineHeight,
-                    ...buildLineClampStyle(subtitleLines || 2),
+                    ...buildLineClampStyle(titleLines || 2),
                   }}
-                  className="opacity-90"
+                  className="font-bold drop-shadow-sm"
                 >
-                  {content.cardSubtitle}
+                  {content.cardTitle || 'Judul Informasi'}
                 </div>
-              )}
-            </div>
+                {content.cardSubtitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${subtitleSize}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(subtitleLines || 2),
+                    }}
+                    className="opacity-90"
+                  >
+                    {content.cardSubtitle}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {bodySlot && <div className="w-full p-2.5 bg-white text-[#17243D]">{bodySlot}</div>}
@@ -283,7 +419,7 @@ export function ShowcaseCardView({
 
   if (variant === 'event_poster') {
     const mediaHeight = content.cardMediaHeight;
-    const titleSize = content.cardTitleSize ?? blockStyle?.fontSize ?? 11;
+    const titleSize = bodySubStyle?.fontSize ?? content.cardTitleSize ?? blockStyle?.fontSize ?? 11;
     const subtitleSize = content.cardSubtitleSize ?? 9.5;
     return wrapLink(
       <div
@@ -296,35 +432,39 @@ export function ShowcaseCardView({
         }}
         className="overflow-hidden border-2 bg-white shadow-sm flex flex-col"
       >
-        {!hideDefaultContent && (
+        {renderCardHeaderBar(false)}
+        {!isMediaRemoved && content.cardImage && (
           <div
+            {...subSelectProps('card_media')}
             style={{ height: mediaHeight ? `${mediaHeight}px` : undefined }}
-            className={`w-full bg-slate-100 overflow-hidden ${mediaHeight ? '' : 'aspect-[3/4]'}`}
+            className={`w-full bg-slate-100 overflow-hidden ${mediaHeight ? '' : 'aspect-[3/4]'} ${subOutlineClass('card_media')}`}
           >
-            {content.cardImage && (
-              <img
-                src={content.cardImage}
-                alt={content.cardTitle || 'Poster Event'}
-                referrerPolicy="no-referrer"
-                style={imgStyle}
-              />
-            )}
+            <img
+              src={content.cardImage}
+              alt={content.cardTitle || 'Poster Event'}
+              referrerPolicy="no-referrer"
+              style={imgStyle}
+            />
           </div>
         )}
         {bodySlot && <div className="w-full p-2.5 bg-white text-[#17243D]">{bodySlot}</div>}
         {(!hideDefaultFooter || footerSlot) && (
           <div
+            {...subSelectProps('card_footer')}
             style={{
-              backgroundColor: accent,
-              color: textColor,
+              backgroundColor:
+                footerSubStyle?.backgroundColor && footerSubStyle.backgroundColor !== 'transparent'
+                  ? footerSubStyle.backgroundColor
+                  : accent,
+              color: footerSubStyle?.textColor || textColor,
               display: 'flex',
               flexDirection: 'column',
               gap: `${textGap}px`,
             }}
-            className="px-2 py-2 text-center"
+            className={`px-2 py-2 text-center ${subOutlineClass('card_footer')}`}
           >
-            {!hideDefaultFooter && (
-              <>
+            {!hideDefaultFooter && !hideDefaultContent && (
+              <div {...subSelectProps('card_body')} style={bodyTextStyleOverride} className={subOutlineClass('card_body')}>
                 <div
                   style={{
                     fontSize: `${titleSize}px`,
@@ -347,7 +487,7 @@ export function ShowcaseCardView({
                     {content.cardSubtitle}
                   </div>
                 )}
-              </>
+              </div>
             )}
             {footerSlot}
           </div>
@@ -378,53 +518,54 @@ export function ShowcaseCardView({
           style={{ gap: `${Math.max(4, textGap + 2)}px` }}
           className="px-2.5 py-3 flex flex-col items-center justify-between text-center flex-1"
         >
+          {renderCardHeaderBar(true)}
+          {!isMediaRemoved && content.cardImage && (
+            <div
+              {...subSelectProps('card_media')}
+              style={{
+                width: `${boxSize}px`,
+                height: `${boxSize}px`,
+                borderRadius: `${mediaSubStyle?.borderRadius ?? boxRadius}px`,
+              }}
+              className={`overflow-hidden bg-white/15 border border-white/25 flex items-center justify-center shrink-0 ${subOutlineClass('card_media')}`}
+            >
+              <img
+                src={content.cardImage}
+                alt={content.cardTitle || 'Badge'}
+                referrerPolicy="no-referrer"
+                style={imgStyle}
+              />
+            </div>
+          )}
           {!hideDefaultContent && (
-            <>
-              {content.cardImage && (
+            <div
+              {...subSelectProps('card_body')}
+              className={`w-full flex flex-col items-center ${subOutlineClass('card_body')}`}
+              style={{ gap: `${textGap}px`, ...bodyTextStyleOverride }}
+            >
+              <div
+                style={{
+                  fontSize: `${bodySubStyle?.fontSize ?? titleSize}px`,
+                  lineHeight,
+                  ...buildLineClampStyle(titleLines),
+                }}
+                className="font-bold whitespace-pre-line"
+              >
+                {content.cardTitle || 'Sertifikasi'}
+              </div>
+              {content.cardSubtitle?.trim() && (
                 <div
                   style={{
-                    width: `${boxSize}px`,
-                    height: `${boxSize}px`,
-                    borderRadius: `${boxRadius}px`,
+                    fontSize: `${subtitleSize}px`,
+                    lineHeight,
+                    ...buildLineClampStyle(subtitleLines || 2),
                   }}
-                  className="overflow-hidden bg-white/15 border border-white/25 flex items-center justify-center shrink-0"
+                  className="opacity-90 whitespace-pre-line"
                 >
-                  <img
-                    src={content.cardImage}
-                    alt={content.cardTitle || 'Badge'}
-                    referrerPolicy="no-referrer"
-                    style={imgStyle}
-                  />
+                  {content.cardSubtitle}
                 </div>
               )}
-              <div
-                className="w-full flex flex-col items-center"
-                style={{ gap: `${textGap}px` }}
-              >
-                <div
-                  style={{
-                    fontSize: `${titleSize}px`,
-                    lineHeight,
-                    ...buildLineClampStyle(titleLines),
-                  }}
-                  className="font-bold whitespace-pre-line"
-                >
-                  {content.cardTitle || 'Sertifikasi'}
-                </div>
-                {content.cardSubtitle?.trim() && (
-                  <div
-                    style={{
-                      fontSize: `${subtitleSize}px`,
-                      lineHeight,
-                      ...buildLineClampStyle(subtitleLines || 2),
-                    }}
-                    className="opacity-90 whitespace-pre-line"
-                  >
-                    {content.cardSubtitle}
-                  </div>
-                )}
-              </div>
-            </>
+            </div>
           )}
           {bodySlot && <div className="w-full">{bodySlot}</div>}
         </div>
@@ -451,7 +592,26 @@ export function ShowcaseCardView({
         }}
         className="relative overflow-hidden flex flex-col shadow-sm"
       >
+        {renderCardHeaderBar(true)}
         <div className="px-2.5 pt-3 pb-3 flex flex-col items-center text-center justify-between gap-2 flex-1">
+          {!isMediaRemoved && content.cardImage && (
+            <div
+              {...subSelectProps('card_media')}
+              style={{
+                width: `${boxSize}px`,
+                height: `${boxSize}px`,
+                borderRadius: `${mediaSubStyle?.borderRadius ?? boxRadius}px`,
+              }}
+              className={`mt-2 overflow-hidden bg-white/15 border border-white/25 shadow-sm flex items-center justify-center shrink-0 ${subOutlineClass('card_media')}`}
+            >
+              <img
+                src={content.cardImage}
+                alt={content.cardTitle || 'Produk'}
+                referrerPolicy="no-referrer"
+                style={imgStyle}
+              />
+            </div>
+          )}
           {!hideDefaultContent && (
             <>
               {content.cardShowPlayIcon !== false && (
@@ -459,30 +619,14 @@ export function ShowcaseCardView({
                   <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
                 </span>
               )}
-              {content.cardImage && (
-                <div
-                  style={{
-                    width: `${boxSize}px`,
-                    height: `${boxSize}px`,
-                    borderRadius: `${boxRadius}px`,
-                  }}
-                  className="mt-2 overflow-hidden bg-white/15 border border-white/25 shadow-sm flex items-center justify-center shrink-0"
-                >
-                  <img
-                    src={content.cardImage}
-                    alt={content.cardTitle || 'Produk'}
-                    referrerPolicy="no-referrer"
-                    style={imgStyle}
-                  />
-                </div>
-              )}
               <div
-                className="w-full flex flex-col items-center"
-                style={{ gap: `${textGap}px` }}
+                {...subSelectProps('card_body')}
+                className={`w-full flex flex-col items-center ${subOutlineClass('card_body')}`}
+                style={{ gap: `${textGap}px`, ...bodyTextStyleOverride }}
               >
                 <div
                   style={{
-                    fontSize: `${titleSize}px`,
+                    fontSize: `${bodySubStyle?.fontSize ?? titleSize}px`,
                     lineHeight,
                     ...buildLineClampStyle(titleLines || 2),
                   }}
@@ -580,14 +724,20 @@ export function ShowcaseCardView({
         }}
         className="border overflow-hidden shadow-sm text-left flex flex-col"
       >
+        {renderCardHeaderBar(false)}
         <div className="p-3 space-y-2.5">
           {!hideDefaultContent && (
             <>
-              <div className="flex items-center gap-2.5">
-                {content.cardImage && (
+              <div
+                {...subSelectProps('card_body')}
+                style={bodyTextStyleOverride}
+                className={`flex items-center gap-2.5 ${subOutlineClass('card_body')}`}
+              >
+                {!isMediaRemoved && content.cardImage && (
                   <div
+                    {...subSelectProps('card_media')}
                     style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
-                    className="rounded-full overflow-hidden shrink-0 border border-slate-200"
+                    className={`rounded-full overflow-hidden shrink-0 border border-slate-200 ${subOutlineClass('card_media')}`}
                   >
                     <img
                       src={content.cardImage}
@@ -600,7 +750,7 @@ export function ShowcaseCardView({
                 <div className="min-w-0 flex-1 flex flex-col" style={{ gap: `${textGap}px` }}>
                   <div
                     style={{
-                      fontSize: `${titleSize}px`,
+                      fontSize: `${bodySubStyle?.fontSize ?? titleSize}px`,
                       lineHeight,
                       ...buildLineClampStyle(titleLines || 2),
                     }}
@@ -625,20 +775,23 @@ export function ShowcaseCardView({
 
               <div className="flex items-center justify-between gap-2 text-[11px] opacity-75">
                 <span className="font-medium truncate">
-                  {content.cardHeaderTitle?.trim() || content.cardQuote?.trim() || 'Judul Kegiatan'}
+                  {content.cardQuote?.trim() || content.cardHeaderTitle?.trim() || 'Judul Kegiatan'}
                 </span>
                 {content.cardDate?.trim() && (
                   <span className="shrink-0 tabular-nums">{content.cardDate}</span>
                 )}
               </div>
 
-              {gallery.length > 0 && (
-                <div className="grid grid-cols-3 gap-1.5">
+              {!isMediaRemoved && gallery.length > 0 && (
+                <div
+                  {...subSelectProps('card_media')}
+                  className={`grid grid-cols-3 gap-1.5 ${subOutlineClass('card_media')}`}
+                >
                   {gallery.map((imgUrl, idx) => (
                     <div
                       key={`gal_${idx}`}
                       style={{
-                        borderRadius: `${galleryRadius}px`,
+                        borderRadius: `${mediaSubStyle?.borderRadius ?? galleryRadius}px`,
                         height: content.cardMediaHeight ? `${content.cardMediaHeight}px` : undefined,
                       }}
                       className={`${content.cardMediaHeight ? '' : 'aspect-square'} overflow-hidden bg-slate-100`}
@@ -702,17 +855,22 @@ export function ShowcaseCardView({
       }}
       className="relative overflow-hidden bg-white border border-slate-200 shadow-sm text-left"
     >
+      {renderCardHeaderBar(false)}
       {/* Zona Atas (Putih): Konten Bawaan (Opsional) + Drop-Zone Komponen Bebas */}
       <div
         className="px-3.5 pt-3.5 pb-4"
         style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(6, textGap)}px` }}
       >
         {!hideDefaultContent && (
-          <>
+          <div
+            {...subSelectProps('card_body')}
+            style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(6, textGap)}px`, ...bodyTextStyleOverride }}
+            className={subOutlineClass('card_body')}
+          >
             <div
               style={{
-                color: '#0284C7',
-                fontSize: `${titleSize}px`,
+                color: bodySubStyle?.textColor || '#0284C7',
+                fontSize: `${bodySubStyle?.fontSize ?? titleSize}px`,
                 lineHeight,
                 ...buildLineClampStyle(titleLines),
               }}
@@ -738,11 +896,14 @@ export function ShowcaseCardView({
                 style={{ display: 'flex', flexDirection: 'column', gap: `${Math.max(3, textGap)}px` }}
                 className="pt-0.5"
               >
-                {feeItems.map((fee) => (
+                {feeItems.map((fee, feeIdx) => (
                   <div
                     key={fee.id}
+                    {...subSelectProps(`card_fee_${fee.id || feeIdx}`)}
                     style={{ color: '#0284C7', fontSize: `${subtitleSize}px`, lineHeight }}
-                    className="flex items-center justify-between gap-2 font-semibold"
+                    className={`flex items-center justify-between gap-2 font-semibold ${subOutlineClass(
+                      `card_fee_${fee.id || feeIdx}`
+                    )}`}
                   >
                     <span className="truncate">{fee.label}</span>
                     <span className="shrink-0 tabular-nums">: {fee.value}</span>
@@ -750,35 +911,44 @@ export function ShowcaseCardView({
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
         {bodySlot}
       </div>
 
       {/* Perforated ticket notches + Zona Bawah Strip Warna (Total Bawaan Opsional + Drop-Zone Aksi/Keranjang/Tombol/Icon) */}
-      <div className="relative">
-        <span
-          aria-hidden="true"
-          className="absolute -left-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10 pointer-events-none"
-        />
-        <span
-          aria-hidden="true"
-          className="absolute -right-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10 pointer-events-none"
-        />
-        <div
-          style={{ backgroundColor: accent, color: textColor }}
-          className="px-3.5 py-3 flex flex-col gap-2"
-        >
-          {!hideDefaultFooter && (
-            <div className="flex items-center justify-center gap-2 font-extrabold text-[13.5px]">
-              <Wallet className="w-4 h-4 shrink-0" />
-              <span>{totalLabel}</span>
-              <span className="tabular-nums">{totalValue}</span>
-            </div>
-          )}
-          {footerSlot}
+      {(!hideDefaultFooter || footerSlot) && (
+        <div className="relative">
+          <span
+            aria-hidden="true"
+            className="absolute -left-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10 pointer-events-none"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute -right-2.5 -top-2.5 w-5 h-5 rounded-full bg-slate-100 border border-slate-200 z-10 pointer-events-none"
+          />
+          <div
+            {...subSelectProps('card_footer')}
+            style={{
+              backgroundColor:
+                footerSubStyle?.backgroundColor && footerSubStyle.backgroundColor !== 'transparent'
+                  ? footerSubStyle.backgroundColor
+                  : accent,
+              color: footerSubStyle?.textColor || textColor,
+            }}
+            className={`px-3.5 py-3 flex flex-col gap-2 ${subOutlineClass('card_footer')}`}
+          >
+            {!hideDefaultFooter && (
+              <div className="flex items-center justify-center gap-2 font-extrabold text-[13.5px]">
+                <Wallet className="w-4 h-4 shrink-0" />
+                <span>{totalLabel}</span>
+                <span className="tabular-nums">{totalValue}</span>
+              </div>
+            )}
+            {footerSlot}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

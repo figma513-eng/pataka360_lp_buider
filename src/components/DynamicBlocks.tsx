@@ -16,14 +16,20 @@ export function HeroProfileCard({
   block,
   theme,
   resolvedTextColor,
+  childrenSlot,
 }: {
   block: BuilderBlock;
   theme: PageTheme;
   resolvedTextColor: string;
+  childrenSlot?: React.ReactNode;
 }) {
   const c = block.content;
   const s = block.style;
   const variant = c.heroVariant ?? 'compact';
+  const hideDefault = Boolean(c.heroHideDefaultContent);
+  const rawChildrenPos = c.heroChildrenPosition ?? 'on_cover';
+  const childrenPosition: 'on_cover' | 'inside_card' | 'below_card' =
+    rawChildrenPos === 'overlap_cover' ? 'on_cover' : rawChildrenPos;
   const logoSize = Math.max(40, Math.min(140, c.heroLogoSize ?? (variant === 'banner' ? 78 : 72)));
   const titleSize = Math.max(14, Math.min(38, c.heroTitleSize ?? (variant === 'banner' ? 22 : 20)));
   const subtitleSize = Math.max(11, Math.min(22, c.heroSubtitleSize ?? 13));
@@ -76,34 +82,74 @@ export function HeroProfileCard({
     const coverTitleSize = Math.max(12, Math.min(48, c.heroCoverTitleSize ?? 26));
     const coverTitleColor = c.heroCoverTitleColor || '#FFFFFF';
 
+    const hasOnCoverChildren = childrenPosition === 'on_cover' && Boolean(childrenSlot);
+    const showMainCard = !hideDefault || (childrenPosition === 'inside_card' && Boolean(childrenSlot));
+
+    const cardBoxStyle: React.CSSProperties = {
+      marginTop: `-${overlapPx}px`,
+      marginLeft: horizontalMargin,
+      marginRight: horizontalMargin,
+      borderRadius: `${cardRadius}px`,
+      borderWidth: s.borderWidth > 0 ? `${s.borderWidth}px` : '1px',
+      borderStyle: 'solid',
+      borderColor: s.borderColor || theme.borderColor,
+      boxShadow:
+        shadowToCss(s.shadow, s.shadowColor, s.shadowSize) !== 'none'
+          ? shadowToCss(s.shadow, s.shadowColor, s.shadowSize)
+          : '0 10px 26px rgba(15, 23, 42, 0.12)',
+      color: resolvedTextColor,
+      ...cardBgProps,
+    };
+
     return (
       <div
         data-jump-title={(c.heroTitle || '').trim().toLowerCase() || undefined}
         style={{ fontFamily: blockFont }}
         className="w-full"
       >
+        {/* Lapisan 1 (Background Cover) + Lapisan 2 (Data & Daftar Item di atas Cover) */}
         <div
-          style={{ height: `${coverHeight}px` }}
-          className="relative w-full overflow-hidden bg-slate-900"
+          data-hero-layer="background-cover"
+          data-canvas-sublayer="hero_cover"
+          style={
+            hasOnCoverChildren
+              ? {
+                  minHeight: `${coverHeight}px`,
+                  paddingTop: showCoverTitle ? '12px' : '16px',
+                  paddingBottom: showMainCard ? `${overlapPx + 18}px` : '16px',
+                }
+              : { height: `${coverHeight}px` }
+          }
+          className="relative w-full overflow-hidden bg-slate-900 flex flex-col justify-center"
         >
-          {c.heroCoverImage ? (
-            <img
-              src={c.heroCoverImage}
-              alt={c.heroTitle || 'Banner Usaha'}
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover block"
-            />
-          ) : (
-            <div className="w-full h-full bg-linear-to-br from-amber-900 via-orange-950 to-slate-900" />
-          )}
-          <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/20 to-black/15" />
+          {/* Lapisan 1: Background Cover */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            {c.heroCoverImage ? (
+              <img
+                src={c.heroCoverImage}
+                alt={c.heroTitle || 'Banner Usaha'}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover block"
+              />
+            ) : (
+              <div className="w-full h-full bg-linear-to-br from-amber-900 via-orange-950 to-slate-900" />
+            )}
+            <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/20 to-black/15" />
+          </div>
+
           {showCoverTitle && (
             <div
               style={{
                 fontFamily: coverTitleFont,
-                paddingBottom: `${Math.max(14, overlapPx * 0.65)}px`,
+                paddingBottom: hasOnCoverChildren
+                  ? '8px'
+                  : `${Math.max(14, overlapPx * 0.65)}px`,
               }}
-              className="absolute inset-x-4 inset-y-0 flex items-center justify-center text-center pointer-events-none"
+              className={
+                hasOnCoverChildren
+                  ? 'relative z-10 px-4 text-center pointer-events-none'
+                  : 'absolute inset-x-4 inset-y-0 z-10 flex items-center justify-center text-center pointer-events-none'
+              }
             >
               <span
                 style={{
@@ -116,29 +162,139 @@ export function HeroProfileCard({
               </span>
             </div>
           )}
+
+          {/* Lapisan 2: Data & Daftar Item di atas Cover */}
+          {hasOnCoverChildren && (
+            <div
+              data-hero-layer="overlay-items"
+              className="relative z-10 w-full min-w-0 [&>*:last-child]:mb-0"
+            >
+              {childrenSlot}
+            </div>
+          )}
         </div>
 
-        <div
-          style={{
-            marginTop: `-${overlapPx}px`,
-            marginLeft: horizontalMargin,
-            marginRight: horizontalMargin,
-            borderRadius: `${cardRadius}px`,
-            borderWidth: s.borderWidth > 0 ? `${s.borderWidth}px` : '1px',
-            borderStyle: 'solid',
-            borderColor: s.borderColor || theme.borderColor,
-            boxShadow:
-              shadowToCss(s.shadow, s.shadowColor, s.shadowSize) !== 'none'
-                ? shadowToCss(s.shadow, s.shadowColor, s.shadowSize)
-                : '0 10px 26px rgba(15, 23, 42, 0.12)',
-            color: resolvedTextColor,
-            ...cardBgProps,
-          }}
-          className="relative z-10 p-4 sm:p-5 flex items-start gap-3.5"
-        >
-          {renderAvatar(true)}
-          <div className="min-w-0 flex-1 text-left space-y-1.5">
-            {c.heroStatusEnabled && (c.heroStatusText || '').trim() && (
+        {showMainCard && (
+          <div
+            data-canvas-sublayer="hero_profile_card"
+            style={cardBoxStyle}
+            className="relative z-20 p-4 sm:p-5"
+          >
+            {!hideDefault && (
+              <div className="flex items-start gap-3.5">
+                {renderAvatar(true)}
+                <div className="min-w-0 flex-1 text-left space-y-1.5">
+                  {c.heroStatusEnabled && (c.heroStatusText || '').trim() && (
+                    <div
+                      style={{
+                        backgroundColor: `${statusColor}16`,
+                        color: statusColor,
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                    >
+                      <span
+                        style={{ backgroundColor: statusColor }}
+                        className="w-2 h-2 rounded-full shrink-0"
+                      />
+                      <span>{c.heroStatusText}</span>
+                    </div>
+                  )}
+                  <h1
+                    style={{
+                      fontSize: `${titleSize}px`,
+                      lineHeight: 1.2,
+                      fontWeight: s.fontWeightCss ? Number(s.fontWeightCss) : 800,
+                    }}
+                    className="m-0 tracking-tight break-words"
+                  >
+                    {c.heroTitle || 'Warung Barokah'}
+                  </h1>
+                  {(c.heroSubtitle || '').trim() && (
+                    <p
+                      style={{ fontSize: `${subtitleSize}px`, lineHeight: 1.4 }}
+                      className="m-0 opacity-80 break-words"
+                    >
+                      {c.heroSubtitle}
+                    </p>
+                  )}
+                  {((c.heroRating || '').trim() || (c.heroHours || '').trim()) && (
+                    <div
+                      style={{ fontSize: `${infoSize}px` }}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 opacity-85 font-medium tabular-nums"
+                    >
+                      {(c.heroRating || '').trim() && (
+                        <span className="inline-flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                          <span>{c.heroRating}</span>
+                        </span>
+                      )}
+                      {(c.heroHours || '').trim() && (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                          <span>{c.heroHours}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {(c.heroLocation || '').trim() && (
+                    <div
+                      style={{ fontSize: `${infoSize}px`, lineHeight: 1.4 }}
+                      className="flex items-start gap-1.5 opacity-80"
+                    >
+                      <MapPin className="w-3.5 h-3.5 opacity-70 shrink-0 mt-0.5" />
+                      <span className="break-words">{c.heroLocation}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {childrenPosition === 'inside_card' && childrenSlot && (
+              <div
+                className={
+                  hideDefault
+                    ? 'space-y-2'
+                    : 'mt-3.5 pt-3 border-t border-current/15 space-y-2'
+                }
+              >
+                {childrenSlot}
+              </div>
+            )}
+          </div>
+        )}
+
+        {childrenPosition === 'below_card' && childrenSlot && (
+          <div
+            style={{
+              marginTop: showMainCard ? '10px' : `-${overlapPx}px`,
+              marginLeft: horizontalMargin,
+              marginRight: horizontalMargin,
+            }}
+            className="relative z-10 space-y-2"
+          >
+            {childrenSlot}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-jump-title={(c.heroTitle || '').trim().toLowerCase() || undefined}
+      style={{ fontFamily: blockFont, color: resolvedTextColor }}
+      className="p-4 text-left"
+    >
+      {!hideDefault && (
+        <div className="flex items-center gap-3.5">
+          <div data-canvas-sublayer="hero_avatar" className="shrink-0 rounded-full">
+            {renderAvatar(false)}
+          </div>
+          <div
+            data-canvas-sublayer="hero_profile_card"
+            className="min-w-0 flex-1 space-y-1 rounded-lg"
+          >
+            {c.heroStatusEnabled !== false && (c.heroStatusText || 'Buka sekarang').trim() && (
               <div
                 style={{
                   backgroundColor: `${statusColor}16`,
@@ -150,7 +306,7 @@ export function HeroProfileCard({
                   style={{ backgroundColor: statusColor }}
                   className="w-2 h-2 rounded-full shrink-0"
                 />
-                <span>{c.heroStatusText}</span>
+                <span>{c.heroStatusText || 'Buka sekarang'}</span>
               </div>
             )}
             <h1
@@ -161,7 +317,7 @@ export function HeroProfileCard({
               }}
               className="m-0 tracking-tight break-words"
             >
-              {c.heroTitle || 'Warung Barokah'}
+              {c.heroTitle || 'Warung Barokah Demo'}
             </h1>
             {(c.heroSubtitle || '').trim() && (
               <p
@@ -171,101 +327,40 @@ export function HeroProfileCard({
                 {c.heroSubtitle}
               </p>
             )}
-            {((c.heroRating || '').trim() || (c.heroHours || '').trim()) && (
+            {((c.heroLocation || '').trim() || (c.heroHours || '').trim()) && (
               <div
                 style={{ fontSize: `${infoSize}px` }}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 opacity-85 font-medium tabular-nums"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 opacity-75 tabular-nums"
               >
-                {(c.heroRating || '').trim() && (
+                {(c.heroLocation || '').trim() && (
                   <span className="inline-flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
-                    <span>{c.heroRating}</span>
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    <span>{c.heroLocation}</span>
                   </span>
                 )}
                 {(c.heroHours || '').trim() && (
                   <span className="inline-flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
                     <span>{c.heroHours}</span>
                   </span>
                 )}
               </div>
             )}
-            {(c.heroLocation || '').trim() && (
-              <div
-                style={{ fontSize: `${infoSize}px`, lineHeight: 1.4 }}
-                className="flex items-start gap-1.5 opacity-80"
-              >
-                <MapPin className="w-3.5 h-3.5 opacity-70 shrink-0 mt-0.5" />
-                <span className="break-words">{c.heroLocation}</span>
-              </div>
-            )}
           </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div
-      data-jump-title={(c.heroTitle || '').trim().toLowerCase() || undefined}
-      style={{ fontFamily: blockFont, color: resolvedTextColor }}
-      className="p-4 flex items-center gap-3.5 text-left"
-    >
-      {renderAvatar(false)}
-      <div className="min-w-0 flex-1 space-y-1">
-        {c.heroStatusEnabled !== false && (c.heroStatusText || 'Buka sekarang').trim() && (
-          <div
-            style={{
-              backgroundColor: `${statusColor}16`,
-              color: statusColor,
-            }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold"
-          >
-            <span
-              style={{ backgroundColor: statusColor }}
-              className="w-2 h-2 rounded-full shrink-0"
-            />
-            <span>{c.heroStatusText || 'Buka sekarang'}</span>
-          </div>
-        )}
-        <h1
-          style={{
-            fontSize: `${titleSize}px`,
-            lineHeight: 1.2,
-            fontWeight: s.fontWeightCss ? Number(s.fontWeightCss) : 800,
-          }}
-          className="m-0 tracking-tight break-words"
+      {childrenSlot && (
+        <div
+          className={
+            hideDefault
+              ? 'space-y-2'
+              : 'mt-3.5 pt-3 border-t border-current/15 space-y-2'
+          }
         >
-          {c.heroTitle || 'Warung Barokah Demo'}
-        </h1>
-        {(c.heroSubtitle || '').trim() && (
-          <p
-            style={{ fontSize: `${subtitleSize}px`, lineHeight: 1.4 }}
-            className="m-0 opacity-80 break-words"
-          >
-            {c.heroSubtitle}
-          </p>
-        )}
-        {((c.heroLocation || '').trim() || (c.heroHours || '').trim()) && (
-          <div
-            style={{ fontSize: `${infoSize}px` }}
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 opacity-75 tabular-nums"
-          >
-            {(c.heroLocation || '').trim() && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 shrink-0" />
-                <span>{c.heroLocation}</span>
-              </span>
-            )}
-            {(c.heroHours || '').trim() && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>{c.heroHours}</span>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+          {childrenSlot}
+        </div>
+      )}
     </div>
   );
 }
@@ -340,14 +435,15 @@ export function CategoryJumpTabs({
       style={containerStyle}
       className={`flex ${
         mode === 'horizontal' ? 'flex-nowrap touch-pan-x' : 'flex-wrap'
-      } items-center ${justify}`}
+      } items-center ${justify}${!c.categoryShowScrollbar ? ' no-scrollbar' : ''}`}
     >
-      {items.map((btn) => {
+      {items.map((btn, idx) => {
         const isOn = btn.id === currentActiveId;
         return (
           <button
             key={btn.id}
             type="button"
+            data-canvas-sublayer={`cat_${btn.id || idx}`}
             onClick={(e) => onSelect(btn, e)}
             style={{
               backgroundColor: isOn ? activeBg : inactiveBg,
@@ -514,11 +610,13 @@ export function FnbCatalogCard({
               <div className="space-y-2.5">
                 {sec.items.map((item) => {
                   const qty = cartQtyLookup[item.id] ?? 0;
+                  const origIdx = items.indexOf(item);
                   const mono =
                     (item.monogram || item.title || 'MN').trim().slice(0, 2).toUpperCase() || 'MN';
                   return (
                     <div
                       key={item.id}
+                      data-canvas-sublayer={`fnb_${item.id || (origIdx >= 0 ? origIdx : 0)}`}
                       style={{
                         backgroundColor: theme.cardBg,
                         borderColor: theme.borderColor,
@@ -666,10 +764,11 @@ export function FnbFloatingCartCapsule({
 }) {
   if (count <= 0) return null;
 
-  const isTop = position === 'top-floating';
+  const isTop =
+    position === 'top-floating' || position === 'top-left' || position === 'top-right';
   const isDocked = position === 'bottom-docked';
-  const isLeft = position === 'bottom-left';
-  const isRight = position === 'bottom-right';
+  const isLeft = position === 'bottom-left' || position === 'top-left';
+  const isRight = position === 'bottom-right' || position === 'top-right';
   const safeOffset = Math.max(0, Math.min(120, offsetY));
 
   const wrapperStyle: React.CSSProperties = {

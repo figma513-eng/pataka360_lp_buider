@@ -182,3 +182,31 @@ input[type="range"]::-moz-range-thumb {
 ::-webkit-scrollbar-thumb:hover {
   background: #8FA4BF;
 }
+
+/* Hide scrollbars cleanly when slider/carousel/tabs have Show Scrollbar = OFF */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Mode Panah Mouse: highlight sub-layer saat hover & saat aktif di Kanvas */
+[data-canvas-mode="pointer"] [data-canvas-sublayer] {
+  cursor: pointer;
+  transition: outline-color 120ms ease, box-shadow 120ms ease;
+}
+
+[data-canvas-mode="pointer"] [data-canvas-sublayer]:hover {
+  outline: 1.5px dashed rgba(0, 201, 138, 0.85);
+  outline-offset: 3px;
+}
+
+[data-canvas-mode="pointer"] [data-canvas-sublayer][data-canvas-sublayer-active="true"] {
+  outline: 2px solid #00C98A;
+  outline-offset: 3px;
+}

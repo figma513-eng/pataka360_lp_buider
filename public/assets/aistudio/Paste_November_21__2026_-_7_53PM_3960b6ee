@@ -1,0 +1,1152 @@
+# MASTER PROMPT
+# DEEP INVENTORY & SOURCE CODE AUDIT
+# LYNK BUILDER — VISUAL EDITOR
+
+## 1. TUJUAN PEKERJAAN
+
+Lakukan inventarisasi dan audit mendalam terhadap seluruh sistem Visual Editor pada project Lynk Builder yang sedang aktif.
+
+Tujuan utama adalah memperoleh peta lengkap mengenai seluruh fungsi, fitur, komponen, objek, properti, pengaturan, interaksi, dan hubungan antarbagian yang sudah tersedia di aplikasi.
+
+Inventarisasi harus mencakup dua sisi sekaligus:
+
+1. **UI INVENTORY:** seluruh fungsi yang terlihat dan dapat digunakan melalui antarmuka aplikasi.
+2. **SOURCE CODE INVENTORY:** seluruh implementasi yang mendukung fungsi tersebut di dalam source code.
+
+Hasil akhir wajib berupa dokumen Master Inventory berbasis tabel yang dapat digunakan sebagai referensi untuk tahap evaluasi dan penyempurnaan Visual Editor berikutnya.
+
+### Prinsip utama
+
+- Inventarisasi kondisi aktual, bukan membuat rancangan baru.
+- Jangan menganggap fitur belum tersedia hanya karena tidak terlihat di UI.
+- Jangan menganggap fitur berfungsi hanya karena komponennya ditemukan di source code.
+- Telusuri hubungan antara UI, fungsi, state, event, data, dan hasil perubahan pada Canvas.
+- Jangan menghilangkan fungsi kecil, pengaturan tersembunyi, variasi, maupun rekomendasi kontekstual.
+- Jangan membuat asumsi atau mengarang informasi yang tidak ditemukan.
+
+---
+
+## 2. BATASAN WAJIB
+
+Pekerjaan ini hanya untuk membaca, memeriksa, menelusuri, dan mendokumentasikan project.
+
+**DILARANG MELAKUKAN:**
+- Coding atau mengubah source code.
+- Refactoring.
+- Mengubah struktur komponen.
+- Mengubah tampilan UI.
+- Mengubah pengelompokan fungsi.
+- Memindahkan pengaturan.
+- Menambah atau menghapus fitur.
+- Mengubah database.
+- Mengubah konfigurasi.
+- Mengubah sistem penyimpanan.
+- Migrasi.
+- Deployment.
+- Mengubah project aktif.
+
+Jangan memperbaiki masalah yang ditemukan. Catat saja sebagai temuan.
+
+Jangan menjalankan tindakan yang dapat mengubah atau merusak data project.
+
+Jika diperlukan pemeriksaan interaksi melalui aplikasi, gunakan project dalam kondisi aman dan jangan menyimpan perubahan pengujian.
+
+**Berhenti setelah laporan inventarisasi selesai dan tunggu instruksi berikutnya.**
+
+---
+
+# BAGIAN I — INVENTARISASI UI VISUAL EDITOR
+
+## 3. INVENTARISASI ALAT
+
+Periksa seluruh menu Alat pada Visual Editor.
+
+Jangan hanya mencatat kategori utama. Telusuri sampai ke tingkat paling detail.
+
+Inventarisasi:
+
+- Semua alat.
+- Kategori.
+- Subkategori.
+- Submenu.
+- Toolbar.
+- Dropdown.
+- Popover.
+- Context menu.
+- Pilihan dan variasi alat.
+- Tombol dan kontrol.
+- Pengaturan tambahan.
+- Tooltips dan informasi bantuan.
+- Fungsi yang muncul berdasarkan kondisi tertentu.
+
+Untuk setiap alat, periksa:
+
+1. Nama alat.
+2. Lokasi pada UI.
+3. Kategori dan subkategori.
+4. Tujuan dan fungsi.
+5. Pilihan yang tersedia.
+6. Properti yang dapat dikonfigurasi.
+7. Interaksi pengguna.
+8. Perilaku ketika digunakan.
+9. Objek yang dihasilkan pada Canvas.
+10. Layer yang dihasilkan.
+11. Hubungan dengan Inspector.
+12. Hubungan dengan fungsi lain.
+
+### Format tabel Master Alat
+
+| No. | Kategori | Subkategori | Nama Alat | Fungsi | Pilihan | Lokasi UI | Objek Hasil | Layer | Inspector | Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+
+Setiap alat harus memiliki catatan tersendiri.
+
+Jangan menggabungkan beberapa alat berbeda hanya karena memiliki fungsi yang mirip.
+
+---
+
+## 4. INVENTARISASI BLOK
+
+Periksa seluruh menu Blok dan semua komponen yang tersedia.
+
+Inventarisasi:
+- Seluruh kategori blok.
+- Seluruh jenis blok.
+- Variasi blok.
+- Properti blok.
+- Struktur internal.
+- Kemampuan nesting.
+- Kemampuan menjadi Parent.
+- Kemampuan menjadi Child.
+- Batasan jenis Child.
+- Pengaturan default.
+- Pengaturan tambahan.
+- Perilaku blok saat dimasukkan ke Canvas.
+
+Untuk setiap blok, telusuri:
+
+1. Nama blok.
+2. Kategori.
+3. Fungsi utama.
+4. Struktur internal.
+5. Jenis objek yang dihasilkan.
+6. Apakah dapat menjadi Parent.
+7. Apakah dapat menjadi Child.
+8. Apakah dapat menampung objek lain.
+9. Properti Parent.
+10. Properti Child.
+11. Pengaturan Inspector.
+12. Perilaku saat dipindahkan.
+13. Perilaku saat diubah ukurannya.
+14. Perilaku saat diduplikasi.
+15. Perilaku saat dihapus.
+
+### Format tabel Master Blok
+
+| No. | Kategori | Nama Blok | Fungsi | Struktur Internal | Parent | Child | Properti | Perilaku Canvas | Inspector |
+|---|---|---|---|---|---|---|---|---|---|
+
+Bedakan blok struktural, blok visual, blok konten, dan blok interaktif jika memang ditemukan.
+
+Jangan menyimpulkan kategori baru tanpa bukti implementasi.
+
+---
+
+## 5. INVENTARISASI CANVAS
+
+Telusuri seluruh fungsi yang berhubungan dengan Canvas.
+
+Periksa:
+
+- Penambahan objek.
+- Pemilihan objek.
+- Multi-selection.
+- Drag-and-drop.
+- Pemindahan posisi.
+- Resize.
+- Scale.
+- Rotate.
+- Duplicate.
+- Delete.
+- Copy dan paste.
+- Pengaturan urutan.
+- Alignment.
+- Snapping.
+- Guideline.
+- Grid.
+- Zoom.
+- Pan.
+- Undo.
+- Redo.
+- Context menu.
+- Penguncian objek.
+- Visibilitas objek.
+- Pengelompokan objek.
+- Nesting.
+- Interaksi dengan Parent dan Child.
+- Sinkronisasi dengan Layer.
+- Sinkronisasi dengan Inspector.
+
+Catat seluruh fitur yang benar-benar tersedia.
+
+### Format tabel Master Canvas
+
+| No. | Fitur | Fungsi | Objek yang Didukung | Cara Penggunaan | Perubahan pada Canvas | Hubungan Layer | Hubungan Inspector |
+|---|---|---|---|---|---|---|---|
+
+Periksa juga perilaku objek ketika diubah melalui Canvas dan apakah perubahan tersebut langsung tersinkronisasi dengan Inspector.
+
+---
+
+## 6. INVENTARISASI LAYER
+
+Periksa seluruh sistem Layer.
+
+Inventarisasi:
+
+- Jenis layer.
+- Nama layer.
+- Struktur hierarki.
+- Parent dan Child.
+- Group.
+- Nesting.
+- Urutan layer.
+- Visibility.
+- Lock.
+- Rename.
+- Duplicate.
+- Delete.
+- Expand dan Collapse.
+- Pemilihan layer.
+- Drag-and-drop layer.
+- Relasi layer dengan objek Canvas.
+- Relasi layer dengan Inspector.
+
+### Format tabel Master Layer
+
+| No. | Jenis Layer | Nama | Parent | Child | Fungsi | Kontrol | Perilaku | Relasi Canvas | Relasi Inspector |
+|---|---|---|---|---|---|---|---|---|---|
+
+Periksa apakah perubahan hierarki Layer memengaruhi struktur objek pada Canvas.
+
+---
+
+# BAGIAN II — INVENTARISASI INSPECTOR
+
+## 7. STRUKTUR INSPECTOR
+
+Inspector memiliki dua tab utama yang harus diperiksa:
+
+1. KONTEN.
+2. DESAIN.
+
+Jangan mengasumsikan seluruh objek mempunyai pengaturan yang sama.
+
+Periksa setiap jenis objek secara individual dan catat seluruh pengaturan yang benar-benar muncul ketika objek dipilih.
+
+Inventarisasi juga kondisi ketika pengaturan:
+- Muncul.
+- Menghilang.
+- Berubah.
+- Menjadi disabled.
+- Menampilkan pilihan tambahan.
+- Berubah berdasarkan jenis objek.
+- Berubah berdasarkan Parent atau Child.
+- Berubah berdasarkan mode perangkat.
+- Berubah berdasarkan pilihan preset.
+
+---
+
+## 8. INVENTARISASI INSPECTOR KONTEN
+
+Periksa seluruh isi tab Konten, termasuk kelompok yang terlihat maupun yang muncul secara kondisional.
+
+Jangan membatasi pemeriksaan pada kelompok yang disebutkan di bawah. Catat seluruh kelompok aktual yang ditemukan.
+
+Periksa secara khusus:
+
+### A. Konten Utama
+- Isi teks.
+- Jenis teks.
+- Semantik.
+- Sumber gambar.
+- Konten media.
+- Label.
+- Nilai konten.
+- Data objek.
+- Konten dinamis.
+
+### B. Format dan Konfigurasi
+- Jenis tampilan.
+- Jenis komponen.
+- Pilihan format.
+- Preset.
+- Variasi tampilan.
+- Konfigurasi komponen.
+- Pilihan bawaan.
+
+### C. Rekomendasi dan Preset
+- Rekomendasi tampilan.
+- Pilihan layout.
+- Pilihan komponen.
+- Preset kartu.
+- Rekomendasi isi.
+- Rekomendasi elemen.
+- Pilihan template internal.
+- Panduan penggunaan.
+- Informasi kontekstual.
+
+### D. Komponen yang Dapat Ditambahkan
+- Gambar.
+- Teks.
+- Ikon.
+- Tombol.
+- Link.
+- Keranjang.
+- Form.
+- Elemen lainnya.
+
+Periksa zona atau area penempatan komponen, termasuk:
+- Zona atas.
+- Zona utama.
+- Zona isi.
+- Zona bawah.
+- Strip.
+- Area tambahan.
+
+Catat apakah komponen ditambahkan melalui drag-and-drop, tombol, dropdown, atau mekanisme lain.
+
+### E. Pengaturan Visibilitas
+- Show / Hide.
+- Toggle.
+- Visibilitas bagian.
+- Visibilitas komponen.
+- Konten bawaan.
+- Bagian atas dan bawah.
+- Pengaturan tampil berdasarkan kondisi.
+
+### F. Warna dan Gradasi Kontekstual
+Periksa seluruh pengaturan warna yang berada di tab Konten.
+
+Contoh:
+- Gradasi awal.
+- Gradasi akhir.
+- Warna aksen.
+- Warna strip.
+- Warna teks.
+- Warna elemen tertentu.
+
+Jangan otomatis menganggap semua warna harus berada di tab Desain. Catat berdasarkan implementasi aktual dan fungsi pengaturannya.
+
+### G. Label, Tautan, dan Navigasi
+- Label tautan.
+- URL.
+- Aksi saat diklik.
+- Navigasi halaman.
+- Navigasi eksternal.
+- Pilihan tujuan.
+- Konfigurasi aksi.
+
+### H. Identitas dan Pengaturan Umum
+- Nama layer.
+- Nama komponen.
+- ID.
+- Visibilitas.
+- Pengaturan identitas lain.
+
+### I. Aksi dan Interaksi
+- Fungsi keranjang.
+- Fungsi tombol.
+- Aktivasi fungsi.
+- Status aktif/nonaktif.
+- Informasi harga.
+- Informasi produk.
+- Informasi jumlah terjual.
+- Tambah item.
+- Informasi keranjang.
+- Interaksi lainnya.
+
+### J. Data dan Fungsi Dinamis
+- Binding data.
+- Sumber data.
+- Variabel.
+- Dynamic content.
+- Conditional content.
+- Data mapping.
+- Pengaturan lainnya.
+
+### Format tabel Inspector Konten
+
+| No. | Jenis Objek | Kondisi Objek | Kelompok | Subkelompok | Nama Pengaturan | Jenis Kontrol | Pilihan/Nilai | Fungsi | Kondisi Tampil |
+|---|---|---|---|---|---|---|---|---|---|
+
+**Catat rekomendasi, preset, petunjuk, dan komponen tambahan sebagai item inventaris tersendiri. Jangan menganggapnya hanya sebagai teks penjelasan.**
+
+---
+
+## 9. INVENTARISASI INSPECTOR DESAIN
+
+Periksa seluruh pengaturan pada tab Desain.
+
+Inventarisasi semua kelompok dan properti yang tersedia, termasuk yang tidak disebutkan di bawah.
+
+### A. Layout
+- Display.
+- Direction.
+- Alignment.
+- Justify.
+- Wrap.
+- Gap.
+- Overflow.
+- Position.
+- Z-index.
+- Layout lainnya.
+
+### B. Ukuran
+- Width.
+- Height.
+- Min Width.
+- Max Width.
+- Min Height.
+- Max Height.
+- Fixed Size.
+- Aspect Ratio.
+- Scale.
+- Ukuran lainnya.
+
+### C. Jarak
+- Margin.
+- Padding.
+- Gap.
+- Spacing.
+- Jarak horizontal.
+- Jarak vertikal.
+- Jarak lainnya.
+
+### D. Tipografi
+Inventarisasi secara lengkap:
+
+- Font Family / Jenis Font.
+- Font Size / Ukuran Teks.
+- Font Weight / Ketebalan.
+- Font Style.
+- Text Color.
+- Text Alignment.
+- Line Height.
+- Letter Spacing.
+- Word Spacing.
+- Text Decoration.
+- Text Transform.
+- Text Wrapping.
+- Text Overflow.
+- Pengaturan tipografi lainnya.
+
+### E. Warna dan Gaya Visual
+- Background Color.
+- Text Color.
+- Fill Color.
+- Gradient.
+- Opacity.
+- Transparansi.
+- Warna ikon.
+- Warna aksen.
+- Warna elemen interaktif.
+- Pengaturan warna lainnya.
+
+### F. Border
+- Border Width.
+- Border Color.
+- Border Style.
+- Border Radius.
+- Radius per sudut.
+- Pengaturan garis tepi lainnya.
+
+### G. Effects
+- Shadow.
+- Shadow Color.
+- Blur.
+- Glass Effect.
+- Hover Effect.
+- Transform.
+- Transition.
+- Animation.
+- Efek lainnya.
+
+### H. Responsive
+- Desktop.
+- Tablet.
+- Mobile.
+- Nilai per perangkat.
+- Inherited/default values.
+- Pengaturan khusus perangkat.
+- Perubahan berdasarkan breakpoint.
+
+### Format tabel Inspector Desain
+
+| No. | Jenis Objek | Kelompok | Subkelompok | Properti | Jenis Kontrol | Nilai Default | Pilihan | Kondisi Tampil | Responsive |
+|---|---|---|---|---|---|---|---|---|---|
+
+Catat pengaturan yang sama pada objek berbeda sebagai entri terpisah agar perbedaan implementasinya dapat diketahui.
+
+---
+
+# BAGIAN III — INVENTARISASI OBJEK DAN MEDIA
+
+## 10. MASTER OBJEK CANVAS
+
+Identifikasi semua jenis objek yang dapat digunakan pada Canvas.
+
+Contoh yang perlu diperiksa apabila tersedia:
+
+- Text.
+- Image.
+- Shape.
+- Container.
+- Stack.
+- Grid.
+- Scroll.
+- Masonry.
+- Button.
+- Icon.
+- Link.
+- Video.
+- Form.
+- Navigation.
+- Overlay.
+- Spacer.
+- Card.
+- Komponen khusus.
+- Objek lainnya.
+
+Untuk setiap objek, catat:
+
+1. Nama dan jenis objek.
+2. Sumber pembuatannya.
+3. Fungsi utama.
+4. Struktur internal.
+5. Properti.
+6. Kemampuan Parent.
+7. Kemampuan Child.
+8. Inspector Konten.
+9. Inspector Desain.
+10. Perilaku Canvas.
+11. Dukungan Responsive.
+12. Hubungan dengan objek lain.
+
+### Format tabel
+
+| No. | Objek | Sumber | Fungsi | Parent | Child | Konten Inspector | Desain Inspector | Responsive |
+|---|---|---|---|---|---|---|---|---|
+
+---
+
+## 11. INVENTARISASI IMAGE / GAMBAR
+
+Lakukan pemeriksaan mendalam terhadap semua fungsi gambar.
+
+### Sumber dan Pengelolaan Gambar
+- Upload gambar.
+- Upload banyak gambar.
+- Pemilihan gambar.
+- Media Library.
+- URL gambar.
+- Penggantian gambar.
+- Penghapusan gambar.
+- Preview.
+- Format file.
+- Batas ukuran file.
+- Penyimpanan gambar.
+- Penggunaan ulang gambar.
+
+### Pengaturan Gambar
+- Image Width.
+- Image Height.
+- Scale.
+- Resize.
+- Crop.
+- Fit.
+- Fill.
+- Object Fit.
+- Object Position.
+- Aspect Ratio.
+- Alignment.
+- Rotation.
+- Flip Horizontal.
+- Flip Vertical.
+- Opacity.
+- Border.
+- Radius.
+- Shadow.
+- Masking.
+- Clipping.
+- Overflow.
+- Alt Text.
+
+### Perilaku Gambar
+- Memindahkan gambar.
+- Mengubah ukuran.
+- Mengubah skala.
+- Memotong gambar.
+- Mengganti sumber.
+- Mempertahankan rasio.
+- Perubahan pada Canvas.
+- Sinkronisasi dengan Inspector.
+
+Catat apakah pengaturan dilakukan pada objek Image, Container, atau komponen lain.
+
+---
+
+## 12. INVENTARISASI IMAGE DI DALAM SHAPE
+
+Periksa secara khusus apakah gambar dapat dimasukkan ke dalam Shape.
+
+Inventarisasi:
+
+- Upload gambar ke Shape.
+- Memilih gambar dari Media Library.
+- Mengganti gambar.
+- Scale Image in Shape.
+- Crop Image in Shape.
+- Fit.
+- Fill.
+- Image Position.
+- Image Alignment.
+- Image Size.
+- Shape Size.
+- Aspect Ratio.
+- Clipping.
+- Masking.
+- Overflow.
+- Radius.
+- Rotation.
+- Pengaturan responsif.
+
+Periksa apakah Image dan Shape:
+- Merupakan satu objek.
+- Merupakan dua objek yang saling terhubung.
+- Memiliki Parent-Child.
+- Menggunakan background image.
+- Menggunakan mekanisme masking.
+
+Catat mekanisme aktualnya berdasarkan implementasi.
+
+---
+
+## 13. INVENTARISASI SHAPE
+
+Periksa seluruh jenis Shape yang tersedia.
+
+Contoh:
+- Rectangle.
+- Rounded Rectangle.
+- Circle.
+- Ellipse.
+- Line.
+- Polygon.
+- Custom Shape.
+- Shape lainnya.
+
+Inventarisasi properti:
+
+- Jenis bentuk.
+- Width.
+- Height.
+- Scale.
+- Rotation.
+- Position.
+- Fill.
+- Fill Color.
+- Gradient.
+- Opacity.
+- Border.
+- Border Color.
+- Border Width.
+- Border Style.
+- Corner Radius.
+- Shadow.
+- Effects.
+- Clipping.
+- Masking.
+- Overflow.
+- Background Image.
+- Image in Shape.
+
+Catat apakah Shape dapat berfungsi sebagai elemen dekoratif, wadah gambar, atau container.
+
+---
+
+## 14. INVENTARISASI CONTAINER DAN LAYOUT OBJECT
+
+Periksa seluruh fungsi Container dan objek layout lainnya.
+
+Inventarisasi:
+- Container.
+- Stack.
+- Grid.
+- Scroll.
+- Masonry.
+- Overlay.
+- Spacer.
+- Komponen layout lain yang ditemukan.
+
+Untuk setiap objek, periksa:
+
+- Fungsi.
+- Struktur.
+- Parent dan Child.
+- Nesting.
+- Direction.
+- Display.
+- Alignment.
+- Justify.
+- Wrap.
+- Gap.
+- Overflow.
+- Width.
+- Height.
+- Min/Max Width.
+- Min/Max Height.
+- Padding.
+- Margin.
+- Background.
+- Background Image.
+- Border.
+- Radius.
+- Shadow.
+- Responsive.
+
+Periksa juga apakah pengaturan Parent berbeda dengan pengaturan Child.
+
+---
+
+## 15. INVENTARISASI BACKGROUND
+
+Periksa pengaturan background pada halaman dan setiap objek yang mendukungnya.
+
+Inventarisasi:
+
+- Background Color.
+- Background Image.
+- Upload Background.
+- Gradient.
+- Background Position.
+- Background Size.
+- Cover.
+- Contain.
+- Auto.
+- Repeat.
+- No Repeat.
+- Center.
+- Top.
+- Bottom.
+- Left.
+- Right.
+- Overlay.
+- Overlay Color.
+- Overlay Opacity.
+- Blur.
+- Background Attachment jika tersedia.
+- Responsive Background.
+
+Bedakan implementasi Background pada:
+- Halaman.
+- Container.
+- Shape.
+- Card.
+- Image.
+- Komponen lain.
+
+---
+
+## 16. INVENTARISASI COVER DAN LOGO
+
+### Cover
+Periksa:
+- Upload.
+- Pemilihan media.
+- Penggantian gambar.
+- Crop.
+- Scale.
+- Fit.
+- Fill.
+- Position.
+- Overlay.
+- Background.
+- Aspect Ratio.
+- Ukuran.
+- Responsive.
+
+### Logo
+Periksa:
+- Upload.
+- Pemilihan gambar.
+- Penggantian logo.
+- Penghapusan.
+- Width.
+- Height.
+- Scale.
+- Fit.
+- Position.
+- Alignment.
+- Aspect Ratio.
+- Link atau Action.
+- Responsive.
+
+Identifikasi apakah Cover dan Logo merupakan objek khusus, preset, atau penggunaan Image biasa.
+
+---
+
+## 17. INVENTARISASI MEDIA LIBRARY DAN UPLOAD
+
+Periksa seluruh mekanisme pengelolaan aset:
+
+- Upload.
+- Multi Upload.
+- Media Library.
+- Daftar media.
+- Preview.
+- Search.
+- Filter.
+- Pemilihan media.
+- Penggantian media.
+- Penghapusan media.
+- Penggunaan ulang.
+- Penyimpanan.
+- Format.
+- Batas ukuran.
+- Validasi.
+- Penanganan kegagalan.
+- Relasi media dengan project.
+- Relasi media dengan halaman.
+- Relasi media dengan objek.
+
+Jangan mengubah penyimpanan atau database.
+
+---
+
+# BAGIAN IV — INTERAKSI DAN SISTEM
+
+## 18. INVENTARISASI ACTION DAN NAVIGATION
+
+Periksa seluruh sistem aksi yang tersedia.
+
+Inventarisasi:
+- On Click.
+- Link.
+- URL.
+- Navigate Page.
+- External Link.
+- Scroll To.
+- Open Modal.
+- Open Drawer.
+- Form Action.
+- Add to Cart.
+- Custom Action.
+- Aksi lainnya.
+
+Periksa:
+- Daftar pilihan.
+- Parameter.
+- Target.
+- Kondisi.
+- Event.
+- Hubungan dengan objek.
+- Hubungan dengan halaman.
+- Perilaku saat dieksekusi.
+
+Jangan menganggap sistem Action berbeda untuk setiap objek. Periksa apakah objek menggunakan sistem Action bersama.
+
+---
+
+## 19. INVENTARISASI REKOMENDASI DAN PANDUAN
+
+Ini merupakan bagian penting yang tidak boleh terlewat.
+
+Periksa semua bentuk bantuan dan rekomendasi pada Inspector maupun area lain.
+
+Inventarisasi:
+- Rekomendasi komponen.
+- Rekomendasi layout.
+- Rekomendasi konten.
+- Preset.
+- Template internal.
+- Pilihan tampilan.
+- Panduan penggunaan.
+- Informasi kontekstual.
+- Placeholder.
+- Empty State.
+- Tooltip.
+- Help Text.
+- Onboarding.
+- Saran berdasarkan objek.
+- Pilihan yang muncul berdasarkan kondisi.
+
+Untuk setiap item, catat:
+- Nama.
+- Lokasi.
+- Objek yang memunculkan rekomendasi.
+- Isi rekomendasi.
+- Pilihan yang tersedia.
+- Cara pengguna memilihnya.
+- Hasil setelah dipilih.
+- Apakah rekomendasi bersifat statis atau dinamis.
+
+---
+
+## 20. INVENTARISASI SISTEM RESPONSIVE
+
+Periksa implementasi Responsive yang sudah tersedia.
+
+Inventarisasi:
+- Device Selector.
+- Desktop Mode.
+- Tablet Mode.
+- Mobile Mode.
+- Breakpoint.
+- Pengaturan per perangkat.
+- Nilai default.
+- Inherited Values.
+- Override.
+- Visibility per perangkat.
+- Layout per perangkat.
+- Ukuran per perangkat.
+- Tipografi per perangkat.
+- Jarak per perangkat.
+- Background per perangkat.
+- Pengaturan khusus objek.
+
+Periksa apakah pergantian mode perangkat mengubah preview Canvas dan apakah pengaturan tersimpan secara terpisah.
+
+---
+
+# BAGIAN V — PENELUSURAN SOURCE CODE
+
+## 21. SOURCE CODE DEEP TRACE
+
+Jangan berhenti pada pemeriksaan tampilan UI.
+
+Telusuri source code untuk setiap fitur utama dan pengaturan yang ditemukan.
+
+Periksa hubungan:
+
+**UI Component → Event Handler → State → Function/Logic → Data → Canvas/Layer/Inspector**
+
+Inventarisasi:
+
+### A. Komponen
+- Nama file.
+- Nama komponen.
+- Lokasi.
+- Fungsi.
+- Parent component.
+- Child component.
+- Props.
+- Dependencies.
+
+### B. Fungsi
+- Nama fungsi.
+- File lokasi.
+- Tujuan.
+- Parameter.
+- Return.
+- Pemanggil.
+- Fungsi yang dipanggil.
+- Kondisi eksekusi.
+
+### C. State dan Data
+- Nama state.
+- Struktur data.
+- Default value.
+- Perubahan state.
+- Sumber perubahan.
+- Efek perubahan.
+- Hubungan dengan Canvas.
+- Hubungan dengan Layer.
+- Hubungan dengan Inspector.
+
+### D. Event Handler
+- Click.
+- Change.
+- Drag.
+- Drop.
+- Resize.
+- Select.
+- Delete.
+- Update.
+- Submit.
+- Event lainnya.
+
+### E. Penyimpanan
+- Penyimpanan properti objek.
+- Penyimpanan project.
+- Penyimpanan media.
+- Penyimpanan konfigurasi.
+- Penyimpanan responsive.
+- Relasi data.
+- Mekanisme load dan save.
+
+### Format tabel Source Code
+
+| No. | Fitur UI | File | Komponen | Fungsi | State/Data | Event Handler | Hubungan Implementasi |
+|---|---|---|---|---|---|---|---|
+
+Jangan hanya memberikan daftar nama file. Jelaskan hubungan implementasinya.
+
+Jika sebuah fungsi memiliki implementasi tersebar di beberapa file, catat seluruh file yang relevan.
+
+---
+
+# BAGIAN VI — PEMETAAN DAN VALIDASI
+
+## 22. MASTER RELATIONSHIP MAPPING
+
+Buat pemetaan lengkap:
+
+**ALAT / BLOK → CANVAS → LAYER → INSPECTOR → SOURCE CODE**
+
+### Format tabel
+
+| No. | Alat/Blok | Objek Canvas | Layer | Inspector Konten | Inspector Desain | Source Code |
+|---|---|---|---|---|---|---|
+
+Pastikan setiap objek dan fungsi dapat ditelusuri.
+
+Jika hubungan tidak ditemukan, tandai sebagai belum terverifikasi.
+
+---
+
+## 23. INVENTARISASI KONDISIONAL
+
+Periksa semua pengaturan yang hanya muncul dalam kondisi tertentu.
+
+Contohnya:
+- Pengaturan khusus jenis objek.
+- Pengaturan yang muncul setelah memilih preset.
+- Pengaturan yang muncul setelah mengaktifkan toggle.
+- Pengaturan berdasarkan Parent atau Child.
+- Pengaturan berdasarkan sumber data.
+- Pengaturan berdasarkan mode perangkat.
+- Pengaturan berdasarkan jenis Action.
+- Pengaturan berdasarkan kondisi konten.
+
+### Format tabel
+
+| No. | Objek | Pengaturan | Kondisi Pemicu | Pengaturan yang Muncul | Lokasi | Implementasi |
+|---|---|---|---|---|---|---|
+
+Jangan melewatkan pengaturan tersembunyi atau bertingkat.
+
+---
+
+## 24. VALIDASI IMPLEMENTASI
+
+Bedakan keberadaan UI dengan keberadaan implementasi.
+
+Gunakan status berikut:
+
+| Status | Arti |
+|---|---|
+| ACTIVE | UI tersedia dan implementasi berfungsi |
+| UI ONLY | UI tersedia tetapi implementasi belum ditemukan atau belum terverifikasi |
+| CODE ONLY | Implementasi ditemukan tetapi tidak ditemukan akses UI normal |
+| CONDITIONAL | Muncul atau bekerja berdasarkan kondisi tertentu |
+| HIDDEN | Tersedia tetapi tersembunyi |
+| INACTIVE | Tidak aktif |
+| INCOMPLETE | Implementasi belum lengkap |
+| NOT FOUND | Tidak ditemukan setelah pemeriksaan yang relevan |
+| UNVERIFIED | Belum dapat dibuktikan |
+
+Untuk status ACTIVE, lakukan verifikasi perilaku apabila aman dan memungkinkan.
+
+Jangan mengklaim suatu fungsi berfungsi hanya berdasarkan keberadaan kode atau nama komponen.
+
+---
+
+# BAGIAN VII — OUTPUT MASTER INVENTORY
+
+## 25. STRUKTUR LAPORAN AKHIR
+
+Hasil inventarisasi wajib disusun dalam bagian berikut:
+
+1. Executive Summary.
+2. Master Inventory Alat.
+3. Master Inventory Blok.
+4. Master Inventory Canvas.
+5. Master Inventory Layer.
+6. Master Inventory Inspector Konten.
+7. Master Inventory Inspector Desain.
+8. Master Inventory Objek Canvas.
+9. Master Inventory Image.
+10. Master Inventory Shape.
+11. Master Inventory Container dan Layout.
+12. Master Inventory Background.
+13. Master Inventory Cover dan Logo.
+14. Master Inventory Media Library dan Upload.
+15. Master Inventory Action dan Navigation.
+16. Master Inventory Rekomendasi, Preset, dan Panduan.
+17. Master Inventory Responsive.
+18. Master Inventory Source Code.
+19. Master Relationship Mapping.
+20. Master Conditional Settings.
+21. Daftar Item yang Belum Terverifikasi.
+
+### Ketentuan tabel
+
+- Gunakan nomor urut yang konsisten.
+- Satu pengaturan per baris.
+- Jangan menggabungkan beberapa properti berbeda menjadi satu baris.
+- Pertahankan nama asli dari UI dan source code.
+- Tambahkan penjelasan dalam bahasa Indonesia.
+- Catat lokasi UI.
+- Catat bukti source code.
+- Bedakan item yang sama tetapi memiliki implementasi berbeda.
+- Jika data sangat banyak, pecah menjadi beberapa tabel.
+- Jangan meringkas dengan menghilangkan detail.
+
+---
+
+## 26. PEMERIKSAAN KELENGKAPAN
+
+Sebelum menyatakan inventarisasi selesai, lakukan pemeriksaan ulang:
+
+1. Apakah semua kategori Alat sudah diperiksa?
+2. Apakah semua subkategori dan submenu sudah diperiksa?
+3. Apakah semua Blok sudah diperiksa?
+4. Apakah semua jenis objek Canvas sudah diidentifikasi?
+5. Apakah semua jenis Layer sudah diperiksa?
+6. Apakah kedua tab Inspector sudah diperiksa?
+7. Apakah semua kelompok dan subkelompok Inspector sudah dicatat?
+8. Apakah semua kontrol dan pilihan sudah dicatat?
+9. Apakah rekomendasi dan preset sudah diinventarisasi?
+10. Apakah pengaturan kondisional sudah diperiksa?
+11. Apakah Image, Shape, Container, Background, Cover, dan Logo sudah diperiksa?
+12. Apakah Upload dan Media Library sudah diperiksa?
+13. Apakah pengaturan tipografi dan warna sudah diperiksa?
+14. Apakah hubungan Parent dan Child sudah ditelusuri?
+15. Apakah Responsive sudah diperiksa?
+16. Apakah Action dan Navigation sudah ditelusuri?
+17. Apakah source code sudah ditelusuri?
+18. Apakah hubungan antarbagian sudah dipetakan?
+19. Apakah setiap temuan memiliki bukti atau status verifikasi?
+
+Jika ada bagian yang belum diperiksa, tuliskan secara eksplisit.
+
+Jangan menyatakan audit lengkap jika masih ada bagian yang belum diperiksa.
+
+---
+
+# BAGIAN VIII — INSTRUKSI PENUTUP
+
+Pekerjaan ini bukan audit untuk memperbaiki aplikasi dan bukan perancangan ulang.
+
+Saya hanya ingin mengetahui secara mendalam seluruh kondisi Visual Editor Lynk Builder saat ini.
+
+Hasil akhir harus menjadi **MASTER INVENTORY VISUAL EDITOR LYNK BUILDER** yang dapat dijadikan sumber informasi utama untuk diskusi dan pengambilan keputusan berikutnya.
+
+Jangan memberikan rekomendasi perubahan struktur, jangan membuat desain Inspector baru, dan jangan mengusulkan implementasi sebelum diminta.
+
+Jika terdapat keterbatasan waktu atau kemampuan pemeriksaan, jangan mengarang hasil. Dokumentasikan bagian yang sudah diperiksa dan bagian yang belum diperiksa.
+
+**PRIORITAS UTAMA: KELENGKAPAN DATA, KETEPATAN INFORMASI, KEDALAMAN PENELUSURAN, DAN KETERLACAKAN SETIAP TEMUAN.**
+
+**SELESAIKAN INVENTARISASI DAN TAMPILKAN SELURUH TABEL. SETELAH ITU BERHENTI DAN TUNGGU PERSETUJUAN UNTUK TAHAP SELANJUTNYA.**

@@ -9,7 +9,11 @@ import { BusinessSettingsPage } from './components/BusinessSettingsPage';
 import { SystemSettingsPage, SystemTabId } from './components/SystemSettingsPage';
 import { LoginPage } from './components/LoginPage';
 import { ImportedPayload, PreviewModal } from './components/Modals';
-import { getBlockThemeStatus, getDefaultBlockBgForTheme } from './utils/blockThemeHelpers';
+import {
+  getBlockThemeStatus,
+  getDefaultBlockBgForTheme,
+  resetBlockThemeToGlobal,
+} from './utils/blockThemeHelpers';
 import {
   AccessRole,
   AccessSettingsConfig,
@@ -26,6 +30,7 @@ import {
   ProjectRecord,
   ServerSyncState,
   UiAppearanceSettingsConfig,
+  ViewportBreakpoint,
   WhatsappCenterConfig,
   WorkspaceBundle,
 } from './types/builder';
@@ -52,6 +57,12 @@ import {
   reorderBlockInTree,
   updateBlockById,
 } from './utils/treeHelpers';
+import {
+  deleteSubLayerIndependently,
+  findExtractedSubLayer,
+  toggleSubLayerLock,
+  toggleSubLayerVisibility,
+} from './utils/layerStructure';
 import { generateProjectHtml } from './utils/htmlExporter';
 import { sanitizeBuilderProject } from './utils/htmlSanitizer';
 import {
@@ -233,6 +244,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(
     () => workspace.projects[0]?.project.blocks[0]?.id ?? null
   );
+  const [selectedSubLayerId, setSelectedSubLayerId] = useState<string | null>(null);
   const [copyWarning, setCopyWarning] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -266,8 +278,11 @@ export default function App() {
   const [activePage, setActivePage] = useState<WorkspacePageId>('editor');
   const [systemSubTab, setSystemSubTab] = useState<SystemTabId>('daftar_usaha');
   const [navbarFocusNonce, setNavbarFocusNonce] = useState<number>(0);
-  const [contentFocusNonce, setContentFocusNonce] = useState<number>(0);
+  const [contentFocusNonce] = useState<number>(0);
   const [layerFocusNonce, setLayerFocusNonce] = useState<number>(0);
+  const [canvasScrollNonce, setCanvasScrollNonce] = useState<number>(0);
+  const [viewportBreakpoint, setViewportBreakpoint] = useState<ViewportBreakpoint>('mobile');
+  const [canvasInteractionMode, setCanvasInteractionMode] = useState<'pointer' | 'drag'>('pointer');
   const [accessSettings, setAccessSettings] = useState<AccessSettingsConfig>(() =>
     createDefaultAccessSettings()
   );
@@ -860,21 +875,39 @@ export default function App() {
 
   const handleSelectBlock = (id: string | null) => {
     setSelectedId(id);
+    setSelectedSubLayerId(null);
     if (id) {
       setInspectorMode('element');
+      setCanvasScrollNonce((n) => n + 1);
     }
   };
 
+  const handleSelectSubLayer = (blockId: string, subLayerId: string | null) => {
+    setSelectedId(blockId);
+    setSelectedSubLayerId(subLayerId);
+    setInspectorMode('element');
+    setCanvasScrollNonce((n) => n + 1);
+  };
+
   const handleCanvasSelectBlock = (id: string | null) => {
-    handleSelectBlock(id);
-    setLayerFocusNonce((n) => n + 1);
+    setSelectedId(id);
+    setSelectedSubLayerId(null);
     if (id) {
-      setContentFocusNonce((n) => n + 1);
+      setInspectorMode('element');
     }
+    setLayerFocusNonce((n) => n + 1);
+  };
+
+  const handleCanvasSelectSubLayer = (blockId: string, subLayerId: string | null) => {
+    setSelectedId(blockId);
+    setSelectedSubLayerId(subLayerId);
+    setInspectorMode('element');
+    setLayerFocusNonce((n) => n + 1);
   };
 
   const handleOpenNavbarSettings = (itemId?: string) => {
     setSelectedId(null);
+    setSelectedSubLayerId(null);
     setInspectorMode('navbar');
     setNavbarFocusNonce((n) => n + 1);
     if (itemId) setActiveNavItemId(itemId);
@@ -890,6 +923,7 @@ export default function App() {
   const handleSelectSubPage = (pageId: string | null) => {
     if (!project) return;
     setActiveSubPageId(pageId);
+    setSelectedSubLayerId(null);
     if (!pageId) {
       setSelectedId(project.blocks[0]?.id ?? null);
     } else {
@@ -1179,6 +1213,7 @@ export default function App() {
     const created = section.createBlocks(project.theme);
     const activePageTargetId = activeSubPage?.id ?? null;
     commitProject((prev) => {
+      const curNav = resolveBottomNavbar(prev);
       if (activePageTargetId && prev.pages?.some((pg) => pg.id === activePageTargetId)) {
         return {
           ...prev,
@@ -1194,11 +1229,18 @@ export default function App() {
           ),
         };
       }
+      const nextNavItems = targetId
+        ? curNav.items.map((it) => ({
+            ...it,
+            children: insertBlocksAtTarget(it.children, created, targetId, position),
+          }))
+        : curNav.items;
       return {
         ...prev,
         blocks: targetId
           ? insertBlocksAtTarget(prev.blocks, created, targetId, position)
           : [...prev.blocks, ...created],
+        bottomNavbar: prev.bottomNavbar ? { ...curNav, items: nextNavItems } : prev.bottomNavbar,
       };
     });
     if (created[0]) {
@@ -1504,6 +1546,18 @@ export default function App() {
   };
 
   const handleDeleteBlock = (id: string) => {
+    if (project) {
+      const target =
+        findBlockById(project.blocks, id) ||
+        (project.pages ?? []).map((pg) => findBlockById(pg.blocks, id)).find(Boolean) ||
+        resolveBottomNavbar(project)
+          .items.map((it) => findBlockById(it.children, id))
+          .find(Boolean);
+      if (target?.style?.locked) {
+        showSaveToast('warn', 'Lapisan sedang terkunci. Buka kunci terlebih dahulu untuk menghapus.');
+        return;
+      }
+    }
     commitProject((prev) => {
       const curNav = prev.bottomNavbar;
       return {
@@ -1526,7 +1580,37 @@ export default function App() {
           : curNav,
       };
     });
-    if (selectedId === id) setSelectedId(null);
+    if (selectedId === id) {
+      setSelectedId(null);
+      setSelectedSubLayerId(null);
+    }
+  };
+
+  const handleToggleSubLayerVisibility = (blockId: string, subLayerId: string) => {
+    handleUpdateBlock(blockId, (blk) => toggleSubLayerVisibility(blk, subLayerId));
+  };
+
+  const handleToggleSubLayerLock = (blockId: string, subLayerId: string) => {
+    handleUpdateBlock(blockId, (blk) => toggleSubLayerLock(blk, subLayerId));
+  };
+
+  const handleDeleteSubLayer = (blockId: string, subLayerId: string) => {
+    if (project) {
+      const parent =
+        findBlockById(project.blocks, blockId) ||
+        (project.pages ?? []).map((pg) => findBlockById(pg.blocks, blockId)).find(Boolean) ||
+        resolveBottomNavbar(project)
+          .items.map((it) => findBlockById(it.children, blockId))
+          .find(Boolean);
+      if (parent?.content?.lockedSubLayers?.includes(subLayerId)) {
+        showSaveToast('warn', 'Sub-lapisan sedang terkunci. Buka kunci terlebih dahulu untuk menghapus.');
+        return;
+      }
+    }
+    handleUpdateBlock(blockId, (blk) => deleteSubLayerIndependently(blk, subLayerId));
+    if (selectedId === blockId && selectedSubLayerId === subLayerId) {
+      setSelectedSubLayerId(null);
+    }
   };
 
   const handleBackup = () => {
@@ -2042,11 +2126,38 @@ export default function App() {
           e.preventDefault();
           handlePasteBlock();
         }
+        return;
+      }
+      if (!isEditable && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const lowerKey = e.key.toLowerCase();
+        if (lowerKey === 'v') {
+          setCanvasInteractionMode('pointer');
+          return;
+        }
+        if (lowerKey === 'd' || lowerKey === 'h') {
+          setCanvasInteractionMode('drag');
+          return;
+        }
+        if (e.key === 'Escape' && selectedSubLayerId) {
+          setSelectedSubLayerId(null);
+          setLayerFocusNonce((n) => n + 1);
+          return;
+        }
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditable && !e.ctrlKey && !e.metaKey) {
+        if (selectedIdRef.current && window.getSelection()?.toString() === '') {
+          e.preventDefault();
+          if (selectedSubLayerId) {
+            handleDeleteSubLayer(selectedIdRef.current, selectedSubLayerId);
+          } else {
+            handleDeleteBlock(selectedIdRef.current);
+          }
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canRedo, canUndo, copiedBlock, handleCopyBlock, handlePasteBlock, handleRedo, handleSaveProject, handleUndo]);
+  }, [canRedo, canUndo, copiedBlock, handleCopyBlock, handlePasteBlock, handleRedo, handleSaveProject, handleUndo, selectedSubLayerId]);
 
   const handleApplyDomainAndAds = async (
     nextPublishing: ProjectPublishingConfig,
@@ -2251,6 +2362,7 @@ export default function App() {
     navItemId: selectedParentNavId,
     navItemLabel: selectedParentNavLabel,
   } = findBlockAndNavParent();
+  const selectedSubLayer = findExtractedSubLayer(selectedBlock, selectedSubLayerId);
 
   if (authLoading) {
     return (
@@ -2443,6 +2555,7 @@ export default function App() {
           onDuplicateSubPage={handleDuplicateSubPage}
           onDeleteSubPage={handleDeleteSubPage}
           selectedId={selectedBlock?.id ?? null}
+          selectedSubLayerId={selectedSubLayer?.id ?? null}
           theme={project.theme}
           advanceOptions={project.advanceOptions}
           bottomNavbar={bottomNavbar}
@@ -2454,10 +2567,45 @@ export default function App() {
           onUpdateBottomNavbar={handleUpdateBottomNavbar}
           onSelectNavItem={setActiveNavItemId}
           onSelectBlock={handleSelectBlock}
+          onSelectSubLayer={handleSelectSubLayer}
+          onToggleSubLayerVisibility={handleToggleSubLayerVisibility}
+          onToggleSubLayerLock={handleToggleSubLayerLock}
+          onDeleteSubLayer={handleDeleteSubLayer}
           onMoveBlock={handleMoveBlock}
           onReorderBlock={handleReorderBlock}
           onDuplicateBlock={handleDuplicateBlock}
           onDeleteBlock={handleDeleteBlock}
+          onUpdateBlock={handleUpdateBlock}
+          onResetPageThemeOverrides={() => {
+            const resetTree = (nodes: BuilderBlock[]): BuilderBlock[] =>
+              nodes.map((blk) => {
+                const resetSelf = resetBlockThemeToGlobal(blk, project.theme);
+                return {
+                  ...resetSelf,
+                  children: resetSelf.children ? resetTree(resetSelf.children) : resetSelf.children,
+                  content: {
+                    ...resetSelf.content,
+                    cardFooterBlocks: resetSelf.content.cardFooterBlocks
+                      ? resetTree(resetSelf.content.cardFooterBlocks)
+                      : resetSelf.content.cardFooterBlocks,
+                    actionSheetBlocks: resetSelf.content.actionSheetBlocks
+                      ? resetTree(resetSelf.content.actionSheetBlocks)
+                      : resetSelf.content.actionSheetBlocks,
+                  },
+                };
+              });
+            commitProject((prev) => {
+              if (!activeSubPage) {
+                return { ...prev, blocks: resetTree(prev.blocks) };
+              }
+              return {
+                ...prev,
+                pages: (prev.pages ?? []).map((pg) =>
+                  pg.id === activeSubPage.id ? { ...pg, blocks: resetTree(pg.blocks) } : pg
+                ),
+              };
+            });
+          }}
           onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
         />
 
@@ -2472,6 +2620,12 @@ export default function App() {
           bottomNavbar={bottomNavbar}
           inspectorMode={inspectorMode}
           selectedId={selectedId}
+          selectedSubLayerId={selectedSubLayer?.id ?? null}
+          selectedSubLayerLabel={selectedSubLayer?.label ?? null}
+          onSelectSubLayer={handleCanvasSelectSubLayer}
+          interactionMode={canvasInteractionMode}
+          onChangeInteractionMode={setCanvasInteractionMode}
+          canvasScrollNonce={canvasScrollNonce}
           remotePeersByBlock={remotePeersByBlock}
           canUndo={canUndo}
           onUndo={handleUndo}
@@ -2481,6 +2635,8 @@ export default function App() {
           onCopyBlock={handleCopyBlock}
           onPasteBlock={handlePasteBlock}
           onOpenPreview={() => setShowPreview(true)}
+          viewportBreakpoint={viewportBreakpoint}
+          onViewportBreakpointChange={setViewportBreakpoint}
           onSelectBlock={handleCanvasSelectBlock}
           onOpenNavbarSettings={handleOpenNavbarSettings}
           onMoveBlock={handleMoveBlock}
@@ -2509,6 +2665,9 @@ export default function App() {
 
         <RightInspector
           selectedBlock={selectedBlock}
+          selectedSubLayer={selectedSubLayer}
+          onClearSubLayer={() => setSelectedSubLayerId(null)}
+          onSelectSubLayer={handleSelectSubLayer}
           allBlocks={currentCanvasBlocks}
           pages={subPages}
           activeSubPageId={activeSubPage?.id ?? null}
@@ -2521,11 +2680,18 @@ export default function App() {
           advanceOptions={project.advanceOptions}
           selectedParentNavId={selectedParentNavId}
           selectedParentNavLabel={selectedParentNavLabel}
+          inspectorMode={inspectorMode === 'navbar' ? 'navbar' : 'block'}
+          bottomNavbar={bottomNavbar}
+          activeNavItemId={activeNavItemId}
+          activeViewportBreakpoint={viewportBreakpoint}
+          onChangeViewportBreakpoint={setViewportBreakpoint}
           contentFocusNonce={contentFocusNonce}
           canPaste={Boolean(copiedBlock)}
           onCopyBlock={handleCopyBlock}
           onPasteBlock={handlePasteBlock}
           onOpenNavbarSettings={handleOpenNavbarSettings}
+          onUpdateBottomNavbar={handleUpdateBottomNavbar}
+          onSelectNavItem={setActiveNavItemId}
           onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
           onUpdateBlock={handleUpdateBlock}
           onDuplicateBlock={handleDuplicateBlock}

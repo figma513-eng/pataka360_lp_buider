@@ -496,9 +496,77 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
             accentColor: Boolean(block.style.themeOverrideTokens.accentColor),
           }
         : undefined,
+      responsive: block.style?.responsive
+        ? (() => {
+            const sanitizeLayer = (
+              raw?: NonNullable<BuilderBlock['style']['responsive']>['tablet']
+            ) => {
+              if (!raw || typeof raw !== 'object') return undefined;
+              const out: NonNullable<BuilderBlock['style']['responsive']>['tablet'] = {};
+              const clampNum = (v: unknown, min: number, max: number) =>
+                typeof v === 'number' && Number.isFinite(v)
+                  ? Math.max(min, Math.min(max, Math.round(v)))
+                  : undefined;
+              if (raw.widthPercent !== undefined) out.widthPercent = clampNum(raw.widthPercent, 10, 100);
+              if (raw.minWidth !== undefined) out.minWidth = clampNum(raw.minWidth, 0, 1280);
+              if (raw.maxWidth !== undefined) out.maxWidth = clampNum(raw.maxWidth, 0, 1280);
+              if (raw.heightPx !== undefined) out.heightPx = clampNum(raw.heightPx, 0, 1600);
+              if (raw.minHeight !== undefined) out.minHeight = clampNum(raw.minHeight, 0, 1200);
+              if (raw.maxHeight !== undefined) out.maxHeight = clampNum(raw.maxHeight, 0, 1600);
+              if (
+                raw.displayMode === 'block' ||
+                raw.displayMode === 'flex' ||
+                raw.displayMode === 'grid' ||
+                raw.displayMode === 'inline-flex'
+              ) {
+                out.displayMode = raw.displayMode;
+              }
+              if (
+                raw.flexDirection === 'column' ||
+                raw.flexDirection === 'row' ||
+                raw.flexDirection === 'column-reverse' ||
+                raw.flexDirection === 'row-reverse'
+              ) {
+                out.flexDirection = raw.flexDirection;
+              }
+              if (
+                raw.alignItems === 'stretch' ||
+                raw.alignItems === 'flex-start' ||
+                raw.alignItems === 'center' ||
+                raw.alignItems === 'flex-end'
+              ) {
+                out.alignItems = raw.alignItems;
+              }
+              if (
+                raw.justifyContent === 'flex-start' ||
+                raw.justifyContent === 'center' ||
+                raw.justifyContent === 'flex-end' ||
+                raw.justifyContent === 'space-between' ||
+                raw.justifyContent === 'space-around'
+              ) {
+                out.justifyContent = raw.justifyContent;
+              }
+              if (raw.flexWrap === 'nowrap' || raw.flexWrap === 'wrap') {
+                out.flexWrap = raw.flexWrap;
+              }
+              if (raw.gap !== undefined) out.gap = clampNum(raw.gap, 0, 64);
+              if (raw.paddingTop !== undefined) out.paddingTop = clampNum(raw.paddingTop, 0, 96);
+              if (raw.paddingRight !== undefined) out.paddingRight = clampNum(raw.paddingRight, 0, 96);
+              if (raw.paddingBottom !== undefined) out.paddingBottom = clampNum(raw.paddingBottom, 0, 96);
+              if (raw.paddingLeft !== undefined) out.paddingLeft = clampNum(raw.paddingLeft, 0, 96);
+              if (raw.marginTop !== undefined) out.marginTop = clampNum(raw.marginTop, 0, 96);
+              if (raw.marginBottom !== undefined) out.marginBottom = clampNum(raw.marginBottom, 0, 96);
+              return Object.keys(out).length > 0 ? out : undefined;
+            };
+            const tablet = sanitizeLayer(block.style.responsive.tablet);
+            const mobile = sanitizeLayer(block.style.responsive.mobile);
+            return tablet || mobile ? { ...(tablet ? { tablet } : {}), ...(mobile ? { mobile } : {}) } : undefined;
+          })()
+        : undefined,
     },
     content: {
       ...c,
+      videoMuted: typeof c.videoMuted === 'boolean' ? c.videoMuted : c.videoMuted,
       src: c.src ? sanitizeImageOrMediaUrl(c.src) : c.src,
       url: c.url ? sanitizeExternalUrl(c.url, '#') : c.url,
       heroLogoImage: c.heroLogoImage ? sanitizeImageOrMediaUrl(c.heroLogoImage) : c.heroLogoImage,
@@ -530,6 +598,20 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       fnbFloatingCartBg: c.fnbFloatingCartBg
         ? sanitizeCssColor(c.fnbFloatingCartBg, '#EA580C')
         : c.fnbFloatingCartBg,
+      fnbFloatingCartPosition:
+        c.fnbFloatingCartPosition === 'bottom-floating' ||
+        c.fnbFloatingCartPosition === 'bottom-docked' ||
+        c.fnbFloatingCartPosition === 'top-floating' ||
+        c.fnbFloatingCartPosition === 'bottom-left' ||
+        c.fnbFloatingCartPosition === 'bottom-right' ||
+        c.fnbFloatingCartPosition === 'top-left' ||
+        c.fnbFloatingCartPosition === 'top-right'
+          ? c.fnbFloatingCartPosition
+          : c.fnbFloatingCartPosition,
+      thickness:
+        typeof c.thickness === 'number' && Number.isFinite(c.thickness)
+          ? Math.max(1, Math.min(12, Math.round(c.thickness)))
+          : c.thickness,
       categoryActiveBg: c.categoryActiveBg
         ? sanitizeCssColor(c.categoryActiveBg, '#EA580C')
         : c.categoryActiveBg,
@@ -564,6 +646,14 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       trainingCustomBoxes: sanitizedCustomBoxes,
       trainingMedia: sanitizedTrainingMedia,
       carouselItems: sanitizedCarousel,
+      carouselShowDots:
+        typeof c.carouselShowDots === 'boolean' ? c.carouselShowDots : c.carouselShowDots,
+      carouselShowArrows:
+        typeof c.carouselShowArrows === 'boolean' ? c.carouselShowArrows : c.carouselShowArrows,
+      carouselShowScrollbar:
+        typeof c.carouselShowScrollbar === 'boolean'
+          ? c.carouselShowScrollbar
+          : c.carouselShowScrollbar,
       socialItems: sanitizedSocialItems,
       socialFollowerAccounts: sanitizedSocialFollowers,
       socialFeedPosts: sanitizedSocialPosts,
@@ -575,6 +665,10 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         c.categoryScrollMode === 'wrap'
           ? c.categoryScrollMode
           : c.categoryScrollMode,
+      categoryShowScrollbar:
+        typeof c.categoryShowScrollbar === 'boolean'
+          ? c.categoryShowScrollbar
+          : c.categoryShowScrollbar,
       rowLayoutMode:
         c.rowLayoutMode === 'horizontal' ||
         c.rowLayoutMode === 'vertical' ||
@@ -601,6 +695,9 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.rowGap === 'number' && Number.isFinite(c.rowGap)
           ? Math.max(0, Math.min(32, Math.round(c.rowGap)))
           : c.rowGap,
+      rowShowDots: typeof c.rowShowDots === 'boolean' ? c.rowShowDots : c.rowShowDots,
+      rowShowScrollbar:
+        typeof c.rowShowScrollbar === 'boolean' ? c.rowShowScrollbar : c.rowShowScrollbar,
       menuIconImage: c.menuIconImage ? sanitizeImageOrMediaUrl(c.menuIconImage) : c.menuIconImage,
       menuIconShape:
         c.menuIconShape === 'circle' ||
@@ -640,6 +737,13 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         c.menuIconSheetPosition === 'top'
           ? c.menuIconSheetPosition
           : c.menuIconSheetPosition,
+      sheetPosition:
+        c.sheetPosition === 'bottom' ||
+        c.sheetPosition === 'right' ||
+        c.sheetPosition === 'left' ||
+        c.sheetPosition === 'top'
+          ? c.sheetPosition
+          : undefined,
       menuIconBg: c.menuIconBg ? sanitizeCssColor(c.menuIconBg, '#F0F5FA') : c.menuIconBg,
       menuIconTextColor: c.menuIconTextColor
         ? sanitizeCssColor(c.menuIconTextColor, '#17243D')
@@ -656,6 +760,16 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       cartFloatingBg: c.cartFloatingBg
         ? sanitizeCssColor(c.cartFloatingBg, '#059669')
         : c.cartFloatingBg,
+      cartFloatingPosition:
+        c.cartFloatingPosition === 'bottom-floating' ||
+        c.cartFloatingPosition === 'bottom-docked' ||
+        c.cartFloatingPosition === 'top-floating' ||
+        c.cartFloatingPosition === 'bottom-left' ||
+        c.cartFloatingPosition === 'bottom-right' ||
+        c.cartFloatingPosition === 'top-left' ||
+        c.cartFloatingPosition === 'top-right'
+          ? c.cartFloatingPosition
+          : c.cartFloatingPosition,
       cardImage: c.cardImage ? sanitizeImageOrMediaUrl(c.cardImage) : c.cardImage,
       cardGalleryImages: Array.isArray(c.cardGalleryImages)
         ? c.cardGalleryImages.map((g) => sanitizeImageOrMediaUrl(g))
@@ -745,6 +859,8 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
           ? c.actionType
           : c.actionType,
       actionUrl: c.actionUrl ? sanitizeExternalUrl(c.actionUrl, '') : c.actionUrl,
+      buttonOpenInNewTab:
+        typeof c.buttonOpenInNewTab === 'boolean' ? c.buttonOpenInNewTab : c.buttonOpenInNewTab,
       actionSheetPosition:
         c.actionSheetPosition === 'bottom' ||
         c.actionSheetPosition === 'right' ||
@@ -767,6 +883,17 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.cardHideDefaultFooter === 'boolean'
           ? c.cardHideDefaultFooter
           : c.cardHideDefaultFooter,
+      heroHideDefaultContent:
+        typeof c.heroHideDefaultContent === 'boolean'
+          ? c.heroHideDefaultContent
+          : c.heroHideDefaultContent,
+      heroChildrenPosition:
+        c.heroChildrenPosition === 'on_cover' ||
+        c.heroChildrenPosition === 'inside_card' ||
+        c.heroChildrenPosition === 'below_card' ||
+        c.heroChildrenPosition === 'overlap_cover'
+          ? c.heroChildrenPosition
+          : c.heroChildrenPosition,
       cardFooterBlocks: Array.isArray(c.cardFooterBlocks)
         ? c.cardFooterBlocks.map(sanitizeBlockTree)
         : c.cardFooterBlocks,
@@ -787,6 +914,16 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       universalCartFloatingBg: c.universalCartFloatingBg
         ? sanitizeCssColor(c.universalCartFloatingBg, '#059669')
         : c.universalCartFloatingBg,
+      universalCartFloatingPosition:
+        c.universalCartFloatingPosition === 'bottom-floating' ||
+        c.universalCartFloatingPosition === 'bottom-docked' ||
+        c.universalCartFloatingPosition === 'top-floating' ||
+        c.universalCartFloatingPosition === 'bottom-left' ||
+        c.universalCartFloatingPosition === 'bottom-right' ||
+        c.universalCartFloatingPosition === 'top-left' ||
+        c.universalCartFloatingPosition === 'top-right'
+          ? c.universalCartFloatingPosition
+          : c.universalCartFloatingPosition,
       universalCartUnitSold:
         typeof c.universalCartUnitSold === 'number' && Number.isFinite(c.universalCartUnitSold)
           ? Math.max(0, Math.min(9999999, Math.round(c.universalCartUnitSold)))
@@ -799,6 +936,13 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       backButtonText: c.backButtonText
         ? sanitizeCssColor(c.backButtonText, '#0F172A')
         : c.backButtonText,
+      backButtonIcon:
+        typeof c.backButtonIcon === 'string'
+          ? (c.backButtonIcon.replace(/[^\w-]/g, '').slice(0, 40) as BuilderBlock['content']['backButtonIcon'])
+          : c.backButtonIcon,
+      backButtonIconColor: c.backButtonIconColor
+        ? sanitizeCssColor(c.backButtonIconColor, '#0F172A')
+        : c.backButtonIconColor,
       backTargetPageId:
         typeof c.backTargetPageId === 'string'
           ? c.backTargetPageId.replace(/[^\w-]/g, '').slice(0, 80)
@@ -826,6 +970,10 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.sliderAutoplayIntervalMs === 'number' && Number.isFinite(c.sliderAutoplayIntervalMs)
           ? Math.max(1200, Math.min(15000, Math.round(c.sliderAutoplayIntervalMs)))
           : c.sliderAutoplayIntervalMs,
+      sliderShowScrollbar:
+        typeof c.sliderShowScrollbar === 'boolean'
+          ? c.sliderShowScrollbar
+          : c.sliderShowScrollbar,
       whatsappTemplateId:
         typeof c.whatsappTemplateId === 'string'
           ? c.whatsappTemplateId.replace(/[^\w-]/g, '').slice(0, 80)
@@ -846,6 +994,20 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
             placeholder: String(fld.placeholder || '').slice(0, 160),
             helpText: fld.helpText ? String(fld.helpText).slice(0, 200) : fld.helpText,
             errorMessage: fld.errorMessage ? String(fld.errorMessage).slice(0, 200) : fld.errorMessage,
+            minLength:
+              typeof fld.minLength === 'number' && Number.isFinite(fld.minLength) && fld.minLength > 0
+                ? Math.min(2000, Math.round(fld.minLength))
+                : undefined,
+            maxLength:
+              typeof fld.maxLength === 'number' && Number.isFinite(fld.maxLength) && fld.maxLength > 0
+                ? Math.min(5000, Math.round(fld.maxLength))
+                : undefined,
+            phoneFormat:
+              fld.phoneFormat === 'whatsapp'
+                ? 'whatsapp'
+                : fld.phoneFormat === 'general'
+                ? 'general'
+                : undefined,
             description: fld.description ? String(fld.description).slice(0, 400) : fld.description,
             options: Array.isArray(fld.options)
               ? fld.options.map((o) => String(o || '').slice(0, 120)).slice(0, 40)
@@ -885,6 +1047,13 @@ export function sanitizeBuilderProject(raw: BuilderProject): BuilderProject {
               ...it,
               iconUrl: it.iconUrl ? sanitizeImageOrMediaUrl(it.iconUrl) : it.iconUrl,
               linkUrl: it.linkUrl ? sanitizeExternalUrl(it.linkUrl, '#') : it.linkUrl,
+              sheetPosition:
+                it.sheetPosition === 'bottom' ||
+                it.sheetPosition === 'right' ||
+                it.sheetPosition === 'left' ||
+                it.sheetPosition === 'top'
+                  ? it.sheetPosition
+                  : undefined,
               children: Array.isArray(it.children) ? it.children.map(sanitizeBlockTree) : [],
             }))
           : [],

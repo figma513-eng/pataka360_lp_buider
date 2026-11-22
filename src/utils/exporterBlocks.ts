@@ -242,23 +242,22 @@ export function renderBlockHtml(
       ? null
       : resolveBlockAction(block);
   const action = rawAction && rawAction.type !== 'none' ? rawAction : null;
+  const isButtonHandledDirectly = block.type === 'button';
   const uc = resolveUniversalCartMeta(block, theme);
 
   if (!action && !uc) return html;
+  if (isButtonHandledDirectly && (!action || action.type !== 'sheet') && !uc) return html;
 
   const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
   let actionAttr = '';
   let actionSheetModalHtml = '';
 
   if (action) {
-    if (action.type === 'url') {
-      const safeUrl = sanitizeExternalUrl(action.url, '');
-      if (safeUrl) {
-        actionAttr = ` data-action-url="${escapeHtml(safeUrl)}" style="cursor: pointer;"`;
-      }
-    } else if (action.type === 'sheet') {
+    if (action.type === 'sheet') {
       const sheetId = `sheet_act_${safeId}`;
-      actionAttr = ` data-sheet-open="${sheetId}" style="cursor: pointer;"`;
+      if (!isButtonHandledDirectly) {
+        actionAttr = ` data-sheet-open="${sheetId}" style="cursor: pointer;"`;
+      }
       const pos = action.sheetPosition;
       const sheetInner = action.sheetBlocks
         .map((ch) => renderBlockHtml(ch, theme, advance, indent + '        ', theme.textColor))
@@ -290,14 +289,21 @@ ${
 ${indent}    </div>
 ${indent}  </div>
 ${indent}</div>`;
-    } else if (action.type === 'page') {
-      actionAttr = ` data-open-page="${escapeHtml(action.targetPageId)}" style="cursor: pointer;"`;
-    } else if (action.type === 'card') {
-      actionAttr = ` data-jump-block="${escapeHtml(action.targetBlockId)}" style="cursor: pointer;"`;
-    } else if (action.type === 'back') {
-      actionAttr = ` data-page-back="1" data-back-target="${escapeHtml(
-        action.targetPageId || ''
-      )}" style="cursor: pointer;"`;
+    } else if (!isButtonHandledDirectly) {
+      if (action.type === 'url') {
+        const safeUrl = sanitizeExternalUrl(action.url, '');
+        if (safeUrl) {
+          actionAttr = ` data-action-url="${escapeHtml(safeUrl)}" style="cursor: pointer;"`;
+        }
+      } else if (action.type === 'page') {
+        actionAttr = ` data-open-page="${escapeHtml(action.targetPageId)}" style="cursor: pointer;"`;
+      } else if (action.type === 'card') {
+        actionAttr = ` data-jump-block="${escapeHtml(action.targetBlockId)}" style="cursor: pointer;"`;
+      } else if (action.type === 'back') {
+        actionAttr = ` data-page-back="1" data-back-target="${escapeHtml(
+          action.targetPageId || ''
+        )}" style="cursor: pointer;"`;
+      }
     }
   }
 
@@ -333,6 +339,9 @@ ${indent}  </div>`;
 
   if (actionAttr || cartBarHtml) {
     return `${indent}<div data-universal-layer="${escapeHtml(block.id)}"${actionAttr}>\n${html}${cartBarHtml}\n${indent}</div>${actionSheetModalHtml}`;
+  }
+  if (actionSheetModalHtml) {
+    return `${html}${actionSheetModalHtml}`;
   }
   return html;
 }
@@ -410,18 +419,21 @@ function renderBlockHtmlInner(
           })
           .join('\n');
 
+        const showScrollbar = Boolean(block.content.sliderShowScrollbar);
+        const scrollbarTrackCss = showScrollbar ? '' : ' scrollbar-width: none;';
         const trackStyle = isHoriz
           ? `display: flex; flex-direction: row; gap: ${gap}px; overflow-x: auto; scroll-behavior: ${
               transition === 'instant' ? 'auto' : 'smooth'
             }; ${
               snap === '1' ? 'scroll-snap-type: x mandatory;' : ''
-            } scrollbar-width: none; -webkit-overflow-scrolling: touch;`
+            }${scrollbarTrackCss} -webkit-overflow-scrolling: touch;`
           : `display: flex; flex-direction: column; gap: ${gap}px; overflow-y: auto; max-height: ${Math.max(
               240,
               block.style.maxHeight || 380
             )}px; scroll-behavior: ${transition === 'instant' ? 'auto' : 'smooth'}; ${
               snap === '1' ? 'scroll-snap-type: y mandatory;' : ''
-            } scrollbar-width: none; -webkit-overflow-scrolling: touch;`;
+            }${scrollbarTrackCss} -webkit-overflow-scrolling: touch;`;
+        const trackClass = showScrollbar ? 'lynk-cslider-track' : 'lynk-cslider-track lynk-hide-scrollbar';
 
         const arrowsHtml =
           showArrows && children.length > 1
@@ -454,7 +466,7 @@ function renderBlockHtmlInner(
             : '';
 
         return `${indent}<div${hoverCls}${jumpAttr} data-lb-cslider="1" data-slider-mode="${mode}" data-visible-items="${visibleItems}" data-gap="${gap}" data-speed="${speedMs}" data-transition="${transition}" data-loop="${loop}" data-autoplay="${autoplay}" data-autoplay-interval="${autoplayMs}" data-touch-swipe="${touchSwipe}" data-mouse-drag="${mouseDrag}" data-snap="${snap}" data-overflow="${overflowMode}" style="${css}; position: relative; overflow: ${overflowMode};">
-${indent}  <div class="lynk-cslider-track" style="${trackStyle}">
+${indent}  <div class="${trackClass}" style="${trackStyle}">
 ${slideItemsHtml}
 ${indent}  </div>${arrowsHtml}${dotsHtml}
 ${indent}</div>`;
@@ -571,9 +583,10 @@ ${indent}    ${iconSvg}<span>${escapeHtml(triggerLabel || 'Buka Bottom Sheet')}<
 ${indent}  </button>`;
       }
 
+      const sheetPos = block.content.sheetPosition ?? 'bottom';
       return `${indent}<div style="${css}; display: flex; justify-content: ${justify};">
 ${indent}  ${triggerHtml}
-${indent}  <div id="${sheetId}" data-bottom-sheet class="lynk-sheet-backdrop" role="dialog" aria-modal="true" aria-label="${escapeHtml(
+${indent}  <div id="${sheetId}" data-bottom-sheet data-sheet-pos="${sheetPos}" class="lynk-sheet-backdrop lynk-sheet-pos-${sheetPos}" role="dialog" aria-modal="true" aria-label="${escapeHtml(
         sheetTitle
       )}">
 ${indent}    <div class="lynk-sheet-panel" style="background-color: ${theme.cardBg}; color: ${
@@ -733,6 +746,9 @@ ${indent}</div>`;
       const rowChildren = block.children ?? [];
 
       if (rowMode === 'horizontal') {
+        const showDots = c.rowShowDots !== false;
+        const showScrollbar = Boolean(c.rowShowScrollbar);
+        const trackClass = showScrollbar ? 'lynk-row-track' : 'lynk-row-track lynk-hide-scrollbar';
         const cols = rowChildren
           .map(
             (child) =>
@@ -746,7 +762,7 @@ ${indent}</div>`;
           )
           .join('\n');
         const dotsHtml =
-          rowChildren.length > 1
+          showDots && rowChildren.length > 1
             ? `\n${indent}  <div class="lynk-row-dots" data-row-dots="3" aria-label="Indikator progress slide">\n${indent}    <button type="button" class="lynk-row-dot is-active" data-row-dot="0" aria-label="Slide awal" style="--dot-accent: ${escapeHtml(
                 theme.accentColor
               )};"></button>\n${indent}    <button type="button" class="lynk-row-dot" data-row-dot="1" aria-label="Slide tengah" style="--dot-accent: ${escapeHtml(
@@ -755,7 +771,9 @@ ${indent}</div>`;
                 theme.accentColor
               )};"></button>\n${indent}  </div>`
             : '';
-        return `${indent}<div${hoverCls} data-row-mode="horizontal" data-row-slider style="${css}">\n${indent}  <div data-row-track class="lynk-row-track" style="display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: ${rowGap}px; align-items: stretch; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">\n${cols}\n${indent}  </div>${dotsHtml}\n${indent}</div>`;
+        return `${indent}<div${hoverCls} data-row-mode="horizontal" data-row-slider style="${css}">\n${indent}  <div data-row-track class="${trackClass}" style="display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: ${rowGap}px; align-items: stretch; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: ${
+          showScrollbar ? '6px' : '4px'
+        };">\n${cols}\n${indent}  </div>${dotsHtml}\n${indent}</div>`;
       }
 
       if (rowMode === 'vertical') {
@@ -774,6 +792,14 @@ ${indent}</div>`;
         return `${indent}<div${hoverCls} data-row-mode="vertical" style="${css}; display: flex; flex-direction: column; gap: ${rowGap}px; align-items: stretch;">\n${cols}\n${indent}</div>`;
       }
 
+      const rowGridRows =
+        typeof c.rowGridRows === 'number' && c.rowGridRows > 0
+          ? Math.max(1, Math.min(10, Math.round(c.rowGridRows)))
+          : 0;
+      const gridRowsCss =
+        rowGridRows > 0
+          ? ` grid-template-rows: repeat(${rowGridRows}, minmax(${rowColMinH > 0 ? `${rowColMinH}px` : 'auto'}, 1fr));`
+          : '';
       const cols = rowChildren
         .map(
           (child) =>
@@ -786,7 +812,7 @@ ${indent}</div>`;
             )}\n${indent}  </div>`
         )
         .join('\n');
-      return `${indent}<div${hoverCls} data-row-mode="grid" style="${css}; display: grid; grid-template-columns: repeat(${rowCols}, minmax(0, 1fr)); gap: ${rowGap}px; align-items: stretch;">\n${cols}\n${indent}</div>`;
+      return `${indent}<div${hoverCls} data-row-mode="grid" style="${css}; display: grid; grid-template-columns: repeat(${rowCols}, minmax(0, 1fr));${gridRowsCss} gap: ${rowGap}px; align-items: stretch;">\n${cols}\n${indent}</div>`;
     }
 
     case 'text': {
@@ -807,6 +833,7 @@ ${indent}</div>`;
           : block.content.fontWeight === 'semibold'
           ? '600'
           : '400');
+      const fontStyleCss = block.style.fontStyle === 'italic' ? ' font-style: italic;' : '';
       const lineHeight = block.style.lineHeight ? String(block.style.lineHeight) : '1.5';
       const clampCss = buildLineClampCss(block.style.maxLines);
       const paraGap = block.style.paragraphGap && block.style.paragraphGap > 0 ? block.style.paragraphGap : 0;
@@ -819,7 +846,7 @@ ${indent}</div>`;
           : escapeHtml(rawText);
       return `${indent}<${tag}${hoverCls} data-jump-title="${escapeHtml(
         rawText.trim().toLowerCase()
-      )}" style="${css}; font-size: ${fontSize}; font-weight: ${weight}; line-height: ${lineHeight}; white-space: pre-line;${
+      )}" style="${css}; font-size: ${fontSize}; font-weight: ${weight};${fontStyleCss} line-height: ${lineHeight}; white-space: pre-line;${
         clampCss ? ` ${clampCss}` : ''
       }">${bodyHtml}</${tag}>`;
     }
@@ -828,6 +855,7 @@ ${indent}</div>`;
       const src = escapeHtml(block.content.src ?? '');
       const alt = escapeHtml(block.content.alt ?? 'Gambar');
       const fit = block.content.objectFit ?? 'cover';
+      const pos = block.content.objectPosition ?? 'center';
 
       if (block.content.imageShape === 'circle') {
         const s = block.style;
@@ -852,7 +880,7 @@ ${indent}</div>`;
           resolvedCircleShadow !== 'none' ? `box-shadow: ${resolvedCircleShadow};` : '';
         const wrapCss = `width: ${s.widthPercent}%; margin: ${marginTop}px auto ${s.marginBottom}px auto; padding: ${padTop}px ${padRight}px ${padBottom}px ${padLeft}px; box-sizing: border-box; display: flex; justify-content: ${justify};`;
 
-        return `${indent}<div style="${wrapCss}">\n${indent}  <div style="width: ${circleSize}px; height: ${circleSize}px; border-radius: 9999px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background-color: ${circleBg}; ${circleBorder} ${circleShadow}">\n${indent}    <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; transform: scale(${(
+        return `${indent}<div style="${wrapCss}">\n${indent}  <div style="width: ${circleSize}px; height: ${circleSize}px; border-radius: 9999px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background-color: ${circleBg}; ${circleBorder} ${circleShadow}">\n${indent}    <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; object-position: ${pos}; transform: scale(${(
           imageZoom / 100
         ).toFixed(2)}); transform-origin: center center;" />\n${indent}  </div>\n${indent}</div>`;
       }
@@ -866,16 +894,22 @@ ${indent}</div>`;
         rectZoom !== 100
           ? `transform: scale(${(rectZoom / 100).toFixed(2)}); transform-origin: center center;`
           : '';
-      return `${indent}<div style="${css}; overflow: hidden;">\n${indent}  <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; border-radius: ${block.style.borderRadius}px; ${ratioCss} ${zoomCss}" />\n${indent}</div>`;
+      return `${indent}<div style="${css}; overflow: hidden;">\n${indent}  <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; object-position: ${pos}; border-radius: ${block.style.borderRadius}px; ${ratioCss} ${zoomCss}" />\n${indent}</div>`;
     }
 
     case 'button': {
       const rawLabel = block.content.label ?? 'Tautan';
       const label = escapeHtml(rawLabel);
-      let resolvedHref = sanitizeExternalUrl(block.content.url, '#');
+      const action = resolveBlockAction(block);
+      let resolvedHref = sanitizeExternalUrl(action.url || block.content.url, '#');
+      let hasWaOverride = false;
       let waTrackAttrs = ` data-lynk-component-id="${escapeHtml(block.id)}" data-lynk-component-type="button" data-lynk-wa-source="${label}"`;
 
-      if (
+      const directWaDigits = normalizeWhatsappNumber(block.content.buttonWhatsappNumber || '');
+      if (block.content.buttonActionKind === 'whatsapp' && directWaDigits) {
+        resolvedHref = buildWaMeUrl(directWaDigits, block.content.buttonWhatsappMessage || '');
+        hasWaOverride = true;
+      } else if (
         whatsappCenter &&
         (block.content.whatsappLinkId || block.content.whatsappTemplateId)
       ) {
@@ -890,6 +924,7 @@ ${indent}</div>`;
         });
         if (dispatch.phone) {
           resolvedHref = buildWaMeUrl(dispatch.phone, dispatch.message);
+          hasWaOverride = true;
         }
         if (dispatch.waLinkId) {
           waTrackAttrs += ` data-lynk-wa-link-id="${escapeHtml(dispatch.waLinkId)}"`;
@@ -899,21 +934,101 @@ ${indent}</div>`;
         }
       }
 
-      const href = escapeHtml(resolvedHref);
+      const hiddenSubs = block.content.hiddenSubLayers ?? [];
+      const deletedSubs = block.content.deletedSubLayers ?? [];
+      const isIconVisible =
+        !block.content.buttonHideIcon &&
+        !hiddenSubs.includes('button_icon') &&
+        !deletedSubs.includes('button_icon');
+      const isTextVisible =
+        !block.content.buttonHideText &&
+        !hiddenSubs.includes('button_text') &&
+        !deletedSubs.includes('button_text');
+      const isDisabled = Boolean(block.content.buttonDisabled);
+      const disabledPatch = isDisabled ? block.content.buttonStateStyles?.disabled : undefined;
+
       const btnGrad = buildLinearGradientCss(block.style);
-      const bg = btnGrad
-        ? block.style.gradientColor1 || '#2563EB'
-        : block.content.buttonBg ?? '#2563EB';
-      const fg = block.content.buttonText ?? '#FFFFFF';
+      const bg =
+        disabledPatch?.bg ??
+        (btnGrad
+          ? block.style.gradientColor1 || '#2563EB'
+          : block.content.buttonBg ?? '#2563EB');
+      const fg = disabledPatch?.textColor ?? block.content.buttonText ?? '#FFFFFF';
       const fontSize = block.style.fontSize
         ? `${Math.max(10, Math.min(32, Math.round(block.style.fontSize)))}px`
         : '14px';
       const weight = block.style.fontWeightCss || '600';
       const leftIconId = resolveButtonIcon(block.content.buttonIcon, rawLabel);
-      const leftIconSvg = renderButtonIconSvgString(leftIconId, 16, block.content.buttonIconUrl);
-      return `${indent}<a href="${href}" target="_blank" rel="noopener noreferrer"${hoverCls}${waTrackAttrs} style="${css}; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: ${weight}; font-size: ${fontSize}; background-color: ${bg};${
-        btnGrad ? ` background-image: ${btnGrad};` : ''
-      } color: ${fg}; padding: 12px 18px;">${leftIconSvg}<span>${label}</span></a>`;
+      const iconSizePx = Math.max(10, Math.min(40, block.content.buttonIconSize ?? 16));
+      const rawIconSvg = isIconVisible
+        ? renderButtonIconSvgString(leftIconId, iconSizePx, block.content.buttonIconUrl)
+        : '';
+      const iconSt = block.content.buttonIconStyle;
+      const iconWrapParts: string[] = ['display:inline-flex', 'align-items:center', 'justify-content:center'];
+      if (block.content.buttonIconColor || iconSt?.textColor) {
+        iconWrapParts.push(`color:${sanitizeCssColor(block.content.buttonIconColor || iconSt?.textColor, fg)}`);
+      }
+      if (iconSt?.backgroundColor) {
+        iconWrapParts.push(`background-color:${sanitizeCssColor(iconSt.backgroundColor, 'transparent')}`);
+      }
+      if (iconSt?.padding !== undefined) iconWrapParts.push(`padding:${iconSt.padding}px`);
+      if (iconSt?.borderRadius !== undefined) iconWrapParts.push(`border-radius:${iconSt.borderRadius}px`);
+      if (iconSt?.opacity !== undefined) iconWrapParts.push(`opacity:${(iconSt.opacity / 100).toFixed(2)}`);
+      if (iconSt?.transformRotate) iconWrapParts.push(`transform:rotate(${iconSt.transformRotate}deg)`);
+      const leftIconHtml = rawIconSvg
+        ? `<span style="${iconWrapParts.join(';')}">${rawIconSvg}</span>`
+        : '';
+
+      const textSt = block.content.buttonTextStyle;
+      const textStyleParts: string[] = [];
+      if (textSt?.fontFamily) textStyleParts.push(`font-family:${resolveCssFontFamily(textSt.fontFamily)}`);
+      if (textSt?.fontSize) textStyleParts.push(`font-size:${textSt.fontSize}px`);
+      if (textSt?.fontWeightCss) textStyleParts.push(`font-weight:${textSt.fontWeightCss}`);
+      if (textSt?.fontStyle) textStyleParts.push(`font-style:${textSt.fontStyle}`);
+      if (textSt?.lineHeight) textStyleParts.push(`line-height:${textSt.lineHeight}`);
+      if (textSt?.letterSpacing !== undefined) textStyleParts.push(`letter-spacing:${textSt.letterSpacing}px`);
+      if (textSt?.textTransform) textStyleParts.push(`text-transform:${textSt.textTransform}`);
+      if (textSt?.textDecoration) textStyleParts.push(`text-decoration:${textSt.textDecoration}`);
+      if (textSt?.textColor) textStyleParts.push(`color:${sanitizeCssColor(textSt.textColor, fg)}`);
+      if (textSt?.opacity !== undefined) textStyleParts.push(`opacity:${(textSt.opacity / 100).toFixed(2)}`);
+      const textHtml = isTextVisible
+        ? `<span${textStyleParts.length ? ` style="${textStyleParts.join(';')}"` : ''}>${label}</span>`
+        : '';
+
+      const tooltipAttr = block.content.buttonTooltip?.trim()
+        ? ` title="${escapeHtml(block.content.buttonTooltip.trim())}"`
+        : '';
+      const disabledCss = isDisabled
+        ? ` opacity: ${disabledPatch?.opacity !== undefined ? (disabledPatch.opacity / 100).toFixed(2) : '0.55'}; cursor: not-allowed;`
+        : '';
+      const commonStyle = `${css}; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: ${weight}; font-size: ${fontSize}; background-color: ${bg};${
+        !disabledPatch?.bg && btnGrad ? ` background-image: ${btnGrad};` : ''
+      } color: ${fg}; padding: 12px 18px;${disabledCss}`;
+
+      if (isDisabled) {
+        return `${indent}<button type="button" disabled${tooltipAttr}${waTrackAttrs} style="${commonStyle} font-family: inherit;">${leftIconHtml}${textHtml}</button>`;
+      }
+
+      if (hasWaOverride || action.type === 'url') {
+        const href = escapeHtml(resolvedHref);
+        const targetAttr =
+          hasWaOverride || action.openInNewTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+        return `${indent}<a href="${href}"${targetAttr}${tooltipAttr}${hoverCls}${waTrackAttrs} style="${commonStyle}">${leftIconHtml}${textHtml}</a>`;
+      }
+
+      const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
+      let directActionAttr = '';
+      if (action.type === 'sheet') {
+        directActionAttr = ` data-sheet-open="sheet_act_${safeId}"`;
+      } else if (action.type === 'page') {
+        directActionAttr = ` data-open-page="${escapeHtml(action.targetPageId)}"`;
+      } else if (action.type === 'card') {
+        directActionAttr = ` data-jump-block="${escapeHtml(action.targetBlockId)}"`;
+      } else if (action.type === 'back') {
+        directActionAttr = ` data-page-back="1" data-back-target="${escapeHtml(action.targetPageId || '')}"`;
+      }
+      const cursorCss = action.type === 'none' ? 'cursor: default;' : 'cursor: pointer;';
+      return `${indent}<button type="button"${tooltipAttr}${hoverCls}${waTrackAttrs}${directActionAttr} style="${commonStyle} ${cursorCss} font-family: inherit;">${leftIconHtml}${textHtml}</button>`;
     }
 
     case 'form': {
@@ -990,6 +1105,7 @@ ${indent}  </div>`;
             (typeof fld.maxValue === 'number' ? ` data-max-val="${fld.maxValue}"` : '') +
             (typeof fld.minLength === 'number' ? ` data-min-len="${fld.minLength}"` : '') +
             (typeof fld.maxLength === 'number' ? ` data-max-len="${fld.maxLength}"` : '') +
+            (fld.phoneFormat ? ` data-phone-format="${escapeHtml(fld.phoneFormat)}"` : '') +
             (fld.pattern ? ` data-pattern="${escapeHtml(fld.pattern)}"` : '');
 
           const reqAttr = isReq ? ' required' : '';
@@ -1165,6 +1281,7 @@ ${indent}</form>`;
         (platform === 'tiktok' || platform === 'instagram' ? '9/16' : '16/9');
       const autoPlay = block.content.videoAutoplay ?? block.content.youtubeAutoplay ?? true;
       const volume = block.content.videoVolume ?? block.content.youtubeVolume ?? 75;
+      const muted = Boolean(block.content.videoMuted);
       const poster = block.content.videoPoster?.trim() ?? '';
 
       const trimmedRawUrl = rawUrl?.trim() ?? '';
@@ -1199,7 +1316,7 @@ ${indent}</form>`;
         trimmedRawUrl || vidId
       )}" data-vid-poster="${escapeHtml(poster)}" data-vid-autoplay="${
         autoPlay ? '1' : '0'
-      }" data-vid-volume="${volume}" data-vid-accent="${escapeHtml(
+      }" data-vid-volume="${volume}" data-vid-muted="${muted ? '1' : '0'}" data-vid-accent="${escapeHtml(
         theme.accentColor
       )}" style="${css}">
 ${indent}  <div data-vid-stage style="width: 100%; aspect-ratio: ${ratio}; border-radius: ${block.style.borderRadius}px; overflow: hidden; background: #020617; position: relative;">
@@ -1527,8 +1644,13 @@ ${indent}      </div>`;
         })
         .join('\n');
 
+      const showDots = block.content.carouselShowDots !== false;
+      const showArrows = block.content.carouselShowArrows !== false;
+      const showScrollbar = Boolean(block.content.carouselShowScrollbar);
+      const carTrackClass = showScrollbar ? '' : ' class="lynk-hide-scrollbar"';
+
       const dotsHtml =
-        items.length > 1
+        showDots && items.length > 1
           ? `\n${indent}  <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px;">\n${items
               .map(
                 (_, idx) =>
@@ -1542,7 +1664,7 @@ ${indent}      </div>`;
           : '';
 
       const navHtml =
-        items.length > 1
+        showArrows && items.length > 1
           ? `\n${indent}    <div data-car-counter style="position: absolute; top: 10px; right: 10px; z-index: 3; padding: 2px 8px; border-radius: 9999px; background: rgba(15, 23, 42, 0.65); color: #FFFFFF; font-size: 10px; font-weight: 600; pointer-events: none;">1 / ${items.length}</div>
 ${indent}    <button type="button" data-car-prev aria-label="Foto sebelumnya" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); z-index: 3; width: 28px; height: 28px; border-radius: 9999px; border: 1px solid #E2E8F0; background: rgba(255, 255, 255, 0.92); color: #0F172A; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.3;">&#8249;</button>
 ${indent}    <button type="button" data-car-next aria-label="Foto berikutnya" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 3; width: 28px; height: 28px; border-radius: 9999px; border: 1px solid #E2E8F0; background: rgba(255, 255, 255, 0.92); color: #0F172A; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer;">&#8250;</button>`
@@ -1550,7 +1672,7 @@ ${indent}    <button type="button" data-car-next aria-label="Foto berikutnya" st
 
       return `${indent}<div data-carousel data-car-accent="${escapeHtml(theme.accentColor)}" style="${css}">
 ${indent}  <div style="position: relative;">
-${indent}    <div data-car-track style="display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; border-radius: ${radius}px; -webkit-overflow-scrolling: touch; cursor: grab;">
+${indent}    <div data-car-track${carTrackClass} style="display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; border-radius: ${radius}px; -webkit-overflow-scrolling: touch; cursor: grab;">
 ${slidesHtml}
 ${indent}    </div>${navHtml}
 ${indent}  </div>${dotsHtml}
@@ -2257,6 +2379,21 @@ ${indent}</div>`;
             )}</span></div>`
           : '';
 
+      const hideDefault = Boolean(c.heroHideDefaultContent);
+      const rawChildrenPos = c.heroChildrenPosition ?? 'on_cover';
+      const childrenPosition: 'on_cover' | 'inside_card' | 'below_card' =
+        rawChildrenPos === 'overlap_cover' ? 'on_cover' : rawChildrenPos;
+      const heroChildren = block.children ?? [];
+      const childTextColor =
+        variant === 'banner' && childrenPosition === 'on_cover' ? '#FFFFFF' : resolvedTextColor;
+      const renderedHeroChildren = heroChildren
+        .map((ch) =>
+          renderBlockHtml(ch, theme, advance, indent + '      ', childTextColor, whatsappCenter)
+        )
+        .filter(Boolean)
+        .join('\n');
+      const hasHeroChildren = Boolean(renderedHeroChildren.trim());
+
       if (variant === 'banner') {
         const coverHeight = Math.max(100, Math.min(340, c.heroCoverHeight ?? 170));
         const overlapPx = Math.max(0, Math.min(80, c.heroOverlapPx ?? 34));
@@ -2285,15 +2422,24 @@ ${indent}</div>`;
           Boolean((c.heroCoverTitle ?? '').trim());
         const coverTitleSize = Math.max(12, Math.min(48, c.heroCoverTitleSize ?? 26));
         const coverTitleColor = sanitizeCssColor(c.heroCoverTitleColor, '#FFFFFF');
+        const hasOnCoverChildren = childrenPosition === 'on_cover' && hasHeroChildren;
+        const showMainCard = !hideDefault || (childrenPosition === 'inside_card' && hasHeroChildren);
+
         const coverTitleHtml = showCoverTitle
-          ? `<div style="position:absolute; inset:0 16px; display:flex; align-items:center; justify-content:center; text-align:center; padding-bottom:${Math.max(
-              14,
-              Math.round(overlapPx * 0.65)
-            )}px; pointer-events:none; ${
-              coverFontStack ? `font-family:${coverFontStack};` : ''
-            }"><span style="color:${coverTitleColor}; font-size:${coverTitleSize}px; font-weight:700; line-height:1.18; text-shadow:0 2px 10px rgba(0,0,0,0.65);">${escapeHtml(
-              c.heroCoverTitle || ''
-            )}</span></div>`
+          ? hasOnCoverChildren
+            ? `<div style="position:relative; z-index:2; padding:0 16px 8px 16px; text-align:center; pointer-events:none; ${
+                coverFontStack ? `font-family:${coverFontStack};` : ''
+              }"><span style="color:${coverTitleColor}; font-size:${coverTitleSize}px; font-weight:700; line-height:1.18; text-shadow:0 2px 10px rgba(0,0,0,0.65);">${escapeHtml(
+                c.heroCoverTitle || ''
+              )}</span></div>`
+            : `<div style="position:absolute; inset:0 16px; z-index:2; display:flex; align-items:center; justify-content:center; text-align:center; padding-bottom:${Math.max(
+                14,
+                Math.round(overlapPx * 0.65)
+              )}px; pointer-events:none; ${
+                coverFontStack ? `font-family:${coverFontStack};` : ''
+              }"><span style="color:${coverTitleColor}; font-size:${coverTitleSize}px; font-weight:700; line-height:1.18; text-shadow:0 2px 10px rgba(0,0,0,0.65);">${escapeHtml(
+                c.heroCoverTitle || ''
+              )}</span></div>`
           : '';
         const metaRow =
           (c.heroRating || '').trim() || (c.heroHours || '').trim()
@@ -2318,34 +2464,71 @@ ${indent}</div>`;
             )}<span>${escapeHtml(c.heroLocation || '')}</span></div>`
           : '';
 
+        const onCoverChildrenHtml = hasOnCoverChildren
+          ? `\n${indent}    <div data-hero-layer="overlay-items" style="position:relative; z-index:2; width:100%; min-width:0; display:flex; flex-direction:column; gap:8px;">\n${renderedHeroChildren}\n${indent}    </div>`
+          : '';
+
+        const coverContainerStyle = hasOnCoverChildren
+          ? `position:relative; width:100%; min-height:${coverHeight}px; padding-top:${
+              showCoverTitle ? 12 : 16
+            }px; padding-bottom:${
+              showMainCard ? overlapPx + 18 : 16
+            }px; overflow:hidden; background:#0F172A; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;`
+          : `position:relative; width:100%; height:${coverHeight}px; overflow:hidden; background:#0F172A;`;
+
+        const defaultProfileRowHtml = !hideDefault
+          ? `${indent}    <div style="display:flex; align-items:flex-start; gap:14px; text-align:left;">
+${indent}      ${renderAvatar(true)}
+${indent}      <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:6px;">
+${indent}        ${statusHtml}
+${indent}        <h1 style="margin:0; font-size:${titleSize}px; line-height:1.2; font-weight:${titleWeight}; letter-spacing:-0.02em;">${escapeHtml(
+              heroTitle
+            )}</h1>
+${indent}        ${
+              (c.heroSubtitle || '').trim()
+                ? `<p style="margin:0; font-size:${subtitleSize}px; line-height:1.4; opacity:0.8;">${escapeHtml(
+                    c.heroSubtitle || ''
+                  )}</p>`
+                : ''
+            }
+${indent}        ${metaRow}
+${indent}        ${locRow}
+${indent}      </div>
+${indent}    </div>`
+          : '';
+
+        const insideCardChildrenHtml =
+          childrenPosition === 'inside_card' && hasHeroChildren
+            ? `\n${indent}    <div style="${
+                hideDefault
+                  ? ''
+                  : 'margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.16); '
+              }display:flex; flex-direction:column; gap:8px;">\n${renderedHeroChildren}\n${indent}    </div>`
+            : '';
+
+        const mainCardHtml = showMainCard
+          ? `\n${indent}  <div style="position:relative; z-index:3; margin:-${overlapPx}px ${hMargin} 0 ${hMargin}; padding:18px; border-radius:${cardRadius}px; border:${cardBorderWidth}px solid ${cardBorderColor}; box-shadow:${cardShadow}; background-color:${cardBgColor};${
+              cardGrad ? ` background-image:${cardGrad};` : ''
+            } color:${resolvedTextColor}; text-align:left;">\n${defaultProfileRowHtml}${insideCardChildrenHtml}\n${indent}  </div>`
+          : '';
+
+        const belowCardChildrenHtml =
+          childrenPosition === 'below_card' && hasHeroChildren
+            ? `\n${indent}  <div style="position:relative; z-index:2; margin:${
+                showMainCard ? '10px' : `-${overlapPx}px`
+              } ${hMargin} 0 ${hMargin}; display:flex; flex-direction:column; gap:8px;">\n${renderedHeroChildren}\n${indent}  </div>`
+            : '';
+
         return `${indent}<div${hoverCls} data-jump-title="${escapeHtml(
           heroTitle.trim().toLowerCase()
         )}" style="${css}; padding: 0;">
-${indent}  <div style="position:relative; width:100%; height:${coverHeight}px; overflow:hidden; background:#0F172A;">
-${indent}    ${coverImgHtml}
-${indent}    <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.20), rgba(0,0,0,0.15));"></div>
-${indent}    ${coverTitleHtml}
-${indent}  </div>
-${indent}  <div style="position:relative; z-index:2; margin:-${overlapPx}px ${hMargin} 0 ${hMargin}; padding:18px; border-radius:${cardRadius}px; border:${cardBorderWidth}px solid ${cardBorderColor}; box-shadow:${cardShadow}; background-color:${cardBgColor};${
-          cardGrad ? ` background-image:${cardGrad};` : ''
-        } color:${resolvedTextColor}; display:flex; align-items:flex-start; gap:14px; text-align:left;">
-${indent}    ${renderAvatar(true)}
-${indent}    <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:6px;">
-${indent}      ${statusHtml}
-${indent}      <h1 style="margin:0; font-size:${titleSize}px; line-height:1.2; font-weight:${titleWeight}; letter-spacing:-0.02em;">${escapeHtml(
-          heroTitle
-        )}</h1>
-${indent}      ${
-          (c.heroSubtitle || '').trim()
-            ? `<p style="margin:0; font-size:${subtitleSize}px; line-height:1.4; opacity:0.8;">${escapeHtml(
-                c.heroSubtitle || ''
-              )}</p>`
-            : ''
-        }
-${indent}      ${metaRow}
-${indent}      ${locRow}
+${indent}  <div data-hero-layer="background-cover" style="${coverContainerStyle}">
+${indent}    <div style="position:absolute; inset:0; z-index:0; pointer-events:none;">
+${indent}      ${coverImgHtml}
+${indent}      <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.20), rgba(0,0,0,0.15));"></div>
 ${indent}    </div>
-${indent}  </div>
+${indent}    ${coverTitleHtml}${onCoverChildrenHtml}
+${indent}  </div>${mainCardHtml}${belowCardChildrenHtml}
 ${indent}</div>`;
       }
 
@@ -2366,24 +2549,38 @@ ${indent}</div>`;
             }</div>`
           : '';
 
+      const compactDefaultHtml = !hideDefault
+        ? `${indent}  <div style="display:flex; align-items:center; gap:14px; text-align:left;">
+${indent}    ${renderAvatar(false)}
+${indent}    <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:4px;">
+${indent}      ${statusHtml}
+${indent}      <h1 style="margin:0; font-size:${titleSize}px; line-height:1.2; font-weight:${titleWeight}; letter-spacing:-0.02em;">${escapeHtml(
+            heroTitle
+          )}</h1>
+${indent}      ${
+            (c.heroSubtitle || '').trim()
+              ? `<p style="margin:0; font-size:${subtitleSize}px; line-height:1.4; opacity:0.8;">${escapeHtml(
+                  c.heroSubtitle || ''
+                )}</p>`
+              : ''
+          }
+${indent}      ${compactLocRow}
+${indent}    </div>
+${indent}  </div>`
+        : '';
+
+      const compactChildrenHtml = hasHeroChildren
+        ? `\n${indent}  <div style="${
+            hideDefault
+              ? ''
+              : 'margin-top:14px; padding-top:12px; border-top:1px solid rgba(15,23,42,0.12); '
+          }display:flex; flex-direction:column; gap:8px;">\n${renderedHeroChildren}\n${indent}  </div>`
+        : '';
+
       return `${indent}<div${hoverCls} data-jump-title="${escapeHtml(
         heroTitle.trim().toLowerCase()
-      )}" style="${css}; border-radius:${cardRadius}px; padding:16px; display:flex; align-items:center; gap:14px; text-align:left;">
-${indent}  ${renderAvatar(false)}
-${indent}  <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:4px;">
-${indent}    ${statusHtml}
-${indent}    <h1 style="margin:0; font-size:${titleSize}px; line-height:1.2; font-weight:${titleWeight}; letter-spacing:-0.02em;">${escapeHtml(
-        heroTitle
-      )}</h1>
-${indent}    ${
-        (c.heroSubtitle || '').trim()
-          ? `<p style="margin:0; font-size:${subtitleSize}px; line-height:1.4; opacity:0.8;">${escapeHtml(
-              c.heroSubtitle || ''
-            )}</p>`
-          : ''
-      }
-${indent}    ${compactLocRow}
-${indent}  </div>
+      )}" style="${css}; border-radius:${cardRadius}px; padding:16px; text-align:left;">
+${compactDefaultHtml}${compactChildrenHtml}
 ${indent}</div>`;
     }
 
@@ -2435,7 +2632,8 @@ ${indent}</div>`;
         })
         .join('\n');
 
-      return `${indent}<div data-cat-jump data-cat-active-bg="${escapeHtml(
+      const catScrollbarClass = c.categoryShowScrollbar ? '' : ' class="lynk-hide-scrollbar"';
+      return `${indent}<div${catScrollbarClass} data-cat-jump data-cat-active-bg="${escapeHtml(
         activeBg
       )}" data-cat-active-text="${escapeHtml(activeText)}" data-cat-inactive-bg="${escapeHtml(
         inactiveBg
@@ -2658,8 +2856,20 @@ ${indent}</div>`;
       const accent = sanitizeCssColor(c.cardAccentColor, theme.accentColor || '#2563EB');
       const fg = sanitizeCssColor(c.cardTextColor, '#FFFFFF');
       const radius = Math.max(8, block.style.borderRadius || 14);
-      const hideDefaultContent = Boolean(c.cardHideDefaultContent);
-      const hideDefaultFooter = Boolean(c.cardHideDefaultFooter);
+      const hiddenSubs = c.hiddenSubLayers ?? [];
+      const deletedSubs = c.deletedSubLayers ?? [];
+      const isSubOff = (id: string) => hiddenSubs.includes(id) || deletedSubs.includes(id);
+      const hideDefaultContent = Boolean(c.cardHideDefaultContent) || isSubOff('card_body');
+      const hideDefaultFooter = Boolean(c.cardHideDefaultFooter) || isSubOff('card_footer');
+      const isMediaOff = isSubOff('card_media');
+      const isHeaderOff = isSubOff('card_header');
+      const headerSt = c.subLayerStyles?.card_header;
+      const cardHeaderHtml =
+        !isHeaderOff && c.cardHeaderTitle?.trim()
+          ? `<div style="padding:${headerSt?.padding ?? 8}px 12px; font-size:${headerSt?.fontSize ?? 11}px; font-weight:${headerSt?.fontWeightCss ?? '700'};${
+              headerSt?.fontStyle ? ` font-style:${headerSt.fontStyle};` : ''
+            } background:${sanitizeCssColor(headerSt?.backgroundColor, 'rgba(15,23,42,0.12)')}; color:${sanitizeCssColor(headerSt?.textColor, fg)}; border-bottom:1px solid rgba(255,255,255,0.15);">${escapeHtml(c.cardHeaderTitle.trim())}</div>`
+          : '';
 
       const bodyChildren = block.children ?? [];
       const footerChildren = c.cardFooterBlocks ?? [];
@@ -2675,7 +2885,7 @@ ${indent}</div>`;
             .map((ch) => renderBlockHtml(ch, theme, advance, indent + '  ', bodyZoneTextColor))
             .join('\n')}</div>`
         : '';
-      const footerSlotHtml = hasFooterChildren
+      const footerSlotHtml = !isSubOff('card_footer') && hasFooterChildren
         ? `<div data-card-zone="footer" style="width:100%; display:flex; flex-direction:column; gap:6px;">${footerChildren
             .map((ch) => renderBlockHtml(ch, theme, advance, indent + '  ', fg))
             .join('\n')}</div>`
@@ -2716,7 +2926,7 @@ ${indent}</div>`;
         const isLeft = c.cardImagePosition === 'left';
         const mediaW = Math.max(48, Math.min(180, c.cardMediaSize ?? 86));
         const mediaH = Math.max(64, Math.min(260, c.cardMediaHeight ?? 104));
-        const imgHtml = c.cardImage
+        const imgHtml = !isMediaOff && c.cardImage
           ? `<div style="width:${mediaW}px; height:${mediaH}px; flex-shrink:0; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2); align-self:flex-end;"><img src="${escapeHtml(
               c.cardImage
             )}" alt="${escapeHtml(c.cardTitle || 'Tokoh')}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; object-position:top; display:block;${imgTransformCss}" /></div>`
@@ -2754,47 +2964,51 @@ ${indent}</div>`;
                   }">${escapeHtml(c.cardSubtitle)}</div>`
                 : ''
             }</div></div>${imgHtml}</div>`
-          : '';
+          : imgHtml;
         cardHtml = wrapAnchor(
           `<div style="background:linear-gradient(135deg, ${gradFrom}, ${gradTo}); border-radius:${radius}px; overflow:hidden; color:${fg}; display:flex; flex-direction:column; min-height:${Math.max(
             118,
             block.style.minHeight || 0
-          )}px; box-shadow:0 2px 8px rgba(15,23,42,0.1);"><div style="padding:12px 14px 10px; display:flex; flex-direction:column; gap:8px; flex:1;">${defaultRow}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`
+          )}px; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${cardHeaderHtml}<div style="padding:12px 14px 10px; display:flex; flex-direction:column; gap:8px; flex:1;">${defaultRow}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`
         );
       } else if (variant === 'news_banner') {
         const boxHeightCss = c.cardMediaHeight
           ? `height:${Math.max(90, Math.min(360, c.cardMediaHeight))}px;`
           : 'aspect-ratio:16/9;';
-        const mediaSection = !hideDefaultContent
+        const mediaSection = !isMediaOff || !hideDefaultContent
           ? `<div style="position:relative; ${boxHeightCss} width:100%; background:#E2E8F0; overflow:hidden;">${
-              c.cardImage
+              !isMediaOff && c.cardImage
                 ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
                     c.cardTitle || 'Berita'
                   )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" />`
                 : ''
-            }<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
-              titleSize ?? 11.5
-            }px; font-weight:700;${typoExtra || ' line-height:1.35;'}${
-              titleClampCss ? ` ${titleClampCss}` : ''
-            }">${escapeHtml(c.cardTitle || 'Judul Informasi')}</div>${
-              c.cardSubtitle?.trim()
-                ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
-                    subClampCss ? ` ${subClampCss}` : ''
-                  }">${escapeHtml(c.cardSubtitle)}</div>`
+            }${
+              !hideDefaultContent
+                ? `<div style="position:absolute; left:0; right:0; bottom:0; padding:20px 12px 8px; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, ${accent}EE 62%, ${accent} 100%); color:${fg}; text-align:center; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+                    titleSize ?? 11.5
+                  }px; font-weight:700;${typoExtra || ' line-height:1.35;'}${
+                    titleClampCss ? ` ${titleClampCss}` : ''
+                  }">${escapeHtml(c.cardTitle || 'Judul Informasi')}</div>${
+                    c.cardSubtitle?.trim()
+                      ? `<div style="font-size:${subtitleSize ?? 10}px; opacity:0.9;${typoExtra}${
+                          subClampCss ? ` ${subClampCss}` : ''
+                        }">${escapeHtml(c.cardSubtitle)}</div>`
+                      : ''
+                  }</div>`
                 : ''
-            }</div></div>`
+            }</div>`
           : '';
         const customBody = bodySlotHtml
           ? `<div style="padding:10px 12px;">${bodySlotHtml}</div>`
           : '';
         cardHtml = wrapAnchor(
-          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;">${mediaSection}${customBody}${optionalAccentStripHtml}</div>`
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;">${cardHeaderHtml}${mediaSection}${customBody}${optionalAccentStripHtml}</div>`
         );
       } else if (variant === 'event_poster') {
         const boxHeightCss = c.cardMediaHeight
           ? `height:${Math.max(100, Math.min(360, c.cardMediaHeight))}px;`
           : 'aspect-ratio:3/4;';
-        const posterMedia = !hideDefaultContent
+        const posterMedia = !isMediaOff
           ? `<div style="${boxHeightCss} width:100%; background:#F1F5F9; overflow:hidden;">${
               c.cardImage
                 ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
@@ -2827,20 +3041,20 @@ ${indent}</div>`;
               )}px;">${defaultFooter}${footerSlotHtml}</div>`
             : '';
         cardHtml = wrapAnchor(
-          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;">${posterMedia}${customBody}${footerBar}</div>`
+          `<div style="border-radius:${radius}px; border:2px solid ${accent}; overflow:hidden; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.08); display:flex; flex-direction:column;">${cardHeaderHtml}${posterMedia}${customBody}${footerBar}</div>`
         );
       } else if (variant === 'badge_tile') {
         const boxSize = Math.max(32, Math.min(200, c.cardMediaSize ?? 52));
+        const mediaEl =
+          !isMediaOff && c.cardImage
+            ? `<div style="width:${boxSize}px; height:${boxSize}px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
+                c.cardImage
+              )}" alt="${escapeHtml(
+                c.cardTitle || 'Badge'
+              )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
+            : '';
         const defaultBody = !hideDefaultContent
-          ? `${
-              c.cardImage
-                ? `<div style="width:${boxSize}px; height:${boxSize}px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
-                    c.cardImage
-                  )}" alt="${escapeHtml(
-                    c.cardTitle || 'Badge'
-                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
-                : ''
-            }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+          ? `<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
               titleSize ?? 11
             }px; font-weight:700; white-space:pre-line;${typoExtra || ' line-height:1.25;'}${
               titleClampCss ? ` ${titleClampCss}` : ''
@@ -2856,7 +3070,7 @@ ${indent}</div>`;
           `<div style="background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; overflow:hidden; color:${fg}; min-height:${Math.max(
             124,
             block.style.minHeight || 0
-          )}px; display:flex; flex-direction:column; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);"><div style="padding:12px 8px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px;">${defaultBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`
+          )}px; display:flex; flex-direction:column; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${cardHeaderHtml}<div style="padding:12px 8px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px;">${mediaEl}${defaultBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`
         );
       } else if (variant === 'store_card') {
         const boxSize = Math.max(36, Math.min(200, c.cardMediaSize ?? 72));
@@ -2868,16 +3082,16 @@ ${indent}</div>`;
         const cartHtml = !hideDefaultContent && c.cardEnableCart
           ? `<div style="width:100%; padding-top:4px; display:flex; justify-content:center;"><button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:9999px; border:0; background:#FFFFFF; color:#0F172A; font-size:10.5px; font-weight:700; cursor:pointer; font-family:inherit;">+ Tambah</button><div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:6px; padding:2px 6px; border-radius:9999px; background:#FFFFFF; color:#0F172A;"><button type="button" data-fnb-dec="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-weight:700; cursor:pointer;">-</button><span data-fnb-qty="${itemKey}" style="min-width:14px; text-align:center; font-size:11px; font-weight:700;">0</span><button type="button" data-fnb-inc="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#059669; color:#FFFFFF; font-weight:700; cursor:pointer;">+</button></div></div>`
           : '';
+        const storeMediaEl =
+          !isMediaOff && c.cardImage
+            ? `<div style="width:${boxSize}px; height:${boxSize}px; margin-top:8px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
+                c.cardImage
+              )}" alt="${escapeHtml(
+                c.cardTitle || 'Produk'
+              )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
+            : '';
         const defaultStoreBody = !hideDefaultContent
-          ? `${
-              c.cardImage
-                ? `<div style="width:${boxSize}px; height:${boxSize}px; margin-top:8px; border-radius:${imgRadius}px; overflow:hidden; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); flex-shrink:0;"><img src="${escapeHtml(
-                    c.cardImage
-                  )}" alt="${escapeHtml(
-                    c.cardTitle || 'Produk'
-                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${imgFit}; display:block;${imgTransformCss}" /></div>`
-                : ''
-            }<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
+          ? `<div style="width:100%; display:flex; flex-direction:column; gap:${textGap}px;"><div style="font-size:${
               titleSize ?? 13
             }px; font-weight:800;${typoExtra || ' line-height:1.25;'}${
               titleClampCss ? ` ${titleClampCss}` : ''
@@ -2898,7 +3112,7 @@ ${indent}</div>`;
         cardHtml = `<div style="position:relative; background:linear-gradient(180deg, ${gradFrom} 0%, ${gradTo} 100%); border-radius:${radius}px; overflow:hidden; color:${fg}; min-height:${Math.max(
           168,
           block.style.minHeight || 0
-        )}px; display:flex; flex-direction:column; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${playHtml}<div style="padding:12px 10px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px;">${defaultStoreBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`;
+        )}px; display:flex; flex-direction:column; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.1);">${cardHeaderHtml}${playHtml}<div style="padding:12px 10px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:8px;">${storeMediaEl}${defaultStoreBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`;
       } else if (variant === 'activity_post') {
         const avatarSize = Math.max(32, Math.min(96, c.cardMediaSize ?? 42));
         const galH = c.cardMediaHeight
@@ -2907,7 +3121,7 @@ ${indent}</div>`;
         const gallery = (c.cardGalleryImages ?? []).filter(Boolean).slice(0, 6);
         const moreUrl = sanitizeExternalUrl(c.cardMoreUrl || c.cardActionUrl, '');
         const moreLabel = escapeHtml((c.cardMoreLabel || 'Selengkapnya').trim());
-        const galHtml = gallery.length
+        const galHtml = !isMediaOff && gallery.length
           ? `<div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px;">${gallery
               .map(
                 (src, i) =>
@@ -2919,7 +3133,7 @@ ${indent}</div>`;
           : '';
         const defaultActivityBody = !hideDefaultContent
           ? `<div style="display:flex; align-items:center; gap:10px;">${
-              c.cardImage
+              !isMediaOff && c.cardImage
                 ? `<img src="${escapeHtml(c.cardImage)}" alt="${escapeHtml(
                     c.cardTitle || 'Profil'
                   )}" referrerpolicy="no-referrer" style="width:${avatarSize}px; height:${avatarSize}px; border-radius:9999px; object-fit:${imgFit}; flex-shrink:0; border:1px solid #E2E8F0;" />`
@@ -2935,7 +3149,7 @@ ${indent}</div>`;
                   }">${escapeHtml(c.cardSubtitle)}</div>`
                 : ''
             }</div></div><div style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; opacity:0.75;"><span>${escapeHtml(
-              c.cardHeaderTitle?.trim() || c.cardQuote?.trim() || 'Judul Kegiatan'
+              c.cardQuote?.trim() || c.cardHeaderTitle?.trim() || 'Judul Kegiatan'
             )}</span>${
               c.cardDate?.trim()
                 ? `<span style="flex-shrink:0; font-variant-numeric:tabular-nums;">${escapeHtml(
@@ -2956,7 +3170,7 @@ ${indent}</div>`;
                 : ''
             }</div>`
           : '';
-        cardHtml = `<div style="border-radius:${radius}px; overflow:hidden; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; color:${theme.textColor}; display:flex; flex-direction:column; text-align:left; box-shadow:0 1px 4px rgba(15,23,42,0.06);"><div style="padding:12px; display:flex; flex-direction:column; gap:10px;">${defaultActivityBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`;
+        cardHtml = `<div style="border-radius:${radius}px; overflow:hidden; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; color:${theme.textColor}; display:flex; flex-direction:column; text-align:left; box-shadow:0 1px 4px rgba(15,23,42,0.06);">${cardHeaderHtml}<div style="padding:12px; display:flex; flex-direction:column; gap:10px;">${defaultActivityBody}${bodySlotHtml}</div>${optionalAccentStripHtml}</div>`;
       } else {
         // membership_ticket (Dual-Zone: White Upper Body + Colored Lower Strip)
         const feeRows = (c.cardFeeItems ?? [])
@@ -2996,7 +3210,7 @@ ${indent}</div>`;
             ? `<div style="position:relative;"><span aria-hidden="true" style="position:absolute; left:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><span aria-hidden="true" style="position:absolute; right:-10px; top:-10px; width:20px; height:20px; border-radius:9999px; background:#F1F5F9; border:1px solid #E2E8F0;"></span><div style="background:${accent}; color:${fg}; padding:12px 16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">${defaultLowerHtml}${footerSlotHtml}</div></div>`
             : '';
         cardHtml = wrapAnchor(
-          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08); text-align:left;"><div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:${Math.max(
+          `<div style="position:relative; border-radius:${radius}px; overflow:hidden; background:#FFFFFF; border:1px solid #E2E8F0; box-shadow:0 2px 8px rgba(15,23,42,0.08); text-align:left;">${cardHeaderHtml}<div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:${Math.max(
             6,
             textGap
           )}px;">${defaultUpperHtml}${bodySlotHtml}</div>${lowerStripHtml}</div>`
@@ -3008,19 +3222,41 @@ ${indent}</div>`;
 
     case 'back_button': {
       const c = block.content;
+      const s = block.style;
       const bg = sanitizeCssColor(c.backButtonBg, '#F1F5F9');
       const fg = sanitizeCssColor(c.backButtonText, '#0F172A');
+      const iconColor = sanitizeCssColor(c.backButtonIconColor || c.backButtonText, fg);
       const label = escapeHtml((c.backButtonLabel || 'Kembali').trim());
       const target = escapeHtml((c.backTargetPageId || '').trim());
       const justify =
-        block.style.align === 'center'
+        s.align === 'center'
           ? 'center'
-          : block.style.align === 'right'
+          : s.align === 'right'
           ? 'flex-end'
           : 'flex-start';
-      const radius = Math.max(8, Math.min(28, block.style.borderRadius || 12));
+      const radius = Math.max(0, Math.min(9999, Math.round(s.borderRadius ?? 12)));
+      const fontSize = Math.max(11, Math.min(24, Math.round(s.fontSize ?? 13)));
+      const padTop = s.paddingTop ?? Math.max(6, Math.min(24, s.padding || 8));
+      const padBottom = s.paddingBottom ?? Math.max(6, Math.min(24, s.padding || 8));
+      const padLeft = s.paddingLeft ?? s.paddingX ?? 14;
+      const padRight = s.paddingRight ?? s.paddingX ?? 14;
+      const borderWidth = s.borderWidth > 0 ? s.borderWidth : 1;
+      const borderStyle = s.borderStyle ?? 'solid';
+      const borderColor =
+        s.borderWidth > 0 ? sanitizeCssColor(s.borderColor, 'rgba(15,23,42,0.1)') : 'rgba(15,23,42,0.1)';
+      const borderCss =
+        borderStyle === 'none' ? 'border: none;' : `border: ${borderWidth}px ${borderStyle} ${borderColor};`;
+      const iconId = c.backButtonIcon ?? 'arrow-left';
+      const iconSvg =
+        iconId === 'none' && !c.buttonIconUrl
+          ? ''
+          : `<span style="display: inline-flex; color: ${iconColor};">${renderButtonIconSvgString(
+              iconId,
+              Math.max(12, fontSize),
+              c.buttonIconUrl
+            )}</span>`;
       return `${indent}<div style="${css}; display: flex; justify-content: ${justify};">
-${indent}  <button type="button" class="lynk-back-btn" data-page-back="1" data-back-target="${target}" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: ${radius}px; border: 1px solid rgba(15,23,42,0.1); background: ${bg}; color: ${fg}; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;">&larr; <span>${label}</span></button>
+${indent}  <button type="button" class="lynk-back-btn" data-page-back="1" data-back-target="${target}" style="display: inline-flex; align-items: center; gap: 6px; padding: ${padTop}px ${padRight}px ${padBottom}px ${padLeft}px; border-radius: ${radius}px; ${borderCss} background: ${bg}; color: ${fg}; font-size: ${fontSize}px; font-weight: 700; cursor: pointer; font-family: inherit;">${iconSvg}<span>${label}</span></button>
 ${indent}</div>`;
     }
   }

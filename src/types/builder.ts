@@ -63,7 +63,9 @@ export type FloatingCartPosition =
   | 'bottom-docked'
   | 'top-floating'
   | 'bottom-left'
-  | 'bottom-right';
+  | 'bottom-right'
+  | 'top-left'
+  | 'top-right';
 export type CategoryScrollMode = 'vertical' | 'horizontal' | 'wrap';
 
 export interface FnbMenuItem {
@@ -194,7 +196,9 @@ export type ButtonIconId =
   | 'globe'
   | 'share-2'
   | 'download'
-  | 'external-link';
+  | 'external-link'
+  | 'arrow-left'
+  | 'chevron-left';
 
 export type CatalogProductType = 'physical' | 'digital' | 'service';
 export type CatalogCartButtonSize = 'sm' | 'md' | 'lg';
@@ -241,6 +245,7 @@ export interface CatalogCustomerField {
   maxValue?: number;
   minLength?: number;
   maxLength?: number;
+  phoneFormat?: 'general' | 'whatsapp';
   pattern?: string;
   options?: string[];
   requiredOptionIndexes?: number[];
@@ -396,6 +401,7 @@ export interface BottomNavbarItem {
   action: BottomNavbarItemAction;
   linkUrl?: string;
   sheetTitle: string;
+  sheetPosition?: MenuIconSheetPosition;
   children: BuilderBlock[];
 }
 
@@ -430,6 +436,7 @@ export interface BlockStyle {
   displayMode?: 'block' | 'flex' | 'grid' | 'inline-flex';
   flexDirection?: 'column' | 'row' | 'column-reverse' | 'row-reverse';
   alignItems?: 'stretch' | 'flex-start' | 'center' | 'flex-end';
+  alignSelf?: 'auto' | 'flex-start' | 'center' | 'flex-end' | 'stretch';
   justifyContent?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around';
   flexWrap?: 'nowrap' | 'wrap';
   gap?: number;
@@ -472,6 +479,7 @@ export interface BlockStyle {
   fontFamily?: string;
   fontSize?: number;
   fontWeightCss?: '400' | '500' | '600' | '700' | '800';
+  fontStyle?: 'normal' | 'italic';
   lineHeight?: number;
   letterSpacing?: number;
   textDecoration?: 'none' | 'underline' | 'line-through';
@@ -490,6 +498,9 @@ export interface BlockStyle {
   fullBleed?: boolean;
   marginTop?: number;
   marginBottom: number;
+  marginLeft?: number;
+  marginRight?: number;
+  locked?: boolean;
   themeOverrideMode?: 'global' | 'local';
   themeOverrideTokens?: {
     textColor?: boolean;
@@ -498,6 +509,33 @@ export interface BlockStyle {
     fontFamily?: boolean;
     accentColor?: boolean;
   };
+  responsive?: {
+    tablet?: ResponsiveStyleOverride;
+    mobile?: ResponsiveStyleOverride;
+  };
+}
+
+export type ViewportBreakpoint = 'desktop' | 'tablet' | 'mobile';
+
+export interface ResponsiveStyleOverride {
+  widthPercent?: number;
+  minWidth?: number;
+  maxWidth?: number;
+  heightPx?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  displayMode?: 'block' | 'flex' | 'grid' | 'inline-flex';
+  flexDirection?: 'column' | 'row' | 'column-reverse' | 'row-reverse';
+  alignItems?: 'stretch' | 'flex-start' | 'center' | 'flex-end';
+  justifyContent?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around';
+  flexWrap?: 'nowrap' | 'wrap';
+  gap?: number;
+  paddingTop?: number;
+  paddingRight?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  marginTop?: number;
+  marginBottom?: number;
 }
 
 export interface BlockContent {
@@ -507,19 +545,51 @@ export interface BlockContent {
   fontWeight?: 'normal' | 'semibold' | 'bold';
   // Image
   src?: string;
+  imageName?: string;
   alt?: string;
   aspectRatio?: 'auto' | '16/9' | '4/3' | '1/1';
-  objectFit?: 'cover' | 'contain';
+  objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
+  objectPosition?: string;
   imageShape?: 'rect' | 'circle';
   circleSize?: number;
   imageZoom?: number;
-  // Button
+  // Button (3-Layer Standard: Wadah, Icon, Teks)
   label?: string;
   url?: string;
   buttonBg?: string;
+  buttonHoverBg?: string;
   buttonText?: string;
   buttonIcon?: ButtonIconId;
   buttonIconUrl?: string;
+  buttonIconSize?: number;
+  buttonIconColor?: string;
+  buttonIconStrokeWidth?: number;
+  buttonIconTooltip?: string;
+  buttonHideIcon?: boolean;
+  buttonHideText?: boolean;
+  buttonActionKind?: 'url' | 'page' | 'scroll' | 'form' | 'whatsapp' | 'action';
+  buttonWhatsappNumber?: string;
+  buttonWhatsappMessage?: string;
+  buttonCustomAction?: string;
+  buttonTooltip?: string;
+  buttonDisabled?: boolean;
+  buttonConfirmAction?: boolean;
+  buttonConfirmMessage?: string;
+  buttonVisualState?: 'normal' | 'hover' | 'active' | 'focus' | 'disabled';
+  buttonStateStyles?: Partial<
+    Record<
+      'normal' | 'hover' | 'active' | 'focus' | 'disabled',
+      {
+        bg?: string;
+        borderColor?: string;
+        textColor?: string;
+        opacity?: number;
+        scale?: number;
+      }
+    >
+  >;
+  buttonIconStyle?: Partial<BlockStyle>;
+  buttonTextStyle?: Partial<BlockStyle>;
   // Form Dinamis (Section H)
   formTitle?: string;
   formCategory?: WhatsappTemplateType;
@@ -552,6 +622,7 @@ export interface BlockContent {
   sliderAutoplayIntervalMs?: number;
   sliderShowArrows?: boolean;
   sliderShowDots?: boolean;
+  sliderShowScrollbar?: boolean;
   sliderTouchSwipe?: boolean;
   sliderMouseDrag?: boolean;
   sliderSnap?: boolean;
@@ -568,6 +639,7 @@ export interface BlockContent {
   videoPoster?: string;
   videoAspectRatio?: '16/9' | '1/1' | '4/5' | '9/16';
   videoAutoplay?: boolean;
+  videoMuted?: boolean;
   videoVolume?: number;
   // Divider
   lineColor?: string;
@@ -614,6 +686,9 @@ export interface BlockContent {
   carouselItems?: CarouselItem[];
   carouselAspectRatio?: CarouselAspectRatio;
   carouselObjectFit?: 'cover' | 'contain';
+  carouselShowDots?: boolean;
+  carouselShowArrows?: boolean;
+  carouselShowScrollbar?: boolean;
   // Social Profile & Postings Carousel
   socialFeedPlatform?: SocialPlatform;
   socialFeedAvatar?: string;
@@ -700,6 +775,8 @@ export interface BlockContent {
   heroLocation?: string;
   heroInfoSize?: number;
   heroCardRadius?: number;
+  heroHideDefaultContent?: boolean;
+  heroChildrenPosition?: 'on_cover' | 'inside_card' | 'below_card' | 'overlap_cover';
   // Katalog F&B
   fnbItems?: FnbMenuItem[];
   fnbShowSearch?: boolean;
@@ -718,6 +795,7 @@ export interface BlockContent {
   // Tombol Kategori Lompat Judul
   categoryButtons?: CategoryJumpItem[];
   categoryScrollMode?: CategoryScrollMode;
+  categoryShowScrollbar?: boolean;
   categoryMaxHeight?: number;
   categoryActiveBg?: string;
   categoryActiveText?: string;
@@ -737,6 +815,8 @@ export interface BlockContent {
   rowColumnWidth?: number;
   rowColumnMinHeight?: number;
   rowGap?: number;
+  rowShowDots?: boolean;
+  rowShowScrollbar?: boolean;
   // Menu Icon (Upload/URL gambar, Bulat/Segi Empat/Kotak, Sheet 4 Arah / Menuju Card Lain)
   menuIconImage?: string;
   menuIconShape?: MenuIconShape;
@@ -748,6 +828,7 @@ export interface BlockContent {
   menuIconShowLabel?: boolean;
   menuIconAction?: MenuIconAction;
   menuIconSheetPosition?: MenuIconSheetPosition;
+  sheetPosition?: MenuIconSheetPosition;
   menuIconTargetBlockId?: string;
   menuIconBg?: string;
   menuIconTextColor?: string;
@@ -772,6 +853,7 @@ export interface BlockContent {
   cardMoreUrl?: string;
   cardTitle?: string;
   cardSubtitle?: string;
+  cardBadge?: string;
   cardQuote?: string;
   cardDate?: string;
   cardViews?: string;
@@ -809,6 +891,7 @@ export interface BlockContent {
   // Aksi Universal (Berlaku pada semua lapisan: Link, Sheet 4 Arah, Halaman Baru, Card Lain, Back)
   actionType?: UniversalActionType;
   actionUrl?: string;
+  buttonOpenInNewTab?: boolean;
   actionSheetPosition?: MenuIconSheetPosition;
   actionSheetTitle?: string;
   actionSheetBlocks?: BuilderBlock[];
@@ -833,7 +916,15 @@ export interface BlockContent {
   backButtonLabel?: string;
   backButtonBg?: string;
   backButtonText?: string;
+  backButtonIcon?: ButtonIconId;
+  backButtonIconColor?: string;
   backTargetPageId?: string;
+  // Independent Sub-Layer Storage (per-element styling, visibility, deletion & lock without mutating siblings/parent)
+  hiddenSubLayers?: string[];
+  deletedSubLayers?: string[];
+  lockedSubLayers?: string[];
+  subLayerStyles?: Record<string, Partial<BlockStyle>>;
+  subLayerMeta?: Record<string, { label?: string; alt?: string; imageName?: string; objectFit?: BlockContent['objectFit']; objectPosition?: string; borderRadius?: number }>;
 }
 
 export interface BuilderBlock {

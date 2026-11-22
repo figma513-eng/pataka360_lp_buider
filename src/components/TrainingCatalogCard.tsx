@@ -123,7 +123,7 @@ export function TrainingCatalogCard({
       {(content.trainingHeading?.trim() ||
         content.trainingBatch?.trim() ||
         content.trainingSchedule?.trim()) && (
-        <div className="space-y-1.5">
+        <div data-canvas-sublayer="training_header" className="space-y-1.5 rounded-lg">
           {content.trainingHeading?.trim() && (
             <div className="flex items-center gap-2">
               <span
@@ -160,6 +160,7 @@ export function TrainingCatalogCard({
       {/* Foto Pelatihan Carousel */}
       {mediaList.length > 0 && activeMedia && (
         <div
+          data-canvas-sublayer={`tr_media_${activeMedia.id || safeMediaIdx}`}
           style={{
             borderColor,
             borderRadius: `${Math.max(10, borderRadius - 4)}px`,
@@ -235,6 +236,7 @@ export function TrainingCatalogCard({
       {/* Ringkasan Biaya Pelatihan (Potongan, Cashback, dll) */}
       {hasSummaryPricing && activeProgram && (
         <div
+          data-canvas-sublayer={`tr_prog_${activeProgram.id || safeProgramIdx}`}
           style={{
             borderColor,
             backgroundColor: `${accentColor}0E`,
@@ -353,6 +355,7 @@ export function TrainingCatalogCard({
           {/* Card Promo, Program & Detail Harga */}
           {activeProgram && (
             <div
+              data-canvas-sublayer={`tr_prog_${activeProgram.id || safeProgramIdx}`}
               style={{
                 borderColor,
                 borderRadius: `${Math.max(10, borderRadius - 4)}px`,
@@ -429,7 +432,7 @@ export function TrainingCatalogCard({
           )}
 
           {/* Box Deskripsi & Konten Tambahan */}
-          {customBoxes.map((box) => {
+          {customBoxes.map((box, boxIdx) => {
             const formattedHtml = formatRichHtmlWithSpacing(
               box.contentHtml,
               box.paragraphGap ?? 6
@@ -438,6 +441,7 @@ export function TrainingCatalogCard({
             return (
               <div
                 key={box.id}
+                data-canvas-sublayer={`tr_box_${box.id || boxIdx}`}
                 style={{
                   borderColor,
                   borderRadius: `${Math.max(10, borderRadius - 4)}px`,
@@ -522,6 +526,7 @@ export function TrainingCatalogCard({
 
           {/* Formulir Dinamis (Nama, Alamat, + Tambah Kolom) */}
           <div
+            data-canvas-sublayer="training_form"
             style={{
               borderColor,
               borderRadius: `${Math.max(10, borderRadius - 4)}px`,
@@ -544,9 +549,6 @@ export function TrainingCatalogCard({
                       readOnly={isEditor}
                       value={formValues[field.id] ?? ''}
                       placeholder={field.placeholder}
-                      onClick={(e) => {
-                        if (isEditor) e.stopPropagation();
-                      }}
                       onChange={(e) =>
                         setFormValues((prev) => ({ ...prev, [field.id]: e.target.value }))
                       }
@@ -559,9 +561,6 @@ export function TrainingCatalogCard({
                       readOnly={isEditor}
                       value={formValues[field.id] ?? ''}
                       placeholder={field.placeholder}
-                      onClick={(e) => {
-                        if (isEditor) e.stopPropagation();
-                      }}
                       onChange={(e) =>
                         setFormValues((prev) => ({ ...prev, [field.id]: e.target.value }))
                       }

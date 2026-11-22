@@ -18,6 +18,7 @@ interface CleanVideoEmbedProps {
   posterUrl?: string;
   aspectRatio?: '16/9' | '1/1' | '4/5' | '9/16';
   autoPlay?: boolean;
+  muted?: boolean;
   volume?: number;
   borderRadius?: number;
   accentColor?: string;
@@ -37,6 +38,7 @@ export function CleanVideoEmbed({
   posterUrl,
   aspectRatio = '16/9',
   autoPlay = true,
+  muted = false,
   volume = 75,
   borderRadius = 14,
   accentColor = '#2563EB',
@@ -87,8 +89,8 @@ export function CleanVideoEmbed({
   const [isPlaying, setIsPlaying] = useState<boolean>(() => Boolean(isValid && autoPlay));
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isRevealed, setIsRevealed] = useState(false);
-  const [localVolume, setLocalVolume] = useState<number>(volume);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [localVolume, setLocalVolume] = useState<number>(muted ? 0 : volume);
+  const [isMuted, setIsMuted] = useState<boolean>(Boolean(muted));
   const [thumbLevel, setThumbLevel] = useState<0 | 1 | 2>(0);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -97,20 +99,24 @@ export function CleanVideoEmbed({
   const hasPlayedOnceRef = useRef(false);
   const autoStartedRef = useRef<boolean>(Boolean(isValid && autoPlay));
   const autoUnmuteAttemptedAtRef = useRef<number>(0);
-  const volumeRef = useRef<number>(volume);
-  const mutedRef = useRef<boolean>(false);
+  const volumeRef = useRef<number>(muted ? 0 : volume);
+  const mutedRef = useRef<boolean>(Boolean(muted));
   const revealTimerRef = useRef<number | null>(null);
   const fallbackTimerRef = useRef<number | null>(null);
   const autoplayCheckTimerRef = useRef<number | null>(null);
   const playerId = useId();
 
   useEffect(() => {
-    setLocalVolume(volume);
-    volumeRef.current = volume;
+    const effectiveVol = muted ? 0 : volume;
+    setIsMuted(Boolean(muted));
+    mutedRef.current = Boolean(muted);
+    setLocalVolume(effectiveVol);
+    volumeRef.current = effectiveVol;
     if (videoRef.current) {
-      videoRef.current.volume = Math.max(0, Math.min(1, volume / 100));
+      videoRef.current.muted = Boolean(muted);
+      videoRef.current.volume = Math.max(0, Math.min(1, effectiveVol / 100));
     }
-  }, [volume]);
+  }, [volume, muted]);
 
   // Resolusi URL FB/TikTok/IG via server (/api/resolve-video) & oEmbed TikTok
   useEffect(() => {

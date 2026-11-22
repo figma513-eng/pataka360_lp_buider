@@ -230,6 +230,7 @@ export function MediaSourceInput({
   uploading,
   onChangeUrl,
   onUploadFile,
+  onSavePreparedUrl,
   onClear,
 }: {
   label?: string;
@@ -238,15 +239,81 @@ export function MediaSourceInput({
   previewFallback?: string;
   uploading?: boolean;
   onChangeUrl: (nextUrl: string) => void;
-  onUploadFile: (file: File) => void;
+  onUploadFile?: (file: File) => void;
+  onSavePreparedUrl?: (url: string, meta: { fileName: string; formatLabel: string; sizeBytes: number }) => void;
   onClear?: () => void;
 }) {
+  const [preparing, setPreparing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<{
+    dataUrl: string;
+    fileName: string;
+    formatLabel: string;
+    mimeType: string;
+    sizeBytes: number;
+    width?: number;
+    height?: number;
+    note?: string;
+    originalFile: File;
+  } | null>(null);
+
   const isEmbedded = Boolean(value && value.startsWith('data:'));
   const isSvgPlaceholder = Boolean(value && value.startsWith('data:image/svg+xml'));
-  const displaySrc = value || previewFallback || '';
+  const displaySrc = pendingUpload?.dataUrl || value || previewFallback || '';
+  const isBusy = Boolean(uploading || preparing || saving);
+
+  const handleSelectFile = async (file: File) => {
+    setLocalError(null);
+    setPreparing(true);
+    try {
+      const { prepareImageForWebpPreview } = await import('../../utils/imageHelpers');
+      const prepared = await prepareImageForWebpPreview(file);
+      setPendingUpload({ ...prepared, originalFile: file });
+    } catch (err) {
+      setPendingUpload(null);
+      setLocalError(err instanceof Error ? err.message : 'Gagal memproses gambar ke format WebP.');
+    } finally {
+      setPreparing(false);
+    }
+  };
+
+  const handleConfirmSave = async () => {
+    if (!pendingUpload) return;
+    setLocalError(null);
+    setSaving(true);
+    try {
+      const { savePreparedImageToProject } = await import('../../utils/imageHelpers');
+      const finalUrl = await savePreparedImageToProject(pendingUpload);
+      if (onSavePreparedUrl) {
+        onSavePreparedUrl(finalUrl, {
+          fileName: pendingUpload.fileName,
+          formatLabel: pendingUpload.formatLabel,
+          sizeBytes: pendingUpload.sizeBytes,
+        });
+      } else {
+        onChangeUrl(finalUrl);
+      }
+      setPendingUpload(null);
+    } catch (err) {
+      // Fallback to legacy handler only if server save unexpectedly throws
+      if (onUploadFile && pendingUpload.originalFile) {
+        try {
+          onUploadFile(pendingUpload.originalFile);
+          setPendingUpload(null);
+          return;
+        } catch {
+          // ignore and display primary error below
+        }
+      }
+      setLocalError(err instanceof Error ? err.message : 'Gagal menyimpan gambar ke penyimpanan proyek.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {label && (
         <label className="block text-[10.5px] font-semibold text-[#17243D]">{label}</label>
       )}
@@ -268,28 +335,34 @@ export function MediaSourceInput({
             placeholder={
               isEmbedded && !isSvgPlaceholder ? 'Gambar terunggah (isi URL untuk ganti)' : placeholder
             }
-            onChange={(e) => onChangeUrl(e.target.value)}
+            onChange={(e) => {
+              setPendingUpload(null);
+              setLocalError(null);
+              onChangeUrl(e.target.value);
+            }}
             className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] outline-none focus:border-[#00C98A]"
           />
           <label
-            title="Upload gambar dari perangkat"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] hover:bg-[#DCE5EF]/50 text-[10.5px] font-semibold text-[#17243D] cursor-pointer shrink-0 transition-colors"
+            title="Upload gambar (otomatis dikonversi ke WebP sebelum disimpan)"
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] hover:bg-[#DCE5EF]/50 text-[10.5px] font-semibold text-[#17243D] cursor-pointer shrink-0 transition-colors ${
+              isBusy ? 'opacity-60 pointer-events-none' : ''
+            }`}
           >
             <Upload className="w-3 h-3 text-[#00C98A]" />
-            <span>{uploading ? '...' : 'Upload'}</span>
+            <span>{preparing ? 'Konversi...' : saving ? 'Menyimpan...' : uploading ? '...' : 'Upload'}</span>
             <input
               type="file"
               accept="image/*"
-              disabled={uploading}
+              disabled={isBusy}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = '';
-                if (file) onUploadFile(file);
+                if (file) void handleSelectFile(file);
               }}
               className="hidden"
             />
           </label>
-          {onClear && value && (
+          {onClear && value && !pendingUpload && (
             <button
               type="button"
               onClick={onClear}
@@ -301,6 +374,77 @@ export function MediaSourceInput({
           )}
         </div>
       </div>
+
+      {/* Step 1 -> Step 2 WebP Preview & Explicit Save Card */}
+      {pendingUpload && (
+        <div
+          data-webp-preview-card="true"
+          className="p-2 rounded-lg border border-[#00C98A]/60 bg-[#ECFDF6] space-y-2"
+        >
+          <div className="flex items-start gap-2">
+            <div className="w-12 h-12 rounded-md border border-[#00C98A]/40 bg-white overflow-hidden shrink-0 flex items-center justify-center">
+              <img
+                src={pendingUpload.dataUrl}
+                alt={pendingUpload.fileName}
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <div className="text-[10.5px] font-bold text-[#17243D] truncate" title={pendingUpload.fileName}>
+                {pendingUpload.fileName}
+              </div>
+              <div className="flex items-center flex-wrap gap-1 text-[9px] font-semibold">
+                <span className="px-1.5 py-0.5 rounded bg-[#17243D] text-white">
+                  {pendingUpload.formatLabel}
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[#334155] tabular-nums">
+                  {pendingUpload.sizeBytes < 1024
+                    ? `${pendingUpload.sizeBytes} B`
+                    : pendingUpload.sizeBytes < 1024 * 1024
+                    ? `${(pendingUpload.sizeBytes / 1024).toFixed(1)} KB`
+                    : `${(pendingUpload.sizeBytes / (1024 * 1024)).toFixed(2)} MB`}
+                </span>
+                {pendingUpload.width && pendingUpload.height && (
+                  <span className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[#51637D] tabular-nums">
+                    {pendingUpload.width}×{pendingUpload.height}
+                  </span>
+                )}
+              </div>
+              {pendingUpload.note && (
+                <p className="text-[9.5px] text-[#007A54] leading-snug">{pendingUpload.note}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                setPendingUpload(null);
+                setLocalError(null);
+              }}
+              className="px-2 py-1 rounded-md border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#51637D] hover:bg-[#F0F5FA] cursor-pointer disabled:opacity-50"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleConfirmSave()}
+              className="px-2.5 py-1 rounded-md bg-[#00C98A] hover:bg-[#00B37B] text-white text-[10px] font-bold shadow-2xs cursor-pointer disabled:opacity-50"
+            >
+              {saving ? 'Menyimpan...' : 'Simpan Gambar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {localError && (
+        <div className="px-2 py-1.5 rounded-md bg-red-50 border border-red-200 text-[10px] font-medium text-red-700 leading-snug">
+          {localError}
+        </div>
+      )}
     </div>
   );
 }

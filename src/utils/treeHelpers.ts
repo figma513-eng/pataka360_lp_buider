@@ -8,7 +8,8 @@ export function isContainerBlockType(type: BuilderBlock['type']): boolean {
     type === 'toggle_container' ||
     type === 'bottom_sheet' ||
     type === 'menu_icon' ||
-    type === 'showcase_card'
+    type === 'showcase_card' ||
+    type === 'hero_profile'
   );
 }
 
@@ -27,6 +28,30 @@ export function findBlockById(blocks: BuilderBlock[], id: string | null): Builde
     if (block.content?.cardFooterBlocks?.length) {
       const foundInFooter = findBlockById(block.content.cardFooterBlocks, id);
       if (foundInFooter) return foundInFooter;
+    }
+  }
+  return null;
+}
+
+export function findParentBlockId(
+  blocks: BuilderBlock[],
+  targetId: string | null,
+  parentId: string | null = null
+): string | null {
+  if (!targetId) return null;
+  for (const block of blocks) {
+    if (block.id === targetId) return parentId;
+    if (block.children?.length) {
+      const found = findParentBlockId(block.children, targetId, block.id);
+      if (found !== null) return found;
+    }
+    if (block.content?.actionSheetBlocks?.length) {
+      const found = findParentBlockId(block.content.actionSheetBlocks, targetId, block.id);
+      if (found !== null) return found;
+    }
+    if (block.content?.cardFooterBlocks?.length) {
+      const found = findParentBlockId(block.content.cardFooterBlocks, targetId, block.id);
+      if (found !== null) return found;
     }
   }
   return null;
@@ -110,7 +135,22 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
   return {
     ...block,
     id: createId(block.type.slice(0, 3)),
-    style: { ...block.style },
+    style: {
+      ...block.style,
+      themeOverrideTokens: block.style.themeOverrideTokens
+        ? { ...block.style.themeOverrideTokens }
+        : undefined,
+      responsive: block.style.responsive
+        ? {
+            ...(block.style.responsive.tablet
+              ? { tablet: { ...block.style.responsive.tablet } }
+              : {}),
+            ...(block.style.responsive.mobile
+              ? { mobile: { ...block.style.responsive.mobile } }
+              : {}),
+          }
+        : undefined,
+    },
     content: {
       ...block.content,
       catalogItems: block.content.catalogItems?.map((it) => ({
@@ -141,6 +181,10 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
       catalogCustomerFields: block.content.catalogCustomerFields?.map((it) => ({
         ...it,
         id: createId('cf'),
+        options: it.options ? [...it.options] : undefined,
+        requiredOptionIndexes: it.requiredOptionIndexes
+          ? [...it.requiredOptionIndexes]
+          : undefined,
       })),
       trainingPrograms: block.content.trainingPrograms?.map((it) => ({
         ...it,
@@ -160,6 +204,10 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
       trainingFormFields: block.content.trainingFormFields?.map((it) => ({
         ...it,
         id: createId('tf'),
+        options: it.options ? [...it.options] : undefined,
+        requiredOptionIndexes: it.requiredOptionIndexes
+          ? [...it.requiredOptionIndexes]
+          : undefined,
       })),
       fnbItems: block.content.fnbItems?.map((it) => ({
         ...it,
@@ -168,6 +216,14 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
       categoryButtons: block.content.categoryButtons?.map((it) => ({
         ...it,
         id: createId('catbtn'),
+      })),
+      formFields: block.content.formFields?.map((it) => ({
+        ...it,
+        id: createId('fld'),
+        options: it.options ? [...it.options] : undefined,
+        requiredOptionIndexes: it.requiredOptionIndexes
+          ? [...it.requiredOptionIndexes]
+          : undefined,
       })),
       formChecklistItems: block.content.formChecklistItems
         ? [...block.content.formChecklistItems]

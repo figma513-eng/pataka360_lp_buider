@@ -23,80 +23,13 @@ import {
   resolveShadowSizePx,
   shadowToCss,
 } from './exporterBlocks.ts';
-import { findFirstFloatingCartConfig } from './universalLayerHelpers.ts';
+import { resolveProjectFloatingCartConfig } from './universalLayerHelpers.ts';
 import { resolveWhatsappCenter } from './whatsappBuilder.ts';
+import { buildResponsiveBlockCssRules } from './responsiveStyle.ts';
 
 export { extractYouTubeId, resolveBlockTextColor, resolveShadowSizePx, shadowToCss };
 
-function findFirstFnbCatalogBlock(
-  blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[],
-  pages?: { blocks: BuilderBlock[] }[]
-): BuilderBlock | null {
-  for (const blk of blocks) {
-    if (blk.type === 'fnb_catalog') return blk;
-    if (blk.children?.length) {
-      const found = findFirstFnbCatalogBlock(blk.children);
-      if (found) return found;
-    }
-    if (blk.content.actionSheetBlocks?.length) {
-      const found = findFirstFnbCatalogBlock(blk.content.actionSheetBlocks);
-      if (found) return found;
-    }
-    if (blk.content.cardFooterBlocks?.length) {
-      const found = findFirstFnbCatalogBlock(blk.content.cardFooterBlocks);
-      if (found) return found;
-    }
-  }
-  if (navItems?.length) {
-    for (const item of navItems) {
-      const found = findFirstFnbCatalogBlock(item.children);
-      if (found) return found;
-    }
-  }
-  if (pages?.length) {
-    for (const pg of pages) {
-      const found = findFirstFnbCatalogBlock(pg.blocks);
-      if (found) return found;
-    }
-  }
-  return null;
-}
 
-function findFirstCartButtonFloatBlock(
-  blocks: BuilderBlock[],
-  navItems?: BottomNavbarItem[],
-  pages?: { blocks: BuilderBlock[] }[]
-): BuilderBlock | null {
-  for (const blk of blocks) {
-    if (blk.type === 'cart_button' && blk.content.cartFloatingEnabled !== false) return blk;
-    if (blk.children?.length) {
-      const found = findFirstCartButtonFloatBlock(blk.children);
-      if (found) return found;
-    }
-    if (blk.content.actionSheetBlocks?.length) {
-      const found = findFirstCartButtonFloatBlock(blk.content.actionSheetBlocks);
-      if (found) return found;
-    }
-    if (blk.content.cardFooterBlocks?.length) {
-      const found = findFirstCartButtonFloatBlock(blk.content.cardFooterBlocks);
-      if (found) return found;
-    }
-  }
-  if (navItems?.length) {
-    for (const item of navItems) {
-      const found = findFirstCartButtonFloatBlock(item.children);
-      if (found) return found;
-    }
-  }
-  if (pages?.length) {
-    for (const pg of pages) {
-      const found = findFirstCartButtonFloatBlock(pg.blocks);
-      if (found) return found;
-    }
-  }
-  return null;
-}
 
 function resolveAbsoluteShareUrl(rawUrl: string | undefined, origin?: string): string {
   const val = (rawUrl || '').trim();
@@ -280,11 +213,12 @@ export function generateProjectHtml(
           const safeId = it.id.replace(/[^a-zA-Z0-9_-]/g, '');
           const sheetId = `sheet_nav_${safeId}`;
           const sheetTitle = it.sheetTitle?.trim() || it.label || 'Info';
+          const sheetPos = it.sheetPosition ?? 'bottom';
           const inner = (it.children ?? [])
             .map((child) => renderBlockHtml(child, project.theme, adv, '        ', project.theme.textColor))
             .filter(Boolean)
             .join('\n');
-          return `  <div id="${sheetId}" data-bottom-sheet class="lynk-sheet-backdrop" role="dialog" aria-modal="true" aria-label="${escapeHtml(
+          return `  <div id="${sheetId}" data-bottom-sheet data-sheet-pos="${sheetPos}" class="lynk-sheet-backdrop lynk-sheet-pos-${sheetPos}" role="dialog" aria-modal="true" aria-label="${escapeHtml(
             sheetTitle
           )}">
     <div class="lynk-sheet-panel" style="background-color: ${project.theme.cardBg}; color: ${
@@ -371,47 +305,19 @@ ${enabledNavItems
   </nav>`
     : '';
 
-  const firstFnbBlk = findFirstFnbCatalogBlock(project.blocks, bottomNavbar.items, subPages);
-  const firstCartBtnBlk = findFirstCartButtonFloatBlock(
+  const resolvedProjectFloat = resolveProjectFloatingCartConfig(
     project.blocks,
     bottomNavbar.items,
     subPages
   );
-  const fallbackFloat =
-    !firstFnbBlk && !firstCartBtnBlk
-      ? findFirstFloatingCartConfig(project.blocks, bottomNavbar.items, subPages)
-      : null;
-  const fnbFloatConfig =
-    firstFnbBlk && firstFnbBlk.content.fnbFloatingCartEnabled !== false
-      ? {
-          position: firstFnbBlk.content.fnbFloatingCartPosition ?? 'bottom-floating',
-          offsetY: Math.max(0, Math.min(120, firstFnbBlk.content.fnbFloatingCartOffsetY ?? 16)),
-          bgColor:
-            firstFnbBlk.content.fnbFloatingCartBg ||
-            firstFnbBlk.content.fnbAccentColor ||
-            project.theme.accentColor ||
-            '#EA580C',
-          actionLabel: firstFnbBlk.content.fnbFloatingCartLabel || 'Lanjut',
-        }
-      : firstCartBtnBlk
-      ? {
-          position: firstCartBtnBlk.content.cartFloatingPosition ?? 'bottom-floating',
-          offsetY: 16,
-          bgColor:
-            firstCartBtnBlk.content.cartFloatingBg ||
-            firstCartBtnBlk.content.cartAccentColor ||
-            project.theme.accentColor ||
-            '#059669',
-          actionLabel: firstCartBtnBlk.content.cartFloatingLabel || 'Lihat Keranjang',
-        }
-      : fallbackFloat
-      ? {
-          position: fallbackFloat.position,
-          offsetY: Math.max(0, Math.min(120, fallbackFloat.offsetY ?? 16)),
-          bgColor: fallbackFloat.bg || project.theme.accentColor || '#059669',
-          actionLabel: fallbackFloat.label || 'Lihat Keranjang',
-        }
-      : null;
+  const fnbFloatConfig = resolvedProjectFloat
+    ? {
+        position: resolvedProjectFloat.position,
+        offsetY: Math.max(0, Math.min(120, resolvedProjectFloat.offsetY ?? 16)),
+        bgColor: resolvedProjectFloat.bg || project.theme.accentColor || '#059669',
+        actionLabel: resolvedProjectFloat.label || 'Lihat Keranjang',
+      }
+    : null;
   const googleFontsHref = buildGoogleFontsHref(collectProjectFontIds(project));
   const bodyFontStack =
     resolveCssFontFamily(project.theme.fontFamily) ||
@@ -453,6 +359,13 @@ ${enabledNavItems
     })
     .filter(Boolean)
     .join('\n');
+
+  const allResponsiveSourceBlocks: BuilderBlock[] = [
+    ...project.blocks,
+    ...subPages.flatMap((pg) => pg.blocks ?? []),
+    ...bottomNavbar.items.flatMap((it) => it.children ?? []),
+  ];
+  const responsiveCssRules = buildResponsiveBlockCssRules(allResponsiveSourceBlocks);
 
   const subPagesHtml = subPages
     .map((pg) => {
@@ -807,11 +720,26 @@ ${backBarHtml}${
       padding: 16px;
       box-sizing: border-box;
     }
-    .lynk-row-track {
+    .lynk-hide-scrollbar {
       scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .lynk-hide-scrollbar::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
     }
     .lynk-row-track::-webkit-scrollbar {
+      height: 5px;
+    }
+    .lynk-row-track::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.55);
+      border-radius: 9999px;
+    }
+    .lynk-row-track.lynk-hide-scrollbar::-webkit-scrollbar {
       display: none;
+      width: 0;
+      height: 0;
     }
     .lynk-row-dots {
       display: flex;
@@ -838,7 +766,7 @@ ${backBarHtml}${
       outline: 2px solid #10B981 !important;
       outline-offset: 3px;
       transition: outline-color 0.3s ease;
-    }
+    }${responsiveCssRules ? '\n' + responsiveCssRules : ''}
   </style>
 </head>
 <body>
@@ -1188,9 +1116,12 @@ ${bodyBlocks}
         showCover(wrap);
         if (!wrap._vidMounted) {
           wrap._vidMounted = true;
-          wrap._vidMuted = false;
+          wrap._vidMuted = wrap.getAttribute('data-vid-muted') === '1';
           wrap._vidPlayedOnce = false;
           wrap._autoUnmuteAt = 0;
+          if (wrap._vidMuted) {
+            syncVolumeUI(wrap, vol, true);
+          }
           if (direct) {
             stage.innerHTML = '';
             var vid = document.createElement('video');
@@ -2055,10 +1986,10 @@ ${bodyBlocks}
                 var pos = floatCfg.position || 'bottom-floating';
                 var off = Math.max(0, Math.min(120, Number(floatCfg.offsetY || 16)));
                 var navH = sheetOpen ? 0 : Number(storeData.navReservedHeight || 0);
-                var isTop = pos === 'top-floating';
+                var isTop = pos === 'top-floating' || pos === 'top-left' || pos === 'top-right';
                 var isDocked = pos === 'bottom-docked';
-                var isLeft = pos === 'bottom-left';
-                var isRight = pos === 'bottom-right';
+                var isLeft = pos === 'bottom-left' || pos === 'top-left';
+                var isRight = pos === 'bottom-right' || pos === 'top-right';
                 fnbFloatBar.style.display = 'flex';
                 fnbFloatBar.style.justifyContent = isLeft ? 'flex-start' : isRight ? 'flex-end' : 'center';
                 fnbFloatBar.style.paddingLeft = isDocked ? '0' : '14px';
@@ -3549,8 +3480,14 @@ ${bodyBlocks}
               return customErr || ('Format email pada "' + flabel + '" tidak valid.');
             }
             if (ftype === 'phone' || ftype === 'tel') {
+              var phoneFmt = el.getAttribute('data-phone-format') || 'general';
               var digits = strVal.replace(/[^\\d]/g, '');
-              if (digits.length < 8 || digits.length > 16) {
+              if (phoneFmt === 'whatsapp') {
+                var validWaPrefix = /^(\\+?628|08)/.test(strVal.replace(/[\\s()-]/g, ''));
+                if (!validWaPrefix || digits.length < 10 || digits.length > 15) {
+                  return customErr || ('Nomor WhatsApp pada "' + flabel + '" harus diawali 08 atau 628 (10–15 digit).');
+                }
+              } else if (digits.length < 8 || digits.length > 16) {
                 return customErr || ('Nomor telepon pada "' + flabel + '" harus terdiri dari 8–16 digit.');
               }
             }

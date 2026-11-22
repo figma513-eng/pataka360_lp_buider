@@ -236,6 +236,15 @@ export function ContainerSliderControls({
                 <span>{label('konten.field.sliderTitikNav', 'Titik Navigasi')}</span>
               </label>
             )}
+            <label className="flex items-center gap-1.5 text-[#17243D] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(selectedBlock.content.sliderShowScrollbar)}
+                onChange={(e) => patchContent({ sliderShowScrollbar: e.target.checked })}
+                className="accent-[#00C98A]"
+              />
+              <span>{label('konten.field.sliderScrollbar', 'Tampilkan Scrollbar')}</span>
+            </label>
             {isVisible('konten.field.sliderLoop') && (
               <label className="flex items-center gap-1.5 text-[#17243D] cursor-pointer">
                 <input

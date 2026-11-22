@@ -27,6 +27,9 @@ export function buildSectionDReactStyle(style: BlockStyle): CSSProperties {
   if (style.alignItems) {
     out.alignItems = style.alignItems;
   }
+  if (style.alignSelf && style.alignSelf !== 'auto') {
+    out.alignSelf = style.alignSelf;
+  }
   if (style.justifyContent) {
     out.justifyContent = style.justifyContent;
   }
@@ -38,6 +41,12 @@ export function buildSectionDReactStyle(style: BlockStyle): CSSProperties {
   }
   if (style.overflow && style.overflow !== 'visible') {
     out.overflow = style.overflow;
+  }
+  if (typeof style.marginLeft === 'number' && style.marginLeft !== 0) {
+    out.marginLeft = `${style.marginLeft}px`;
+  }
+  if (typeof style.marginRight === 'number' && style.marginRight !== 0) {
+    out.marginRight = `${style.marginRight}px`;
   }
 
   // Ukuran (Min / Maks / Tinggi)
@@ -84,6 +93,7 @@ export function buildSectionDReactStyle(style: BlockStyle): CSSProperties {
   if (style.fontFamily) out.fontFamily = style.fontFamily;
   if (typeof style.fontSize === 'number' && style.fontSize > 0) out.fontSize = `${style.fontSize}px`;
   if (style.fontWeightCss) out.fontWeight = Number(style.fontWeightCss);
+  if (style.fontStyle && style.fontStyle !== 'normal') out.fontStyle = style.fontStyle;
   if (typeof style.lineHeight === 'number' && style.lineHeight > 0) out.lineHeight = style.lineHeight;
   if (typeof style.letterSpacing === 'number' && style.letterSpacing !== 0) {
     out.letterSpacing = `${style.letterSpacing}px`;
@@ -132,10 +142,17 @@ export function buildSectionDInlineCss(style: BlockStyle): string {
   }
   if (style.flexDirection) parts.push(`flex-direction:${style.flexDirection}`);
   if (style.alignItems) parts.push(`align-items:${style.alignItems}`);
+  if (style.alignSelf && style.alignSelf !== 'auto') parts.push(`align-self:${style.alignSelf}`);
   if (style.justifyContent) parts.push(`justify-content:${style.justifyContent}`);
   if (style.flexWrap) parts.push(`flex-wrap:${style.flexWrap}`);
   if (typeof style.gap === 'number' && style.gap >= 0) parts.push(`gap:${style.gap}px`);
   if (style.overflow && style.overflow !== 'visible') parts.push(`overflow:${style.overflow}`);
+  if (typeof style.marginLeft === 'number' && style.marginLeft !== 0) {
+    parts.push(`margin-left:${style.marginLeft}px`);
+  }
+  if (typeof style.marginRight === 'number' && style.marginRight !== 0) {
+    parts.push(`margin-right:${style.marginRight}px`);
+  }
 
   if (typeof style.minWidth === 'number' && style.minWidth > 0) {
     parts.push(`min-width:${style.minWidth}px`);
@@ -178,6 +195,7 @@ export function buildSectionDInlineCss(style: BlockStyle): string {
     parts.push(`font-size:${style.fontSize}px`);
   }
   if (style.fontWeightCss) parts.push(`font-weight:${style.fontWeightCss}`);
+  if (style.fontStyle && style.fontStyle !== 'normal') parts.push(`font-style:${style.fontStyle}`);
   if (typeof style.lineHeight === 'number' && style.lineHeight > 0) {
     parts.push(`line-height:${style.lineHeight}`);
   }
