@@ -16,6 +16,7 @@ interface PhotoCarouselProps {
   showDots?: boolean;
   showArrows?: boolean;
   showScrollbar?: boolean;
+  imageZoom?: number;
   isEditor?: boolean;
 }
 
@@ -32,6 +33,7 @@ export function PhotoCarousel({
   showDots = true,
   showArrows = true,
   showScrollbar = false,
+  imageZoom = 100,
   isEditor = false,
 }: PhotoCarouselProps) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -179,7 +181,17 @@ export function PhotoCarousel({
                       onError={() =>
                         setBrokenImages((prev) => ({ ...prev, [imgKey]: true }))
                       }
-                      style={{ objectFit }}
+                      style={{
+                        objectFit,
+                        transform:
+                          typeof imageZoom === 'number' &&
+                          Number.isFinite(imageZoom) &&
+                          imageZoom !== 100
+                            ? `scale(${Math.max(50, Math.min(250, imageZoom)) / 100})`
+                            : undefined,
+                        transformOrigin: 'center center',
+                        transition: 'transform 160ms ease',
+                      }}
                       className="w-full h-full block"
                     />
                   )}

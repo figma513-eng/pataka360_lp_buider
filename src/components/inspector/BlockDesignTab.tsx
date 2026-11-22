@@ -6,6 +6,7 @@ import {
   Info,
   LayoutTemplate,
   Maximize2,
+  Minus,
   Monitor,
   Plus,
   RotateCcw,
@@ -90,6 +91,80 @@ function rangeProgressStyle(current: number, min: number, max: number): CSSPrope
   };
 }
 
+function PhotoScaleControl({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value?: number;
+  onChange: (nextScale: number) => void;
+  hint?: string;
+}) {
+  const safeVal =
+    typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(50, Math.min(250, Math.round(value)))
+      : 100;
+  const stepBy = (delta: number) => {
+    const next = Math.max(50, Math.min(250, safeVal + delta));
+    onChange(next);
+  };
+  return (
+    <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="font-semibold text-[#17243D] leading-tight">{label}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          {safeVal !== 100 && (
+            <button
+              type="button"
+              onClick={() => onChange(100)}
+              title="Reset ke 100%"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] hover:bg-[#F8FAFC] cursor-pointer"
+            >
+              100%
+            </button>
+          )}
+          <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums min-w-[36px] text-right">
+            {safeVal}%
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => stepBy(-5)}
+          disabled={safeVal <= 50}
+          title="Perkecil foto (-5%)"
+          className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F8FAFC] disabled:opacity-40 flex items-center justify-center shrink-0 cursor-pointer"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <input
+          type="range"
+          min={50}
+          max={250}
+          step={5}
+          value={safeVal}
+          onChange={(e) => onChange(Number(e.target.value))}
+          style={rangeProgressStyle(safeVal, 50, 250)}
+          className="w-full cursor-pointer"
+        />
+        <button
+          type="button"
+          onClick={() => stepBy(5)}
+          disabled={safeVal >= 250}
+          title="Perbesar foto (+5%)"
+          className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F8FAFC] disabled:opacity-40 flex items-center justify-center shrink-0 cursor-pointer"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+      {hint && <div className="text-[10px] text-[#51637D] leading-snug">{hint}</div>}
+    </div>
+  );
+}
+
 export function BlockDesignTab({
   selectedBlock,
   selectedSubLayer = null,
@@ -112,11 +187,9 @@ export function BlockDesignTab({
   const isShowcaseSubLayer =
     selectedBlock.type === 'showcase_card' && Boolean(selectedSubLayer?.id);
   const hasSpecificVisualControls =
-    (selectedBlock.type !== 'container' &&
-      selectedBlock.type !== 'text' &&
-      selectedBlock.type !== 'cart_button' &&
-      selectedBlock.type !== 'showcase_card') ||
-    isShowcaseSubLayer;
+    selectedBlock.type !== 'container' &&
+    selectedBlock.type !== 'text' &&
+    selectedBlock.type !== 'cart_button';
 
   const resolveDefaultOpenSection = (): DesignSectionId => {
     if (selectedSubLayer) {
@@ -395,6 +468,11 @@ export function BlockDesignTab({
                       current={c.heroCoverHeight ?? 170}
                       onChange={(val) => updateContent({ heroCoverHeight: val })}
                     />
+                    <PhotoScaleControl
+                      label="Scale Foto Cover (Bingkai)"
+                      value={c.heroCoverZoom ?? 100}
+                      onChange={(val) => updateContent({ heroCoverZoom: val })}
+                    />
                     <SliderRow
                       label="Jarak Overlap Kartu"
                       value={`${c.heroOverlapPx ?? 34}px`}
@@ -462,14 +540,21 @@ export function BlockDesignTab({
             )}
 
             {showAvatarPart && (
-              <SliderRow
-                label={label('desain.field.ukuranLingkaranLogo', 'Ukuran Lingkaran Logo')}
-                value={`${c.heroLogoSize ?? 72}px`}
-                min={40}
-                max={140}
-                current={c.heroLogoSize ?? 72}
-                onChange={(val) => updateContent({ heroLogoSize: val })}
-              />
+              <>
+                <SliderRow
+                  label={label('desain.field.ukuranLingkaranLogo', 'Ukuran Lingkaran Logo')}
+                  value={`${c.heroLogoSize ?? 72}px`}
+                  min={40}
+                  max={140}
+                  current={c.heroLogoSize ?? 72}
+                  onChange={(val) => updateContent({ heroLogoSize: val })}
+                />
+                <PhotoScaleControl
+                  label="Scale Foto Logo (Bentuk Bulat)"
+                  value={c.heroLogoZoom ?? 100}
+                  onChange={(val) => updateContent({ heroLogoZoom: val })}
+                />
+              </>
             )}
             {showCardPart && (
               <>
@@ -756,6 +841,11 @@ export function BlockDesignTab({
               current={c.fnbItemImageSize ?? 80}
               onChange={(val) => updateContent({ fnbItemImageSize: val })}
             />
+            <PhotoScaleControl
+              label="Scale Foto Menu (Kartu)"
+              value={c.imageZoom ?? 100}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
             <SliderRow
               label="Ukuran Judul Menu"
               value={`${c.fnbItemTitleSize ?? 15}px`}
@@ -858,31 +948,45 @@ export function BlockDesignTab({
                 />
               </div>
             )}
+
+            <PhotoScaleControl
+              label="Scale Foto Produk (Kartu)"
+              value={c.imageZoom ?? 100}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
           </div>
         );
 
       case 'training_catalog':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-[#17243D]">
-              Rasio Foto Pelatihan
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {(['16/9', '4/3', '4/5', '1/1'] as CarouselAspectRatio[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => updateContent({ trainingMediaRatio: r })}
-                  className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
-                    (c.trainingMediaRatio ?? '16/9') === r
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
-                  }`}
-                >
-                  {r.replace('/', ':')}
-                </button>
-              ))}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-[#17243D]">
+                Rasio Foto Pelatihan
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(['16/9', '4/3', '4/5', '1/1'] as CarouselAspectRatio[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => updateContent({ trainingMediaRatio: r })}
+                    className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
+                      (c.trainingMediaRatio ?? '16/9') === r
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                    }`}
+                  >
+                    {r.replace('/', ':')}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <PhotoScaleControl
+              label="Scale Foto Pelatihan (Bingkai)"
+              value={c.imageZoom ?? 100}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
           </div>
         );
 
@@ -928,56 +1032,78 @@ export function BlockDesignTab({
                 <option value="contain">Tampil Utuh (Contain)</option>
               </select>
             </div>
+
+            <PhotoScaleControl
+              label="Scale Foto Galeri (Bingkai)"
+              value={c.imageZoom ?? 100}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
           </div>
         );
 
       case 'social_feed':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-[#17243D]">
-              Rasio Kartu Postingan
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {(['1/1', '4/5', '9/16', '16/9'] as const).map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => updateContent({ socialFeedRatio: opt })}
-                  className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
-                    (c.socialFeedRatio ?? '4/5') === opt
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
-                  }`}
-                >
-                  {opt.replace('/', ':')}
-                </button>
-              ))}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-[#17243D]">
+                Rasio Kartu Postingan
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(['1/1', '4/5', '9/16', '16/9'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => updateContent({ socialFeedRatio: opt })}
+                    className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
+                      (c.socialFeedRatio ?? '4/5') === opt
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                    }`}
+                  >
+                    {opt.replace('/', ':')}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <PhotoScaleControl
+              label="Scale Foto Postingan (Kartu)"
+              value={c.imageZoom ?? 100}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
           </div>
         );
 
       case 'maps_place':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-[#17243D]">
-              Rasio Foto Lokasi Maps
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {(['16/9', '4/3', '4/5', '1/1'] as const).map((ratio) => (
-                <button
-                  key={ratio}
-                  type="button"
-                  onClick={() => updateContent({ mapsPhotoRatio: ratio })}
-                  className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
-                    (c.mapsPhotoRatio ?? '16/9') === ratio
-                      ? 'bg-[#17243D] text-white border-[#17243D]'
-                      : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
-                  }`}
-                >
-                  {ratio.replace('/', ':')}
-                </button>
-              ))}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-[#17243D]">
+                Rasio Foto Lokasi Maps
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(['16/9', '4/3', '4/5', '1/1'] as const).map((ratio) => (
+                  <button
+                    key={ratio}
+                    type="button"
+                    onClick={() => updateContent({ mapsPhotoRatio: ratio })}
+                    className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
+                      (c.mapsPhotoRatio ?? '16/9') === ratio
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                    }`}
+                  >
+                    {ratio.replace('/', ':')}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <PhotoScaleControl
+              label="Scale Foto Lokasi (Kartu)"
+              value={c.imageZoom ?? 100}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
           </div>
         );
 
@@ -1131,6 +1257,12 @@ export function BlockDesignTab({
                 className="w-full cursor-pointer"
               />
             </div>
+
+            <PhotoScaleControl
+              label="Scale Foto di Dalam Bentuk"
+              value={c.menuIconImageZoom ?? 100}
+              onChange={(val) => updateContent({ menuIconImageZoom: val })}
+            />
           </div>
         );
       }
@@ -1343,37 +1475,15 @@ export function BlockDesignTab({
               </div>
             )}
 
-            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-[#17243D]">
-                  {isCircle ? 'Perbesar / Perkecil Foto (Lingkaran)' : 'Perbesar / Perkecil Foto (Zoom)'}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {imageZoom !== 100 && (
-                    <button
-                      type="button"
-                      onClick={() => updateContent({ imageZoom: 100 })}
-                      className="px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#17243D] cursor-pointer"
-                    >
-                      100%
-                    </button>
-                  )}
-                  <span className="font-mono text-[11px] font-semibold text-[#17243D] tabular-nums">
-                    {imageZoom}%
-                  </span>
-                </div>
-              </div>
-              <input
-                type="range"
-                min={50}
-                max={250}
-                step={5}
-                value={imageZoom}
-                onChange={(e) => updateContent({ imageZoom: Number(e.target.value) })}
-                style={rangeProgressStyle(imageZoom, 50, 250)}
-                className="w-full cursor-pointer"
-              />
-            </div>
+            <PhotoScaleControl
+              label={
+                isCircle
+                  ? 'Scale Foto di Dalam Bentuk (Lingkaran)'
+                  : 'Scale Foto di Dalam Bingkai / Bentuk'
+              }
+              value={imageZoom}
+              onChange={(val) => updateContent({ imageZoom: val })}
+            />
 
             <div className="grid grid-cols-2 gap-2">
               {!isCircle && (
@@ -2468,7 +2578,31 @@ export function BlockDesignTab({
       }
 
       case 'showcase_card': {
-        if (!selectedSubLayer) return null;
+        if (!selectedSubLayer) {
+          return (
+            <div className="space-y-3">
+              <PhotoScaleControl
+                label="Scale Foto di Dalam Kartu"
+                value={c.cardImageZoom ?? 100}
+                onChange={(val) => updateContent({ cardImageZoom: val })}
+              />
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Penyesuaian Foto Kartu
+                </label>
+                <SegmentedControl<'cover' | 'contain'>
+                  columns={2}
+                  value={c.cardImageFit ?? 'cover'}
+                  onChange={(fit) => updateContent({ cardImageFit: fit })}
+                  options={[
+                    { id: 'cover', label: 'Penuh (Cover)' },
+                    { id: 'contain', label: 'Utuh (Contain)' },
+                  ]}
+                />
+              </div>
+            </div>
+          );
+        }
         const subId = selectedSubLayer.id;
         const subSt = c.subLayerStyles?.[subId] ?? {};
         const isTextualCardPart = subId !== 'card_media';
@@ -2492,6 +2626,14 @@ export function BlockDesignTab({
                 <span>Reset</span>
               </button>
             </div>
+
+            {subId === 'card_media' && (
+              <PhotoScaleControl
+                label="Scale Foto di Dalam Kartu"
+                value={c.cardImageZoom ?? 100}
+                onChange={(val) => updateContent({ cardImageZoom: val })}
+              />
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -2675,17 +2817,40 @@ export function BlockDesignTab({
         >
         {/* Bentuk: Bulat | Segi Empat | Kotak | Kapsul */}
         {caps.showShapePresets && (
-          <SegmentedControl<BlockShapePreset>
-            columns={4}
-            value={currentShapePreset}
-            onChange={applyShapePreset}
-            options={[
-              { id: 'circle', label: 'Bulat' },
-              { id: 'rounded', label: 'Segi Empat' },
-              { id: 'square', label: 'Kotak' },
-              { id: 'pill', label: 'Kapsul' },
-            ]}
-          />
+          <div className="space-y-2">
+            <SegmentedControl<BlockShapePreset>
+              columns={4}
+              value={currentShapePreset}
+              onChange={applyShapePreset}
+              options={[
+                { id: 'circle', label: 'Bulat' },
+                { id: 'rounded', label: 'Segi Empat' },
+                { id: 'square', label: 'Kotak' },
+                { id: 'pill', label: 'Kapsul' },
+              ]}
+            />
+            {selectedBlock.type === 'image' && (
+              <PhotoScaleControl
+                label="Scale Foto di Dalam Bentuk / Bingkai"
+                value={c.imageZoom ?? 100}
+                onChange={(val) => updateContent({ imageZoom: val })}
+              />
+            )}
+            {selectedBlock.type === 'menu_icon' && (
+              <PhotoScaleControl
+                label="Scale Foto di Dalam Bentuk"
+                value={c.menuIconImageZoom ?? 100}
+                onChange={(val) => updateContent({ menuIconImageZoom: val })}
+              />
+            )}
+            {selectedBlock.type === 'showcase_card' && (
+              <PhotoScaleControl
+                label="Scale Foto di Dalam Kartu"
+                value={c.cardImageZoom ?? 100}
+                onChange={(val) => updateContent({ cardImageZoom: val })}
+              />
+            )}
+          </div>
         )}
 
         {/* Preset Wadah Cepat — only on container/card/section components */}
@@ -3063,50 +3228,57 @@ export function BlockDesignTab({
             className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
           />
           {s.bgImageUrl && (
-            <div className="grid grid-cols-3 gap-1.5">
-              <div>
-                <label className="block text-[10px] text-[#51637D] mb-0.5">Posisi Latar</label>
-                <select
-                  value={s.bgPosition ?? 'center'}
-                  onChange={(e) =>
-                    updateStyle({ bgPosition: e.target.value as BlockStyle['bgPosition'] })
-                  }
-                  className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
-                >
-                  <option value="center">Tengah</option>
-                  <option value="top">Atas</option>
-                  <option value="bottom">Bawah</option>
-                  <option value="left">Kiri</option>
-                  <option value="right">Kanan</option>
-                </select>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-1.5">
+                <div>
+                  <label className="block text-[10px] text-[#51637D] mb-0.5">Posisi Latar</label>
+                  <select
+                    value={s.bgPosition ?? 'center'}
+                    onChange={(e) =>
+                      updateStyle({ bgPosition: e.target.value as BlockStyle['bgPosition'] })
+                    }
+                    className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                  >
+                    <option value="center">Tengah</option>
+                    <option value="top">Atas</option>
+                    <option value="bottom">Bawah</option>
+                    <option value="left">Kiri</option>
+                    <option value="right">Kanan</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[#51637D] mb-0.5">Ukuran Latar</label>
+                  <select
+                    value={s.bgSize ?? 'cover'}
+                    onChange={(e) => updateStyle({ bgSize: e.target.value as BlockStyle['bgSize'] })}
+                    className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                  >
+                    <option value="cover">Penuh</option>
+                    <option value="contain">Utuh</option>
+                    <option value="auto">Otomatis</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[#51637D] mb-0.5">Pengulangan</label>
+                  <select
+                    value={s.bgRepeat ?? 'no-repeat'}
+                    onChange={(e) =>
+                      updateStyle({ bgRepeat: e.target.value as BlockStyle['bgRepeat'] })
+                    }
+                    className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
+                  >
+                    <option value="no-repeat">Tidak Diulang</option>
+                    <option value="repeat">Ulangi</option>
+                    <option value="repeat-x">Horizontal</option>
+                    <option value="repeat-y">Vertikal</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] text-[#51637D] mb-0.5">Ukuran Latar</label>
-                <select
-                  value={s.bgSize ?? 'cover'}
-                  onChange={(e) => updateStyle({ bgSize: e.target.value as BlockStyle['bgSize'] })}
-                  className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
-                >
-                  <option value="cover">Penuh</option>
-                  <option value="contain">Utuh</option>
-                  <option value="auto">Otomatis</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] text-[#51637D] mb-0.5">Pengulangan</label>
-                <select
-                  value={s.bgRepeat ?? 'no-repeat'}
-                  onChange={(e) =>
-                    updateStyle({ bgRepeat: e.target.value as BlockStyle['bgRepeat'] })
-                  }
-                  className="w-full px-1.5 py-1 text-[10.5px] rounded border border-[#DCE5EF] bg-white"
-                >
-                  <option value="no-repeat">Tidak Diulang</option>
-                  <option value="repeat">Ulangi</option>
-                  <option value="repeat-x">Horizontal</option>
-                  <option value="repeat-y">Vertikal</option>
-                </select>
-              </div>
+              <PhotoScaleControl
+                label="Scale Foto Latar (Bingkai / Wadah)"
+                value={s.bgImageScale ?? 100}
+                onChange={(val) => updateStyle({ bgImageScale: val })}
+              />
             </div>
           )}
         </div>

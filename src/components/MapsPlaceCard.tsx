@@ -21,6 +21,7 @@ interface MapsPlaceCardProps {
   borderColor: string;
   accentColor: string;
   align: TextAlign;
+  imageZoom?: number;
   isEditor?: boolean;
 }
 
@@ -75,6 +76,7 @@ export function MapsPlaceCard({
   borderColor,
   accentColor,
   align,
+  imageZoom = 100,
   isEditor = false,
 }: MapsPlaceCardProps) {
   const [imgError, setImgError] = useState(false);
@@ -119,6 +121,15 @@ export function MapsPlaceCard({
             alt={title || 'Foto Lokasi Maps'}
             referrerPolicy="no-referrer"
             onError={() => setImgError(true)}
+            style={
+              typeof imageZoom === 'number' && Number.isFinite(imageZoom) && imageZoom !== 100
+                ? {
+                    transform: `scale(${Math.max(50, Math.min(250, imageZoom)) / 100})`,
+                    transformOrigin: 'center center',
+                    transition: 'transform 160ms ease',
+                  }
+                : undefined
+            }
             className="w-full h-full object-cover block"
           />
         )}

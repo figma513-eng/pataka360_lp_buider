@@ -47,6 +47,15 @@ export function HeroProfileCard({
     backgroundColor: s.backgroundColor === 'transparent' ? theme.cardBg : s.backgroundColor,
   });
 
+  const logoZoom =
+    typeof c.heroLogoZoom === 'number' && Number.isFinite(c.heroLogoZoom)
+      ? Math.max(50, Math.min(250, c.heroLogoZoom))
+      : 100;
+  const coverZoom =
+    typeof c.heroCoverZoom === 'number' && Number.isFinite(c.heroCoverZoom)
+      ? Math.max(50, Math.min(250, c.heroCoverZoom))
+      : 100;
+
   const renderAvatar = (withShadow = false) => (
     <div
       style={{
@@ -63,6 +72,15 @@ export function HeroProfileCard({
           src={c.heroLogoImage}
           alt={c.heroTitle || 'Logo Usaha'}
           referrerPolicy="no-referrer"
+          style={
+            logoZoom !== 100
+              ? {
+                  transform: `scale(${logoZoom / 100})`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 160ms ease',
+                }
+              : undefined
+          }
           className="w-full h-full object-cover block"
         />
       ) : (
@@ -123,12 +141,21 @@ export function HeroProfileCard({
           className="relative w-full overflow-hidden bg-slate-900 flex flex-col justify-center"
         >
           {/* Lapisan 1: Background Cover */}
-          <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
             {c.heroCoverImage ? (
               <img
                 src={c.heroCoverImage}
                 alt={c.heroTitle || 'Banner Usaha'}
                 referrerPolicy="no-referrer"
+                style={
+                  coverZoom !== 100
+                    ? {
+                        transform: `scale(${coverZoom / 100})`,
+                        transformOrigin: 'center center',
+                        transition: 'transform 160ms ease',
+                      }
+                    : undefined
+                }
                 className="w-full h-full object-cover block"
               />
             ) : (
@@ -638,6 +665,17 @@ export function FnbCatalogCard({
                             src={item.image}
                             alt={item.title}
                             referrerPolicy="no-referrer"
+                            style={
+                              typeof c.imageZoom === 'number' &&
+                              Number.isFinite(c.imageZoom) &&
+                              c.imageZoom !== 100
+                                ? {
+                                    transform: `scale(${Math.max(50, Math.min(250, c.imageZoom)) / 100})`,
+                                    transformOrigin: 'center center',
+                                    transition: 'transform 160ms ease',
+                                  }
+                                : undefined
+                            }
                             className="w-full h-full object-cover block"
                           />
                         ) : (

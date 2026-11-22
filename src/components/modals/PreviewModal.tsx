@@ -1124,6 +1124,14 @@ export function PreviewModal({
                     objectFit: fit,
                     width: imgSize ? `${imgSize}px` : '100%',
                     height: imgSize ? `${imgSize}px` : '100%',
+                    transform:
+                      typeof block.content.menuIconImageZoom === 'number' &&
+                      Number.isFinite(block.content.menuIconImageZoom) &&
+                      block.content.menuIconImageZoom !== 100
+                        ? `scale(${Math.max(50, Math.min(250, block.content.menuIconImageZoom)) / 100})`
+                        : undefined,
+                    transformOrigin: 'center center',
+                    transition: 'transform 160ms ease',
                   }}
                   className="block"
                 />
@@ -1395,24 +1403,31 @@ export function PreviewModal({
 
       const rectZoom = Math.max(50, Math.min(250, block.content.imageZoom ?? 100));
       return (
-        <div key={block.id} style={style} className="overflow-hidden">
-          <img
-            src={block.content.src}
-            alt={block.content.alt || 'Gambar'}
-            referrerPolicy="no-referrer"
-            className="w-full h-full block"
+        <div key={block.id} style={style}>
+          <div
+            className="overflow-hidden w-full h-full flex items-center justify-center bg-slate-100/70"
             style={{
-              objectFit: block.content.objectFit ?? 'cover',
-              objectPosition: objPos,
               borderRadius: `${s.borderRadius}px`,
               aspectRatio:
                 block.content.aspectRatio && block.content.aspectRatio !== 'auto'
                   ? block.content.aspectRatio
                   : undefined,
-              transform: rectZoom !== 100 ? `scale(${rectZoom / 100})` : undefined,
-              transformOrigin: 'center center',
             }}
-          />
+          >
+            <img
+              src={block.content.src}
+              alt={block.content.alt || 'Gambar'}
+              referrerPolicy="no-referrer"
+              className="w-full h-full block"
+              style={{
+                objectFit: block.content.objectFit ?? 'cover',
+                objectPosition: objPos,
+                borderRadius: `${s.borderRadius}px`,
+                transform: rectZoom !== 100 ? `scale(${rectZoom / 100})` : undefined,
+                transformOrigin: 'center center',
+              }}
+            />
+          </div>
         </div>
       );
     }
@@ -1939,10 +1954,20 @@ export function PreviewModal({
             const soldText = showSold ? ` · ${item.unitSold} terjual` : '';
             const fit = item.imageObjectFit ?? 'cover';
             const ratio = item.imageAspectRatio;
-            const ratioStyle = (fallback?: string): React.CSSProperties => ({
-              objectFit: fit,
+            const catalogZoom =
+              typeof block.content.imageZoom === 'number' &&
+              Number.isFinite(block.content.imageZoom)
+                ? Math.max(50, Math.min(250, block.content.imageZoom))
+                : 100;
+            const frameRatioStyle = (fallback?: string): React.CSSProperties => ({
               aspectRatio: ratio === 'auto' ? undefined : ratio ?? fallback,
             });
+            const thumbImgStyle: React.CSSProperties = {
+              objectFit: fit,
+              transform: catalogZoom !== 100 ? `scale(${catalogZoom / 100})` : undefined,
+              transformOrigin: 'center center',
+              transition: 'transform 160ms ease',
+            };
 
             if (layout === 'grid') {
               const cardContent = (
@@ -1950,13 +1975,18 @@ export function PreviewModal({
                   {renderBadge(item) && (
                     <div className="absolute top-2 left-2 z-10">{renderBadge(item)}</div>
                   )}
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    referrerPolicy="no-referrer"
-                    style={ratioStyle('1/1')}
-                    className="w-full bg-slate-100"
-                  />
+                  <div
+                    style={frameRatioStyle('1/1')}
+                    className="w-full bg-slate-100 overflow-hidden"
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      referrerPolicy="no-referrer"
+                      style={thumbImgStyle}
+                      className="w-full h-full block"
+                    />
+                  </div>
                   <div className="p-2.5 space-y-1.5 flex-1 flex flex-col justify-between">
                     <div>
                       <div className="text-xs font-bold line-clamp-2">{item.title}</div>
@@ -2041,13 +2071,18 @@ export function PreviewModal({
                   {renderBadge(item) && (
                     <div className="absolute top-2.5 left-2.5 z-10">{renderBadge(item)}</div>
                   )}
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    referrerPolicy="no-referrer"
-                    style={ratioStyle('16/10')}
-                    className="w-full bg-slate-100"
-                  />
+                  <div
+                    style={frameRatioStyle('16/10')}
+                    className="w-full bg-slate-100 overflow-hidden"
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      referrerPolicy="no-referrer"
+                      style={thumbImgStyle}
+                      className="w-full h-full block"
+                    />
+                  </div>
                   <div className="p-3 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-xs font-bold truncate">{item.title}</div>
@@ -2144,17 +2179,22 @@ export function PreviewModal({
                     className={`flex items-center gap-2.5 ${detailEnabled ? 'cursor-pointer' : ''}`}
                     onClick={detailEnabled ? () => openProductDetail(block, item) : undefined}
                   >
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      referrerPolicy="no-referrer"
-                      style={ratioStyle()}
+                    <div
+                      style={frameRatioStyle()}
                       className={
                         ratio && ratio !== 'auto'
-                          ? 'w-14 rounded-lg bg-slate-100 shrink-0'
-                          : 'w-12 h-12 rounded-lg bg-slate-100 shrink-0'
+                          ? 'w-14 rounded-lg bg-slate-100 shrink-0 overflow-hidden'
+                          : 'w-12 h-12 rounded-lg bg-slate-100 shrink-0 overflow-hidden'
                       }
-                    />
+                    >
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        referrerPolicy="no-referrer"
+                        style={thumbImgStyle}
+                        className="w-full h-full block"
+                      />
+                    </div>
                     <div className="min-w-0 flex-1">
                       {renderBadge(item) && <div className="mb-0.5">{renderBadge(item)}</div>}
                       <div className="text-xs font-bold truncate">{item.title}</div>
@@ -2214,17 +2254,22 @@ export function PreviewModal({
             // default layout
             const defaultBody = (
               <>
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  referrerPolicy="no-referrer"
-                  style={ratioStyle()}
+                <div
+                  style={frameRatioStyle()}
                   className={
                     ratio && ratio !== 'auto'
-                      ? 'w-16 rounded-lg bg-slate-100 shrink-0'
-                      : 'w-14 h-14 rounded-lg bg-slate-100 shrink-0'
+                      ? 'w-16 rounded-lg bg-slate-100 shrink-0 overflow-hidden'
+                      : 'w-14 h-14 rounded-lg bg-slate-100 shrink-0 overflow-hidden'
                   }
-                />
+                >
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    referrerPolicy="no-referrer"
+                    style={thumbImgStyle}
+                    className="w-full h-full block"
+                  />
+                </div>
                 <div className="min-w-0 flex-1">
                   {renderBadge(item) && <div className="mb-0.5">{renderBadge(item)}</div>}
                   <div className="text-xs font-bold truncate">{item.title}</div>
@@ -2405,6 +2450,7 @@ export function PreviewModal({
             showDots={block.content.carouselShowDots !== false}
             showArrows={block.content.carouselShowArrows !== false}
             showScrollbar={Boolean(block.content.carouselShowScrollbar)}
+            imageZoom={block.content.imageZoom}
           />
         </div>
       );
@@ -2430,6 +2476,7 @@ export function PreviewModal({
             borderColor={project.theme.borderColor}
             textColor={resolvedTextColor}
             accentColor={project.theme.accentColor}
+            imageZoom={block.content.imageZoom}
           />
         </div>
       );
@@ -2456,6 +2503,7 @@ export function PreviewModal({
             borderColor={project.theme.borderColor}
             accentColor={project.theme.accentColor}
             align={s.align}
+            imageZoom={block.content.imageZoom}
           />
         </div>
       );

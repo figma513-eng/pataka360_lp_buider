@@ -45,6 +45,7 @@ interface SocialFeedCardProps {
   borderColor: string;
   textColor: string;
   accentColor: string;
+  imageZoom?: number;
   isEditor?: boolean;
 }
 
@@ -81,10 +82,12 @@ function PostVideoSlide({
   post,
   aspectRatio,
   accentColor,
+  imageZoom = 100,
 }: {
   post: SocialPostItem;
   aspectRatio: CarouselAspectRatio;
   accentColor: string;
+  imageZoom?: number;
 }) {
   const rawVideoUrl = post.videoUrl?.trim() ?? '';
   const detected = detectVideoSource(rawVideoUrl);
@@ -238,6 +241,15 @@ function PostVideoSlide({
               draggable={false}
               referrerPolicy="no-referrer"
               onError={() => setBrokenPoster(true)}
+              style={
+                typeof imageZoom === 'number' && Number.isFinite(imageZoom) && imageZoom !== 100
+                  ? {
+                      transform: `scale(${Math.max(50, Math.min(250, imageZoom)) / 100})`,
+                      transformOrigin: 'center center',
+                      transition: 'transform 160ms ease',
+                    }
+                  : undefined
+              }
               className="w-full h-full object-cover block"
             />
           ) : (
@@ -285,6 +297,7 @@ export function SocialFeedCard({
   borderColor,
   textColor,
   accentColor,
+  imageZoom = 100,
   isEditor = false,
 }: SocialFeedCardProps) {
   const meta = SOCIAL_PLATFORMS[platform] ?? SOCIAL_PLATFORMS.instagram;
@@ -498,6 +511,7 @@ export function SocialFeedCard({
                           post={post}
                           aspectRatio={aspectRatio}
                           accentColor={accentColor}
+                          imageZoom={imageZoom}
                         />
                       ) : (
                         <div
@@ -517,6 +531,17 @@ export function SocialFeedCard({
                               referrerPolicy="no-referrer"
                               onError={() =>
                                 setBrokenImages((prev) => ({ ...prev, [imgKey]: true }))
+                              }
+                              style={
+                                typeof imageZoom === 'number' &&
+                                Number.isFinite(imageZoom) &&
+                                imageZoom !== 100
+                                  ? {
+                                      transform: `scale(${Math.max(50, Math.min(250, imageZoom)) / 100})`,
+                                      transformOrigin: 'center center',
+                                      transition: 'transform 160ms ease',
+                                    }
+                                  : undefined
                               }
                               className="w-full h-full object-cover block"
                             />

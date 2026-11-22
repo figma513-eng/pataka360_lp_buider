@@ -461,6 +461,8 @@ export interface BlockStyle {
   bgImageUrl?: string;
   bgPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right';
   bgSize?: 'cover' | 'contain' | 'auto';
+  /** Skala zoom foto latar belakang di dalam frame/shape/card (50% - 250%, default 100) */
+  bgImageScale?: number;
   bgRepeat?: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y';
   gradientColor1?: string;
   gradientColor2?: string;
@@ -758,7 +760,11 @@ export interface BlockContent {
   heroLogoBg?: string;
   heroLogoColor?: string;
   heroLogoSize?: number;
+  /** Skala zoom foto avatar/logo di dalam bentuk lingkaran Hero Profil (50% - 250%, default 100) */
+  heroLogoZoom?: number;
   heroCoverImage?: string;
+  /** Skala zoom foto banner cover di dalam bingkai Hero Profil (50% - 250%, default 100) */
+  heroCoverZoom?: number;
   heroCoverTitle?: string;
   heroCoverTitleEnabled?: boolean;
   heroCoverFontFamily?: string;
@@ -824,6 +830,8 @@ export interface BlockContent {
   menuIconSize?: number;
   menuIconImageSize?: number;
   menuIconImageFit?: 'cover' | 'contain';
+  /** Skala zoom foto di dalam bentuk Menu Icon (50% - 250%, default 100) */
+  menuIconImageZoom?: number;
   menuIconLabel?: string;
   menuIconShowLabel?: boolean;
   menuIconAction?: MenuIconAction;

@@ -656,9 +656,17 @@ ${indent}</div>`;
       const align = block.style.align;
       const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
 
+      const iconZoom =
+        typeof c.menuIconImageZoom === 'number' && Number.isFinite(c.menuIconImageZoom)
+          ? Math.max(50, Math.min(250, c.menuIconImageZoom))
+          : 100;
+      const iconZoomCss =
+        iconZoom !== 100
+          ? ` transform: scale(${(iconZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
       const imgStyle = imgSize
-        ? `width: ${imgSize}px; height: ${imgSize}px; object-fit: ${fit}; display: block;`
-        : `width: 100%; height: 100%; object-fit: ${fit}; display: block;`;
+        ? `width: ${imgSize}px; height: ${imgSize}px; object-fit: ${fit}; display: block;${iconZoomCss}`
+        : `width: 100%; height: 100%; object-fit: ${fit}; display: block;${iconZoomCss}`;
 
       const visualHtml = imgSrc
         ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(
@@ -894,7 +902,7 @@ ${indent}</div>`;
         rectZoom !== 100
           ? `transform: scale(${(rectZoom / 100).toFixed(2)}); transform-origin: center center;`
           : '';
-      return `${indent}<div style="${css}; overflow: hidden;">\n${indent}  <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; object-position: ${pos}; border-radius: ${block.style.borderRadius}px; ${ratioCss} ${zoomCss}" />\n${indent}</div>`;
+      return `${indent}<div style="${css}">\n${indent}  <div style="width: 100%; height: 100%; overflow: hidden; border-radius: ${block.style.borderRadius}px; ${ratioCss}">\n${indent}    <img src="${src}" alt="${alt}" style="width: 100%; height: 100%; display: block; object-fit: ${fit}; object-position: ${pos}; border-radius: ${block.style.borderRadius}px; ${zoomCss}" />\n${indent}  </div>\n${indent}</div>`;
     }
 
     case 'button': {
@@ -1353,6 +1361,15 @@ ${indent}</div>`;
       const iconCartSvg = makeCartSvg(cartBtn.iconOnlySize);
       const compactCartSvg = makeCartSvg(cartBtn.compactIconSize);
 
+      const catalogZoom =
+        typeof block.content.imageZoom === 'number' && Number.isFinite(block.content.imageZoom)
+          ? Math.max(50, Math.min(250, block.content.imageZoom))
+          : 100;
+      const catalogZoomCss =
+        catalogZoom !== 100
+          ? ` transform: scale(${(catalogZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
+
       const itemCards = items
         .map((item) => {
           const soldHtml = advance.showUnitSold
@@ -1378,7 +1395,9 @@ ${indent}</div>`;
             const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
             const mediaAndText = `
 ${indent}    ${badgeHtml ? `<div style="position:absolute; top:8px; left:8px; z-index:2;">${badgeHtml}</div>` : ''}
-${indent}    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; ${ratioCss('1/1')} object-fit: ${fit}; display: block;" />
+${indent}    <div style="width: 100%; ${ratioCss('1/1')} overflow: hidden; background: #F1F5F9;">
+${indent}      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${catalogZoomCss}" />
+${indent}    </div>
 ${indent}    <div style="padding: 10px 10px ${cartEnabled ? '8px' : '10px'} 10px;">
 ${indent}      <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">${escapeHtml(item.title)}</div>
 ${indent}      <div style="font-size: 11px; opacity: 0.75;">${meta}</div>
@@ -1400,7 +1419,9 @@ ${indent}    </div>`;
             if (detailEnabled) {
               const inner = `
 ${indent}    ${badgeHtml ? `<div style="position:absolute; top:10px; left:10px; z-index:2;">${badgeHtml}</div>` : ''}
-${indent}    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; ${ratioCss('16/10')} object-fit: ${fit}; display: block;" />
+${indent}    <div style="width: 100%; ${ratioCss('16/10')} overflow: hidden; background: #F1F5F9;">
+${indent}      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${catalogZoomCss}" />
+${indent}    </div>
 ${indent}    <div style="padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
 ${indent}      <div style="min-width: 0;">
 ${indent}        <div style="font-size: 14px; font-weight: 700;">${escapeHtml(item.title)}</div>
@@ -1416,7 +1437,9 @@ ${indent}    </div>`;
             return `${indent}  <div style="${cardBase} position: relative; display: block;">
 ${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="display: block; position: relative; text-decoration: none; color: inherit;">
 ${indent}      ${badgeHtml ? `<div style="position:absolute; top:10px; left:10px; z-index:2;">${badgeHtml}</div>` : ''}
-${indent}      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; ${ratioCss('16/10')} object-fit: ${fit}; display: block;" />
+${indent}      <div style="width: 100%; ${ratioCss('16/10')} overflow: hidden; background: #F1F5F9;">
+${indent}        <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${catalogZoomCss}" />
+${indent}      </div>
 ${indent}    </a>
 ${indent}    <div style="padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
 ${indent}      <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-decoration: none; color: inherit;">
@@ -1441,7 +1464,9 @@ ${indent}  </div>`;
               : `<a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex:1; display: block; text-align: center; padding: 8px 12px; border-radius: 8px; background: ${theme.accentColor}; color: #FFFFFF; font-size: 12px; font-weight: 600; text-decoration: none;">${escapeHtml(item.ctaLabel)}</a>`;
             return `${indent}  <div style="${cardBase} padding: 12px;">
 ${indent}    <div ${detailAttr} style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; ${detailEnabled ? 'cursor: pointer;' : ''}">
-${indent}      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="${thumbSize} border-radius: 10px; object-fit: ${fit}; flex-shrink: 0;" />
+${indent}      <div style="${thumbSize} border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #F1F5F9;">
+${indent}        <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${catalogZoomCss}" />
+${indent}      </div>
 ${indent}      <div style="min-width: 0;">
 ${indent}        ${badgeHtml ? `<div style="margin-bottom: 3px;">${badgeHtml}</div>` : ''}
 ${indent}        <div style="font-size: 13px; font-weight: 700;">${escapeHtml(item.title)}</div>
@@ -1460,7 +1485,9 @@ ${indent}  </div>`;
             ? `width: 64px; ${ratioCss()}`
             : 'width: 56px; height: 56px;';
           const defaultBody = `
-${indent}    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="${defaultThumbSize} border-radius: 10px; object-fit: ${fit}; flex-shrink: 0;" />
+${indent}    <div style="${defaultThumbSize} border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #F1F5F9;">
+${indent}      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${catalogZoomCss}" />
+${indent}    </div>
 ${indent}    <div style="flex: 1; min-width: 0;">
 ${indent}      ${badgeHtml ? `<div style="margin-bottom: 3px;">${badgeHtml}</div>` : ''}
 ${indent}      <div style="font-size: 13px; font-weight: 700;">${escapeHtml(item.title)}</div>
@@ -1631,9 +1658,17 @@ ${indent}  </div>`;
           const linkBadge = cleanUrl
             ? `<span style="position: absolute; bottom: 8px; right: 8px; padding: 2px 8px; border-radius: 9999px; background: rgba(15, 23, 42, 0.7); color: #FFFFFF; font-size: 10px; font-weight: 600;">Link &#8599;</span>`
             : '';
+          const carZoom =
+            typeof block.content.imageZoom === 'number' && Number.isFinite(block.content.imageZoom)
+              ? Math.max(50, Math.min(250, block.content.imageZoom))
+              : 100;
+          const carZoomCss =
+            carZoom !== 100
+              ? ` transform: scale(${(carZoom / 100).toFixed(2)}); transform-origin: center center;`
+              : '';
           const cardHtml = `<div style="background: ${theme.cardBg}; border: 1px solid ${theme.borderColor}; border-radius: ${radius}px; overflow: hidden; color: ${resolvedTextColor};">
 ${indent}        <div style="position: relative; width: 100%; aspect-ratio: ${ratio}; background: #F1F5F9; overflow: hidden;">
-${indent}          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title || `Foto ${idx + 1}`)}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;" />${linkBadge}
+${indent}          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title || `Foto ${idx + 1}`)}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${carZoomCss}" />${linkBadge}
 ${indent}        </div>${footerHtml}
 ${indent}      </div>`;
 
@@ -1745,6 +1780,14 @@ ${indent}</div>`;
             post.imageUrl?.trim() ||
             (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : '');
 
+          const sfZoom =
+            typeof block.content.imageZoom === 'number' && Number.isFinite(block.content.imageZoom)
+              ? Math.max(50, Math.min(250, block.content.imageZoom))
+              : 100;
+          const sfZoomCss =
+            sfZoom !== 100
+              ? ` transform: scale(${(sfZoom / 100).toFixed(2)}); transform-origin: center center;`
+              : '';
           const mediaHtml =
             post.mediaType === 'video'
               ? `<div data-sf-video-box data-sf-kind="${escapeHtml(vidKind)}" data-sf-id="${escapeHtml(
@@ -1754,7 +1797,7 @@ ${indent}          ${
                   poster
                     ? `<img src="${escapeHtml(poster)}" alt="${escapeHtml(
                         post.caption || `Video ${idx + 1}`
-                      )}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;" />`
+                      )}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;${sfZoomCss}" />`
                     : `<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1E293B, #020617);"></div>`
                 }
 ${indent}          <div style="position: absolute; inset: 0; background: rgba(2, 6, 23, 0.25); pointer-events: none;"></div>
@@ -1763,7 +1806,7 @@ ${indent}        </div>`
               : `<div style="position: relative; width: 100%; aspect-ratio: ${ratio}; background: #F1F5F9; overflow: hidden;">
 ${indent}          <img src="${escapeHtml(post.imageUrl)}" alt="${escapeHtml(
                   post.caption || `Postingan ${idx + 1}`
-                )}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+                )}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;${sfZoomCss}" />
 ${indent}        </div>`;
 
           const cleanUrl = sanitizeExternalUrl(post.url, '');
@@ -1924,10 +1967,18 @@ ${indent}</div>`;
             )}</span></a></div>`
           : '';
 
+      const mapsZoom =
+        typeof block.content.imageZoom === 'number' && Number.isFinite(block.content.imageZoom)
+          ? Math.max(50, Math.min(250, block.content.imageZoom))
+          : 100;
+      const mapsZoomCss =
+        mapsZoom !== 100
+          ? ` transform: scale(${(mapsZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
       const imgHtml = photoUrl
         ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(
             title
-          )}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;" />`
+          )}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;${mapsZoomCss}" />`
         : `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 12px;">Foto lokasi belum tersedia</div>`;
 
       return `${indent}<div${hoverCls} data-jump-title="${escapeHtml(
@@ -2062,13 +2113,21 @@ ${indent}</div>`;
             `<button type="button" data-trn-next aria-label="Slide berikutnya" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); z-index:2; width:28px; height:28px; border-radius:9999px; border:1px solid #E2E8F0; background:rgba(255,255,255,0.92); color:#0F172A; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">&#8250;</button>`
           : '';
 
+      const trnZoom =
+        typeof block.content.imageZoom === 'number' && Number.isFinite(block.content.imageZoom)
+          ? Math.max(50, Math.min(250, block.content.imageZoom))
+          : 100;
+      const trnZoomCss =
+        trnZoom !== 100
+          ? ` transform: scale(${(trnZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
       const mediaHtml = activeMedia
         ? `<div style="border:1px solid ${theme.borderColor}; border-radius:${innerRadius}px; overflow:hidden; background:${theme.cardBg};">
 ${indent}    <div style="position:relative; aspect-ratio:${mediaRatio}; background:#F1F5F9; overflow:hidden;">
 ${indent}      ${mediaNavHtml}
 ${indent}      <img data-trn-img src="${escapeHtml(activeMedia.imageUrl)}" alt="${escapeHtml(
             activeMedia.caption || 'Foto pelatihan'
-          )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />
+          )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;${trnZoomCss}" />
 ${indent}    </div>
 ${indent}    <div data-trn-media-foot style="padding:10px 12px; border-top:1px solid ${
             theme.borderColor
@@ -2358,13 +2417,30 @@ ${indent}</div>`;
       const clockSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
       const starSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="#FBBF24" stroke="#FBBF24" stroke-width="1.5" style="flex-shrink:0;" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 
+      const heroLogoZoom =
+        typeof c.heroLogoZoom === 'number' && Number.isFinite(c.heroLogoZoom)
+          ? Math.max(50, Math.min(250, c.heroLogoZoom))
+          : 100;
+      const heroLogoZoomCss =
+        heroLogoZoom !== 100
+          ? ` transform: scale(${(heroLogoZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
+      const heroCoverZoom =
+        typeof c.heroCoverZoom === 'number' && Number.isFinite(c.heroCoverZoom)
+          ? Math.max(50, Math.min(250, c.heroCoverZoom))
+          : 100;
+      const heroCoverZoomCss =
+        heroCoverZoom !== 100
+          ? ` transform: scale(${(heroCoverZoom / 100).toFixed(2)}); transform-origin: center center;`
+          : '';
+
       const renderAvatar = (withShadow: boolean) => {
         const avatarBg = c.heroLogoImage ? '#FFFFFF' : logoBg;
         const avatarShadow = withShadow ? 'box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);' : '';
         const inner = c.heroLogoImage
           ? `<img src="${escapeHtml(c.heroLogoImage)}" alt="${escapeHtml(
               heroTitle
-            )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+            )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;${heroLogoZoomCss}" />`
           : `<span style="font-size:${Math.round(logoSize * 0.34)}px; font-weight:800;">${escapeHtml(
               monogram
             )}</span>`;
@@ -2414,7 +2490,7 @@ ${indent}</div>`;
         const coverImgHtml = c.heroCoverImage
           ? `<img src="${escapeHtml(c.heroCoverImage)}" alt="${escapeHtml(
               heroTitle
-            )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+            )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;${heroCoverZoomCss}" />`
           : `<div style="width:100%; height:100%; background:linear-gradient(135deg, #78350F 0%, #431407 50%, #0F172A 100%);"></div>`;
         const showCoverTitle =
           c.heroCoverTitleEnabled !== false &&
@@ -2711,10 +2787,19 @@ ${indent}</div>`;
             .map((item) => {
               const mono =
                 (item.monogram || item.title || 'MN').trim().slice(0, 2).toUpperCase() || 'MN';
+              const fnbZoom =
+                typeof block.content.imageZoom === 'number' &&
+                Number.isFinite(block.content.imageZoom)
+                  ? Math.max(50, Math.min(250, block.content.imageZoom))
+                  : 100;
+              const fnbZoomCss =
+                fnbZoom !== 100
+                  ? ` transform: scale(${(fnbZoom / 100).toFixed(2)}); transform-origin: center center;`
+                  : '';
               const mediaHtml = item.image
                 ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(
                     item.title
-                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;" />`
+                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;${fnbZoomCss}" />`
                 : `<span style="font-size:${Math.round(imgSize * 0.24)}px; font-weight:800;">${escapeHtml(
                     mono
                   )}</span>`;

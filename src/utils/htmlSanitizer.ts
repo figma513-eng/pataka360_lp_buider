@@ -481,6 +481,10 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       bgImageUrl: block.style?.bgImageUrl
         ? sanitizeImageOrMediaUrl(block.style.bgImageUrl)
         : block.style?.bgImageUrl,
+      bgImageScale:
+        typeof block.style?.bgImageScale === 'number' && Number.isFinite(block.style.bgImageScale)
+          ? Math.max(50, Math.min(250, Math.round(block.style.bgImageScale)))
+          : block.style?.bgImageScale,
       themeOverrideMode:
         block.style?.themeOverrideMode === 'local'
           ? 'local'
@@ -718,10 +722,26 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.menuIconImageSize === 'number' && Number.isFinite(c.menuIconImageSize)
           ? Math.max(16, Math.min(160, Math.round(c.menuIconImageSize)))
           : c.menuIconImageSize,
+      imageZoom:
+        typeof c.imageZoom === 'number' && Number.isFinite(c.imageZoom)
+          ? Math.max(50, Math.min(250, Math.round(c.imageZoom)))
+          : c.imageZoom,
+      heroLogoZoom:
+        typeof c.heroLogoZoom === 'number' && Number.isFinite(c.heroLogoZoom)
+          ? Math.max(50, Math.min(250, Math.round(c.heroLogoZoom)))
+          : c.heroLogoZoom,
+      heroCoverZoom:
+        typeof c.heroCoverZoom === 'number' && Number.isFinite(c.heroCoverZoom)
+          ? Math.max(50, Math.min(250, Math.round(c.heroCoverZoom)))
+          : c.heroCoverZoom,
       menuIconImageFit:
         c.menuIconImageFit === 'cover' || c.menuIconImageFit === 'contain'
           ? c.menuIconImageFit
           : c.menuIconImageFit,
+      menuIconImageZoom:
+        typeof c.menuIconImageZoom === 'number' && Number.isFinite(c.menuIconImageZoom)
+          ? Math.max(50, Math.min(250, Math.round(c.menuIconImageZoom)))
+          : c.menuIconImageZoom,
       menuIconAction:
         c.menuIconAction === 'sheet' ||
         c.menuIconAction === 'card' ||

@@ -168,7 +168,7 @@ export function TrainingCatalogCard({
           }}
           className="border overflow-hidden"
         >
-          <div className="relative bg-slate-100" style={{ aspectRatio: mediaRatio }}>
+          <div className="relative bg-slate-100 overflow-hidden" style={{ aspectRatio: mediaRatio }}>
             {mediaList.length > 1 && (
               <span className="absolute top-2.5 right-2.5 z-10 px-2 py-0.5 rounded-full bg-slate-900/65 text-white text-[10px] font-semibold tabular-nums">
                 {safeMediaIdx + 1} / {mediaList.length}
@@ -186,6 +186,17 @@ export function TrainingCatalogCard({
                 referrerPolicy="no-referrer"
                 onError={() =>
                   setBrokenMedia((prev) => ({ ...prev, [activeMedia.id]: true }))
+                }
+                style={
+                  typeof content.imageZoom === 'number' &&
+                  Number.isFinite(content.imageZoom) &&
+                  content.imageZoom !== 100
+                    ? {
+                        transform: `scale(${Math.max(50, Math.min(250, content.imageZoom)) / 100})`,
+                        transformOrigin: 'center center',
+                        transition: 'transform 160ms ease',
+                      }
+                    : undefined
                 }
                 className="w-full h-full object-cover block"
               />

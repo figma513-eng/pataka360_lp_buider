@@ -83,9 +83,13 @@ export function buildSectionDReactStyle(style: BlockStyle): CSSProperties {
   // Latar Belakang Gambar
   const safeBgUrl = sanitizeCssUrl(style.bgImageUrl);
   if (safeBgUrl) {
+    const bgScale =
+      typeof style.bgImageScale === 'number' && Number.isFinite(style.bgImageScale)
+        ? Math.max(50, Math.min(250, Math.round(style.bgImageScale)))
+        : 100;
     out.backgroundImage = `url("${safeBgUrl}")`;
     out.backgroundPosition = style.bgPosition || 'center';
-    out.backgroundSize = style.bgSize || 'cover';
+    out.backgroundSize = bgScale !== 100 ? `${bgScale}%` : style.bgSize || 'cover';
     out.backgroundRepeat = style.bgRepeat || 'no-repeat';
   }
 
@@ -184,9 +188,13 @@ export function buildSectionDInlineCss(style: BlockStyle): string {
 
   const safeBgUrl = sanitizeCssUrl(style.bgImageUrl);
   if (safeBgUrl) {
+    const bgScale =
+      typeof style.bgImageScale === 'number' && Number.isFinite(style.bgImageScale)
+        ? Math.max(50, Math.min(250, Math.round(style.bgImageScale)))
+        : 100;
     parts.push(`background-image:url("${safeBgUrl}")`);
     parts.push(`background-position:${style.bgPosition || 'center'}`);
-    parts.push(`background-size:${style.bgSize || 'cover'}`);
+    parts.push(`background-size:${bgScale !== 100 ? `${bgScale}%` : style.bgSize || 'cover'}`);
     parts.push(`background-repeat:${style.bgRepeat || 'no-repeat'}`);
   }
 

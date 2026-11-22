@@ -1351,6 +1351,14 @@ export function MobileCanvas({
                             objectFit: fit,
                             width: imgSize ? `${imgSize}px` : '100%',
                             height: imgSize ? `${imgSize}px` : '100%',
+                            transform:
+                              typeof block.content.menuIconImageZoom === 'number' &&
+                              Number.isFinite(block.content.menuIconImageZoom) &&
+                              block.content.menuIconImageZoom !== 100
+                                ? `scale(${Math.max(50, Math.min(250, block.content.menuIconImageZoom)) / 100})`
+                                : undefined,
+                            transformOrigin: 'center center',
+                            transition: 'transform 160ms ease',
                           }}
                           className="block"
                         />
@@ -2088,32 +2096,50 @@ export function MobileCanvas({
                   const ratio = item.imageAspectRatio;
                   const catalogSubId = `catalog_${item.id || itemIdx}`;
 
+                  const catalogImgZoom =
+                    typeof block.content.imageZoom === 'number' &&
+                    Number.isFinite(block.content.imageZoom)
+                      ? Math.max(50, Math.min(250, block.content.imageZoom))
+                      : 100;
+
                   const renderThumb = (
                     className: string,
                     fallbackRatio?: string
                   ) => {
                     const effectiveRatio =
                       ratio === 'auto' ? undefined : ratio ?? fallbackRatio;
-                    const thumbStyle: React.CSSProperties = {
-                      objectFit: fit,
+                    const frameStyle: React.CSSProperties = {
                       aspectRatio: effectiveRatio,
                     };
                     return !item.image || hasImgError ? (
                       <div
-                        style={thumbStyle}
+                        style={frameStyle}
                         className={`${className} flex items-center justify-center bg-slate-100 text-slate-400`}
                       >
                         <ImageOff className="w-4 h-4" />
                       </div>
                     ) : (
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        referrerPolicy="no-referrer"
-                        onError={() => setBrokenImages((prev) => ({ ...prev, [imgKey]: true }))}
-                        style={thumbStyle}
-                        className={className}
-                      />
+                      <div
+                        style={frameStyle}
+                        className={`${className} overflow-hidden`}
+                      >
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          referrerPolicy="no-referrer"
+                          onError={() => setBrokenImages((prev) => ({ ...prev, [imgKey]: true }))}
+                          style={{
+                            objectFit: fit,
+                            transform:
+                              catalogImgZoom !== 100
+                                ? `scale(${catalogImgZoom / 100})`
+                                : undefined,
+                            transformOrigin: 'center center',
+                            transition: 'transform 160ms ease',
+                          }}
+                          className="w-full h-full block"
+                        />
+                      </div>
                     );
                   };
 
@@ -2449,6 +2475,7 @@ export function MobileCanvas({
             showDots={block.content.carouselShowDots !== false}
             showArrows={block.content.carouselShowArrows !== false}
             showScrollbar={Boolean(block.content.carouselShowScrollbar)}
+            imageZoom={block.content.imageZoom}
             isEditor
           />
         )}
@@ -2471,6 +2498,7 @@ export function MobileCanvas({
             borderColor={theme.borderColor}
             textColor={resolvedTextColor}
             accentColor={theme.accentColor}
+            imageZoom={block.content.imageZoom}
             isEditor
           />
         )}
@@ -2494,6 +2522,7 @@ export function MobileCanvas({
             borderColor={theme.borderColor}
             accentColor={theme.accentColor}
             align={s.align}
+            imageZoom={block.content.imageZoom}
             isEditor
           />
         )}
