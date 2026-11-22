@@ -3399,7 +3399,7 @@ export function MobileCanvas({
       </div>
 
       {/* Scrollable Canvas Area (Zoom scales Canvas only) */}
-      <div ref={scrollAreaRef} className="flex-1 overflow-auto py-10 px-4">
+      <div ref={scrollAreaRef} className="flex-1 overflow-auto pt-14 pb-12 px-5">
         <div
           ref={zoomStageRef}
           data-canvas-zoom-stage
@@ -3862,6 +3862,7 @@ export function MobileCanvas({
         {hoveredBlockObj && hoveredOverlayRect && hoveredBlockId !== selectedId && (() => {
           const hovActionBadge = getActionBadgeLabel(hoveredBlockObj);
           const hovGap = Math.max(12, Math.round(9 * zoom) + 4);
+          const hovTop = Math.max(-16, Math.round(hoveredOverlayRect.top - hovGap));
           const hovLeft = Math.max(
             4,
             Math.min(hoveredOverlayRect.left, Math.max(4, hoveredOverlayRect.stageWidth - 180))
@@ -3870,7 +3871,7 @@ export function MobileCanvas({
             <div
               data-canvas-hover-pill="1"
               style={{
-                top: `${Math.round(hoveredOverlayRect.top - hovGap)}px`,
+                top: `${hovTop}px`,
                 left: `${Math.round(hovLeft)}px`,
                 transform: 'translateY(-100%)',
               }}
@@ -3898,6 +3899,7 @@ export function MobileCanvas({
           const selStyle = resolveEffectiveBlockStyle(selectedBlockObj.style, activeBreakpoint);
           const selActionBadge = getActionBadgeLabel(selectedBlockObj);
           const selGap = Math.max(14, Math.round(10 * zoom) + 6);
+          const clampedTop = Math.max(-14, Math.round(selectedOverlayRect.top - selGap));
           const maxLeft = selectedOverlayRect.stageWidth - floatingBarWidth - 4;
           const clampedLeft =
             floatingBarWidth + 8 > selectedOverlayRect.stageWidth
@@ -3915,7 +3917,7 @@ export function MobileCanvas({
               onClick={(e) => e.stopPropagation()}
               onDragStart={(e) => e.stopPropagation()}
               style={{
-                top: `${Math.round(selectedOverlayRect.top - selGap)}px`,
+                top: `${clampedTop}px`,
                 left: `${Math.round(clampedLeft)}px`,
                 transform: 'translateY(-100%)',
               }}

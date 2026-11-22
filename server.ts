@@ -601,7 +601,10 @@ async function verifyPlayableVideoUrl(videoUrl: string | null): Promise<string |
   return null;
 }
 
-export async function createApp(options?: { attachViteOrStatic?: boolean }) {
+export async function createApp(options?: {
+  attachViteOrStatic?: boolean;
+  httpServer?: http.Server;
+}) {
   registerProcessErrorGuards();
   validateStartupSecrets();
 
@@ -2859,10 +2862,110 @@ export async function createApp(options?: { attachViteOrStatic?: boolean }) {
   if (options?.attachViteOrStatic !== false) {
     if (process.env.NODE_ENV !== 'production') {
       const { createServer: createViteServer } = await import('vite');
+      const disableHmr =
+        process.env.DISABLE_HMR === 'true' ||
+        process.env.VITE_DISABLE_HMR === 'true' ||
+        Boolean(process.env.K_SERVICE);
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: {
+          middlewareMode: true,
+          ws: disableHmr
+            ? false
+            : options?.httpServer
+            ? { server: options.httpServer, path: '/__vite_hmr' }
+            : false,
+          hmr: !disableHmr,
+          watch: disableHmr
+            ? null
+            : {
+                ignored: [
+                  '**/data/**',
+                  '**/backups/**',
+                  '**/.data/**',
+                  '**/public/assets/aistudio/**',
+                ],
+              },
+        },
         appType: 'spa',
       });
+      if (disableHmr) {
+        const NO_HMR_VITE_CLIENT_SHIM = `// Vite client shim (HMR disabled — prevents unreachable WS port 24678 reload loops)
+const sheetsMap = new Map();
+const linkSheetsMap = new Map();
+if ("document" in globalThis) {
+  document.querySelectorAll("style[data-vite-dev-id]").forEach((el) => {
+    sheetsMap.set(el.getAttribute("data-vite-dev-id"), el);
+  });
+  document.querySelectorAll('link[rel="stylesheet"][data-vite-dev-id]').forEach((el) => {
+    linkSheetsMap.set(el.getAttribute("data-vite-dev-id"), el);
+  });
+}
+let lastInsertedStyle;
+function updateStyle(id, content) {
+  if (linkSheetsMap.has(id)) return;
+  let style = sheetsMap.get(id);
+  if (!style) {
+    style = document.createElement("style");
+    style.setAttribute("type", "text/css");
+    style.setAttribute("data-vite-dev-id", id);
+    style.textContent = content;
+    if (!lastInsertedStyle) {
+      document.head.appendChild(style);
+      setTimeout(() => { lastInsertedStyle = undefined; }, 0);
+    } else {
+      lastInsertedStyle.insertAdjacentElement("afterend", style);
+    }
+    lastInsertedStyle = style;
+  } else if (style.textContent !== content) {
+    style.textContent = content;
+  }
+  sheetsMap.set(id, style);
+}
+function removeStyle(id) {
+  if (linkSheetsMap.has(id)) {
+    document.querySelectorAll('link[rel="stylesheet"][data-vite-dev-id="' + CSS.escape(id) + '"]').forEach((el) => el.remove());
+    linkSheetsMap.delete(id);
+  }
+  const style = sheetsMap.get(id);
+  if (style) {
+    style.remove();
+    sheetsMap.delete(id);
+  }
+}
+function createHotContext() {
+  const noop = () => {};
+  return {
+    data: {},
+    accept: noop,
+    acceptExports: noop,
+    dispose: noop,
+    prune: noop,
+    decline: noop,
+    invalidate: noop,
+    on: noop,
+    off: noop,
+    send: noop,
+  };
+}
+function injectQuery(url, queryToInject) {
+  if (!url || (url[0] !== "." && url[0] !== "/")) return url;
+  const pathname = url.replace(/[?#].*$/, "");
+  const { search, hash } = new URL(url, "http://vite.dev");
+  return pathname + "?" + queryToInject + (search ? "&" + search.slice(1) : "") + (hash || "");
+}
+class ErrorOverlay extends HTMLElement {
+  close() { this.remove(); }
+}
+export { ErrorOverlay, createHotContext, injectQuery, removeStyle, updateStyle };
+`;
+        app.get('/@vite/client', (_req, res) => {
+          res
+            .status(200)
+            .setHeader('Content-Type', 'application/javascript; charset=utf-8')
+            .setHeader('Cache-Control', 'no-store')
+            .end(NO_HMR_VITE_CLIENT_SHIM);
+        });
+      }
       app.use(vite.middlewares);
     } else {
       const distDir = path.join(__dirname, 'dist');
@@ -2919,9 +3022,10 @@ export function attachCollabToServer(
 
 export async function startServer() {
   bootstrapManagedCloudRunDefaults();
-  const app = await createApp({ attachViteOrStatic: true });
+  const server = http.createServer();
+  const app = await createApp({ attachViteOrStatic: true, httpServer: server });
+  server.on('request', app);
   const host = resolveBindHost();
-  const server = http.createServer(app);
   const collabHub = attachCollabToServer(app, server);
   server.on('close', () => {
     collabHub?.close();

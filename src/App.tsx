@@ -459,20 +459,25 @@ export default function App() {
     clearStoredAuthToken();
     let cancelled = false;
     (async () => {
-      const me = await fetchAuthMe();
-      if (cancelled) return;
-      setAuthUser(me.user);
-      setNeedsSetup(me.needsSetup);
-      setRequireAuthForBuilder(me.requireAuthForBuilder);
-      setAuthMeta({
-        demoModeAvailable: Boolean(me.demoModeAvailable),
-        demoAccountsSeeded: Boolean(me.demoAccountsSeeded),
-        roleSummary: me.roleSummary,
-      });
-      setAuthLoading(false);
+      try {
+        const me = await fetchAuthMe();
+        if (cancelled) return;
+        setAuthUser(me.user);
+        setNeedsSetup(me.needsSetup);
+        setRequireAuthForBuilder(me.requireAuthForBuilder);
+        setAuthMeta({
+          demoModeAvailable: Boolean(me.demoModeAvailable),
+          demoAccountsSeeded: Boolean(me.demoAccountsSeeded),
+          roleSummary: me.roleSummary,
+        });
 
-      if (me.authenticated || !me.requireAuthForBuilder) {
-        await hydrateWorkspaceAndSettings(me.user);
+        if (me.authenticated || !me.requireAuthForBuilder) {
+          await hydrateWorkspaceAndSettings(me.user);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthLoading(false);
+        }
       }
     })();
     return () => {
@@ -1854,6 +1859,9 @@ export default function App() {
     [authUser, conflictState, isSaving]
   );
 
+  const syncFromServerQuietlyRef = useRef(syncFromServerQuietly);
+  syncFromServerQuietlyRef.current = syncFromServerQuietly;
+
   // Real-time WebSocket collaboration connection & room presence
   useEffect(() => {
     if (!authUser) {
@@ -1984,13 +1992,13 @@ export default function App() {
         }
       },
       onAccessUpdated: () => {
-        void syncFromServerQuietly(true);
+        void syncFromServerQuietlyRef.current(true);
       },
       onAppearanceUpdated: (settings) => {
         setUiAppearanceSettings(settings);
       },
       onReconnected: () => {
-        void syncFromServerQuietly(true);
+        void syncFromServerQuietlyRef.current(true);
       },
     });
 
@@ -2005,7 +2013,7 @@ export default function App() {
       }
       setRoomPeers([]);
     };
-  }, [authUser?.id, showSaveToast, syncFromServerQuietly]);
+  }, [authUser?.id, showSaveToast]);
 
   useEffect(() => {
     const client = collabClientRef.current;
@@ -2046,20 +2054,20 @@ export default function App() {
 
   // Background & focus/visibility multi-user sync (read-only refresh, never auto-saves edits)
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser?.id) return;
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        void syncFromServerQuietly(false);
+        void syncFromServerQuietlyRef.current(false);
       }
     }, 12_000);
 
     const onFocus = () => {
-      void syncFromServerQuietly(false);
+      void syncFromServerQuietlyRef.current(false);
     };
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        void syncFromServerQuietly(false);
+        void syncFromServerQuietlyRef.current(false);
       }
     };
 
@@ -2070,17 +2078,17 @@ export default function App() {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [authUser, syncFromServerQuietly]);
+  }, [authUser?.id]);
 
   useEffect(() => {
     const onOnline = () => {
-      if (authUser && !hasUnsavedChanges) {
-        void syncFromServerQuietly(true);
+      if (authUserRef.current && !hasUnsavedChanges) {
+        void syncFromServerQuietlyRef.current(true);
       }
     };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
-  }, [authUser, hasUnsavedChanges, syncFromServerQuietly]);
+  }, [authUser?.id, hasUnsavedChanges]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

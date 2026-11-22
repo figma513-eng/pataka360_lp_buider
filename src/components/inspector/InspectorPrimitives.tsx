@@ -317,18 +317,18 @@ export function MediaSourceInput({
       {label && (
         <label className="block text-[10.5px] font-semibold text-[#17243D]">{label}</label>
       )}
-      <div className="flex items-center gap-1.5">
-        {displaySrc && (
-          <div className="w-8 h-8 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] overflow-hidden shrink-0 flex items-center justify-center">
-            <img
-              src={displaySrc}
-              alt="Preview"
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
-        <div className="flex-1 min-w-0 flex items-center gap-1">
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {displaySrc && (
+            <div className="w-7 h-7 rounded-md border border-[#DCE5EF] bg-[#F0F5FA] overflow-hidden shrink-0 flex items-center justify-center">
+              <img
+                src={displaySrc}
+                alt="Preview"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
           <input
             type="url"
             value={isEmbedded ? '' : value ?? ''}
@@ -342,14 +342,35 @@ export function MediaSourceInput({
             }}
             className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] outline-none focus:border-[#00C98A]"
           />
+          {onClear && value && !pendingUpload && (
+            <button
+              type="button"
+              onClick={onClear}
+              title="Hapus gambar"
+              aria-label="Hapus gambar"
+              className="p-1.5 rounded-lg border border-[#DCE5EF] bg-white text-[#8FA4BF] hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
           <label
             title="Upload gambar (otomatis dikonversi ke WebP sebelum disimpan)"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[#DCE5EF] bg-[#F0F5FA] hover:bg-[#DCE5EF]/50 text-[10.5px] font-semibold text-[#17243D] cursor-pointer shrink-0 transition-colors ${
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#ECFDF6] hover:border-[#00C98A]/60 text-[10.5px] font-semibold text-[#17243D] cursor-pointer transition-colors ${
               isBusy ? 'opacity-60 pointer-events-none' : ''
             }`}
           >
             <Upload className="w-3 h-3 text-[#00C98A]" />
-            <span>{preparing ? 'Konversi...' : saving ? 'Menyimpan...' : uploading ? '...' : 'Upload'}</span>
+            <span>
+              {preparing
+                ? 'Mengonversi ke WebP...'
+                : saving
+                ? 'Menyimpan...'
+                : uploading
+                ? 'Mengunggah...'
+                : 'Upload Gambar'}
+            </span>
             <input
               type="file"
               accept="image/*"
@@ -362,16 +383,6 @@ export function MediaSourceInput({
               className="hidden"
             />
           </label>
-          {onClear && value && !pendingUpload && (
-            <button
-              type="button"
-              onClick={onClear}
-              title="Hapus gambar"
-              className="p-1 rounded-lg border border-[#DCE5EF] bg-white text-[#8FA4BF] hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
         </div>
       </div>
 
