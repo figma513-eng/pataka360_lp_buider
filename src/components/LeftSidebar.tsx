@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Award,
@@ -352,21 +352,35 @@ export function LeftSidebar({
     'semua' | PrebuiltSectionCategory
   >('semua');
 
+  const prevNavbarFocusNonceRef = useRef(navbarFocusNonce);
+  const prevLayerFocusNonceRef = useRef(layerFocusNonce);
+  const selectedIdRef = useRef(selectedId);
+  const bottomNavbarItemsRef = useRef(bottomNavbar.items);
+  selectedIdRef.current = selectedId;
+  bottomNavbarItemsRef.current = bottomNavbar.items;
+
   useEffect(() => {
-    if (navbarFocusNonce > 0) {
+    if (navbarFocusNonce > prevNavbarFocusNonceRef.current) {
+      prevNavbarFocusNonceRef.current = navbarFocusNonce;
       setActiveTab('tema');
+    } else {
+      prevNavbarFocusNonceRef.current = navbarFocusNonce;
     }
   }, [navbarFocusNonce]);
 
   useEffect(() => {
-    if (layerFocusNonce > 0) {
+    if (layerFocusNonce > prevLayerFocusNonceRef.current) {
+      prevLayerFocusNonceRef.current = layerFocusNonce;
+      const curSelectedId = selectedIdRef.current;
       const isInNavSheet = Boolean(
-        selectedId &&
-          bottomNavbar.items.some((it) => hasBlockInTree(it.children, selectedId))
+        curSelectedId &&
+          bottomNavbarItemsRef.current.some((it) => hasBlockInTree(it.children, curSelectedId))
       );
       setActiveTab(isInNavSheet ? 'tema' : 'layer');
+    } else {
+      prevLayerFocusNonceRef.current = layerFocusNonce;
     }
-  }, [layerFocusNonce, selectedId, bottomNavbar.items]);
+  }, [layerFocusNonce]);
 
   const filteredTools = useMemo(() => {
     const q = query.trim().toLowerCase();

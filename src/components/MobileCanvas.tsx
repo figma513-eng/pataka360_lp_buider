@@ -828,6 +828,7 @@ export function MobileCanvas({
             const children = block.children ?? [];
             const showArrows = block.content.sliderShowArrows !== false;
             const showDots = block.content.sliderShowDots !== false;
+            const sliderDotsPosition = block.content.sliderDotsPosition ?? 'below';
             const dotCount = Math.min(children.length, 6);
 
             return (
@@ -916,13 +917,25 @@ export function MobileCanvas({
                 )}
 
                 {isSlider && showDots && dotCount > 1 && (
-                  <div className="mt-2 flex items-center justify-center gap-1.5">
+                  <div
+                    className={
+                      sliderDotsPosition === 'overlay'
+                        ? 'absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/50 backdrop-blur-xs shadow-sm'
+                        : 'mt-2 flex items-center justify-center gap-1.5'
+                    }
+                  >
                     {Array.from({ length: dotCount }).map((_, idx) => (
                       <span
                         key={idx}
-                        className={`rounded-full ${
-                          idx === 0 ? 'w-4 h-1.5 bg-emerald-500' : 'w-1.5 h-1.5 bg-slate-300'
-                        }`}
+                        style={{
+                          backgroundColor:
+                            idx === 0
+                              ? theme.accentColor
+                              : sliderDotsPosition === 'overlay'
+                              ? 'rgba(255, 255, 255, 0.58)'
+                              : '#CBD5E1',
+                        }}
+                        className={`rounded-full ${idx === 0 ? 'w-4 h-1.5' : 'w-1.5 h-1.5'}`}
                       />
                     ))}
                   </div>
@@ -1474,8 +1487,9 @@ export function MobileCanvas({
             const activeDot = rowActiveDots[block.id] ?? 0;
             const showScrollbar = Boolean(block.content.rowShowScrollbar);
             const showDots = block.content.rowShowDots !== false;
+            const rowDotsPosition = block.content.rowDotsPosition ?? 'below';
             return (
-              <div>
+              <div className="relative">
                 <div
                   ref={(el) => {
                     rowTrackRefs.current[block.id] = el;
@@ -1517,7 +1531,11 @@ export function MobileCanvas({
                 {showDots && rowChildren.length > 1 && (
                   <div
                     data-row-dots="3"
-                    className="flex items-center justify-center gap-1.5 pt-2"
+                    className={
+                      rowDotsPosition === 'overlay'
+                        ? 'absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/50 backdrop-blur-xs shadow-sm'
+                        : 'flex items-center justify-center gap-1.5 pt-2'
+                    }
                     aria-label="Indikator progress slide"
                   >
                     {[0, 1, 2].map((dotIdx) => {
@@ -1540,7 +1558,11 @@ export function MobileCanvas({
                           style={{
                             width: isActive ? '18px' : '6px',
                             height: '6px',
-                            backgroundColor: isActive ? theme.accentColor : '#CBD5E1',
+                            backgroundColor: isActive
+                              ? theme.accentColor
+                              : rowDotsPosition === 'overlay'
+                              ? 'rgba(255, 255, 255, 0.58)'
+                              : '#CBD5E1',
                           }}
                           className="rounded-full transition-all duration-200 cursor-pointer"
                         />
@@ -2457,6 +2479,7 @@ export function MobileCanvas({
             }
             borderColor={s.borderWidth > 0 ? s.borderColor : theme.borderColor}
             textColor={resolvedTextColor}
+            accentColor={theme.accentColor}
             isEditor
           />
         )}
@@ -2465,6 +2488,8 @@ export function MobileCanvas({
           <PhotoCarousel
             items={block.content.carouselItems ?? []}
             aspectRatio={block.content.carouselAspectRatio ?? '4/5'}
+            heightPx={block.content.carouselHeightPx}
+            widthPx={block.content.carouselWidthPx}
             objectFit={block.content.carouselObjectFit ?? 'cover'}
             borderRadius={s.borderRadius}
             cardBg={theme.cardBg}
@@ -2473,6 +2498,7 @@ export function MobileCanvas({
             accentColor={theme.accentColor}
             align={s.align}
             showDots={block.content.carouselShowDots !== false}
+            dotsPosition={block.content.carouselDotsPosition ?? 'below'}
             showArrows={block.content.carouselShowArrows !== false}
             showScrollbar={Boolean(block.content.carouselShowScrollbar)}
             imageZoom={block.content.imageZoom}
@@ -2498,6 +2524,8 @@ export function MobileCanvas({
             borderColor={theme.borderColor}
             textColor={resolvedTextColor}
             accentColor={theme.accentColor}
+            showDots={block.content.socialFeedShowDots !== false}
+            dotsPosition={block.content.socialFeedDotsPosition ?? 'below'}
             imageZoom={block.content.imageZoom}
             isEditor
           />

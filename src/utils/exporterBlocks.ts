@@ -449,23 +449,38 @@ function renderBlockHtmlInner(
               }</button>`
             : '';
 
+        const dotsPosition = block.content.sliderDotsPosition ?? 'below';
+        const isDotsOverlay = dotsPosition === 'overlay';
+        const dotsAccent = theme.accentColor || '#00C98A';
         const dotsHtml =
           showDots && children.length > 1
-            ? `\n${indent}  <div class="lynk-cslider-dots" style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px;">` +
+            ? `\n${indent}  <div class="lynk-cslider-dots" style="${
+                isDotsOverlay
+                  ? 'position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 8; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(2, 6, 23, 0.52); backdrop-filter: blur(4px);'
+                  : 'display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px;'
+              }">` +
               children
                 .map(
                   (_, idx) =>
-                    `<button type="button" class="lynk-cslider-dot" data-cslider-dot="${idx}" aria-label="Slide ${
+                    `<button type="button" class="lynk-cslider-dot" data-cslider-dot="${idx}"${
+                      isDotsOverlay ? ' data-dot-overlay="1"' : ''
+                    } aria-label="Slide ${
                       idx + 1
                     }" style="width: ${idx === 0 ? '18px' : '7px'}; height: 7px; border-radius: 9999px; border: 0; padding: 0; background: ${
-                      idx === 0 ? theme.accentColor || '#00C98A' : '#CBD5E1'
+                      idx === 0
+                        ? dotsAccent
+                        : isDotsOverlay
+                        ? 'rgba(255, 255, 255, 0.58)'
+                        : '#CBD5E1'
                     }; cursor: pointer; transition: all 0.2s;"></button>`
                 )
                 .join('') +
               `</div>`
             : '';
 
-        return `${indent}<div${hoverCls}${jumpAttr} data-lb-cslider="1" data-slider-mode="${mode}" data-visible-items="${visibleItems}" data-gap="${gap}" data-speed="${speedMs}" data-transition="${transition}" data-loop="${loop}" data-autoplay="${autoplay}" data-autoplay-interval="${autoplayMs}" data-touch-swipe="${touchSwipe}" data-mouse-drag="${mouseDrag}" data-snap="${snap}" data-overflow="${overflowMode}" style="${css}; position: relative; overflow: ${overflowMode};">
+        return `${indent}<div${hoverCls}${jumpAttr} data-lb-cslider="1" data-slider-accent="${escapeHtml(
+          dotsAccent
+        )}" data-slider-mode="${mode}" data-visible-items="${visibleItems}" data-gap="${gap}" data-speed="${speedMs}" data-transition="${transition}" data-loop="${loop}" data-autoplay="${autoplay}" data-autoplay-interval="${autoplayMs}" data-touch-swipe="${touchSwipe}" data-mouse-drag="${mouseDrag}" data-snap="${snap}" data-overflow="${overflowMode}" style="${css}; position: relative; overflow: ${overflowMode};">
 ${indent}  <div class="${trackClass}" style="${trackStyle}">
 ${slideItemsHtml}
 ${indent}  </div>${arrowsHtml}${dotsHtml}
@@ -769,9 +784,12 @@ ${indent}</div>`;
               )}\n${indent}    </div>`
           )
           .join('\n');
+        const rowDotsPosition = c.rowDotsPosition ?? 'below';
+        const dotsClass =
+          rowDotsPosition === 'overlay' ? 'lynk-row-dots is-overlay' : 'lynk-row-dots';
         const dotsHtml =
           showDots && rowChildren.length > 1
-            ? `\n${indent}  <div class="lynk-row-dots" data-row-dots="3" aria-label="Indikator progress slide">\n${indent}    <button type="button" class="lynk-row-dot is-active" data-row-dot="0" aria-label="Slide awal" style="--dot-accent: ${escapeHtml(
+            ? `\n${indent}  <div class="${dotsClass}" data-row-dots="3" aria-label="Indikator progress slide">\n${indent}    <button type="button" class="lynk-row-dot is-active" data-row-dot="0" aria-label="Slide awal" style="--dot-accent: ${escapeHtml(
                 theme.accentColor
               )};"></button>\n${indent}    <button type="button" class="lynk-row-dot" data-row-dot="1" aria-label="Slide tengah" style="--dot-accent: ${escapeHtml(
                 theme.accentColor
@@ -779,7 +797,7 @@ ${indent}</div>`;
                 theme.accentColor
               )};"></button>\n${indent}  </div>`
             : '';
-        return `${indent}<div${hoverCls} data-row-mode="horizontal" data-row-slider style="${css}">\n${indent}  <div data-row-track class="${trackClass}" style="display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: ${rowGap}px; align-items: stretch; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: ${
+        return `${indent}<div${hoverCls} data-row-mode="horizontal" data-row-slider style="${css}; position: relative;">\n${indent}  <div data-row-track class="${trackClass}" style="display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: ${rowGap}px; align-items: stretch; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: ${
           showScrollbar ? '6px' : '4px'
         };">\n${cols}\n${indent}  </div>${dotsHtml}\n${indent}</div>`;
       }
@@ -1327,18 +1345,21 @@ ${indent}</form>`;
       }" data-vid-volume="${volume}" data-vid-muted="${muted ? '1' : '0'}" data-vid-accent="${escapeHtml(
         theme.accentColor
       )}" style="${css}">
-${indent}  <div data-vid-stage style="width: 100%; aspect-ratio: ${ratio}; border-radius: ${block.style.borderRadius}px; overflow: hidden; background: #020617; position: relative;">
+${indent}  <div data-vid-stage class="lynk-vid-stage" style="width: 100%; aspect-ratio: ${ratio}; border-radius: ${block.style.borderRadius}px; overflow: hidden; background: #020617; position: relative;">
 ${indent}    <div data-vid-cover style="position: absolute; inset: 0; z-index: 2; transition: opacity 0.3s ease; opacity: 1;">
 ${indent}      ${initialStageInner}
 ${indent}    </div>
+${indent}    <button type="button" data-vid-toggle data-vid-playing="0" aria-label="Putar video" style="position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; border: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.3s ease; opacity: 1;">
+${indent}      <span data-vid-icon-wrap style="width: 56px; height: 56px; border-radius: 9999px; background: rgba(15, 23, 42, 0.72); border: 1.5px solid rgba(255, 255, 255, 0.32); backdrop-filter: blur(4px); color: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);">
+${indent}        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" style="margin-left: 3px;"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+${indent}      </span>
+${indent}    </button>
 ${indent}  </div>
-${indent}  <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px; border-radius: 12px; background: #F1F5F9; border: 1px solid #E2E8F0;">
-${indent}    <button type="button" data-vid-play style="padding: 6px 10px; border: none; border-radius: 8px; background: ${theme.accentColor}; color: #FFFFFF; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0;">&#9654; Play</button>
-${indent}    <button type="button" data-vid-pause disabled style="padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 8px; background: #FFFFFF; color: #0F172A; font-size: 11px; font-weight: 600; cursor: not-allowed; opacity: 0.45; white-space: nowrap; flex-shrink: 0;">&#10074;&#10074; Pause</button>
-${indent}    <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 4px;">
+${indent}  <div style="display: flex; align-items: center; justify-content: center; margin-top: 8px; padding: 6px 12px; border-radius: 12px; background: #F1F5F9; border: 1px solid #E2E8F0;">
+${indent}    <div style="width: 100%; max-width: 240px; display: flex; align-items: center; justify-content: center; gap: 8px;">
 ${indent}      <button type="button" data-vid-mute aria-label="Toggle suara" style="padding: 4px; border: none; background: transparent; cursor: pointer; font-size: 13px; line-height: 1; flex-shrink: 0;">&#128266;</button>
-${indent}      <input type="range" data-vid-vol min="0" max="100" value="${volume}" aria-label="Volume Audio" style="flex: 1; min-width: 44px; accent-color: ${theme.accentColor}; cursor: pointer;" />
-${indent}      <span data-vid-vol-label style="font-size: 11px; font-weight: 600; color: #475569; min-width: 30px; text-align: right; flex-shrink: 0;">${volume}%</span>
+${indent}      <input type="range" data-vid-vol min="0" max="100" value="${volume}" aria-label="Volume Audio" style="flex: 1; min-width: 80px; accent-color: ${theme.accentColor}; cursor: pointer;" />
+${indent}      <span data-vid-vol-label style="font-size: 11px; font-weight: 600; color: #475569; min-width: 32px; text-align: right; flex-shrink: 0;">${volume}%</span>
 ${indent}    </div>
 ${indent}  </div>
 ${indent}</div>`;
@@ -1603,7 +1624,145 @@ ${indent}    </div>`;
                 .join('\n')}\n${indent}    </div>`
             : '';
 
-          return `${indent}  <div style="width: 100%; box-sizing: border-box; background: ${cardBg}; border: 1px solid ${borderCol}; border-radius: ${radius}px; color: ${textCol}; padding: 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); display: flex; flex-direction: column; gap: 10px; text-align: left;">
+          const accPosts = acc.posts ?? [];
+          const hasDropdown = Boolean(acc.showPostsDropdown);
+          const dropdownLabel = acc.postsDropdownLabel?.trim() || 'Lihat Postingan';
+          const defaultOpen = Boolean(acc.postsDefaultOpen);
+          const postRatio =
+            acc.postsRatio && acc.postsRatio !== 'custom' ? acc.postsRatio : '4/5';
+
+          const dropdownHtml = hasDropdown
+            ? (() => {
+                const slidesInner =
+                  accPosts.length === 0
+                    ? `<div style="padding: 16px 10px; border-radius: 10px; border: 1px dashed ${borderCol}; text-align: center; font-size: 11px; opacity: 0.72;">Belum ada postingan foto / video.</div>`
+                    : accPosts
+                        .map((post, pIdx) => {
+                          const rawVid = post.videoUrl?.trim() ?? '';
+                          const ytId = rawVid ? extractYouTubeId(rawVid) : null;
+                          const isDirect =
+                            isDirectVideoUrl(rawVid) || /^data:video\//i.test(rawVid);
+                          const ttId =
+                            !isDirect && rawVid && isValidTikTokUrl(rawVid)
+                              ? extractTikTokId(rawVid) || rawVid
+                              : null;
+                          const igInfo =
+                            !isDirect && rawVid && isValidInstagramVideoUrl(rawVid)
+                              ? extractInstagramInfo(rawVid)
+                              : null;
+                          const fbUrl =
+                            !isDirect && rawVid && isValidFacebookVideoUrl(rawVid)
+                              ? normalizeFacebookVideoUrl(rawVid)
+                              : null;
+                          const vidKind = isDirect
+                            ? 'direct'
+                            : ytId
+                            ? 'youtube'
+                            : ttId
+                            ? 'tiktok'
+                            : igInfo || (rawVid && isValidInstagramVideoUrl(rawVid))
+                            ? 'instagram'
+                            : fbUrl
+                            ? 'facebook'
+                            : '';
+                          const vidId = isDirect
+                            ? rawVid
+                            : ytId ||
+                              ttId ||
+                              (igInfo ? `${igInfo.kind}/${igInfo.code}` : rawVid) ||
+                              fbUrl ||
+                              '';
+                          const poster =
+                            post.imageUrl?.trim() ||
+                            (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : '');
+
+                          const mediaPart =
+                            post.mediaType === 'video'
+                              ? `<div data-sf-video-box data-sf-kind="${escapeHtml(
+                                  vidKind
+                                )}" data-sf-id="${escapeHtml(vidId)}" data-sf-url="${escapeHtml(
+                                  rawVid
+                                )}" style="position: relative; width: 100%; aspect-ratio: ${postRatio}; background: #0F172A; overflow: hidden;">
+${indent}            ${
+                                  poster
+                                    ? `<img src="${escapeHtml(poster)}" alt="${escapeHtml(
+                                        post.caption || `Video ${pIdx + 1}`
+                                      )}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;" />`
+                                    : `<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1E293B, #020617);"></div>`
+                                }
+${indent}            <div style="position: absolute; inset: 0; background: rgba(2, 6, 23, 0.25); pointer-events: none;"></div>
+${indent}            <button type="button" data-sf-play aria-label="Putar video" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; width: 52px; height: 52px; border-radius: 9999px; border: none; background: rgba(255, 255, 255, 0.95); color: ${
+                                  meta.brandColor
+                                }; box-shadow: 0 8px 20px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; padding-left: 3px;">&#9654;</button>
+${indent}          </div>`
+                              : `<div style="position: relative; width: 100%; aspect-ratio: ${postRatio}; background: #F1F5F9; overflow: hidden;">
+${indent}            <img src="${escapeHtml(post.imageUrl)}" alt="${escapeHtml(
+                                  post.caption || `Postingan ${pIdx + 1}`
+                                )}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+${indent}          </div>`;
+
+                          const cleanPostUrl = sanitizeExternalUrl(post.url, '');
+                          const postFooter =
+                            post.caption?.trim() || cleanPostUrl
+                              ? `<div style="padding: 8px 10px; font-size: 11px; line-height: 1.45; display: flex; flex-direction: column; gap: 4px;">${
+                                  post.caption?.trim()
+                                    ? `<div style="opacity: 0.85; white-space: pre-line;">${escapeHtml(
+                                        post.caption
+                                      )}</div>`
+                                    : ''
+                                }${
+                                  cleanPostUrl
+                                    ? `<a href="${escapeHtml(
+                                        cleanPostUrl
+                                      )}" target="_blank" rel="noopener noreferrer" style="color: ${
+                                        meta.brandColor
+                                      }; font-weight: 600; text-decoration: none; align-self: flex-start;">Buka Postingan &#8599;</a>`
+                                    : ''
+                                }</div>`
+                              : '';
+
+                          return `${indent}        <div data-sfa-slide="${pIdx}" style="display: ${
+                            pIdx === 0 ? 'block' : 'none'
+                          }; border: 1px solid ${borderCol}; border-radius: 10px; overflow: hidden; background: rgba(148, 163, 184, 0.05);">
+${indent}          ${mediaPart}${postFooter}
+${indent}        </div>`;
+                        })
+                        .join('\n');
+
+                const navBar =
+                  accPosts.length > 1
+                    ? `\n${indent}      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px;">
+${indent}        <button type="button" data-sfa-prev style="padding: 4px 10px; border-radius: 8px; border: 1px solid ${borderCol}; background: transparent; color: ${textCol}; font-size: 11px; font-weight: 600; cursor: pointer;">&#8249; Sebelumnya</button>
+${indent}        <span data-sfa-counter style="font-size: 10.5px; font-weight: 600; opacity: 0.72;">1 / ${accPosts.length}</span>
+${indent}        <button type="button" data-sfa-next style="padding: 4px 10px; border-radius: 8px; border: 1px solid ${borderCol}; background: transparent; color: ${textCol}; font-size: 11px; font-weight: 600; cursor: pointer;">Berikutnya &#8250;</button>
+${indent}      </div>`
+                    : '';
+
+                return `\n${indent}    <div style="padding-top: 2px;">
+${indent}      <button type="button" data-sfa-toggle aria-expanded="${
+                  defaultOpen ? 'true' : 'false'
+                }" style="width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid ${borderCol}; background: rgba(148, 163, 184, 0.08); color: ${textCol}; font-size: 11px; font-weight: 600; cursor: pointer;">
+${indent}        <span style="display: inline-flex; align-items: center; gap: 6px;"><span>${escapeHtml(
+                  dropdownLabel
+                )}</span>${
+                  accPosts.length > 0
+                    ? `<span style="padding: 1px 6px; border-radius: 9999px; background: ${meta.brandColor}22; color: ${meta.brandColor}; font-size: 10px; font-weight: 700;">${accPosts.length}</span>`
+                    : ''
+                }</span>
+${indent}        <svg data-sfa-chevron viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s ease; transform: rotate(${
+                  defaultOpen ? '180deg' : '0deg'
+                });"><polyline points="6 9 12 15 18 9"/></svg>
+${indent}      </button>
+${indent}      <div data-sfa-panel style="display: ${
+                  defaultOpen ? 'block' : 'none'
+                }; margin-top: 8px;">
+${slidesInner}${navBar}
+${indent}      </div>
+${indent}    </div>`;
+              })()
+            : '';
+
+          return `${indent}  <div data-sfa-card style="width: 100%; box-sizing: border-box; background: ${cardBg}; border: 1px solid ${borderCol}; border-radius: ${radius}px; color: ${textCol}; padding: 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); display: flex; flex-direction: column; gap: 10px; text-align: left;">
 ${indent}    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
 ${indent}      <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
 ${indent}        <div style="position: relative; flex-shrink: 0;">
@@ -1626,7 +1785,7 @@ ${indent}      <a href="${escapeHtml(
           }; color: #FFFFFF; font-size: 11px; font-weight: 600; text-decoration: none; flex-shrink: 0;">${escapeHtml(
             followLabel
           )}</a>
-${indent}    </div>${bioHtml}${statsHtml}
+${indent}    </div>${bioHtml}${statsHtml}${dropdownHtml}
 ${indent}  </div>`;
         })
         .join('\n');
@@ -1638,6 +1797,14 @@ ${indent}  </div>`;
       const items = block.content.carouselItems ?? [];
       if (items.length === 0) return '';
       const ratio = block.content.carouselAspectRatio ?? '4/5';
+      const customHeightPx = Math.max(120, Math.min(720, block.content.carouselHeightPx ?? 320));
+      const customWidthPx =
+        typeof block.content.carouselWidthPx === 'number' && block.content.carouselWidthPx > 0
+          ? Math.max(160, Math.min(640, block.content.carouselWidthPx))
+          : 0;
+      const mediaBoxCss =
+        ratio === 'custom' ? `height: ${customHeightPx}px;` : `aspect-ratio: ${ratio};`;
+      const widthLimitCss = customWidthPx > 0 ? ` max-width: ${customWidthPx}px; margin-inline: auto;` : '';
       const fit = block.content.carouselObjectFit ?? 'cover';
       const radius = block.style.borderRadius;
       const align = block.style.align;
@@ -1667,7 +1834,7 @@ ${indent}  </div>`;
               ? ` transform: scale(${(carZoom / 100).toFixed(2)}); transform-origin: center center;`
               : '';
           const cardHtml = `<div style="background: ${theme.cardBg}; border: 1px solid ${theme.borderColor}; border-radius: ${radius}px; overflow: hidden; color: ${resolvedTextColor};">
-${indent}        <div style="position: relative; width: 100%; aspect-ratio: ${ratio}; background: #F1F5F9; overflow: hidden;">
+${indent}        <div style="position: relative; width: 100%; ${mediaBoxCss} background: #F1F5F9; overflow: hidden;">
 ${indent}          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title || `Foto ${idx + 1}`)}" draggable="false" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${carZoomCss}" />${linkBadge}
 ${indent}        </div>${footerHtml}
 ${indent}      </div>`;
@@ -1680,22 +1847,41 @@ ${indent}      </div>`;
         .join('\n');
 
       const showDots = block.content.carouselShowDots !== false;
+      const dotsPosition = block.content.carouselDotsPosition ?? 'below';
+      const isDotsOverlay = dotsPosition === 'overlay';
       const showArrows = block.content.carouselShowArrows !== false;
       const showScrollbar = Boolean(block.content.carouselShowScrollbar);
       const carTrackClass = showScrollbar ? '' : ' class="lynk-hide-scrollbar"';
 
-      const dotsHtml =
-        showDots && items.length > 1
-          ? `\n${indent}  <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px;">\n${items
-              .map(
-                (_, idx) =>
-                  `${indent}    <button type="button" data-car-dot="${idx}" aria-label="Lihat foto ${idx + 1}" style="height: 6px; width: ${
-                    idx === 0 ? '20px' : '6px'
-                  }; border-radius: 9999px; border: none; padding: 0; background: ${
-                    idx === 0 ? theme.accentColor : '#CBD5E1'
-                  }; cursor: pointer; transition: all 0.2s ease;"></button>`
-              )
-              .join('\n')}\n${indent}  </div>`
+      const dotButtonsHtml = items
+        .map(
+          (_, idx) =>
+            `${indent}    <button type="button" data-car-dot="${idx}"${
+              isDotsOverlay ? ' data-dot-overlay="1"' : ''
+            } aria-label="Lihat foto ${idx + 1}" style="height: 6px; width: ${
+              idx === 0 ? '20px' : '6px'
+            }; border-radius: 9999px; border: none; padding: 0; background: ${
+              idx === 0
+                ? theme.accentColor
+                : isDotsOverlay
+                ? 'rgba(255, 255, 255, 0.58)'
+                : '#CBD5E1'
+            }; cursor: pointer; transition: all 0.2s ease;"></button>`
+        )
+        .join('\n');
+
+      const overlayDotsHtml =
+        showDots && isDotsOverlay && items.length > 1
+          ? `\n${indent}    <div style="position: absolute; top: 0; left: 0; right: 0; ${mediaBoxCss} z-index: 4; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px;">
+${indent}      <div style="pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(2, 6, 23, 0.52); backdrop-filter: blur(4px);">
+${dotButtonsHtml}
+${indent}      </div>
+${indent}    </div>`
+          : '';
+
+      const belowDotsHtml =
+        showDots && !isDotsOverlay && items.length > 1
+          ? `\n${indent}  <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px;">\n${dotButtonsHtml}\n${indent}  </div>`
           : '';
 
       const navHtml =
@@ -1705,12 +1891,12 @@ ${indent}    <button type="button" data-car-prev aria-label="Foto sebelumnya" st
 ${indent}    <button type="button" data-car-next aria-label="Foto berikutnya" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 3; width: 28px; height: 28px; border-radius: 9999px; border: 1px solid #E2E8F0; background: rgba(255, 255, 255, 0.92); color: #0F172A; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer;">&#8250;</button>`
           : '';
 
-      return `${indent}<div data-carousel data-car-accent="${escapeHtml(theme.accentColor)}" style="${css}">
+      return `${indent}<div data-carousel data-car-accent="${escapeHtml(theme.accentColor)}" style="${css};${widthLimitCss}">
 ${indent}  <div style="position: relative;">
 ${indent}    <div data-car-track${carTrackClass} style="display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; border-radius: ${radius}px; -webkit-overflow-scrolling: touch; cursor: grab;">
 ${slidesHtml}
-${indent}    </div>${navHtml}
-${indent}  </div>${dotsHtml}
+${indent}    </div>${navHtml}${overlayDotsHtml}
+${indent}  </div>${belowDotsHtml}
 ${indent}</div>`;
     }
 
@@ -1843,18 +2029,38 @@ ${indent}    <button type="button" data-car-prev aria-label="Postingan sebelumny
 ${indent}    <button type="button" data-car-next aria-label="Postingan berikutnya" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 3; width: 28px; height: 28px; border-radius: 9999px; border: 1px solid #E2E8F0; background: rgba(255, 255, 255, 0.92); color: #0F172A; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer;">&#8250;</button>`
           : '';
 
-      const dotsHtml =
-        posts.length > 1
-          ? `\n${indent}  <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px;">\n${posts
-              .map(
-                (_, idx) =>
-                  `${indent}    <button type="button" data-car-dot="${idx}" aria-label="Lihat postingan ${idx + 1}" style="height: 6px; width: ${
-                    idx === 0 ? '20px' : '6px'
-                  }; border-radius: 9999px; border: none; padding: 0; background: ${
-                    idx === 0 ? meta.brandColor : '#CBD5E1'
-                  }; cursor: pointer; transition: all 0.2s ease;"></button>`
-              )
-              .join('\n')}\n${indent}  </div>`
+      const feedShowDots = block.content.socialFeedShowDots !== false;
+      const feedDotsPosition = block.content.socialFeedDotsPosition ?? 'below';
+      const isFeedDotsOverlay = feedDotsPosition === 'overlay';
+      const feedDotButtonsHtml = posts
+        .map(
+          (_, idx) =>
+            `${indent}    <button type="button" data-car-dot="${idx}"${
+              isFeedDotsOverlay ? ' data-dot-overlay="1"' : ''
+            } aria-label="Lihat postingan ${idx + 1}" style="height: 6px; width: ${
+              idx === 0 ? '20px' : '6px'
+            }; border-radius: 9999px; border: none; padding: 0; background: ${
+              idx === 0
+                ? meta.brandColor
+                : isFeedDotsOverlay
+                ? 'rgba(255, 255, 255, 0.58)'
+                : '#CBD5E1'
+            }; cursor: pointer; transition: all 0.2s ease;"></button>`
+        )
+        .join('\n');
+
+      const feedOverlayDotsHtml =
+        feedShowDots && isFeedDotsOverlay && posts.length > 1
+          ? `\n${indent}      <div style="position: absolute; top: 0; left: 0; right: 0; aspect-ratio: ${ratio}; z-index: 4; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px;">
+${indent}        <div style="pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(2, 6, 23, 0.52); backdrop-filter: blur(4px);">
+${feedDotButtonsHtml}
+${indent}        </div>
+${indent}      </div>`
+          : '';
+
+      const feedBelowDotsHtml =
+        feedShowDots && !isFeedDotsOverlay && posts.length > 1
+          ? `\n${indent}  <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px;">\n${feedDotButtonsHtml}\n${indent}  </div>`
           : '';
 
       return `${indent}<div style="${css}; text-align: left; display: flex; flex-direction: column; gap: 12px;">
@@ -1878,8 +2084,8 @@ ${indent}  <div data-carousel data-car-accent="${escapeHtml(meta.brandColor)}">
 ${indent}    <div style="position: relative;">
 ${indent}      <div data-car-track style="display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; border-radius: ${mediaRadius}px; -webkit-overflow-scrolling: touch; cursor: grab;">
 ${slidesHtml}
-${indent}      </div>${navHtml}
-${indent}    </div>${dotsHtml}
+${indent}      </div>${navHtml}${feedOverlayDotsHtml}
+${indent}    </div>${feedBelowDotsHtml}
 ${indent}  </div>
 ${indent}</div>`;
     }

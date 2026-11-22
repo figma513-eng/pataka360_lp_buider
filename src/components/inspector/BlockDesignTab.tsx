@@ -990,30 +990,114 @@ export function BlockDesignTab({
           </div>
         );
 
-      case 'carousel':
+      case 'carousel': {
+        const activeRatio = c.carouselAspectRatio ?? '4/5';
+        const customHeightPx = Math.max(120, Math.min(720, c.carouselHeightPx ?? 320));
+        const customWidthPx = Math.max(0, Math.min(640, c.carouselWidthPx ?? 0));
+        const dotsVisible = c.carouselShowDots !== false;
+        const dotsPos = c.carouselDotsPosition ?? 'below';
+        const RATIO_OPTIONS: Array<{ value: CarouselAspectRatio; label: string }> = [
+          { value: '1/1', label: '1:1' },
+          { value: '4/5', label: '4:5' },
+          { value: '3/4', label: '3:4' },
+          { value: '4/3', label: '4:3' },
+          { value: '3/2', label: '3:2' },
+          { value: '16/9', label: '16:9' },
+          { value: '9/16', label: '9:16' },
+          { value: '21/9', label: '21:9' },
+          { value: 'custom', label: 'Kustom (px)' },
+        ];
         return (
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1.5">
                 Ukuran / Rasio Foto
               </label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {(['1/1', '4/5', '9/16', '16/9'] as const).map((opt) => (
+              <div className="grid grid-cols-3 gap-1.5">
+                {RATIO_OPTIONS.map((opt) => (
                   <button
-                    key={opt}
+                    key={opt.value}
                     type="button"
-                    onClick={() => updateContent({ carouselAspectRatio: opt })}
-                    className={`py-1.5 rounded-lg text-xs font-semibold border cursor-pointer tabular-nums ${
-                      (c.carouselAspectRatio ?? '4/5') === opt
+                    onClick={() => updateContent({ carouselAspectRatio: opt.value })}
+                    className={`py-1.5 px-1 rounded-lg text-[11px] font-semibold border cursor-pointer tabular-nums ${
+                      activeRatio === opt.value
                         ? 'bg-[#17243D] text-white border-[#17243D]'
                         : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
                     }`}
                   >
-                    {opt.replace('/', ':')}
+                    {opt.label}
                   </button>
                 ))}
               </div>
             </div>
+
+            {activeRatio === 'custom' && (
+              <div className="p-2.5 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-[#17243D]">
+                    Tinggi Foto (px)
+                  </span>
+                  <div className="inline-flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={120}
+                      max={720}
+                      step={10}
+                      value={customHeightPx}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (!Number.isNaN(n)) {
+                          updateContent({
+                            carouselHeightPx: Math.max(120, Math.min(720, Math.round(n))),
+                          });
+                        }
+                      }}
+                      className="w-16 px-1.5 py-0.5 text-[11px] font-bold text-right rounded border border-[#DCE5EF] bg-white tabular-nums outline-none focus:border-[#00C98A]"
+                    />
+                    <span className="text-[10px] font-semibold text-[#64748B]">px</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={120}
+                  max={720}
+                  step={10}
+                  value={customHeightPx}
+                  onChange={(e) =>
+                    updateContent({ carouselHeightPx: Number(e.target.value) })
+                  }
+                  className="w-full accent-[#00C98A]"
+                />
+                <div className="grid grid-cols-3 gap-1">
+                  {[180, 240, 300, 360, 420, 500].map((px) => (
+                    <button
+                      key={px}
+                      type="button"
+                      onClick={() => updateContent({ carouselHeightPx: px })}
+                      className={`py-1 rounded text-[10px] font-semibold border cursor-pointer tabular-nums ${
+                        customHeightPx === px
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-white text-[#475569] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                      }`}
+                    >
+                      {px}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <SliderRow
+              label="Lebar Foto Maksimal (px)"
+              value={customWidthPx > 0 ? `${customWidthPx}px` : 'Penuh (Auto)'}
+              min={0}
+              max={640}
+              step={10}
+              current={customWidthPx}
+              onChange={(val) =>
+                updateContent({ carouselWidthPx: val > 0 && val < 160 ? 160 : val })
+              }
+            />
 
             <div>
               <label className="block text-xs font-semibold text-[#17243D] mb-1">
@@ -1038,10 +1122,52 @@ export function BlockDesignTab({
               value={c.imageZoom ?? 100}
               onChange={(val) => updateContent({ imageZoom: val })}
             />
+
+            <div className="p-2.5 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Titik Slide (Dots)
+                </span>
+                <ToggleSwitch
+                  checked={dotsVisible}
+                  onChange={(v) => updateContent({ carouselShowDots: v })}
+                  label="Tampilkan Titik Slide"
+                />
+              </div>
+              {dotsVisible && (
+                <div className="space-y-1">
+                  <span className="block text-[10.5px] font-semibold text-[#5B708B]">
+                    Posisi Titik Slide
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {([
+                      { id: 'below', label: 'Di Bawah Foto' },
+                      { id: 'overlay', label: 'Mengambang di Atas Foto' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ carouselDotsPosition: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[10.5px] font-semibold border cursor-pointer ${
+                          dotsPos === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
+      }
 
-      case 'social_feed':
+      case 'social_feed': {
+        const feedDotsVisible = c.socialFeedShowDots !== false;
+        const feedDotsPos = c.socialFeedDotsPosition ?? 'below';
         return (
           <div className="space-y-3">
             <div className="space-y-2">
@@ -1071,8 +1197,48 @@ export function BlockDesignTab({
               value={c.imageZoom ?? 100}
               onChange={(val) => updateContent({ imageZoom: val })}
             />
+
+            <div className="p-2.5 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Titik Slide (Dots)
+                </span>
+                <ToggleSwitch
+                  checked={feedDotsVisible}
+                  onChange={(v) => updateContent({ socialFeedShowDots: v })}
+                  label="Tampilkan Titik Slide Postingan"
+                />
+              </div>
+              {feedDotsVisible && (
+                <div className="space-y-1">
+                  <span className="block text-[10.5px] font-semibold text-[#5B708B]">
+                    Posisi Titik Slide
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {([
+                      { id: 'below', label: 'Di Bawah Foto' },
+                      { id: 'overlay', label: 'Mengambang di Atas Foto' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ socialFeedDotsPosition: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[10.5px] font-semibold border cursor-pointer ${
+                          feedDotsPos === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
+      }
 
       case 'maps_place':
         return (
@@ -2544,6 +2710,32 @@ export function BlockDesignTab({
                       label="Tampilkan Indikator Titik"
                     />
                   </div>
+                  {c.rowShowDots !== false && (
+                    <div className="space-y-1 pt-1">
+                      <span className="block text-[10.5px] font-semibold text-[#5B708B]">
+                        Posisi Indikator Titik
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {([
+                          { id: 'below', label: 'Di Bawah' },
+                          { id: 'overlay', label: 'Mengambang di Atas' },
+                        ] as const).map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => updateContent({ rowDotsPosition: opt.id })}
+                            className={`py-1 px-2 rounded-lg text-[10.5px] font-semibold border cursor-pointer ${
+                              (c.rowDotsPosition ?? 'below') === opt.id
+                                ? 'bg-[#17243D] text-white border-[#17243D]'
+                                : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {isVisible('konten.desc.rowSlideProgress') && (
                   <p className="text-[10px] text-[#8FA4BF]">

@@ -92,6 +92,7 @@ export function CleanVideoEmbed({
   const [localVolume, setLocalVolume] = useState<number>(muted ? 0 : volume);
   const [isMuted, setIsMuted] = useState<boolean>(Boolean(muted));
   const [thumbLevel, setThumbLevel] = useState<0 | 1 | 2>(0);
+  const [transientPauseFlash, setTransientPauseFlash] = useState<boolean>(false);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -104,6 +105,7 @@ export function CleanVideoEmbed({
   const revealTimerRef = useRef<number | null>(null);
   const fallbackTimerRef = useRef<number | null>(null);
   const autoplayCheckTimerRef = useRef<number | null>(null);
+  const pauseFlashTimerRef = useRef<number | null>(null);
   const playerId = useId();
 
   useEffect(() => {
@@ -268,6 +270,10 @@ export function CleanVideoEmbed({
     if (autoplayCheckTimerRef.current !== null) {
       window.clearTimeout(autoplayCheckTimerRef.current);
       autoplayCheckTimerRef.current = null;
+    }
+    if (pauseFlashTimerRef.current !== null) {
+      window.clearTimeout(pauseFlashTimerRef.current);
+      pauseFlashTimerRef.current = null;
     }
     revealScheduledRef.current = false;
   };
@@ -447,12 +453,24 @@ export function CleanVideoEmbed({
     };
   }, [platform, hasMountPlayer, isPlaying, isPaused, activeDirectUrl]);
 
+  const triggerPauseFlash = () => {
+    if (pauseFlashTimerRef.current !== null) {
+      window.clearTimeout(pauseFlashTimerRef.current);
+    }
+    setTransientPauseFlash(true);
+    pauseFlashTimerRef.current = window.setTimeout(() => {
+      setTransientPauseFlash(false);
+      pauseFlashTimerRef.current = null;
+    }, 950);
+  };
+
   const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isValid) return;
     autoStartedRef.current = false;
     setIsPaused(false);
     setIsPlaying(true);
+    triggerPauseFlash();
 
     if (!isPlayableReady) {
       return;
@@ -463,6 +481,7 @@ export function CleanVideoEmbed({
       setHasMountPlayer(true);
     } else {
       clearTimers();
+      triggerPauseFlash();
       if (!activeDirectUrl) {
         setIsRevealed(false);
       } else {
@@ -478,19 +497,30 @@ export function CleanVideoEmbed({
 
   const handlePause = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!hasMountPlayer || isPaused) return;
+    if (!isPlaying || isPaused) return;
     clearTimers();
-    if (activeDirectUrl) {
-      sendPlatformCommand('pause');
-    } else if (platform === 'facebook' || platform === 'instagram') {
-      // Unmount iframe agar suara & pemutaran berhenti seketika dan kembali ke cover bersih
-      setHasMountPlayer(false);
-    } else {
-      sendPlatformCommand('pause');
+    setTransientPauseFlash(false);
+    if (hasMountPlayer) {
+      if (activeDirectUrl) {
+        sendPlatformCommand('pause');
+      } else if (platform === 'facebook' || platform === 'instagram') {
+        // Unmount iframe agar suara & pemutaran berhenti seketika dan kembali ke cover bersih
+        setHasMountPlayer(false);
+      } else {
+        sendPlatformCommand('pause');
+      }
     }
     setIsPaused(true);
     setIsPlaying(false);
     setIsRevealed(false);
+  };
+
+  const handleStageToggle = (e: React.MouseEvent) => {
+    if (isPlaying && !isPaused) {
+      handlePause(e);
+    } else {
+      handlePlay(e);
+    }
   };
 
   const handleToggleMute = (e: React.MouseEvent) => {
@@ -582,10 +612,12 @@ export function CleanVideoEmbed({
   const allowDirectTapInsideIframe =
     !activeDirectUrl && (platform === 'instagram' || platform === 'facebook') && isRevealed;
 
+  const isActivelyPlaying = isPlaying && !isPaused;
+
   return (
     <div className="w-full">
       <div
-        className="w-full overflow-hidden bg-slate-950 relative select-none"
+        className="group/vid w-full overflow-hidden bg-slate-950 relative select-none"
         style={{
           borderRadius: `${borderRadius}px`,
           aspectRatio,
@@ -618,6 +650,7 @@ export function CleanVideoEmbed({
             onEnded={() => {
               clearTimers();
               hasPlayedOnceRef.current = false;
+              setTransientPauseFlash(false);
               setIsRevealed(false);
               setIsPaused(false);
               setIsPlaying(false);
@@ -706,10 +739,10 @@ export function CleanVideoEmbed({
           </>
         )}
 
-        {/* Cover bersih tanpa ikon channel, tombol share/jam, "Tonton di", ataupun tombol play tengah */}
+        {/* Cover thumbnail bersih */}
         <div
           className={`absolute inset-0 z-10 transition-opacity duration-300 ${
-            isPlaying && !isPaused && isRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            isActivelyPlaying && isRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         >
           {activePoster && thumbLevel < 2 ? (
@@ -732,49 +765,63 @@ export function CleanVideoEmbed({
               <span className="font-medium">
                 {resolving
                   ? 'Menyiapkan video...'
-                  : isPlaying && !isPaused
+                  : isActivelyPlaying
                   ? 'Memutar video...'
                   : 'Video siap diputar'}
               </span>
             </div>
           )}
+          {!isActivelyPlaying && (
+            <div className="absolute inset-0 bg-slate-950/25 pointer-events-none" />
+          )}
         </div>
+
+        {/* Lapisan klik & Ikon Play / Pause terpusat pada thumbnail/video */}
+        <button
+          type="button"
+          onClick={handleStageToggle}
+          onDragStart={(e) => e.stopPropagation()}
+          aria-label={isActivelyPlaying ? 'Jeda video' : 'Putar video'}
+          title={isActivelyPlaying ? 'Klik untuk jeda video' : 'Klik untuk putar video'}
+          className={`absolute inset-0 z-20 flex items-center justify-center cursor-pointer transition-opacity duration-300 ${
+            allowDirectTapInsideIframe ? 'pointer-events-none' : 'pointer-events-auto'
+          }`}
+        >
+          <span
+            onClick={allowDirectTapInsideIframe ? handleStageToggle : undefined}
+            style={{
+              backgroundColor: !isActivelyPlaying ? accentColor : 'rgba(15, 23, 42, 0.72)',
+            }}
+            className={`w-14 h-14 rounded-full text-white shadow-xl border border-white/30 backdrop-blur-xs flex items-center justify-center transition-all duration-300 ${
+              allowDirectTapInsideIframe ? 'pointer-events-auto' : ''
+            } ${
+              !isActivelyPlaying
+                ? 'opacity-100 scale-100 hover:scale-105 active:scale-95'
+                : transientPauseFlash
+                ? 'opacity-100 scale-100'
+                : 'opacity-0 scale-90 group-hover/vid:opacity-90 group-hover/vid:scale-100'
+            }`}
+          >
+            {isActivelyPlaying ? (
+              !isRevealed && !transientPauseFlash ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <Pause className="w-6 h-6 fill-current" />
+              )
+            ) : (
+              <Play className="w-6 h-6 fill-current ml-0.5" />
+            )}
+          </span>
+        </button>
       </div>
 
-      {/* Satu baris kontrol: Play, Pause, Volume (besar-kecil) */}
+      {/* Bar Kontrol Volume Terpusat di Tengah (tanpa tombol Play & Pause) */}
       <div
-        className="mt-2 flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-100 border border-slate-200"
+        className="mt-2 flex items-center justify-center px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200"
         onClick={(e) => e.stopPropagation()}
         onDragStart={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          onClick={handlePlay}
-          disabled={isPlaying && !isPaused}
-          style={{
-            backgroundColor: isPlaying && !isPaused ? '#0F172A' : accentColor,
-          }}
-          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-80 cursor-pointer disabled:cursor-default shrink-0"
-        >
-          {isPlaying && !isPaused && !isRevealed ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Play className="w-3 h-3 fill-current" />
-          )}
-          <span>Play</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handlePause}
-          disabled={!isPlaying || isPaused}
-          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 disabled:opacity-45 transition-colors cursor-pointer disabled:cursor-not-allowed shrink-0"
-        >
-          <Pause className="w-3 h-3 fill-current" />
-          <span>Pause</span>
-        </button>
-
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 pl-1 pr-1">
+        <div className="w-full max-w-[240px] flex items-center justify-center gap-2">
           <button
             type="button"
             onClick={handleToggleMute}
@@ -783,9 +830,9 @@ export function CleanVideoEmbed({
             className="p-1 rounded-md text-slate-700 hover:bg-slate-200/70 transition-colors cursor-pointer shrink-0"
           >
             {isMuted || displayVol === 0 ? (
-              <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+              <VolumeX className="w-4 h-4 text-slate-500" />
             ) : (
-              <Volume2 className="w-3.5 h-3.5 text-slate-700" />
+              <Volume2 className="w-4 h-4 text-slate-700" />
             )}
           </button>
 
@@ -796,7 +843,8 @@ export function CleanVideoEmbed({
             value={displayVol}
             onChange={(e) => handleVolumeChange(Number(e.target.value))}
             aria-label="Volume Audio"
-            className="flex-1 min-w-[44px] h-1.5 accent-blue-600 cursor-pointer"
+            style={{ accentColor }}
+            className="flex-1 min-w-[80px] h-1.5 cursor-pointer"
           />
 
           <span className="text-[11px] font-semibold text-slate-600 tabular-nums w-8 text-right shrink-0">

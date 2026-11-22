@@ -782,6 +782,7 @@ export function PreviewModal({
       const sliderGap = Math.max(0, Math.min(48, Number(block.content.sliderGap ?? 12)));
       const children = block.children ?? [];
       const showDots = block.content.sliderShowDots !== false;
+      const sliderDotsPosition = block.content.sliderDotsPosition ?? 'below';
       const showScrollbar = Boolean(block.content.sliderShowScrollbar);
       const dotCount = Math.min(children.length, 6);
 
@@ -790,7 +791,9 @@ export function PreviewModal({
           key={block.id}
           data-jump-title={block.label?.trim().toLowerCase() || undefined}
           style={style}
-          className={s.hoverLift ? 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg' : undefined}
+          className={`relative ${
+            s.hoverLift ? 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg' : ''
+          }`}
         >
           {isHSlider ? (
             <div
@@ -843,12 +846,23 @@ export function PreviewModal({
             )
           )}
           {isSlider && showDots && dotCount > 1 && (
-            <div className="mt-2 flex items-center justify-center gap-1.5">
+            <div
+              className={
+                sliderDotsPosition === 'overlay'
+                  ? 'absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/50 backdrop-blur-xs shadow-sm'
+                  : 'mt-2 flex items-center justify-center gap-1.5'
+              }
+            >
               {Array.from({ length: dotCount }).map((_, idx) => (
                 <span
                   key={idx}
                   style={{
-                    backgroundColor: idx === 0 ? project.theme.accentColor : '#CBD5E1',
+                    backgroundColor:
+                      idx === 0
+                        ? project.theme.accentColor
+                        : sliderDotsPosition === 'overlay'
+                        ? 'rgba(255, 255, 255, 0.58)'
+                        : '#CBD5E1',
                   }}
                   className={`rounded-full ${idx === 0 ? 'w-4 h-1.5' : 'w-1.5 h-1.5'}`}
                 />
@@ -1177,7 +1191,7 @@ export function PreviewModal({
         const showScrollbar = Boolean(block.content.rowShowScrollbar);
         const showDots = block.content.rowShowDots !== false;
         return (
-          <div key={block.id} style={style}>
+          <div key={block.id} style={style} className="relative">
             <div
               ref={(el) => {
                 rowTrackRefs.current[block.id] = el;
@@ -1219,39 +1233,50 @@ export function PreviewModal({
                 </div>
               ))}
             </div>
-            {showDots && rowChildren.length > 1 && (
-              <div
-                data-row-dots="3"
-                className="flex items-center justify-center gap-1.5 pt-2"
-                aria-label="Indikator progress slide"
-              >
-                {[0, 1, 2].map((dotIdx) => {
-                  const isActive = activeDot === dotIdx;
-                  return (
-                    <button
-                      key={dotIdx}
-                      type="button"
-                      aria-label={`Slide posisi ${dotIdx + 1}`}
-                      onClick={() => {
-                        const track = rowTrackRefs.current[block.id];
-                        if (!track) return;
-                        const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
-                        const targetLeft =
-                          dotIdx === 0 ? 0 : dotIdx === 1 ? maxScroll / 2 : maxScroll;
-                        track.scrollTo({ left: targetLeft, behavior: 'smooth' });
-                        setRowActiveDots((prev) => ({ ...prev, [block.id]: dotIdx }));
-                      }}
-                      style={{
-                        width: isActive ? '18px' : '6px',
-                        height: '6px',
-                        backgroundColor: isActive ? project.theme.accentColor : '#CBD5E1',
-                      }}
-                      className="rounded-full transition-all duration-200 cursor-pointer"
-                    />
-                  );
-                })}
-              </div>
-            )}
+            {showDots && rowChildren.length > 1 && (() => {
+              const rowDotsPosition = block.content.rowDotsPosition ?? 'below';
+              return (
+                <div
+                  data-row-dots="3"
+                  className={
+                    rowDotsPosition === 'overlay'
+                      ? 'absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/50 backdrop-blur-xs shadow-sm'
+                      : 'flex items-center justify-center gap-1.5 pt-2'
+                  }
+                  aria-label="Indikator progress slide"
+                >
+                  {[0, 1, 2].map((dotIdx) => {
+                    const isActive = activeDot === dotIdx;
+                    return (
+                      <button
+                        key={dotIdx}
+                        type="button"
+                        aria-label={`Slide posisi ${dotIdx + 1}`}
+                        onClick={() => {
+                          const track = rowTrackRefs.current[block.id];
+                          if (!track) return;
+                          const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+                          const targetLeft =
+                            dotIdx === 0 ? 0 : dotIdx === 1 ? maxScroll / 2 : maxScroll;
+                          track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+                          setRowActiveDots((prev) => ({ ...prev, [block.id]: dotIdx }));
+                        }}
+                        style={{
+                          width: isActive ? '18px' : '6px',
+                          height: '6px',
+                          backgroundColor: isActive
+                            ? project.theme.accentColor
+                            : rowDotsPosition === 'overlay'
+                            ? 'rgba(255, 255, 255, 0.58)'
+                            : '#CBD5E1',
+                        }}
+                        className="rounded-full transition-all duration-200 cursor-pointer"
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         );
       }
@@ -2429,6 +2454,7 @@ export function PreviewModal({
             }
             borderColor={s.borderWidth > 0 ? s.borderColor : project.theme.borderColor}
             textColor={resolvedTextColor}
+            accentColor={project.theme.accentColor}
           />
         </div>
       );
@@ -2440,6 +2466,8 @@ export function PreviewModal({
           <PhotoCarousel
             items={block.content.carouselItems ?? []}
             aspectRatio={block.content.carouselAspectRatio ?? '4/5'}
+            heightPx={block.content.carouselHeightPx}
+            widthPx={block.content.carouselWidthPx}
             objectFit={block.content.carouselObjectFit ?? 'cover'}
             borderRadius={s.borderRadius}
             cardBg={project.theme.cardBg}
@@ -2448,6 +2476,7 @@ export function PreviewModal({
             accentColor={project.theme.accentColor}
             align={s.align}
             showDots={block.content.carouselShowDots !== false}
+            dotsPosition={block.content.carouselDotsPosition ?? 'below'}
             showArrows={block.content.carouselShowArrows !== false}
             showScrollbar={Boolean(block.content.carouselShowScrollbar)}
             imageZoom={block.content.imageZoom}
@@ -2476,6 +2505,8 @@ export function PreviewModal({
             borderColor={project.theme.borderColor}
             textColor={resolvedTextColor}
             accentColor={project.theme.accentColor}
+            showDots={block.content.socialFeedShowDots !== false}
+            dotsPosition={block.content.socialFeedDotsPosition ?? 'below'}
             imageZoom={block.content.imageZoom}
           />
         </div>

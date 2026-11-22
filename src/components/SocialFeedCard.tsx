@@ -11,7 +11,7 @@ import {
   Play,
   Square,
 } from 'lucide-react';
-import { CarouselAspectRatio, SocialPlatform, SocialPostItem } from '../types/builder';
+import { CarouselAspectRatio, SlideDotsPosition, SocialPlatform, SocialPostItem } from '../types/builder';
 import { SOCIAL_PLATFORMS } from '../utils/socialIcons';
 import {
   extractInstagramInfo,
@@ -45,6 +45,8 @@ interface SocialFeedCardProps {
   borderColor: string;
   textColor: string;
   accentColor: string;
+  showDots?: boolean;
+  dotsPosition?: SlideDotsPosition;
   imageZoom?: number;
   isEditor?: boolean;
 }
@@ -78,7 +80,7 @@ function detectVideoSource(rawUrl?: string): {
   return { kind: 'none', id: '' };
 }
 
-function PostVideoSlide({
+export function PostVideoSlide({
   post,
   aspectRatio,
   accentColor,
@@ -89,6 +91,7 @@ function PostVideoSlide({
   accentColor: string;
   imageZoom?: number;
 }) {
+  const effectiveRatio = aspectRatio === 'custom' ? '4/5' : aspectRatio;
   const rawVideoUrl = post.videoUrl?.trim() ?? '';
   const detected = detectVideoSource(rawVideoUrl);
   const [playing, setPlaying] = useState(false);
@@ -200,7 +203,7 @@ function PostVideoSlide({
   return (
     <div
       className="relative w-full bg-slate-900 overflow-hidden"
-      style={{ aspectRatio }}
+      style={{ aspectRatio: effectiveRatio }}
     >
       {playing && activeDirect ? (
         <video
@@ -297,9 +300,12 @@ export function SocialFeedCard({
   borderColor,
   textColor,
   accentColor,
+  showDots = true,
+  dotsPosition = 'below',
   imageZoom = 100,
   isEditor = false,
 }: SocialFeedCardProps) {
+  const safeRatio = aspectRatio === 'custom' ? '4/5' : aspectRatio;
   const meta = SOCIAL_PLATFORMS[platform] ?? SOCIAL_PLATFORMS.instagram;
   const trackRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
@@ -654,9 +660,41 @@ export function SocialFeedCard({
                 </button>
               </>
             )}
+            {showDots && dotsPosition === 'overlay' && posts.length > 1 && (
+              <div
+                style={{ aspectRatio: safeRatio }}
+                className="pointer-events-none absolute top-0 left-0 right-0 z-20 flex items-end justify-center pb-2.5"
+              >
+                <div
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="pointer-events-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/50 backdrop-blur-xs shadow-sm"
+                >
+                  {posts.map((post, idx) => {
+                    const isActive = idx === activeIndex;
+                    return (
+                      <button
+                        key={post.id}
+                        type="button"
+                        aria-label={`Lihat postingan ${idx + 1}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToSlide(idx);
+                        }}
+                        style={{
+                          backgroundColor: isActive ? meta.brandColor : 'rgba(255, 255, 255, 0.58)',
+                        }}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          isActive ? 'w-5' : 'w-1.5 hover:opacity-90'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {posts.length > 1 && (
+          {showDots && dotsPosition !== 'overlay' && posts.length > 1 && (
             <div
               onPointerDown={(e) => e.stopPropagation()}
               className="flex items-center justify-center gap-1.5 mt-2.5"

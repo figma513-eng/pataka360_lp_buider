@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
-import { BadgeCheck } from 'lucide-react';
+import {
+  BadgeCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  ImageOff,
+  PlaySquare,
+} from 'lucide-react';
 import { SocialFollowerAccount } from '../types/builder';
 import { SOCIAL_PLATFORMS } from '../utils/socialIcons';
 import { sanitizeExternalUrl } from '../utils/urlHelpers';
+import { PostVideoSlide } from './SocialFeedCard';
 import { SocialGlyph } from './SocialIcon';
 
 interface SocialFollowerListProps {
@@ -12,6 +21,7 @@ interface SocialFollowerListProps {
   cardBg: string;
   borderColor: string;
   textColor: string;
+  accentColor?: string;
   isEditor?: boolean;
 }
 
@@ -22,9 +32,13 @@ export function SocialFollowerList({
   cardBg,
   borderColor,
   textColor,
+  accentColor = '#00C98A',
   isEditor = false,
 }: SocialFollowerListProps) {
   const [brokenAvatars, setBrokenAvatars] = useState<Record<string, boolean>>({});
+  const [brokenPostImages, setBrokenPostImages] = useState<Record<string, boolean>>({});
+  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
+  const [activePostIndexes, setActivePostIndexes] = useState<Record<string, number>>({});
 
   if (accounts.length === 0) {
     return (
@@ -63,6 +77,18 @@ export function SocialFollowerList({
             : stats.length === 2
             ? 'grid-cols-2'
             : 'grid-cols-3';
+
+        const posts = acc.posts ?? [];
+        const hasDropdown = Boolean(acc.showPostsDropdown);
+        const isDropdownOpen = openDropdowns[acc.id] ?? Boolean(acc.postsDefaultOpen);
+        const dropdownLabel = acc.postsDropdownLabel?.trim() || 'Lihat Postingan';
+        const postRatio =
+          acc.postsRatio && acc.postsRatio !== 'custom' ? acc.postsRatio : '16/9';
+        const currentPostIdx = Math.min(
+          Math.max(0, activePostIndexes[acc.id] ?? 0),
+          Math.max(0, posts.length - 1)
+        );
+        const activePost = posts[currentPostIdx] ?? null;
 
         return (
           <div
@@ -167,6 +193,176 @@ export function SocialFollowerList({
                     <div className="text-[10px] opacity-70 truncate">{st.label}</div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Tombol Dropdown Postingan (Embed Foto / Video) */}
+            {hasDropdown && (
+              <div className="space-y-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDropdowns((prev) => ({
+                      ...prev,
+                      [acc.id]: !(prev[acc.id] ?? Boolean(acc.postsDefaultOpen)),
+                    }));
+                  }}
+                  style={{ borderColor }}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border bg-slate-500/5 hover:bg-slate-500/10 text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <PlaySquare
+                      className="w-3.5 h-3.5 shrink-0"
+                      style={{ color: meta.brandColor }}
+                    />
+                    <span className="truncate">{dropdownLabel}</span>
+                    {posts.length > 0 && (
+                      <span
+                        style={{
+                          backgroundColor: `${meta.brandColor}1F`,
+                          color: meta.brandColor,
+                        }}
+                        className="px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums shrink-0"
+                      >
+                        {posts.length}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 shrink-0 opacity-75 transition-transform duration-200 ${
+                      isDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {isDropdownOpen && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ borderColor }}
+                    className="rounded-xl border overflow-hidden bg-slate-500/5"
+                  >
+                    {posts.length === 0 ? (
+                      <div className="py-4 px-3 text-center text-[11px] opacity-65">
+                        Belum ada postingan foto/video. Tambahkan di panel Konten akun ini.
+                      </div>
+                    ) : (
+                      activePost && (
+                        <div>
+                          <div className="relative">
+                            {activePost.mediaType === 'video' ? (
+                              <PostVideoSlide
+                                post={activePost}
+                                aspectRatio={postRatio}
+                                accentColor={meta.brandColor || accentColor}
+                              />
+                            ) : (
+                              <div
+                                className="relative w-full bg-slate-100 overflow-hidden"
+                                style={{ aspectRatio: postRatio }}
+                              >
+                                {!activePost.imageUrl ||
+                                brokenPostImages[`${activePost.id}_${activePost.imageUrl}`] ? (
+                                  <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-400">
+                                    <ImageOff className="w-5 h-5" />
+                                    <span className="text-[11px]">Foto tidak dapat dimuat</span>
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={activePost.imageUrl}
+                                    alt={activePost.caption || `Postingan ${currentPostIdx + 1}`}
+                                    draggable={false}
+                                    referrerPolicy="no-referrer"
+                                    onError={() =>
+                                      setBrokenPostImages((prev) => ({
+                                        ...prev,
+                                        [`${activePost.id}_${activePost.imageUrl}`]: true,
+                                      }))
+                                    }
+                                    className="w-full h-full object-cover block"
+                                  />
+                                )}
+                              </div>
+                            )}
+
+                            {posts.length > 1 && (
+                              <>
+                                <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-slate-900/65 text-white text-[10px] font-semibold tabular-nums backdrop-blur-xs pointer-events-none">
+                                  {currentPostIdx + 1} / {posts.length}
+                                </div>
+                                <button
+                                  type="button"
+                                  aria-label="Postingan sebelumnya"
+                                  disabled={currentPostIdx === 0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActivePostIndexes((prev) => ({
+                                      ...prev,
+                                      [acc.id]: Math.max(0, currentPostIdx - 1),
+                                    }));
+                                  }}
+                                  className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white/90 text-slate-800 shadow-md border border-slate-200/80 flex items-center justify-center cursor-pointer ${
+                                    currentPostIdx === 0 ? 'opacity-30 cursor-default' : 'opacity-90 hover:opacity-100'
+                                  }`}
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Postingan berikutnya"
+                                  disabled={currentPostIdx === posts.length - 1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActivePostIndexes((prev) => ({
+                                      ...prev,
+                                      [acc.id]: Math.min(posts.length - 1, currentPostIdx + 1),
+                                    }));
+                                  }}
+                                  className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-white/90 text-slate-800 shadow-md border border-slate-200/80 flex items-center justify-center cursor-pointer ${
+                                    currentPostIdx === posts.length - 1
+                                      ? 'opacity-30 cursor-default'
+                                      : 'opacity-90 hover:opacity-100'
+                                  }`}
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          {(activePost.caption?.trim() ||
+                            sanitizeExternalUrl(activePost.url, '')) && (
+                            <div className="px-3 py-2 space-y-1">
+                              {activePost.caption?.trim() && (
+                                <p className="text-[11px] leading-relaxed opacity-85 whitespace-pre-line">
+                                  {activePost.caption}
+                                </p>
+                              )}
+                              {sanitizeExternalUrl(activePost.url, '') &&
+                                (isEditor ? (
+                                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold opacity-75">
+                                    <span>Buka Postingan</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </span>
+                                ) : (
+                                  <a
+                                    href={sanitizeExternalUrl(activePost.url, '')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: meta.brandColor }}
+                                    className="inline-flex items-center gap-1 text-[10.5px] font-semibold hover:underline"
+                                  >
+                                    <span>Lihat Postingan</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

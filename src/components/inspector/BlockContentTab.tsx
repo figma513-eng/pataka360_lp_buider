@@ -4860,6 +4860,27 @@ export function BlockContentTab({
                   label="Tampilkan atau sembunyikan titik indikator slide carousel"
                 />
               </div>
+              {c.carouselShowDots !== false && (
+                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                  {([
+                    { id: 'below', label: 'Di Bawah Foto' },
+                    { id: 'overlay', label: 'Mengambang di Atas Foto' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ carouselDotsPosition: opt.id })}
+                      className={`py-1 px-2 rounded-lg text-[10.5px] font-semibold border cursor-pointer ${
+                        (c.carouselDotsPosition ?? 'below') === opt.id
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-semibold text-[#17243D]">
                   Tampilkan Tombol Panah
@@ -5300,6 +5321,280 @@ export function BlockContentTab({
                 onChange={(e) => updateAcc(acc.id, { bio: e.target.value })}
                 className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white resize-y"
               />
+
+              {/* Opsi Tombol Dropdown Postingan (Foto / Video Embed) */}
+              <div className="p-2.5 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[11px] font-bold text-[#17243D]">
+                      Tombol Dropdown Postingan
+                    </div>
+                    <div className="text-[10px] text-[#64748B]">
+                      Tampilkan / embed postingan foto atau video di dalam kartu
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={Boolean(acc.showPostsDropdown)}
+                    onChange={(v) => {
+                      const existingPosts = acc.posts ?? [];
+                      updateAcc(acc.id, {
+                        showPostsDropdown: v,
+                        postsDropdownLabel: acc.postsDropdownLabel || 'Lihat Postingan',
+                        posts:
+                          v && existingPosts.length === 0
+                            ? [
+                                {
+                                  id: createId('sfap'),
+                                  mediaType: 'image',
+                                  imageUrl: SAMPLE_CAROUSEL_IMAGES[0],
+                                  videoUrl: '',
+                                  caption: 'Contoh postingan terbaru dari akun ini.',
+                                  url: acc.accountUrl || '',
+                                },
+                              ]
+                            : existingPosts,
+                      });
+                    }}
+                    label="Aktifkan tombol dropdown postingan"
+                  />
+                </div>
+
+                {acc.showPostsDropdown && (() => {
+                  const accPosts = acc.posts ?? [];
+                  const updateAccPost = (postId: string, patch: Partial<SocialPostItem>) => {
+                    updateAcc(acc.id, {
+                      posts: accPosts.map((p) => (p.id === postId ? { ...p, ...patch } : p)),
+                    });
+                  };
+                  const addAccPost = (mediaType: 'image' | 'video') => {
+                    const nextPost: SocialPostItem = {
+                      id: createId('sfap'),
+                      mediaType,
+                      imageUrl:
+                        SAMPLE_CAROUSEL_IMAGES[accPosts.length % SAMPLE_CAROUSEL_IMAGES.length],
+                      videoUrl: '',
+                      caption:
+                        mediaType === 'video'
+                          ? `Video embed #${accPosts.length + 1}`
+                          : `Postingan foto #${accPosts.length + 1}`,
+                      url: '',
+                    };
+                    updateAcc(acc.id, { posts: [...accPosts, nextPost] });
+                  };
+                  return (
+                    <div className="space-y-2 pt-1.5 border-t border-[#DCE5EF]">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-semibold text-[#5B708B]">
+                            Teks Tombol Dropdown
+                          </label>
+                          <input
+                            type="text"
+                            value={acc.postsDropdownLabel ?? 'Lihat Postingan'}
+                            placeholder="Lihat Postingan"
+                            onChange={(e) =>
+                              updateAcc(acc.id, { postsDropdownLabel: e.target.value })
+                            }
+                            className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-semibold text-[#5B708B]">
+                            Rasio Media
+                          </label>
+                          <select
+                            value={acc.postsRatio ?? '4/5'}
+                            onChange={(e) =>
+                              updateAcc(acc.id, {
+                                postsRatio: e.target.value as
+                                  | '1/1'
+                                  | '4/5'
+                                  | '3/4'
+                                  | '16/9'
+                                  | '9/16',
+                              })
+                            }
+                            className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                          >
+                            <option value="1/1">1:1 (Persegi)</option>
+                            <option value="4/5">4:5 (Potret IG)</option>
+                            <option value="3/4">3:4 (Potret)</option>
+                            <option value="16/9">16:9 (Video / YouTube)</option>
+                            <option value="9/16">9:16 (Reels / TikTok)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10.5px] font-semibold text-[#17243D]">
+                          Terbuka secara Default
+                        </span>
+                        <ToggleSwitch
+                          checked={Boolean(acc.postsDefaultOpen)}
+                          onChange={(v) => updateAcc(acc.id, { postsDefaultOpen: v })}
+                          label="Buka dropdown postingan secara default"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addAccPost('image')}
+                          className="inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#17243D] text-white text-[11px] font-semibold cursor-pointer"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5 text-[#00C98A]" />
+                          <span>+ Foto</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addAccPost('video')}
+                          className="inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#0F172A] text-white text-[11px] font-semibold cursor-pointer"
+                        >
+                          <Video className="w-3.5 h-3.5 text-[#00C98A]" />
+                          <span>+ Video Embed</span>
+                        </button>
+                      </div>
+
+                      {accPosts.length === 0 ? (
+                        <div className="text-[11px] text-[#64748B] text-center py-2 bg-white rounded border border-dashed border-[#CBD5E1]">
+                          Belum ada postingan. Klik + Foto atau + Video Embed di atas.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {accPosts.map((post, pIdx) => (
+                            <div
+                              key={post.id}
+                              className="p-2 rounded-lg bg-white border border-[#DCE5EF] space-y-2"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] font-bold text-[#17243D]">
+                                  Postingan #{pIdx + 1}
+                                </span>
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateAccPost(post.id, { mediaType: 'image' })
+                                    }
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                                      (post.mediaType ?? 'image') === 'image'
+                                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                                        : 'bg-[#F8FBFE] text-[#475569] border-[#DCE5EF]'
+                                    }`}
+                                  >
+                                    Foto
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateAccPost(post.id, { mediaType: 'video' })
+                                    }
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                                      post.mediaType === 'video'
+                                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                                        : 'bg-[#F8FBFE] text-[#475569] border-[#DCE5EF]'
+                                    }`}
+                                  >
+                                    Video
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Hapus postingan"
+                                    onClick={() =>
+                                      updateAcc(acc.id, {
+                                        posts: accPosts.filter((p) => p.id !== post.id),
+                                      })
+                                    }
+                                    className="p-1 rounded text-rose-500 hover:bg-rose-50 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {post.mediaType === 'video' && (
+                                <input
+                                  type="url"
+                                  value={post.videoUrl ?? ''}
+                                  placeholder="URL Video (YouTube, TikTok, Reels, FB, atau MP4)"
+                                  onChange={(e) =>
+                                    updateAccPost(post.id, { videoUrl: e.target.value })
+                                  }
+                                  className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-[#F8FBFE]"
+                                />
+                              )}
+
+                              <MediaSourceInput
+                                label={
+                                  post.mediaType === 'video'
+                                    ? 'Thumbnail Video (Opsional)'
+                                    : 'Foto Postingan'
+                                }
+                                value={post.imageUrl}
+                                previewFallback={CAROUSEL_SAMPLE_1_SVG}
+                                onChangeUrl={(url) =>
+                                  updateAccPost(post.id, {
+                                    imageUrl:
+                                      url ||
+                                      SAMPLE_CAROUSEL_IMAGES[
+                                        pIdx % SAMPLE_CAROUSEL_IMAGES.length
+                                      ],
+                                  })
+                                }
+                                onUploadFile={(f) =>
+                                  handleCompressAndSet(
+                                    f,
+                                    { maxDimension: 1080, quality: 0.82 },
+                                    (blk, url) => ({
+                                      ...blk,
+                                      content: {
+                                        ...blk.content,
+                                        socialFollowerAccounts: (
+                                          blk.content.socialFollowerAccounts ?? []
+                                        ).map((a) =>
+                                          a.id === acc.id
+                                            ? {
+                                                ...a,
+                                                posts: (a.posts ?? []).map((p) =>
+                                                  p.id === post.id
+                                                    ? { ...p, imageUrl: url }
+                                                    : p
+                                                ),
+                                              }
+                                            : a
+                                        ),
+                                      },
+                                    })
+                                  )
+                                }
+                              />
+
+                              <input
+                                type="text"
+                                value={post.caption}
+                                placeholder="Caption singkat (opsional)..."
+                                onChange={(e) =>
+                                  updateAccPost(post.id, { caption: e.target.value })
+                                }
+                                className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                              />
+                              <input
+                                type="url"
+                                value={post.url ?? ''}
+                                placeholder="Tautan ke postingan asli (opsional)"
+                                onChange={(e) =>
+                                  updateAccPost(post.id, { url: e.target.value })
+                                }
+                                className="w-full px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           ),
         };
@@ -5582,6 +5877,42 @@ export function BlockContentTab({
         badge: posts.length,
         body: (
           <div className="space-y-2">
+            <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-1.5">
+              <div className="text-[10.5px] font-bold text-[#5B708B]">
+                Opsi Titik Slide (Dots)
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Tampilkan Titik Slide
+                </span>
+                <ToggleSwitch
+                  checked={c.socialFeedShowDots !== false}
+                  onChange={(v) => updateContent({ socialFeedShowDots: v })}
+                  label="Tampilkan atau sembunyikan titik indikator slide postingan"
+                />
+              </div>
+              {c.socialFeedShowDots !== false && (
+                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                  {([
+                    { id: 'below', label: 'Di Bawah Foto' },
+                    { id: 'overlay', label: 'Mengambang di Atas Foto' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ socialFeedDotsPosition: opt.id })}
+                      className={`py-1 px-2 rounded-lg text-[10.5px] font-semibold border cursor-pointer ${
+                        (c.socialFeedDotsPosition ?? 'below') === opt.id
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
               <span className="text-xs font-semibold text-[#17243D]">Jumlah Postingan</span>
               <div className="inline-flex items-center gap-1">
@@ -6028,6 +6359,27 @@ export function BlockContentTab({
                     label="Tampilkan atau sembunyikan 3 titik indikator progress slide"
                   />
                 </div>
+                {c.rowShowDots !== false && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    {([
+                      { id: 'below', label: 'Di Bawah' },
+                      { id: 'overlay', label: 'Mengambang di Atas' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ rowDotsPosition: opt.id })}
+                        className={`py-1 px-2 rounded-lg text-[10.5px] font-semibold border cursor-pointer ${
+                          (c.rowDotsPosition ?? 'below') === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

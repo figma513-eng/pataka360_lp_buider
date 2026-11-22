@@ -304,6 +304,33 @@ export function ContainerSliderControls({
             )}
           </div>
 
+          {selectedBlock.content.sliderShowDots !== false && (
+            <div className="space-y-1 pt-1.5 border-t border-[#DCE5EF]">
+              <label className="block text-[10.5px] font-semibold text-[#5B708B]">
+                Posisi Titik Navigasi (Dots)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { id: 'below', label: 'Di Bawah Slide' },
+                  { id: 'overlay', label: 'Mengambang di Atas' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => patchContent({ sliderDotsPosition: opt.id })}
+                    className={`py-1 px-2 rounded-md text-[10.5px] font-semibold border cursor-pointer ${
+                      (selectedBlock.content.sliderDotsPosition ?? 'below') === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#17243D] border-[#DCE5EF] hover:bg-[#F0F5FA]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {selectedBlock.content.sliderAutoplay && isVisible('konten.field.sliderInterval') && (
             <div>
               <label className="text-[10px] font-semibold text-[#51637D] block mb-0.5">

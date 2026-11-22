@@ -899,8 +899,8 @@ export default function App() {
     setSelectedSubLayerId(null);
     if (id) {
       setInspectorMode('element');
+      setLayerFocusNonce((n) => n + 1);
     }
-    setLayerFocusNonce((n) => n + 1);
   };
 
   const handleCanvasSelectSubLayer = (blockId: string, subLayerId: string | null) => {

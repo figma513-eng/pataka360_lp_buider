@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, ImageOff } from 'lucide-react';
-import { CarouselAspectRatio, CarouselItem, TextAlign } from '../types/builder';
+import { CarouselAspectRatio, CarouselItem, SlideDotsPosition, TextAlign } from '../types/builder';
 import { sanitizeExternalUrl } from '../utils/urlHelpers';
 
 interface PhotoCarouselProps {
   items: CarouselItem[];
   aspectRatio: CarouselAspectRatio;
+  heightPx?: number;
+  widthPx?: number;
   objectFit: 'cover' | 'contain';
   borderRadius: number;
   cardBg: string;
@@ -14,6 +16,7 @@ interface PhotoCarouselProps {
   accentColor: string;
   align: TextAlign;
   showDots?: boolean;
+  dotsPosition?: SlideDotsPosition;
   showArrows?: boolean;
   showScrollbar?: boolean;
   imageZoom?: number;
@@ -23,6 +26,8 @@ interface PhotoCarouselProps {
 export function PhotoCarousel({
   items,
   aspectRatio,
+  heightPx,
+  widthPx,
   objectFit,
   borderRadius,
   cardBg,
@@ -31,6 +36,7 @@ export function PhotoCarousel({
   accentColor,
   align,
   showDots = true,
+  dotsPosition = 'below',
   showArrows = true,
   showScrollbar = false,
   imageZoom = 100,
@@ -121,9 +127,23 @@ export function PhotoCarousel({
   const textAlignClass =
     align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
 
+  const isCustomPx = aspectRatio === 'custom';
+  const resolvedHeightPx =
+    typeof heightPx === 'number' && Number.isFinite(heightPx)
+      ? Math.max(120, Math.min(720, Math.round(heightPx)))
+      : 280;
+  const resolvedWidthPx =
+    typeof widthPx === 'number' && Number.isFinite(widthPx) && widthPx > 0
+      ? Math.max(160, Math.min(720, Math.round(widthPx)))
+      : 0;
+  const mediaBoxStyle: React.CSSProperties = isCustomPx
+    ? { height: `${resolvedHeightPx}px` }
+    : { aspectRatio };
+
   return (
     <div
       className="relative w-full select-none"
+      style={resolvedWidthPx > 0 ? { maxWidth: `${resolvedWidthPx}px`, marginInline: 'auto' } : undefined}
       onDragStart={(e) => {
         if (e.currentTarget.closest('[data-canvas-mode="drag"]')) return;
         // Prevent outer block HTML5 drag from hijacking horizontal mouse swipe
@@ -165,7 +185,7 @@ export function PhotoCarousel({
               >
                 <div
                   className="relative w-full bg-slate-100 overflow-hidden"
-                  style={{ aspectRatio }}
+                  style={mediaBoxStyle}
                 >
                   {!item.image || hasError ? (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-slate-400">
@@ -290,10 +310,43 @@ export function PhotoCarousel({
             </button>
           </>
         )}
+        {/* Overlay Dot Indicators (Mengambang di Atas Foto) */}
+        {showDots && dotsPosition === 'overlay' && items.length > 1 && (
+          <div
+            style={mediaBoxStyle}
+            className="pointer-events-none absolute top-0 left-0 right-0 z-20 flex items-end justify-center pb-2.5"
+          >
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className="pointer-events-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/50 backdrop-blur-xs shadow-sm"
+            >
+              {items.map((item, idx) => {
+                const isActive = idx === activeIndex;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-label={`Lihat foto ${idx + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollToSlide(idx);
+                    }}
+                    style={{
+                      backgroundColor: isActive ? accentColor : 'rgba(255, 255, 255, 0.58)',
+                    }}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      isActive ? 'w-5' : 'w-1.5 hover:opacity-90'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Dot Indicators */}
-      {showDots && items.length > 1 && (
+      {/* Dot Indicators (Di Bawah Foto/Kartu) */}
+      {showDots && dotsPosition !== 'overlay' && items.length > 1 && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
           className="flex items-center justify-center gap-1.5 mt-2.5"

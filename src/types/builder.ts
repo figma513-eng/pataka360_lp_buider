@@ -87,7 +87,18 @@ export interface CategoryJumpItem {
   targetTitle?: string;
 }
 
-export type CarouselAspectRatio = '1/1' | '4/5' | '9/16' | '16/9';
+export type CarouselAspectRatio =
+  | '1/1'
+  | '4/5'
+  | '3/4'
+  | '4/3'
+  | '3/2'
+  | '16/9'
+  | '9/16'
+  | '21/9'
+  | 'custom';
+
+export type SlideDotsPosition = 'below' | 'overlay';
 
 export interface CarouselItem {
   id: string;
@@ -148,6 +159,12 @@ export interface SocialFollowerAccount {
   followingLabel?: string;
   bio?: string;
   followLabel?: string;
+  /** Opsi tombol dropdown untuk menampilkan / embed postingan foto atau video */
+  showPostsDropdown?: boolean;
+  postsDropdownLabel?: string;
+  postsDefaultOpen?: boolean;
+  postsRatio?: CarouselAspectRatio;
+  posts?: SocialPostItem[];
 }
 
 export type TextAlign = 'left' | 'center' | 'right';
@@ -624,6 +641,7 @@ export interface BlockContent {
   sliderAutoplayIntervalMs?: number;
   sliderShowArrows?: boolean;
   sliderShowDots?: boolean;
+  sliderDotsPosition?: SlideDotsPosition;
   sliderShowScrollbar?: boolean;
   sliderTouchSwipe?: boolean;
   sliderMouseDrag?: boolean;
@@ -687,8 +705,11 @@ export interface BlockContent {
   // Photo Carousel
   carouselItems?: CarouselItem[];
   carouselAspectRatio?: CarouselAspectRatio;
+  carouselHeightPx?: number;
+  carouselWidthPx?: number;
   carouselObjectFit?: 'cover' | 'contain';
   carouselShowDots?: boolean;
+  carouselDotsPosition?: SlideDotsPosition;
   carouselShowArrows?: boolean;
   carouselShowScrollbar?: boolean;
   // Social Profile & Postings Carousel
@@ -705,6 +726,8 @@ export interface BlockContent {
   socialFeedBio?: string;
   socialFeedFollowLabel?: string;
   socialFeedRatio?: CarouselAspectRatio;
+  socialFeedShowDots?: boolean;
+  socialFeedDotsPosition?: SlideDotsPosition;
   socialFeedPosts?: SocialPostItem[];
   // Maps Place Card
   mapsPhotoUrl?: string;
@@ -822,6 +845,7 @@ export interface BlockContent {
   rowColumnMinHeight?: number;
   rowGap?: number;
   rowShowDots?: boolean;
+  rowDotsPosition?: SlideDotsPosition;
   rowShowScrollbar?: boolean;
   // Menu Icon (Upload/URL gambar, Bulat/Segi Empat/Kotak, Sheet 4 Arah / Menuju Card Lain)
   menuIconImage?: string;
