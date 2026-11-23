@@ -1225,6 +1225,8 @@ export interface AccessSettingsConfig {
   updatedAt: number;
 }
 
+export type SaasPlanTier = 'free' | 'pro' | 'pos_bundle' | 'enterprise';
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -1233,6 +1235,9 @@ export interface AuthUser {
   isActive: boolean;
   unitScope: 'all' | string[];
   permissions: FeaturePermissionsMap;
+  planTier?: SaasPlanTier;
+  maxSites?: number;
+  subscriptionExpiresAt?: number | null;
   createdAt: number;
   lastLoginAt?: number;
 }
@@ -1333,6 +1338,7 @@ export interface DbDiagnostics {
     mediaAssets?: number;
     uiAppearance?: number;
     webTemplates?: number;
+    formSubmissions?: number;
   };
 }
 

@@ -2023,6 +2023,18 @@ export async function createApp(options?: {
         });
       }
 
+      const isAdminUser = user.role === 'super_admin' || user.role === 'admin';
+      if (!isAdminUser && user.unitScope !== 'all') {
+        const ownedCount = Array.isArray(user.unitScope) ? user.unitScope.length : 0;
+        const maxAllowed = typeof user.maxSites === 'number' && user.maxSites > 0 ? user.maxSites : 3;
+        if (ownedCount >= maxAllowed) {
+          return res.status(403).json({
+            error: `Batas paket Anda (${maxAllowed} web usaha) sudah tercapai. Hubungi admin untuk upgrade paket.`,
+            code: 'SITE_LIMIT_REACHED',
+          });
+        }
+      }
+
       const body = (req.body || {}) as {
         businessName?: unknown;
         slug?: unknown;
@@ -2135,6 +2147,9 @@ export async function createApp(options?: {
         renderedHtml,
         savedAt: now,
         ownerUserId: user.id,
+        sourceTemplateId: templateId,
+        posStoreId: null,
+        posSyncEnabled: false,
       });
 
       // Berikan izin editor + publikasi + analitik yang ketat HANYA pada unit usaha miliknya sendiri

@@ -1,5 +1,6 @@
--- Lynk Builder — Skema PostgreSQL Lengkap (v006)
+-- Lynk Builder — Skema PostgreSQL Lengkap (v007)
 -- Sinkron 100% dengan src/db/schema.ts & src/db/migrations.ts
+-- Siap untuk SaaS Multi-Pembeli + Jembatan Integrasi POS Next.js
 -- PostgreSQL 14+
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -18,12 +19,20 @@ CREATE TABLE IF NOT EXISTS users (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   unit_scope_json JSONB NOT NULL DEFAULT '[]'::jsonb,
   permissions_json JSONB NOT NULL,
+  plan_tier TEXT NOT NULL DEFAULT 'free',
+  max_sites INTEGER NOT NULL DEFAULT 3,
+  subscription_expires_at BIGINT,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   last_login_at BIGINT
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_tier TEXT NOT NULL DEFAULT 'free';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS max_sites INTEGER NOT NULL DEFAULT 3;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at BIGINT;
+UPDATE users SET email = lower(email) WHERE email <> lower(email);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower_unique ON users (lower(email));
 
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -46,6 +55,9 @@ CREATE TABLE IF NOT EXISTS projects (
   use_custom_domain BOOLEAN NOT NULL DEFAULT FALSE,
   is_published BOOLEAN NOT NULL DEFAULT FALSE,
   published_at BIGINT,
+  source_template_id TEXT,
+  pos_store_id TEXT,
+  pos_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   project_json JSONB NOT NULL,
   rendered_html TEXT NOT NULL DEFAULT '',
   updated_at BIGINT NOT NULL,
@@ -53,9 +65,15 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at BIGINT NOT NULL
 );
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_template_id TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS pos_store_id TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS pos_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE projects SET slug = lower(slug) WHERE slug <> lower(slug);
 CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects (slug);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug_lower_unique ON projects (lower(slug));
 CREATE INDEX IF NOT EXISTS idx_projects_custom_domain ON projects (custom_domain);
 CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects (owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_pos_store_id ON projects (pos_store_id);
 
 CREATE TABLE IF NOT EXISTS analytics_events (
   id TEXT PRIMARY KEY,
@@ -80,6 +98,22 @@ CREATE TABLE IF NOT EXISTS analytics_events (
 CREATE INDEX IF NOT EXISTS idx_analytics_project_created ON analytics_events (project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events (created_at DESC);
 
+CREATE TABLE IF NOT EXISTS form_submissions (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  project_title TEXT NOT NULL,
+  slug TEXT NOT NULL DEFAULT '',
+  component_id TEXT NOT NULL,
+  form_title TEXT NOT NULL,
+  form_category TEXT,
+  values_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  source_channel TEXT,
+  is_test BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_project_created ON form_submissions (project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_created ON form_submissions (created_at DESC);
+
 CREATE TABLE IF NOT EXISTS access_policies (
   id TEXT PRIMARY KEY,
   all_users_super_admin BOOLEAN NOT NULL DEFAULT FALSE,
@@ -103,6 +137,7 @@ CREATE TABLE IF NOT EXISTS api_settings (
   auto_publish_on_save BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at BIGINT NOT NULL
 );
+ALTER TABLE api_settings ADD COLUMN IF NOT EXISTS demo_login_enabled BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS webhook_logs (
   id TEXT PRIMARY KEY,
@@ -155,3 +190,4 @@ CREATE TABLE IF NOT EXISTS web_templates (
 );
 CREATE INDEX IF NOT EXISTS idx_web_templates_updated ON web_templates (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_web_templates_visibility ON web_templates (visibility);
+CREATE INDEX IF NOT EXISTS idx_web_templates_category ON web_templates (category);

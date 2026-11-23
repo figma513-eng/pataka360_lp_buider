@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { count, desc, eq, gt } from 'drizzle-orm';
+import { count, desc, eq, gt, sql } from 'drizzle-orm';
 import type {
   AccessMemberRecord,
   AccessRole,
@@ -15,6 +15,7 @@ import type {
   FormSubmissionRecord,
   MediaAssetMeta,
   ProjectRecord,
+  SaasPlanTier,
   SavedWebTemplate,
   UiAppearanceHiddenMap,
   UiAppearanceLabelsMap,
@@ -27,6 +28,7 @@ import {
   accessPoliciesTable,
   analyticsEventsTable,
   apiSettingsTable,
+  formSubmissionsTable,
   mediaAssetsTable,
   projectsTable,
   sessionsTable,
@@ -77,6 +79,9 @@ export interface StoredUserRecord {
   isActive: boolean;
   unitScope: 'all' | string[];
   permissions: FeaturePermissionsMap;
+  planTier?: SaasPlanTier;
+  maxSites?: number;
+  subscriptionExpiresAt?: number | null;
   createdAt: number;
   updatedAt: number;
   lastLoginAt?: number | null;
@@ -96,6 +101,9 @@ export interface StoredProjectEntry {
   renderedHtml: string;
   savedAt: number;
   ownerUserId?: string | null;
+  sourceTemplateId?: string | null;
+  posStoreId?: string | null;
+  posSyncEnabled?: boolean;
 }
 
 export const LOCAL_JSON_SCHEMA_VERSION = 1;
@@ -242,6 +250,9 @@ export function toPublicAuthUser(user: StoredUserRecord): AuthUser {
     isActive: user.isActive,
     unitScope: user.unitScope,
     permissions: user.permissions,
+    planTier: user.planTier ?? 'free',
+    maxSites: typeof user.maxSites === 'number' ? user.maxSites : 3,
+    subscriptionExpiresAt: user.subscriptionExpiresAt ?? null,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt ?? undefined,
   };
@@ -318,6 +329,15 @@ function normalizeLoadedProjectEntry(entry: StoredProjectEntry): StoredProjectEn
       : 1;
   return {
     ...entry,
+    sourceTemplateId:
+      typeof entry.sourceTemplateId === 'string' && entry.sourceTemplateId.trim()
+        ? entry.sourceTemplateId.trim()
+        : null,
+    posStoreId:
+      typeof entry.posStoreId === 'string' && entry.posStoreId.trim()
+        ? entry.posStoreId.trim()
+        : null,
+    posSyncEnabled: Boolean(entry.posSyncEnabled),
     record: {
       ...entry.record,
       revision: rev,
@@ -386,10 +406,15 @@ export async function loadJsonStore(): Promise<JsonStoreData> {
     accessSettings: parsed.accessSettings || createDefaultAccessSettings(),
     apiSettings: parsed.apiSettings || createDefaultApiSettings(),
     uiAppearanceSettings: parsed.uiAppearanceSettings
-      ? {
-          labels: sanitizeUiAppearanceLabelsMap(parsed.uiAppearanceSettings.labels),
-          updatedAt: Number(parsed.uiAppearanceSettings.updatedAt || Date.now()),
-        }
+      ? (() => {
+          const unpacked = unpackUiAppearanceStoragePayload(parsed.uiAppearanceSettings.labels);
+          const directHidden = sanitizeUiAppearanceHiddenMap(parsed.uiAppearanceSettings.hiddenKeys);
+          return {
+            labels: unpacked.labels,
+            hiddenKeys: { ...unpacked.hiddenKeys, ...directHidden },
+            updatedAt: Number(parsed.uiAppearanceSettings.updatedAt || Date.now()),
+          };
+        })()
       : undefined,
     webhookLogs: Array.isArray(parsed.webhookLogs) ? parsed.webhookLogs : [],
     mediaAssets: Array.isArray(parsed.mediaAssets) ? parsed.mediaAssets : [],
@@ -478,6 +503,9 @@ function mapPgUser(row: typeof usersTable.$inferSelect): StoredUserRecord {
     isActive: row.isActive,
     unitScope: row.unitScopeJson,
     permissions: row.permissionsJson,
+    planTier: (row.planTier as SaasPlanTier) || 'free',
+    maxSites: typeof row.maxSites === 'number' ? row.maxSites : 3,
+    subscriptionExpiresAt: row.subscriptionExpiresAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     lastLoginAt: row.lastLoginAt ?? undefined,
@@ -603,10 +631,12 @@ export async function registerUserAtomically(params: {
         const userId = isFirstUser
           ? 'owner-super-admin'
           : `usr_${crypto.randomBytes(6).toString('hex')}`;
+        const planTier: SaasPlanTier = isFirstUser ? 'enterprise' : 'free';
+        const maxSites = isFirstUser ? 999 : 3;
 
         await client.query(
-          `INSERT INTO users (id, name, email, password_hash, role, is_active, unit_scope_json, permissions_json, created_at, updated_at, last_login_at)
-           VALUES ($1, $2, $3, $4, $5, TRUE, $6::jsonb, $7::jsonb, $8, $8, $8)`,
+          `INSERT INTO users (id, name, email, password_hash, role, is_active, unit_scope_json, permissions_json, plan_tier, max_sites, subscription_expires_at, created_at, updated_at, last_login_at)
+           VALUES ($1, $2, $3, $4, $5, TRUE, $6::jsonb, $7::jsonb, $8, $9, NULL, $10, $10, $10)`,
           [
             userId,
             cleanName,
@@ -615,6 +645,8 @@ export async function registerUserAtomically(params: {
             assignedRole,
             JSON.stringify(unitScope),
             JSON.stringify(permissions),
+            planTier,
+            maxSites,
             now,
           ]
         );
@@ -644,6 +676,9 @@ export async function registerUserAtomically(params: {
           isActive: true,
           unitScope,
           permissions,
+          planTier,
+          maxSites,
+          subscriptionExpiresAt: null,
           createdAt: now,
           updatedAt: now,
           lastLoginAt: now,
@@ -680,6 +715,9 @@ export async function registerUserAtomically(params: {
         isActive: true,
         unitScope,
         permissions,
+        planTier: isFirstUser ? 'enterprise' : 'free',
+        maxSites: isFirstUser ? 999 : 3,
+        subscriptionExpiresAt: null,
         createdAt: now,
         updatedAt: now,
         lastLoginAt: now,
@@ -783,7 +821,7 @@ export async function getUserByEmail(email: string): Promise<StoredUserRecord | 
     const [row] = await state.db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.email, normalized))
+      .where(sql`lower(${usersTable.email}) = ${normalized}`)
       .limit(1);
     return row ? mapPgUser(row) : null;
   }
@@ -796,6 +834,9 @@ export async function upsertUser(user: StoredUserRecord): Promise<StoredUserReco
   const normalized: StoredUserRecord = {
     ...user,
     email: user.email.trim().toLowerCase(),
+    planTier: user.planTier ?? 'free',
+    maxSites: typeof user.maxSites === 'number' ? user.maxSites : 3,
+    subscriptionExpiresAt: user.subscriptionExpiresAt ?? null,
   };
   const state = await getDbState();
   if (state.db) {
@@ -810,6 +851,9 @@ export async function upsertUser(user: StoredUserRecord): Promise<StoredUserReco
         isActive: normalized.isActive,
         unitScopeJson: normalized.unitScope,
         permissionsJson: normalized.permissions,
+        planTier: normalized.planTier ?? 'free',
+        maxSites: normalized.maxSites ?? 3,
+        subscriptionExpiresAt: normalized.subscriptionExpiresAt ?? null,
         createdAt: normalized.createdAt,
         updatedAt: normalized.updatedAt,
         lastLoginAt: normalized.lastLoginAt ?? null,
@@ -824,6 +868,9 @@ export async function upsertUser(user: StoredUserRecord): Promise<StoredUserReco
           isActive: normalized.isActive,
           unitScopeJson: normalized.unitScope,
           permissionsJson: normalized.permissions,
+          planTier: normalized.planTier ?? 'free',
+          maxSites: normalized.maxSites ?? 3,
+          subscriptionExpiresAt: normalized.subscriptionExpiresAt ?? null,
           updatedAt: normalized.updatedAt,
           lastLoginAt: normalized.lastLoginAt ?? null,
         },
@@ -1014,6 +1061,9 @@ export async function listProjectEntries(): Promise<StoredProjectEntry[]> {
       renderedHtml: row.renderedHtml,
       savedAt: row.lastSavedAt,
       ownerUserId: row.ownerUserId,
+      sourceTemplateId: row.sourceTemplateId ?? null,
+      posStoreId: row.posStoreId ?? null,
+      posSyncEnabled: Boolean(row.posSyncEnabled),
     }));
   }
   const store = await loadJsonStore();
@@ -1045,6 +1095,9 @@ export async function getProjectEntryById(
       renderedHtml: row.renderedHtml,
       savedAt: row.lastSavedAt,
       ownerUserId: row.ownerUserId,
+      sourceTemplateId: row.sourceTemplateId ?? null,
+      posStoreId: row.posStoreId ?? null,
+      posSyncEnabled: Boolean(row.posSyncEnabled),
     };
   }
   const store = await loadJsonStore();
@@ -1063,7 +1116,7 @@ export async function getProjectEntryBySlug(
     const [row] = await state.db
       .select()
       .from(projectsTable)
-      .where(eq(projectsTable.slug, clean))
+      .where(sql`lower(${projectsTable.slug}) = ${clean}`)
       .limit(1);
     if (!row) return null;
     return {
@@ -1077,6 +1130,9 @@ export async function getProjectEntryBySlug(
       renderedHtml: row.renderedHtml,
       savedAt: row.lastSavedAt,
       ownerUserId: row.ownerUserId,
+      sourceTemplateId: row.sourceTemplateId ?? null,
+      posStoreId: row.posStoreId ?? null,
+      posSyncEnabled: Boolean(row.posSyncEnabled),
     };
   }
   const store = await loadJsonStore();
@@ -1128,12 +1184,19 @@ export async function upsertProjectEntry(
       const client = await state.pool.connect();
       try {
         await client.query('BEGIN');
-        const curRes = await client.query<{ revision: number; owner_user_id: string | null }>(
-          'SELECT revision, owner_user_id FROM projects WHERE id = $1 FOR UPDATE',
+        const curRes = await client.query<{
+          revision: number;
+          owner_user_id: string | null;
+          source_template_id: string | null;
+          pos_store_id: string | null;
+          pos_sync_enabled: boolean;
+        }>(
+          'SELECT revision, owner_user_id, source_template_id, pos_store_id, pos_sync_enabled FROM projects WHERE id = $1 FOR UPDATE',
           [rec.id]
         );
         if (curRes.rows.length > 0) {
-          const currentRevision = Number(curRes.rows[0].revision ?? 1);
+          const curRow = curRes.rows[0];
+          const currentRevision = Number(curRow.revision ?? 1);
           if (
             typeof expectedRevision === 'number' &&
             expectedRevision !== currentRevision
@@ -1143,6 +1206,17 @@ export async function upsertProjectEntry(
             throw new RevisionConflictError(currentRevision, latest?.record ?? null);
           }
           const nextRevision = currentRevision + 1;
+          const nextSourceTemplateId =
+            entry.sourceTemplateId !== undefined
+              ? entry.sourceTemplateId
+              : curRow.source_template_id;
+          const nextPosStoreId =
+            entry.posStoreId !== undefined ? entry.posStoreId : curRow.pos_store_id;
+          const nextPosSyncEnabled =
+            entry.posSyncEnabled !== undefined
+              ? Boolean(entry.posSyncEnabled)
+              : Boolean(curRow.pos_sync_enabled);
+
           await client.query(
             `UPDATE projects
              SET revision = $2,
@@ -1152,11 +1226,14 @@ export async function upsertProjectEntry(
                  use_custom_domain = $6,
                  is_published = $7,
                  published_at = $8,
-                 project_json = $9::jsonb,
-                 rendered_html = $10,
-                 updated_at = $11,
-                 last_saved_at = $12
-             WHERE id = $1 AND revision = $13`,
+                 source_template_id = $9,
+                 pos_store_id = $10,
+                 pos_sync_enabled = $11,
+                 project_json = $12::jsonb,
+                 rendered_html = $13,
+                 updated_at = $14,
+                 last_saved_at = $15
+             WHERE id = $1 AND revision = $16`,
             [
               rec.id,
               nextRevision,
@@ -1166,6 +1243,9 @@ export async function upsertProjectEntry(
               useCustomDomain,
               isPublished,
               publishedAt,
+              nextSourceTemplateId ?? null,
+              nextPosStoreId ?? null,
+              nextPosSyncEnabled,
               JSON.stringify(rec.project),
               entry.renderedHtml,
               rec.updatedAt || now,
@@ -1176,7 +1256,10 @@ export async function upsertProjectEntry(
           await client.query('COMMIT');
           return {
             ...entry,
-            ownerUserId: curRes.rows[0].owner_user_id ?? entry.ownerUserId ?? null,
+            ownerUserId: curRow.owner_user_id ?? entry.ownerUserId ?? null,
+            sourceTemplateId: nextSourceTemplateId ?? null,
+            posStoreId: nextPosStoreId ?? null,
+            posSyncEnabled: nextPosSyncEnabled,
             record: {
               ...rec,
               revision: nextRevision,
@@ -1186,8 +1269,8 @@ export async function upsertProjectEntry(
 
         const initialRevision = 1;
         await client.query(
-          `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, project_json, rendered_html, updated_at, last_saved_at, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14)`,
+          `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, source_template_id, pos_store_id, pos_sync_enabled, project_json, rendered_html, updated_at, last_saved_at, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17)`,
           [
             rec.id,
             entry.ownerUserId ?? null,
@@ -1198,6 +1281,9 @@ export async function upsertProjectEntry(
             useCustomDomain,
             isPublished,
             publishedAt,
+            entry.sourceTemplateId ?? null,
+            entry.posStoreId ?? null,
+            Boolean(entry.posSyncEnabled),
             JSON.stringify(rec.project),
             entry.renderedHtml,
             rec.updatedAt || now,
@@ -1208,6 +1294,9 @@ export async function upsertProjectEntry(
         await client.query('COMMIT');
         return {
           ...entry,
+          sourceTemplateId: entry.sourceTemplateId ?? null,
+          posStoreId: entry.posStoreId ?? null,
+          posSyncEnabled: Boolean(entry.posSyncEnabled),
           record: {
             ...rec,
             revision: initialRevision,
@@ -1238,9 +1327,23 @@ export async function upsertProjectEntry(
         nextRevision = currentRevision + 1;
       }
 
+      const nextSourceTemplateId =
+        entry.sourceTemplateId !== undefined
+          ? entry.sourceTemplateId
+          : existing?.sourceTemplateId ?? null;
+      const nextPosStoreId =
+        entry.posStoreId !== undefined ? entry.posStoreId : existing?.posStoreId ?? null;
+      const nextPosSyncEnabled =
+        entry.posSyncEnabled !== undefined
+          ? Boolean(entry.posSyncEnabled)
+          : Boolean(existing?.posSyncEnabled);
+
       const storedEntry: StoredProjectEntry = {
         ...entry,
         ownerUserId: existing?.ownerUserId ?? entry.ownerUserId ?? null,
+        sourceTemplateId: nextSourceTemplateId ?? null,
+        posStoreId: nextPosStoreId ?? null,
+        posSyncEnabled: nextPosSyncEnabled,
         record: {
           ...rec,
           revision: nextRevision,
@@ -1471,12 +1574,53 @@ export async function clearAnalyticsEvents(projectId?: string): Promise<void> {
 }
 
 // ============================================================
-// Form Submissions Repository (Section H)
+// Form Submissions Repository (PostgreSQL + Local JSON Fallback)
 // ============================================================
+function rowToFormSubmission(
+  row: typeof formSubmissionsTable.$inferSelect
+): FormSubmissionRecord {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    projectTitle: row.projectTitle,
+    slug: row.slug || '',
+    componentId: row.componentId,
+    formTitle: row.formTitle,
+    formCategory: row.formCategory ?? undefined,
+    values: (row.valuesJson && typeof row.valuesJson === 'object'
+      ? row.valuesJson
+      : {}) as Record<string, string | string[] | boolean>,
+    sourceChannel: row.sourceChannel ?? undefined,
+    isTest: Boolean(row.isTest),
+    createdAt: Number(row.createdAt || 0),
+  };
+}
+
 export async function insertFormSubmission(
   submission: FormSubmissionRecord
 ): Promise<FormSubmissionRecord> {
   await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    await state.db
+      .insert(formSubmissionsTable)
+      .values({
+        id: submission.id,
+        projectId: submission.projectId,
+        projectTitle: submission.projectTitle,
+        slug: submission.slug || '',
+        componentId: submission.componentId,
+        formTitle: submission.formTitle,
+        formCategory: submission.formCategory ?? null,
+        valuesJson: submission.values || {},
+        sourceChannel: submission.sourceChannel ?? null,
+        isTest: Boolean(submission.isTest),
+        createdAt: submission.createdAt,
+      })
+      .onConflictDoNothing({ target: formSubmissionsTable.id });
+    return submission;
+  }
+
   return withJsonStoreLock(async () => {
     const store = await loadJsonStore();
     const existing = Array.isArray(store.formSubmissions) ? store.formSubmissions : [];
@@ -1492,6 +1636,23 @@ export async function listFormSubmissions(
   projectId?: string
 ): Promise<FormSubmissionRecord[]> {
   await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    const rows = projectId
+      ? await state.db
+          .select()
+          .from(formSubmissionsTable)
+          .where(eq(formSubmissionsTable.projectId, projectId))
+          .orderBy(desc(formSubmissionsTable.createdAt))
+          .limit(2000)
+      : await state.db
+          .select()
+          .from(formSubmissionsTable)
+          .orderBy(desc(formSubmissionsTable.createdAt))
+          .limit(2000);
+    return rows.map(rowToFormSubmission);
+  }
+
   const store = await loadJsonStore();
   const list = Array.isArray(store.formSubmissions) ? store.formSubmissions : [];
   return projectId ? list.filter((s) => s.projectId === projectId) : list;
@@ -1499,6 +1660,15 @@ export async function listFormSubmissions(
 
 export async function deleteFormSubmission(submissionId: string): Promise<boolean> {
   await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    const deleted = await state.db
+      .delete(formSubmissionsTable)
+      .where(eq(formSubmissionsTable.id, submissionId))
+      .returning({ id: formSubmissionsTable.id });
+    return deleted.length > 0;
+  }
+
   return withJsonStoreLock(async () => {
     const store = await loadJsonStore();
     const existing = Array.isArray(store.formSubmissions) ? store.formSubmissions : [];
@@ -1752,6 +1922,9 @@ export async function getApiSettings(): Promise<ApiSettingsConfig> {
     return {
       publicApiEnabled: row.publicApiEnabled,
       requireAuthForBuilder: row.requireAuthForBuilder,
+      ...(typeof row.demoLoginEnabled === 'boolean'
+        ? { demoLoginEnabled: row.demoLoginEnabled }
+        : {}),
       webhookUrl: row.webhookUrl,
       webhookEvents: row.webhookEventsJson,
       corsOrigins: row.corsOrigins,
@@ -1782,6 +1955,13 @@ export async function saveApiSettings(
     : cur.webhookEvents;
 
   const rateLimit = Number(raw.rateLimitPerMinute);
+  const nextDemoLoginEnabled =
+    typeof raw.demoLoginEnabled === 'boolean'
+      ? raw.demoLoginEnabled
+      : typeof cur.demoLoginEnabled === 'boolean'
+      ? cur.demoLoginEnabled
+      : undefined;
+
   const next: ApiSettingsConfig = {
     publicApiEnabled:
       typeof raw.publicApiEnabled === 'boolean'
@@ -1791,6 +1971,9 @@ export async function saveApiSettings(
       typeof raw.requireAuthForBuilder === 'boolean'
         ? raw.requireAuthForBuilder
         : cur.requireAuthForBuilder,
+    ...(typeof nextDemoLoginEnabled === 'boolean'
+      ? { demoLoginEnabled: nextDemoLoginEnabled }
+      : {}),
     webhookUrl:
       typeof raw.webhookUrl === 'string'
         ? raw.webhookUrl.trim().slice(0, 500)
@@ -1827,6 +2010,8 @@ export async function saveApiSettings(
         id: 'default',
         publicApiEnabled: next.publicApiEnabled,
         requireAuthForBuilder: next.requireAuthForBuilder,
+        demoLoginEnabled:
+          typeof next.demoLoginEnabled === 'boolean' ? next.demoLoginEnabled : null,
         webhookUrl: next.webhookUrl,
         webhookEventsJson: next.webhookEvents,
         corsOrigins: next.corsOrigins,
@@ -1841,6 +2026,8 @@ export async function saveApiSettings(
         set: {
           publicApiEnabled: next.publicApiEnabled,
           requireAuthForBuilder: next.requireAuthForBuilder,
+          demoLoginEnabled:
+            typeof next.demoLoginEnabled === 'boolean' ? next.demoLoginEnabled : null,
           webhookUrl: next.webhookUrl,
           webhookEventsJson: next.webhookEvents,
           corsOrigins: next.corsOrigins,
@@ -1857,6 +2044,12 @@ export async function saveApiSettings(
   return withJsonStoreLock(async () => {
     const store = await loadJsonStore();
     const baseCur = store.apiSettings || createDefaultApiSettings();
+    const mergedDemoLogin =
+      typeof raw.demoLoginEnabled === 'boolean'
+        ? raw.demoLoginEnabled
+        : typeof baseCur.demoLoginEnabled === 'boolean'
+        ? baseCur.demoLoginEnabled
+        : undefined;
     const merged: ApiSettingsConfig = {
       publicApiEnabled:
         typeof raw.publicApiEnabled === 'boolean'
@@ -1866,6 +2059,9 @@ export async function saveApiSettings(
         typeof raw.requireAuthForBuilder === 'boolean'
           ? raw.requireAuthForBuilder
           : baseCur.requireAuthForBuilder,
+      ...(typeof mergedDemoLogin === 'boolean'
+        ? { demoLoginEnabled: mergedDemoLogin }
+        : {}),
       webhookUrl:
         typeof raw.webhookUrl === 'string'
           ? raw.webhookUrl.trim().slice(0, 500)
@@ -2197,6 +2393,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
       [mCnt],
       [uiCnt],
       [wtCnt],
+      [fsCnt],
     ] = await Promise.all([
       state.db.select({ value: count() }).from(usersTable),
       state.db
@@ -2211,6 +2408,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
       state.db.select({ value: count() }).from(mediaAssetsTable),
       state.db.select({ value: count() }).from(uiAppearanceSettingsTable),
       state.db.select({ value: count() }).from(webTemplatesTable),
+      state.db.select({ value: count() }).from(formSubmissionsTable),
     ]);
 
     return {
@@ -2235,6 +2433,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         mediaAssets: Number(mCnt?.value ?? 0),
         uiAppearance: Number(uiCnt?.value ?? 0),
         webTemplates: Number(wtCnt?.value ?? 0),
+        formSubmissions: Number(fsCnt?.value ?? 0),
       },
     };
   }
@@ -2265,6 +2464,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         mediaAssets: Array.isArray(store.mediaAssets) ? store.mediaAssets.length : 0,
         uiAppearance: store.uiAppearanceSettings ? 1 : 0,
         webTemplates: Array.isArray(store.webTemplates) ? store.webTemplates.length : 0,
+        formSubmissions: Array.isArray(store.formSubmissions) ? store.formSubmissions.length : 0,
       },
     };
   } catch (err) {
@@ -2290,6 +2490,8 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         accessPolicies: 0,
         mediaAssets: 0,
         uiAppearance: 0,
+        webTemplates: 0,
+        formSubmissions: 0,
       },
     };
   }
@@ -2339,24 +2541,27 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   let sessions: StoredSessionRecord[] = [];
   let uiAppearance: UiAppearanceSettingsConfig | null = null;
   let webTemplates: SavedWebTemplate[] = [];
+  let formSubmissions: FormSubmissionRecord[] = [];
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
 
-      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes, uiRes, wtRes] = await Promise.all([
-        client.query('SELECT * FROM users'),
-        client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
-        client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
-        client.query(`SELECT * FROM access_policies WHERE id = 'default' LIMIT 1`),
-        client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
-        client.query('SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 200'),
-        client.query('SELECT * FROM media_assets ORDER BY created_at DESC'),
-        client.query('SELECT * FROM sessions WHERE expires_at > $1', [now]),
-        client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
-        client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
-      ]);
+      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes, uiRes, wtRes, fsRes] =
+        await Promise.all([
+          client.query('SELECT * FROM users'),
+          client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
+          client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
+          client.query(`SELECT * FROM access_policies WHERE id = 'default' LIMIT 1`),
+          client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
+          client.query('SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 200'),
+          client.query('SELECT * FROM media_assets ORDER BY created_at DESC'),
+          client.query('SELECT * FROM sessions WHERE expires_at > $1', [now]),
+          client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
+          client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
+          client.query('SELECT * FROM form_submissions ORDER BY created_at DESC LIMIT 2000'),
+        ]);
 
       await client.query('COMMIT');
 
@@ -2369,6 +2574,9 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         isActive: r.is_active,
         unitScope: r.unit_scope_json,
         permissions: r.permissions_json,
+        planTier: (r.plan_tier as SaasPlanTier) || 'free',
+        maxSites: typeof r.max_sites === 'number' ? Number(r.max_sites) : 3,
+        subscriptionExpiresAt: r.subscription_expires_at ? Number(r.subscription_expires_at) : null,
         createdAt: Number(r.created_at),
         updatedAt: Number(r.updated_at),
         lastLoginAt: r.last_login_at ? Number(r.last_login_at) : null,
@@ -2385,6 +2593,9 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         renderedHtml: r.rendered_html,
         savedAt: Number(r.last_saved_at),
         ownerUserId: r.owner_user_id,
+        sourceTemplateId: r.source_template_id ?? null,
+        posStoreId: r.pos_store_id ?? null,
+        posSyncEnabled: Boolean(r.pos_sync_enabled),
       }));
 
       events = eRes.rows.map((r) => ({
@@ -2425,6 +2636,10 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         api = {
           publicApiEnabled: Boolean(apiRow.public_api_enabled),
           requireAuthForBuilder: Boolean(apiRow.require_auth_for_builder),
+          demoLoginEnabled:
+            typeof apiRow.demo_login_enabled === 'boolean'
+              ? apiRow.demo_login_enabled
+              : undefined,
           webhookUrl: apiRow.webhook_url,
           webhookEvents: apiRow.webhook_events_json,
           corsOrigins: apiRow.cors_origins,
@@ -2468,8 +2683,10 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
 
       const uiRow = uiRes.rows[0];
       if (uiRow) {
+        const unpacked = unpackUiAppearanceStoragePayload(uiRow.labels_json);
         uiAppearance = {
-          labels: sanitizeUiAppearanceLabelsMap(uiRow.labels_json),
+          labels: unpacked.labels,
+          hiddenKeys: unpacked.hiddenKeys,
           updatedAt: Number(uiRow.updated_at || now),
         };
       }
@@ -2494,6 +2711,21 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         createdAt: Number(r.created_at || now),
         updatedAt: Number(r.updated_at || now),
       }));
+
+      formSubmissions = fsRes.rows.map((r) => ({
+        id: r.id,
+        projectId: r.project_id,
+        projectTitle: r.project_title,
+        slug: r.slug || '',
+        componentId: r.component_id,
+        formTitle: r.form_title,
+        formCategory: r.form_category ?? undefined,
+        values:
+          r.values_json && typeof r.values_json === 'object' ? r.values_json : {},
+        sourceChannel: r.source_channel ?? undefined,
+        isTest: Boolean(r.is_test),
+        createdAt: Number(r.created_at || now),
+      }));
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -2513,17 +2745,19 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
     uiAppearance = store.uiAppearanceSettings
       ? {
           labels: sanitizeUiAppearanceLabelsMap(store.uiAppearanceSettings.labels),
+          hiddenKeys: sanitizeUiAppearanceHiddenMap(store.uiAppearanceSettings.hiddenKeys),
           updatedAt: Number(store.uiAppearanceSettings.updatedAt || now),
         }
       : null;
     webTemplates = Array.isArray(store.webTemplates) ? [...store.webTemplates] : [];
+    formSubmissions = Array.isArray(store.formSubmissions) ? [...store.formSubmissions] : [];
   }
 
   const userIds = new Set(users.map((u) => u.id));
 
   const lines: string[] = [
     `-- ============================================================`,
-    `-- Lynk Builder — Full PostgreSQL Snapshot Backup (Consistent MVCC)`,
+    `-- Lynk Builder — Full PostgreSQL Snapshot Backup (Consistent MVCC v007)`,
     `-- Diekspor: ${new Date(now).toISOString()}`,
     `-- Engine sumber: ${state.db ? 'PostgreSQL (REPEATABLE READ READ ONLY)' : 'JSON Store Lokal'}`,
     `-- ============================================================`,
@@ -2537,7 +2771,7 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   lines.push(`-- 1. Users (${users.length} baris)`);
   for (const u of users) {
     lines.push(
-      `INSERT INTO users (id, name, email, password_hash, role, is_active, unit_scope_json, permissions_json, created_at, updated_at, last_login_at) VALUES (${sqlText(u.id)}, ${sqlText(u.name)}, ${sqlText(u.email)}, ${sqlText(u.passwordHash)}, ${sqlText(u.role)}, ${sqlBool(u.isActive)}, ${sqlJsonb(u.unitScope)}, ${sqlJsonb(u.permissions)}, ${sqlNum(u.createdAt)}, ${sqlNum(u.updatedAt)}, ${sqlNum(u.lastLoginAt ?? null)}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, is_active = EXCLUDED.is_active, unit_scope_json = EXCLUDED.unit_scope_json, permissions_json = EXCLUDED.permissions_json, updated_at = EXCLUDED.updated_at, last_login_at = EXCLUDED.last_login_at;`
+      `INSERT INTO users (id, name, email, password_hash, role, is_active, unit_scope_json, permissions_json, plan_tier, max_sites, subscription_expires_at, created_at, updated_at, last_login_at) VALUES (${sqlText(u.id)}, ${sqlText(u.name)}, ${sqlText(u.email.trim().toLowerCase())}, ${sqlText(u.passwordHash)}, ${sqlText(u.role)}, ${sqlBool(u.isActive)}, ${sqlJsonb(u.unitScope)}, ${sqlJsonb(u.permissions)}, ${sqlText(u.planTier ?? 'free')}, ${sqlNum(typeof u.maxSites === 'number' ? u.maxSites : 3)}, ${sqlNum(u.subscriptionExpiresAt ?? null)}, ${sqlNum(u.createdAt)}, ${sqlNum(u.updatedAt)}, ${sqlNum(u.lastLoginAt ?? null)}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, is_active = EXCLUDED.is_active, unit_scope_json = EXCLUDED.unit_scope_json, permissions_json = EXCLUDED.permissions_json, plan_tier = EXCLUDED.plan_tier, max_sites = EXCLUDED.max_sites, subscription_expires_at = EXCLUDED.subscription_expires_at, updated_at = EXCLUDED.updated_at, last_login_at = EXCLUDED.last_login_at;`
     );
   }
   lines.push(``);
@@ -2548,9 +2782,11 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   );
   lines.push(``);
 
+  const demoLoginSql =
+    typeof api.demoLoginEnabled === 'boolean' ? sqlBool(api.demoLoginEnabled) : 'NULL';
   lines.push(`-- 3. API Settings`);
   lines.push(
-    `INSERT INTO api_settings (id, public_api_enabled, require_auth_for_builder, webhook_url, webhook_events_json, cors_origins, rate_limit_per_minute, meta_api_version, wa_default_country_code, auto_publish_on_save, updated_at) VALUES ('default', ${sqlBool(api.publicApiEnabled)}, ${sqlBool(api.requireAuthForBuilder)}, ${sqlText(api.webhookUrl)}, ${sqlJsonb(api.webhookEvents)}, ${sqlText(api.corsOrigins)}, ${sqlNum(api.rateLimitPerMinute)}, ${sqlText(api.metaApiVersion)}, ${sqlText(api.waDefaultCountryCode)}, ${sqlBool(api.autoPublishOnSave)}, ${sqlNum(api.updatedAt)}) ON CONFLICT (id) DO UPDATE SET public_api_enabled = EXCLUDED.public_api_enabled, require_auth_for_builder = EXCLUDED.require_auth_for_builder, webhook_url = EXCLUDED.webhook_url, webhook_events_json = EXCLUDED.webhook_events_json, cors_origins = EXCLUDED.cors_origins, rate_limit_per_minute = EXCLUDED.rate_limit_per_minute, meta_api_version = EXCLUDED.meta_api_version, wa_default_country_code = EXCLUDED.wa_default_country_code, auto_publish_on_save = EXCLUDED.auto_publish_on_save, updated_at = EXCLUDED.updated_at;`
+    `INSERT INTO api_settings (id, public_api_enabled, require_auth_for_builder, demo_login_enabled, webhook_url, webhook_events_json, cors_origins, rate_limit_per_minute, meta_api_version, wa_default_country_code, auto_publish_on_save, updated_at) VALUES ('default', ${sqlBool(api.publicApiEnabled)}, ${sqlBool(api.requireAuthForBuilder)}, ${demoLoginSql}, ${sqlText(api.webhookUrl)}, ${sqlJsonb(api.webhookEvents)}, ${sqlText(api.corsOrigins)}, ${sqlNum(api.rateLimitPerMinute)}, ${sqlText(api.metaApiVersion)}, ${sqlText(api.waDefaultCountryCode)}, ${sqlBool(api.autoPublishOnSave)}, ${sqlNum(api.updatedAt)}) ON CONFLICT (id) DO UPDATE SET public_api_enabled = EXCLUDED.public_api_enabled, require_auth_for_builder = EXCLUDED.require_auth_for_builder, demo_login_enabled = EXCLUDED.demo_login_enabled, webhook_url = EXCLUDED.webhook_url, webhook_events_json = EXCLUDED.webhook_events_json, cors_origins = EXCLUDED.cors_origins, rate_limit_per_minute = EXCLUDED.rate_limit_per_minute, meta_api_version = EXCLUDED.meta_api_version, wa_default_country_code = EXCLUDED.wa_default_country_code, auto_publish_on_save = EXCLUDED.auto_publish_on_save, updated_at = EXCLUDED.updated_at;`
   );
   lines.push(``);
 
@@ -2563,7 +2799,7 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
     const ownerId = entry.ownerUserId && userIds.has(entry.ownerUserId) ? entry.ownerUserId : null;
     const rev = rec.revision ?? 1;
     lines.push(
-      `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, project_json, rendered_html, updated_at, last_saved_at, created_at) VALUES (${sqlText(rec.id)}, ${sqlText(ownerId)}, ${sqlNum(rev)}, ${sqlText(rec.project.title)}, ${sqlText(slug)}, ${sqlText(customDomain)}, ${sqlBool(Boolean(pub?.useCustomDomain))}, ${sqlBool(Boolean(pub?.isPublished))}, ${sqlNum(pub?.publishedAt ?? null)}, ${sqlJsonb(rec.project)}, ${sqlText(entry.renderedHtml)}, ${sqlNum(rec.updatedAt)}, ${sqlNum(entry.savedAt || rec.lastSavedAt || rec.updatedAt)}, ${sqlNum(entry.savedAt || rec.updatedAt)}) ON CONFLICT (id) DO UPDATE SET owner_user_id = EXCLUDED.owner_user_id, revision = EXCLUDED.revision, title = EXCLUDED.title, slug = EXCLUDED.slug, custom_domain = EXCLUDED.custom_domain, use_custom_domain = EXCLUDED.use_custom_domain, is_published = EXCLUDED.is_published, published_at = EXCLUDED.published_at, project_json = EXCLUDED.project_json, rendered_html = EXCLUDED.rendered_html, updated_at = EXCLUDED.updated_at, last_saved_at = EXCLUDED.last_saved_at;`
+      `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, source_template_id, pos_store_id, pos_sync_enabled, project_json, rendered_html, updated_at, last_saved_at, created_at) VALUES (${sqlText(rec.id)}, ${sqlText(ownerId)}, ${sqlNum(rev)}, ${sqlText(rec.project.title)}, ${sqlText(slug)}, ${sqlText(customDomain)}, ${sqlBool(Boolean(pub?.useCustomDomain))}, ${sqlBool(Boolean(pub?.isPublished))}, ${sqlNum(pub?.publishedAt ?? null)}, ${sqlText(entry.sourceTemplateId ?? null)}, ${sqlText(entry.posStoreId ?? null)}, ${sqlBool(Boolean(entry.posSyncEnabled))}, ${sqlJsonb(rec.project)}, ${sqlText(entry.renderedHtml)}, ${sqlNum(rec.updatedAt)}, ${sqlNum(entry.savedAt || rec.lastSavedAt || rec.updatedAt)}, ${sqlNum(entry.savedAt || rec.updatedAt)}) ON CONFLICT (id) DO UPDATE SET owner_user_id = EXCLUDED.owner_user_id, revision = EXCLUDED.revision, title = EXCLUDED.title, slug = EXCLUDED.slug, custom_domain = EXCLUDED.custom_domain, use_custom_domain = EXCLUDED.use_custom_domain, is_published = EXCLUDED.is_published, published_at = EXCLUDED.published_at, source_template_id = EXCLUDED.source_template_id, pos_store_id = EXCLUDED.pos_store_id, pos_sync_enabled = EXCLUDED.pos_sync_enabled, project_json = EXCLUDED.project_json, rendered_html = EXCLUDED.rendered_html, updated_at = EXCLUDED.updated_at, last_saved_at = EXCLUDED.last_saved_at;`
     );
   }
   lines.push(``);
@@ -2602,9 +2838,13 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   lines.push(``);
 
   if (uiAppearance) {
+    const packedUi = packUiAppearanceStoragePayload(
+      uiAppearance.labels,
+      uiAppearance.hiddenKeys || {}
+    );
     lines.push(`-- 9. UI Appearance Settings`);
     lines.push(
-      `INSERT INTO ui_appearance_settings (id, labels_json, updated_at) VALUES ('default', ${sqlJsonb(uiAppearance.labels)}, ${sqlNum(uiAppearance.updatedAt)}) ON CONFLICT (id) DO UPDATE SET labels_json = EXCLUDED.labels_json, updated_at = EXCLUDED.updated_at;`
+      `INSERT INTO ui_appearance_settings (id, labels_json, updated_at) VALUES ('default', ${sqlJsonb(packedUi)}, ${sqlNum(uiAppearance.updatedAt)}) ON CONFLICT (id) DO UPDATE SET labels_json = EXCLUDED.labels_json, updated_at = EXCLUDED.updated_at;`
     );
     lines.push(``);
   }
@@ -2613,6 +2853,14 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   for (const wt of webTemplates) {
     lines.push(
       `INSERT INTO web_templates (id, name, description, category, visibility, allow_collaborative_edit, snapshot_json, main_block_count, sub_page_count, total_block_count, sub_page_titles_json, palette_colors_json, created_by_user_id, created_by_name, updated_by_name, usage_count, created_at, updated_at) VALUES (${sqlText(wt.id)}, ${sqlText(wt.name)}, ${sqlText(wt.description || '')}, ${sqlText(wt.category || 'bisnis')}, ${sqlText(wt.visibility || 'shared')}, ${sqlBool(Boolean(wt.allowCollaborativeEdit))}, ${sqlJsonb(wt.snapshot)}, ${sqlNum(wt.mainBlockCount)}, ${sqlNum(wt.subPageCount)}, ${sqlNum(wt.totalBlockCount)}, ${sqlJsonb(wt.subPageTitles || [])}, ${sqlJsonb(wt.paletteColors || [])}, ${sqlText(wt.createdByUserId)}, ${sqlText(wt.createdByName || 'Pengguna')}, ${sqlText(wt.updatedByName ?? null)}, ${sqlNum(wt.usageCount || 0)}, ${sqlNum(wt.createdAt)}, ${sqlNum(wt.updatedAt)}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, category = EXCLUDED.category, visibility = EXCLUDED.visibility, allow_collaborative_edit = EXCLUDED.allow_collaborative_edit, snapshot_json = EXCLUDED.snapshot_json, main_block_count = EXCLUDED.main_block_count, sub_page_count = EXCLUDED.sub_page_count, total_block_count = EXCLUDED.total_block_count, sub_page_titles_json = EXCLUDED.sub_page_titles_json, palette_colors_json = EXCLUDED.palette_colors_json, updated_by_name = EXCLUDED.updated_by_name, usage_count = EXCLUDED.usage_count, updated_at = EXCLUDED.updated_at;`
+    );
+  }
+  lines.push(``);
+
+  lines.push(`-- 11. Form Submissions (${formSubmissions.length} baris)`);
+  for (const fsRow of formSubmissions) {
+    lines.push(
+      `INSERT INTO form_submissions (id, project_id, project_title, slug, component_id, form_title, form_category, values_json, source_channel, is_test, created_at) VALUES (${sqlText(fsRow.id)}, ${sqlText(fsRow.projectId)}, ${sqlText(fsRow.projectTitle)}, ${sqlText(fsRow.slug || '')}, ${sqlText(fsRow.componentId)}, ${sqlText(fsRow.formTitle)}, ${sqlText(fsRow.formCategory ?? null)}, ${sqlJsonb(fsRow.values || {})}, ${sqlText(fsRow.sourceChannel ?? null)}, ${sqlBool(Boolean(fsRow.isTest))}, ${sqlNum(fsRow.createdAt)}) ON CONFLICT (id) DO NOTHING;`
     );
   }
   lines.push(``);

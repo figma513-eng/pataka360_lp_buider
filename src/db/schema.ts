@@ -7,11 +7,14 @@ import {
   jsonb,
   pgTable,
   text,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type {
   AccessRole,
+  AdChannel,
   BuilderProject,
   FeaturePermissionsMap,
+  SaasPlanTier,
   UiAppearanceLabelsMap,
   WebTemplateCategory,
   WebTemplateSnapshot,
@@ -37,6 +40,9 @@ export const usersTable = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     unitScopeJson: jsonb('unit_scope_json').$type<'all' | string[]>().notNull().default([]),
     permissionsJson: jsonb('permissions_json').$type<FeaturePermissionsMap>().notNull(),
+    planTier: text('plan_tier').$type<SaasPlanTier>().notNull().default('free'),
+    maxSites: integer('max_sites').notNull().default(3),
+    subscriptionExpiresAt: bigint('subscription_expires_at', { mode: 'number' }),
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
     lastLoginAt: bigint('last_login_at', { mode: 'number' }),
@@ -44,6 +50,7 @@ export const usersTable = pgTable(
   (table) => [
     index('idx_users_email').on(table.email),
     index('idx_users_email_lower').on(sql`lower(${table.email})`),
+    uniqueIndex('idx_users_email_lower_unique').on(sql`lower(${table.email})`),
   ]
 );
 
@@ -79,6 +86,9 @@ export const projectsTable = pgTable(
     useCustomDomain: boolean('use_custom_domain').notNull().default(false),
     isPublished: boolean('is_published').notNull().default(false),
     publishedAt: bigint('published_at', { mode: 'number' }),
+    sourceTemplateId: text('source_template_id'),
+    posStoreId: text('pos_store_id'),
+    posSyncEnabled: boolean('pos_sync_enabled').notNull().default(false),
     projectJson: jsonb('project_json').$type<BuilderProject>().notNull(),
     renderedHtml: text('rendered_html').notNull().default(''),
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
@@ -87,8 +97,10 @@ export const projectsTable = pgTable(
   },
   (table) => [
     index('idx_projects_slug').on(table.slug),
+    uniqueIndex('idx_projects_slug_lower_unique').on(sql`lower(${table.slug})`),
     index('idx_projects_custom_domain').on(table.customDomain),
     index('idx_projects_owner').on(table.ownerUserId),
+    index('idx_projects_pos_store_id').on(table.posStoreId),
   ]
 );
 
@@ -207,5 +219,30 @@ export const webTemplatesTable = pgTable(
   (table) => [
     index('idx_web_templates_updated').on(table.updatedAt.desc()),
     index('idx_web_templates_visibility').on(table.visibility),
+    index('idx_web_templates_category').on(table.category),
+  ]
+);
+
+export const formSubmissionsTable = pgTable(
+  'form_submissions',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    projectTitle: text('project_title').notNull(),
+    slug: text('slug').notNull().default(''),
+    componentId: text('component_id').notNull(),
+    formTitle: text('form_title').notNull(),
+    formCategory: text('form_category'),
+    valuesJson: jsonb('values_json')
+      .$type<Record<string, string | string[] | boolean>>()
+      .notNull()
+      .default({}),
+    sourceChannel: text('source_channel').$type<AdChannel>(),
+    isTest: boolean('is_test').notNull().default(false),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    index('idx_form_submissions_project_created').on(table.projectId, table.createdAt.desc()),
+    index('idx_form_submissions_created').on(table.createdAt.desc()),
   ]
 );

@@ -5,8 +5,10 @@ import JSZip from 'jszip';
 import type {
   AccessRole,
   AnalyticsEventRecord,
+  FormSubmissionRecord,
   MediaAssetMeta,
   RestorePreviewSummary,
+  SavedWebTemplate,
   WebhookLogRecord,
 } from '../types/builder.ts';
 import { getDbState } from '../db/index.ts';
@@ -40,6 +42,11 @@ import {
 import { AppError } from './errors.ts';
 import { sanitizeBuilderProject } from '../utils/htmlSanitizer.ts';
 import { generateProjectHtml } from '../utils/htmlExporter.ts';
+import {
+  packUiAppearanceStoragePayload,
+  sanitizeUiAppearanceHiddenMap,
+  unpackUiAppearanceStoragePayload,
+} from '../utils/uiAppearanceLabels.ts';
 
 interface ParsedZipBackup {
   manifest: FullBackupManifest;
@@ -240,8 +247,25 @@ export async function previewZipRestore(zipBuffer: Buffer): Promise<{
       events: parsedDb.events,
       accessSettings: parsedDb.accessSettings || createDefaultAccessSettings(),
       apiSettings: parsedDb.apiSettings || createDefaultApiSettings(),
+      uiAppearanceSettings: parsedDb.uiAppearanceSettings
+        ? (() => {
+            const unpacked = unpackUiAppearanceStoragePayload(
+              parsedDb.uiAppearanceSettings.labels
+            );
+            const directHidden = sanitizeUiAppearanceHiddenMap(
+              parsedDb.uiAppearanceSettings.hiddenKeys
+            );
+            return {
+              labels: unpacked.labels,
+              hiddenKeys: { ...unpacked.hiddenKeys, ...directHidden },
+              updatedAt: Number(parsedDb.uiAppearanceSettings.updatedAt || 0),
+            };
+          })()
+        : undefined,
       webhookLogs: Array.isArray(parsedDb.webhookLogs) ? parsedDb.webhookLogs : [],
       mediaAssets: Array.isArray(parsedDb.mediaAssets) ? parsedDb.mediaAssets : [],
+      webTemplates: Array.isArray(parsedDb.webTemplates) ? parsedDb.webTemplates : [],
+      formSubmissions: Array.isArray(parsedDb.formSubmissions) ? parsedDb.formSubmissions : [],
     };
   } catch (err) {
     errors.push(
@@ -450,6 +474,9 @@ export async function applyZipRestore(params: {
       renderedHtml,
       savedAt: Number(p.savedAt || now),
       ownerUserId: p.ownerUserId ?? params.actorUserId,
+      sourceTemplateId: p.sourceTemplateId ?? null,
+      posStoreId: p.posStoreId ?? null,
+      posSyncEnabled: Boolean(p.posSyncEnabled),
     };
   });
 
@@ -469,6 +496,16 @@ export async function applyZipRestore(params: {
 
   const targetWebhookLogs: WebhookLogRecord[] =
     mode === 'full' ? incomingStore.webhookLogs : [];
+
+  const targetFormSubmissions: FormSubmissionRecord[] =
+    mode === 'project'
+      ? (incomingStore.formSubmissions || []).filter((fsRow) =>
+          targetProjectIdSet.has(fsRow.projectId)
+        )
+      : incomingStore.formSubmissions || [];
+
+  const targetWebTemplates: SavedWebTemplate[] =
+    mode === 'full' ? incomingStore.webTemplates || [] : [];
 
   // Step 2: Restore media binaries atomically
   const restoredMediaMetas: MediaAssetMeta[] = [];
@@ -507,8 +544,8 @@ export async function applyZipRestore(params: {
           const safeRole: AccessRole =
             u.role === 'super_admin' ? 'admin' : u.role || 'viewer';
           await client.query(
-            `INSERT INTO users (id, name, email, password_hash, role, is_active, unit_scope_json, permissions_json, created_at, updated_at, last_login_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11)
+            `INSERT INTO users (id, name, email, password_hash, role, is_active, unit_scope_json, permissions_json, plan_tier, max_sites, subscription_expires_at, created_at, updated_at, last_login_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12,$13,$14)
              ON CONFLICT (id) DO NOTHING`,
             [
               u.id,
@@ -519,6 +556,9 @@ export async function applyZipRestore(params: {
               u.isActive,
               JSON.stringify(u.unitScope),
               JSON.stringify(u.permissions),
+              u.planTier || 'free',
+              typeof u.maxSites === 'number' ? u.maxSites : 3,
+              u.subscriptionExpiresAt ?? null,
               u.createdAt,
               u.updatedAt,
               u.lastLoginAt ?? null,
@@ -542,8 +582,8 @@ export async function applyZipRestore(params: {
           entry.ownerUserId && validUserIds.has(entry.ownerUserId) ? entry.ownerUserId : null;
 
         await client.query(
-          `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, project_json, rendered_html, updated_at, last_saved_at, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14)
+          `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, source_template_id, pos_store_id, pos_sync_enabled, project_json, rendered_html, updated_at, last_saved_at, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17)
            ON CONFLICT (id) DO UPDATE SET
              owner_user_id = EXCLUDED.owner_user_id,
              revision = EXCLUDED.revision,
@@ -553,6 +593,9 @@ export async function applyZipRestore(params: {
              use_custom_domain = EXCLUDED.use_custom_domain,
              is_published = EXCLUDED.is_published,
              published_at = EXCLUDED.published_at,
+             source_template_id = EXCLUDED.source_template_id,
+             pos_store_id = EXCLUDED.pos_store_id,
+             pos_sync_enabled = EXCLUDED.pos_sync_enabled,
              project_json = EXCLUDED.project_json,
              rendered_html = EXCLUDED.rendered_html,
              updated_at = EXCLUDED.updated_at,
@@ -567,6 +610,9 @@ export async function applyZipRestore(params: {
             Boolean(pub?.useCustomDomain),
             Boolean(pub?.isPublished),
             pub?.publishedAt ?? null,
+            entry.sourceTemplateId ?? null,
+            entry.posStoreId ?? null,
+            Boolean(entry.posSyncEnabled),
             JSON.stringify(rec.project),
             entry.renderedHtml,
             rec.updatedAt,
@@ -618,6 +664,33 @@ export async function applyZipRestore(params: {
       }
 
       if (mode === 'full') {
+        await client.query('DELETE FROM form_submissions');
+      }
+      for (const fsRow of targetFormSubmissions) {
+        if (!fsRow?.id || !fsRow.projectId) continue;
+        await client.query(
+          `INSERT INTO form_submissions (
+             id, project_id, project_title, slug, component_id, form_title,
+             form_category, values_json, source_channel, is_test, created_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11)
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            fsRow.id,
+            fsRow.projectId,
+            fsRow.projectTitle || 'Halaman',
+            fsRow.slug || '',
+            fsRow.componentId || '',
+            fsRow.formTitle || 'Form',
+            fsRow.formCategory ?? null,
+            JSON.stringify(fsRow.values || {}),
+            fsRow.sourceChannel ?? null,
+            Boolean(fsRow.isTest),
+            Number(fsRow.createdAt || now),
+          ]
+        );
+      }
+
+      if (mode === 'full') {
         for (const lg of targetWebhookLogs) {
           const res = await client.query(
             `INSERT INTO webhook_logs (id, event_type, target_url, status_code, success, payload_summary, error_message, created_at)
@@ -635,6 +708,102 @@ export async function applyZipRestore(params: {
             ]
           );
           if (res.rowCount) restoredWebhookCount += 1;
+        }
+
+        if (incomingStore.apiSettings) {
+          const api = incomingStore.apiSettings;
+          await client.query(
+            `INSERT INTO api_settings (id, public_api_enabled, require_auth_for_builder, demo_login_enabled, webhook_url, webhook_events_json, cors_origins, rate_limit_per_minute, meta_api_version, wa_default_country_code, auto_publish_on_save, updated_at)
+             VALUES ('default', $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (id) DO UPDATE SET
+               public_api_enabled = EXCLUDED.public_api_enabled,
+               require_auth_for_builder = EXCLUDED.require_auth_for_builder,
+               demo_login_enabled = EXCLUDED.demo_login_enabled,
+               webhook_url = EXCLUDED.webhook_url,
+               webhook_events_json = EXCLUDED.webhook_events_json,
+               cors_origins = EXCLUDED.cors_origins,
+               rate_limit_per_minute = EXCLUDED.rate_limit_per_minute,
+               meta_api_version = EXCLUDED.meta_api_version,
+               wa_default_country_code = EXCLUDED.wa_default_country_code,
+               auto_publish_on_save = EXCLUDED.auto_publish_on_save,
+               updated_at = EXCLUDED.updated_at`,
+            [
+              Boolean(api.publicApiEnabled),
+              Boolean(api.requireAuthForBuilder),
+              typeof api.demoLoginEnabled === 'boolean' ? api.demoLoginEnabled : null,
+              api.webhookUrl || '',
+              JSON.stringify(Array.isArray(api.webhookEvents) ? api.webhookEvents : []),
+              api.corsOrigins || '*',
+              Number(api.rateLimitPerMinute || 120),
+              api.metaApiVersion || 'v20.0',
+              api.waDefaultCountryCode || '62',
+              Boolean(api.autoPublishOnSave),
+              now,
+            ]
+          );
+        }
+
+        if (incomingStore.uiAppearanceSettings) {
+          const packedUi = packUiAppearanceStoragePayload(
+            incomingStore.uiAppearanceSettings.labels ?? {},
+            incomingStore.uiAppearanceSettings.hiddenKeys ?? {}
+          );
+          await client.query(
+            `INSERT INTO ui_appearance_settings (id, labels_json, updated_at)
+             VALUES ('default', $1::jsonb, $2)
+             ON CONFLICT (id) DO UPDATE SET labels_json = EXCLUDED.labels_json, updated_at = EXCLUDED.updated_at`,
+            [JSON.stringify(packedUi), Number(incomingStore.uiAppearanceSettings.updatedAt || now)]
+          );
+        }
+
+        if (targetWebTemplates.length > 0 || Array.isArray(incomingStore.webTemplates)) {
+          await client.query('DELETE FROM web_templates');
+          for (const wt of targetWebTemplates) {
+            if (!wt?.id || !wt.name || !wt.snapshot) continue;
+            await client.query(
+              `INSERT INTO web_templates (
+                 id, name, description, category, visibility, allow_collaborative_edit,
+                 snapshot_json, main_block_count, sub_page_count, total_block_count,
+                 sub_page_titles_json, palette_colors_json, created_by_user_id,
+                 created_by_name, updated_by_name, usage_count, created_at, updated_at
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$18)
+               ON CONFLICT (id) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 description = EXCLUDED.description,
+                 category = EXCLUDED.category,
+                 visibility = EXCLUDED.visibility,
+                 allow_collaborative_edit = EXCLUDED.allow_collaborative_edit,
+                 snapshot_json = EXCLUDED.snapshot_json,
+                 main_block_count = EXCLUDED.main_block_count,
+                 sub_page_count = EXCLUDED.sub_page_count,
+                 total_block_count = EXCLUDED.total_block_count,
+                 sub_page_titles_json = EXCLUDED.sub_page_titles_json,
+                 palette_colors_json = EXCLUDED.palette_colors_json,
+                 updated_by_name = EXCLUDED.updated_by_name,
+                 usage_count = EXCLUDED.usage_count,
+                 updated_at = EXCLUDED.updated_at`,
+              [
+                wt.id,
+                wt.name,
+                wt.description || '',
+                wt.category || 'bisnis',
+                wt.visibility === 'private' ? 'private' : 'shared',
+                Boolean(wt.allowCollaborativeEdit),
+                JSON.stringify(wt.snapshot),
+                Number(wt.mainBlockCount || 0),
+                Number(wt.subPageCount || 0),
+                Number(wt.totalBlockCount || 0),
+                JSON.stringify(Array.isArray(wt.subPageTitles) ? wt.subPageTitles : []),
+                JSON.stringify(Array.isArray(wt.paletteColors) ? wt.paletteColors : []),
+                wt.createdByUserId || params.actorUserId,
+                wt.createdByName || 'Pengguna',
+                wt.updatedByName ?? null,
+                Number(wt.usageCount || 0),
+                Number(wt.createdAt || now),
+                Number(wt.updatedAt || now),
+              ]
+            );
+          }
         }
       }
 
@@ -695,11 +864,15 @@ export async function applyZipRestore(params: {
         for (const m of store.mediaAssets || []) mediaMap.set(m.filename, m);
         for (const m of restoredMediaMetas) mediaMap.set(m.filename, m);
 
+        const existingSubIds = new Set((store.formSubmissions || []).map((f) => f.id));
+        const dedupedSubs = targetFormSubmissions.filter((f) => !existingSubIds.has(f.id));
+
         await persistJsonStore({
           ...store,
           projects: nextProjects,
           events: [...store.events, ...dedupedEvents],
           mediaAssets: Array.from(mediaMap.values()),
+          formSubmissions: [...(store.formSubmissions || []), ...dedupedSubs],
         });
       } else {
         // Full restore: merge non-existing users without duplicating or replacing acting Super Admin/sessions
@@ -779,6 +952,14 @@ export async function applyZipRestore(params: {
           },
           apiSettings:
             incomingStore.apiSettings || store.apiSettings || createDefaultApiSettings(),
+          uiAppearanceSettings:
+            incomingStore.uiAppearanceSettings || store.uiAppearanceSettings,
+          webTemplates: Array.isArray(incomingStore.webTemplates)
+            ? incomingStore.webTemplates
+            : store.webTemplates || [],
+          formSubmissions: Array.isArray(incomingStore.formSubmissions)
+            ? incomingStore.formSubmissions
+            : store.formSubmissions || [],
         };
 
         await persistJsonStore(nextStore);

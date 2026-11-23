@@ -7,7 +7,10 @@ import type {
   AccessSettingsConfig,
   AnalyticsEventRecord,
   ApiSettingsConfig,
+  FormSubmissionRecord,
   MediaAssetMeta,
+  SavedWebTemplate,
+  UiAppearanceSettingsConfig,
   WebhookLogRecord,
 } from '../types/builder.ts';
 import { getDbState } from '../db/index.ts';
@@ -21,6 +24,10 @@ import {
   createDefaultApiSettings,
   loadJsonStore,
 } from '../db/repository.ts';
+import {
+  sanitizeUiAppearanceHiddenMap,
+  unpackUiAppearanceStoragePayload,
+} from '../utils/uiAppearanceLabels.ts';
 import { exportAllDiskMediaAssets, isSafeMediaFilename } from './mediaService.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +56,8 @@ export interface FullBackupManifest {
     analyticsEvents: number;
     webhookLogs: number;
     media: number;
+    webTemplates?: number;
+    formSubmissions?: number;
   };
   excludes: string[];
   files: FullBackupManifestFile[];
@@ -132,22 +141,29 @@ async function loadCleanDatabaseSnapshot(): Promise<{
   let events: AnalyticsEventRecord[] = [];
   let accessSettings: AccessSettingsConfig = createDefaultAccessSettings();
   let apiSettings: ApiSettingsConfig = createDefaultApiSettings();
+  let uiAppearanceSettings: UiAppearanceSettingsConfig | undefined;
   let webhookLogs: WebhookLogRecord[] = [];
   let mediaAssets: MediaAssetMeta[] = [];
+  let webTemplates: SavedWebTemplate[] = [];
+  let formSubmissions: FormSubmissionRecord[] = [];
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes] = await Promise.all([
-        client.query('SELECT * FROM users'),
-        client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
-        client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
-        client.query(`SELECT * FROM access_policies WHERE id = 'default' LIMIT 1`),
-        client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
-        client.query('SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 200'),
-        client.query('SELECT * FROM media_assets ORDER BY created_at DESC'),
-      ]);
+      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, uiRes, wtRes, fsRes] =
+        await Promise.all([
+          client.query('SELECT * FROM users'),
+          client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
+          client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
+          client.query(`SELECT * FROM access_policies WHERE id = 'default' LIMIT 1`),
+          client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
+          client.query('SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 200'),
+          client.query('SELECT * FROM media_assets ORDER BY created_at DESC'),
+          client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
+          client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
+          client.query('SELECT * FROM form_submissions ORDER BY created_at DESC LIMIT 2000'),
+        ]);
       await client.query('COMMIT');
 
       users = uRes.rows.map((r) => ({
@@ -159,6 +175,9 @@ async function loadCleanDatabaseSnapshot(): Promise<{
         isActive: Boolean(r.is_active),
         unitScope: r.unit_scope_json,
         permissions: r.permissions_json,
+        planTier: r.plan_tier || 'free',
+        maxSites: typeof r.max_sites === 'number' ? r.max_sites : Number(r.max_sites || 3),
+        subscriptionExpiresAt: r.subscription_expires_at ? Number(r.subscription_expires_at) : null,
         createdAt: Number(r.created_at),
         updatedAt: Number(r.updated_at),
         lastLoginAt: r.last_login_at ? Number(r.last_login_at) : null,
@@ -176,6 +195,9 @@ async function loadCleanDatabaseSnapshot(): Promise<{
           renderedHtml: r.rendered_html,
           savedAt: Number(r.last_saved_at),
           ownerUserId: r.owner_user_id,
+          sourceTemplateId: r.source_template_id ?? null,
+          posStoreId: r.pos_store_id ?? null,
+          posSyncEnabled: Boolean(r.pos_sync_enabled),
         };
       }
 
@@ -224,6 +246,9 @@ async function loadCleanDatabaseSnapshot(): Promise<{
         apiSettings = {
           publicApiEnabled: Boolean(apiRow.public_api_enabled),
           requireAuthForBuilder: Boolean(apiRow.require_auth_for_builder),
+          ...(typeof apiRow.demo_login_enabled === 'boolean'
+            ? { demoLoginEnabled: apiRow.demo_login_enabled }
+            : {}),
           webhookUrl: apiRow.webhook_url,
           webhookEvents: apiRow.webhook_events_json,
           corsOrigins: apiRow.cors_origins,
@@ -232,6 +257,16 @@ async function loadCleanDatabaseSnapshot(): Promise<{
           waDefaultCountryCode: apiRow.wa_default_country_code,
           autoPublishOnSave: Boolean(apiRow.auto_publish_on_save),
           updatedAt: Number(apiRow.updated_at),
+        };
+      }
+
+      const uiRow = uiRes.rows[0];
+      if (uiRow) {
+        const unpacked = unpackUiAppearanceStoragePayload(uiRow.labels_json);
+        uiAppearanceSettings = {
+          labels: unpacked.labels,
+          hiddenKeys: unpacked.hiddenKeys,
+          updatedAt: Number(uiRow.updated_at || 0),
         };
       }
 
@@ -255,6 +290,41 @@ async function loadCleanDatabaseSnapshot(): Promise<{
         sha256: r.sha256,
         createdAt: Number(r.created_at),
       }));
+
+      webTemplates = wtRes.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || '',
+        category: r.category || 'bisnis',
+        visibility: r.visibility === 'private' ? 'private' : 'shared',
+        allowCollaborativeEdit: Boolean(r.allow_collaborative_edit),
+        snapshot: r.snapshot_json,
+        mainBlockCount: Number(r.main_block_count || 0),
+        subPageCount: Number(r.sub_page_count || 0),
+        totalBlockCount: Number(r.total_block_count || 0),
+        subPageTitles: Array.isArray(r.sub_page_titles_json) ? r.sub_page_titles_json : [],
+        paletteColors: Array.isArray(r.palette_colors_json) ? r.palette_colors_json : [],
+        createdByUserId: r.created_by_user_id,
+        createdByName: r.created_by_name || 'Pengguna',
+        updatedByName: r.updated_by_name ?? undefined,
+        usageCount: Number(r.usage_count || 0),
+        createdAt: Number(r.created_at || Date.now()),
+        updatedAt: Number(r.updated_at || Date.now()),
+      }));
+
+      formSubmissions = fsRes.rows.map((r) => ({
+        id: r.id,
+        projectId: r.project_id,
+        projectTitle: r.project_title,
+        slug: r.slug || '',
+        componentId: r.component_id,
+        formTitle: r.form_title,
+        formCategory: r.form_category ?? undefined,
+        values: r.values_json && typeof r.values_json === 'object' ? r.values_json : {},
+        sourceChannel: r.source_channel ?? undefined,
+        isTest: Boolean(r.is_test),
+        createdAt: Number(r.created_at),
+      }));
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -268,8 +338,21 @@ async function loadCleanDatabaseSnapshot(): Promise<{
     events = [...rawStore.events];
     accessSettings = rawStore.accessSettings || createDefaultAccessSettings();
     apiSettings = rawStore.apiSettings || createDefaultApiSettings();
+    if (rawStore.uiAppearanceSettings) {
+      const unpacked = unpackUiAppearanceStoragePayload(rawStore.uiAppearanceSettings.labels);
+      const directHidden = sanitizeUiAppearanceHiddenMap(rawStore.uiAppearanceSettings.hiddenKeys);
+      uiAppearanceSettings = {
+        labels: unpacked.labels,
+        hiddenKeys: { ...unpacked.hiddenKeys, ...directHidden },
+        updatedAt: Number(rawStore.uiAppearanceSettings.updatedAt || 0),
+      };
+    }
     webhookLogs = [...rawStore.webhookLogs];
     mediaAssets = Array.isArray(rawStore.mediaAssets) ? [...rawStore.mediaAssets] : [];
+    webTemplates = Array.isArray(rawStore.webTemplates) ? [...rawStore.webTemplates] : [];
+    formSubmissions = Array.isArray(rawStore.formSubmissions)
+      ? [...rawStore.formSubmissions]
+      : [];
   }
 
   const diskMedia = await exportAllDiskMediaAssets();
@@ -309,8 +392,11 @@ async function loadCleanDatabaseSnapshot(): Promise<{
     events,
     accessSettings,
     apiSettings,
+    ...(uiAppearanceSettings ? { uiAppearanceSettings } : {}),
     webhookLogs,
     mediaAssets: Array.from(mediaMetaByFilename.values()),
+    webTemplates,
+    formSubmissions,
   };
 
   return { store, mediaBinaries };
@@ -382,6 +468,8 @@ export async function buildFullProjectBackupZip(): Promise<{
       analyticsEvents: store.events.length,
       webhookLogs: store.webhookLogs.length,
       media: mediaBinaries.length,
+      webTemplates: store.webTemplates?.length ?? 0,
+      formSubmissions: store.formSubmissions?.length ?? 0,
     },
   };
 
@@ -412,6 +500,8 @@ export async function buildFullProjectBackupZip(): Promise<{
       analyticsEvents: store.events.length,
       webhookLogs: store.webhookLogs.length,
       media: mediaBinaries.length,
+      webTemplates: store.webTemplates?.length ?? 0,
+      formSubmissions: store.formSubmissions?.length ?? 0,
     },
     excludes: [
       'node_modules',

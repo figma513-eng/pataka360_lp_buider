@@ -188,6 +188,39 @@ export const POSTGRES_MIGRATIONS: MigrationDefinition[] = [
       `CREATE INDEX IF NOT EXISTS idx_web_templates_visibility ON web_templates (visibility);`,
     ],
   },
+  {
+    version: '007',
+    name: 'saas_pos_bridge_and_form_submissions',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS form_submissions (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        project_title TEXT NOT NULL,
+        slug TEXT NOT NULL DEFAULT '',
+        component_id TEXT NOT NULL,
+        form_title TEXT NOT NULL,
+        form_category TEXT,
+        values_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        source_channel TEXT,
+        is_test BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at BIGINT NOT NULL
+      );`,
+      `CREATE INDEX IF NOT EXISTS idx_form_submissions_project_created ON form_submissions (project_id, created_at DESC);`,
+      `CREATE INDEX IF NOT EXISTS idx_form_submissions_created ON form_submissions (created_at DESC);`,
+      `ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_template_id TEXT;`,
+      `ALTER TABLE projects ADD COLUMN IF NOT EXISTS pos_store_id TEXT;`,
+      `ALTER TABLE projects ADD COLUMN IF NOT EXISTS pos_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE;`,
+      `CREATE INDEX IF NOT EXISTS idx_projects_pos_store_id ON projects (pos_store_id);`,
+      `UPDATE projects SET slug = lower(trim(slug)) WHERE slug <> lower(trim(slug));`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug_lower_unique ON projects (lower(slug));`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_tier TEXT NOT NULL DEFAULT 'free';`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS max_sites INTEGER NOT NULL DEFAULT 3;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at BIGINT;`,
+      `UPDATE users SET email = lower(trim(email)) WHERE email <> lower(trim(email));`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower_unique ON users (lower(email));`,
+      `CREATE INDEX IF NOT EXISTS idx_web_templates_category ON web_templates (category);`,
+    ],
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION =

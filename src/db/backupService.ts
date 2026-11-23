@@ -7,6 +7,7 @@ import type {
   AccessSettingsConfig,
   AnalyticsEventRecord,
   ApiSettingsConfig,
+  FormSubmissionRecord,
   MediaAssetMeta,
   ProjectRecord,
   RestorePreviewSummary,
@@ -24,6 +25,7 @@ import {
   getApiSettings,
   getUiAppearanceSettings,
   listAnalyticsEvents,
+  listFormSubmissions,
   listProjectEntries,
   listUsers,
   listWebTemplates,
@@ -34,7 +36,12 @@ import {
   resolveDataDir,
   withJsonStoreLock,
 } from './repository.ts';
-import { sanitizeUiAppearanceLabelsMap } from '../utils/uiAppearanceLabels.ts';
+import {
+  packUiAppearanceStoragePayload,
+  sanitizeUiAppearanceHiddenMap,
+  sanitizeUiAppearanceLabelsMap,
+  unpackUiAppearanceStoragePayload,
+} from '../utils/uiAppearanceLabels.ts';
 import {
   exportAllDiskMediaAssets,
   isSafeMediaFilename,
@@ -51,6 +58,9 @@ export interface CompleteBackupPayload {
   projects: Array<{
     record: ProjectRecord;
     ownerUserId?: string | null;
+    sourceTemplateId?: string | null;
+    posStoreId?: string | null;
+    posSyncEnabled?: boolean;
     savedAt: number;
   }>;
   analyticsEvents: AnalyticsEventRecord[];
@@ -73,6 +83,7 @@ export interface CompleteBackupPayload {
   apiSettings: ApiSettingsConfig;
   uiAppearanceSettings?: UiAppearanceSettingsConfig;
   webTemplates?: SavedWebTemplate[];
+  formSubmissions?: FormSubmissionRecord[];
 }
 
 export interface CompleteBackupBundle {
@@ -106,15 +117,16 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
   let analyticsEvents: AnalyticsEventRecord[] = [];
   let access: AccessSettingsConfig = createDefaultAccessSettings();
   let apiSettings: ApiSettingsConfig = createDefaultApiSettings();
-  let uiAppearanceSettings: UiAppearanceSettingsConfig = { labels: {}, updatedAt: 0 };
+  let uiAppearanceSettings: UiAppearanceSettingsConfig = { labels: {}, hiddenKeys: {}, updatedAt: 0 };
   let webTemplates: SavedWebTemplate[] = [];
+  let formSubmissions: FormSubmissionRecord[] = [];
   let userCount = 0;
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const [uRes, pRes, eRes, apRes, apiRes, uiRes, wtRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, uiRes, wtRes, fsRes] = await Promise.all([
         client.query('SELECT id, name, email, role, is_active, unit_scope_json, permissions_json, created_at FROM users'),
         client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
         client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
@@ -122,6 +134,7 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
         client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
         client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
+        client.query('SELECT * FROM form_submissions ORDER BY created_at DESC LIMIT 2000'),
       ]);
       await client.query('COMMIT');
 
@@ -152,6 +165,10 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         apiSettings = {
           publicApiEnabled: Boolean(apiRow.public_api_enabled),
           requireAuthForBuilder: Boolean(apiRow.require_auth_for_builder),
+          demoLoginEnabled:
+            typeof apiRow.demo_login_enabled === 'boolean'
+              ? apiRow.demo_login_enabled
+              : undefined,
           webhookUrl: apiRow.webhook_url,
           webhookEvents: apiRow.webhook_events_json,
           corsOrigins: apiRow.cors_origins,
@@ -174,6 +191,9 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         renderedHtml: r.rendered_html,
         savedAt: Number(r.last_saved_at),
         ownerUserId: r.owner_user_id,
+        sourceTemplateId: r.source_template_id ?? null,
+        posStoreId: r.pos_store_id ?? null,
+        posSyncEnabled: Boolean(r.pos_sync_enabled),
       }));
 
       analyticsEvents = eRes.rows.map((r) => ({
@@ -198,8 +218,10 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       }));
       const uiRow = uiRes.rows[0];
       if (uiRow) {
+        const unpacked = unpackUiAppearanceStoragePayload(uiRow.labels_json);
         uiAppearanceSettings = {
-          labels: sanitizeUiAppearanceLabelsMap(uiRow.labels_json),
+          labels: unpacked.labels,
+          hiddenKeys: unpacked.hiddenKeys,
           updatedAt: Number(uiRow.updated_at || 0),
         };
       }
@@ -223,6 +245,19 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         createdAt: Number(r.created_at || Date.now()),
         updatedAt: Number(r.updated_at || Date.now()),
       }));
+      formSubmissions = fsRes.rows.map((r) => ({
+        id: r.id,
+        projectId: r.project_id,
+        projectTitle: r.project_title,
+        slug: r.slug || '',
+        componentId: r.component_id,
+        formTitle: r.form_title,
+        formCategory: r.form_category ?? undefined,
+        values: r.values_json && typeof r.values_json === 'object' ? r.values_json : {},
+        sourceChannel: r.source_channel ?? undefined,
+        isTest: Boolean(r.is_test),
+        createdAt: Number(r.created_at || Date.now()),
+      }));
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -230,7 +265,7 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       client.release();
     }
   } else {
-    const [users, entries, events, acc, api, ui, wts] = await Promise.all([
+    const [users, entries, events, acc, api, ui, wts, fsubs] = await Promise.all([
       listUsers(),
       listProjectEntries(),
       listAnalyticsEvents(),
@@ -238,6 +273,7 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       getApiSettings(),
       getUiAppearanceSettings(),
       listWebTemplates(null),
+      listFormSubmissions(),
     ]);
     const rawStore = await loadJsonStore();
     userCount = users.length;
@@ -247,11 +283,17 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
     apiSettings = api;
     uiAppearanceSettings = ui;
     webTemplates = Array.isArray(rawStore.webTemplates) ? [...rawStore.webTemplates] : wts;
+    formSubmissions = Array.isArray(rawStore.formSubmissions)
+      ? [...rawStore.formSubmissions]
+      : fsubs;
   }
 
   const media = await exportAllDiskMediaAssets();
 
   // Never include passwordHash, sessions, or .env secrets in portable backup bundle!
+  const hasUiAppearance =
+    Object.keys(uiAppearanceSettings.labels).length > 0 ||
+    Object.keys(uiAppearanceSettings.hiddenKeys || {}).length > 0;
   const payload: CompleteBackupPayload = {
     projects: projects.map((entry) => ({
       record: {
@@ -262,6 +304,9 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         lastSavedAt: entry.record.lastSavedAt ?? entry.savedAt,
       },
       ownerUserId: entry.ownerUserId ?? null,
+      sourceTemplateId: entry.sourceTemplateId ?? null,
+      posStoreId: entry.posStoreId ?? null,
+      posSyncEnabled: Boolean(entry.posSyncEnabled),
       savedAt: entry.savedAt,
     })),
     analyticsEvents,
@@ -284,10 +329,9 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       updatedAt: access.updatedAt,
     },
     apiSettings,
-    ...(Object.keys(uiAppearanceSettings.labels).length > 0
-      ? { uiAppearanceSettings }
-      : {}),
+    ...(hasUiAppearance ? { uiAppearanceSettings } : {}),
     ...(webTemplates.length > 0 ? { webTemplates } : {}),
+    ...(formSubmissions.length > 0 ? { formSubmissions } : {}),
   };
 
   const checksum = computeCanonicalChecksum(payload);
@@ -505,6 +549,9 @@ export async function applyBackupRestore(params: {
       renderedHtml,
       savedAt: Number(p.savedAt || now),
       ownerUserId: p.ownerUserId ?? params.actorUserId,
+      sourceTemplateId: p.sourceTemplateId ?? null,
+      posStoreId: p.posStoreId ?? null,
+      posSyncEnabled: Boolean(p.posSyncEnabled),
     };
   });
 
@@ -543,8 +590,8 @@ export async function applyBackupRestore(params: {
             ? entry.ownerUserId
             : null;
         await client.query(
-          `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, project_json, rendered_html, updated_at, last_saved_at, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14)`,
+          `INSERT INTO projects (id, owner_user_id, revision, title, slug, custom_domain, use_custom_domain, is_published, published_at, source_template_id, pos_store_id, pos_sync_enabled, project_json, rendered_html, updated_at, last_saved_at, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17)`,
           [
             rec.id,
             ownerId,
@@ -555,6 +602,9 @@ export async function applyBackupRestore(params: {
             Boolean(pub?.useCustomDomain),
             Boolean(pub?.isPublished),
             pub?.publishedAt ?? null,
+            entry.sourceTemplateId ?? null,
+            entry.posStoreId ?? null,
+            Boolean(entry.posSyncEnabled),
             JSON.stringify(rec.project),
             entry.renderedHtml,
             rec.updatedAt,
@@ -620,11 +670,12 @@ export async function applyBackupRestore(params: {
       if (payload.apiSettings) {
         const api = payload.apiSettings;
         await client.query(
-          `INSERT INTO api_settings (id, public_api_enabled, require_auth_for_builder, webhook_url, webhook_events_json, cors_origins, rate_limit_per_minute, meta_api_version, wa_default_country_code, auto_publish_on_save, updated_at)
-           VALUES ('default', $1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO api_settings (id, public_api_enabled, require_auth_for_builder, demo_login_enabled, webhook_url, webhook_events_json, cors_origins, rate_limit_per_minute, meta_api_version, wa_default_country_code, auto_publish_on_save, updated_at)
+           VALUES ('default', $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (id) DO UPDATE SET
              public_api_enabled = EXCLUDED.public_api_enabled,
              require_auth_for_builder = EXCLUDED.require_auth_for_builder,
+             demo_login_enabled = EXCLUDED.demo_login_enabled,
              webhook_url = EXCLUDED.webhook_url,
              webhook_events_json = EXCLUDED.webhook_events_json,
              cors_origins = EXCLUDED.cors_origins,
@@ -636,6 +687,7 @@ export async function applyBackupRestore(params: {
           [
             Boolean(api.publicApiEnabled),
             Boolean(api.requireAuthForBuilder),
+            typeof api.demoLoginEnabled === 'boolean' ? api.demoLoginEnabled : null,
             String(api.webhookUrl || ''),
             JSON.stringify(api.webhookEvents || []),
             String(api.corsOrigins || '*'),
@@ -650,13 +702,15 @@ export async function applyBackupRestore(params: {
 
       if (payload.uiAppearanceSettings) {
         const cleanLabels = sanitizeUiAppearanceLabelsMap(payload.uiAppearanceSettings.labels);
+        const cleanHidden = sanitizeUiAppearanceHiddenMap(payload.uiAppearanceSettings.hiddenKeys);
+        const packed = packUiAppearanceStoragePayload(cleanLabels, cleanHidden);
         await client.query(
           `INSERT INTO ui_appearance_settings (id, labels_json, updated_at)
            VALUES ('default', $1::jsonb, $2)
            ON CONFLICT (id) DO UPDATE SET
              labels_json = EXCLUDED.labels_json,
              updated_at = EXCLUDED.updated_at`,
-          [JSON.stringify(cleanLabels), now]
+          [JSON.stringify(packed), now]
         );
       }
 
@@ -705,6 +759,33 @@ export async function applyBackupRestore(params: {
               Number(wt.usageCount || 0),
               Number(wt.createdAt || now),
               Number(wt.updatedAt || now),
+            ]
+          );
+        }
+      }
+
+      if (Array.isArray(payload.formSubmissions)) {
+        await client.query('DELETE FROM form_submissions');
+        for (const fsRow of payload.formSubmissions) {
+          if (!fsRow || !fsRow.id || !fsRow.projectId) continue;
+          await client.query(
+            `INSERT INTO form_submissions (
+              id, project_id, project_title, slug, component_id, form_title,
+              form_category, values_json, source_channel, is_test, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11)
+            ON CONFLICT (id) DO NOTHING`,
+            [
+              fsRow.id,
+              fsRow.projectId,
+              fsRow.projectTitle || 'Unit Usaha',
+              fsRow.slug || '',
+              fsRow.componentId || 'form',
+              fsRow.formTitle || 'Formulir',
+              fsRow.formCategory ?? null,
+              JSON.stringify(fsRow.values || {}),
+              fsRow.sourceChannel ?? null,
+              Boolean(fsRow.isTest),
+              Number(fsRow.createdAt || now),
             ]
           );
         }
@@ -759,10 +840,15 @@ export async function applyBackupRestore(params: {
         uiAppearanceSettings: payload.uiAppearanceSettings
           ? {
               labels: sanitizeUiAppearanceLabelsMap(payload.uiAppearanceSettings.labels),
+              hiddenKeys: sanitizeUiAppearanceHiddenMap(payload.uiAppearanceSettings.hiddenKeys),
               updatedAt: now,
             }
           : store.uiAppearanceSettings,
-        formSubmissions: Array.isArray(store.formSubmissions) ? store.formSubmissions : [],
+        formSubmissions: Array.isArray(payload.formSubmissions)
+          ? payload.formSubmissions
+          : Array.isArray(store.formSubmissions)
+          ? store.formSubmissions
+          : [],
         webTemplates: Array.isArray(payload.webTemplates)
           ? payload.webTemplates
           : Array.isArray(store.webTemplates)
