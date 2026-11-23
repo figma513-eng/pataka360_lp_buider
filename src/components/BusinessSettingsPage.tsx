@@ -225,7 +225,7 @@ export function BusinessSettingsPage({
     if (slugConflict) {
       setFeedback({
         type: 'err',
-        text: `Slug "/p/${cleanSlug}" sudah dipakai oleh "${slugConflict.project.title}".`,
+        text: `Slug "/${cleanSlug}" sudah dipakai oleh "${slugConflict.project.title}".`,
       });
       return;
     }
@@ -265,7 +265,7 @@ export function BusinessSettingsPage({
       setFeedback({
         type: 'ok',
         text: publishNow
-          ? `Usaha berhasil disimpan & ditayangkan di /p/${cleanSlug}.`
+          ? `Usaha berhasil disimpan & ditayangkan di /${cleanSlug}.`
           : 'Pengaturan usaha aktif berhasil disimpan.',
       });
     } else {
@@ -274,7 +274,7 @@ export function BusinessSettingsPage({
   };
 
   const canEditIdentity = permissions.editor || permissions.publishing;
-  const openPageHref = pub.isPublished ? `/p/${cleanSlug}` : `/p/${cleanSlug}?preview=1`;
+  const openPageHref = pub.isPublished ? `/${cleanSlug}` : `/${cleanSlug}?preview=1`;
 
   return (
     <div className="flex-1 h-full overflow-y-auto bg-[#F0F5FA] p-4 sm:p-6">
@@ -370,7 +370,7 @@ export function BusinessSettingsPage({
               </label>
               <div className="flex items-center rounded-xl border border-[#DCE5EF] overflow-hidden focus-within:border-[#00C98A]">
                 <span className="px-2.5 py-2 bg-[#F0F5FA] text-xs font-mono text-[#51637D] border-r border-[#DCE5EF]">
-                  /p/
+                  /
                 </span>
                 <input
                   type="text"
@@ -790,7 +790,7 @@ export function BusinessSettingsPage({
             <div>
               <h2 className="text-sm font-bold text-[#17243D]">Domain Kustom</h2>
               <p className="text-xs text-[#8FA4BF] mt-0.5">
-                Arahkan domain atau subdomain milik usaha ini langsung ke halaman /p/{cleanSlug}.
+                Arahkan domain atau subdomain milik usaha ini langsung ke halaman /{cleanSlug}.
               </p>
             </div>
             <ToggleSwitch

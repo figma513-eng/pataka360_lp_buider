@@ -46,6 +46,7 @@ interface TopBarProps {
   revision?: number;
   onSelectProject: (id: string) => void;
   onCreateProject: (mode: 'template' | 'blank') => void;
+  onOpenSaasWizard?: () => void;
   onOpenProjectsManager: () => void;
   onSaveProject?: () => void;
   onOpenPreview?: () => void;
@@ -81,6 +82,7 @@ export function TopBar({
   revision,
   onSelectProject,
   onCreateProject,
+  onOpenSaasWizard,
   onOpenProjectsManager,
   onSaveProject,
   onOpenPreview,
@@ -126,8 +128,12 @@ export function TopBar({
     );
   });
 
-  const displaySlug = projectSlug ? `/p/${projectSlug}` : '/p/halaman';
-  const publicHref = projectSlug ? `/p/${projectSlug}?preview=1` : undefined;
+  const displaySlug = projectSlug ? `/${projectSlug}` : '/halaman';
+  const publicHref = projectSlug
+    ? isPublished
+      ? `/${projectSlug}`
+      : `/${projectSlug}?preview=1`
+    : undefined;
   const userInitials = getUserInitials(authUser?.name);
 
   return (
@@ -180,7 +186,7 @@ export function TopBar({
           >
             <span className="truncate">
               {projectTitle || 'Pilih Usaha'}{' '}
-              <span className="font-normal text-[#8FA4BF]">({displaySlug.replace(/^\/p/, '')})</span>
+              <span className="font-normal text-[#8FA4BF]">({displaySlug})</span>
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-[#8FA4BF] shrink-0" />
           </button>
@@ -244,7 +250,7 @@ export function TopBar({
                         <div className="min-w-0">
                           <div className="truncate">{rec.project.title || 'Tanpa Judul'}</div>
                           <div className="text-[11px] font-mono text-[#8FA4BF] truncate">
-                            /p/{pub.slug} · {pub.isPublished ? 'Tayang' : 'Draf'}
+                            /{pub.slug} · {pub.isPublished ? 'Tayang' : 'Draf'}
                           </div>
                         </div>
                         {isCurrent && <Check className="w-3.5 h-3.5 text-[#00C98A] shrink-0" />}
@@ -254,8 +260,21 @@ export function TopBar({
                 )}
               </div>
 
-              {(permissions.projects || canSystemSettings) && (
-                <div className="p-2 border-t border-[#DCE5EF] bg-[#F0F5FA]/50 space-y-1">
+              {(onOpenSaasWizard || permissions.projects || canSystemSettings) && (
+                <div className="p-2 border-t border-[#DCE5EF] bg-[#F0F5FA]/50 space-y-1.5">
+                  {onOpenSaasWizard && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBizOpen(false);
+                        onOpenSaasWizard();
+                      }}
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#00C98A] hover:bg-[#00B37B] text-white text-[11px] font-bold cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Buat Web Usaha (Pilih Template)</span>
+                    </button>
+                  )}
                   {permissions.projects && (
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
@@ -282,17 +301,19 @@ export function TopBar({
                       </button>
                     </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBizOpen(false);
-                      onOpenProjectsManager();
-                    }}
-                    className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-[#17243D] text-[11px] font-semibold cursor-pointer"
-                  >
-                    <FolderKanban className="w-3.5 h-3.5 text-[#8FA4BF]" />
-                    <span>Kelola Semua Daftar Usaha</span>
-                  </button>
+                  {(permissions.projects || canSystemSettings) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBizOpen(false);
+                        onOpenProjectsManager();
+                      }}
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-[#17243D] text-[11px] font-semibold cursor-pointer"
+                    >
+                      <FolderKanban className="w-3.5 h-3.5 text-[#8FA4BF]" />
+                      <span>Kelola Semua Daftar Usaha</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -497,7 +518,7 @@ export function TopBar({
           </a>
         ) : (
           <span className="hidden md:inline-block text-[12px] font-mono text-[#8FA4BF] px-2">
-            /p/—
+            /—
           </span>
         )}
 

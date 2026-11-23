@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import {
   AdvanceOptions,
+  AuthUser,
   BlockType,
   BottomNavbarConfig,
   BuilderBlock,
@@ -64,6 +65,7 @@ import {
   PrebuiltSectionCategory,
   SavedItemTemplate,
   SavedItemTemplateTarget,
+  SavedWebTemplate,
 } from '../types/builder';
 import {
   BLOCK_TYPE_NAMES,
@@ -141,6 +143,19 @@ interface LeftSidebarProps {
   onUpdateBlock?: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
   onResetPageThemeOverrides?: () => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
+  webTemplates?: SavedWebTemplate[];
+  webTemplatesLoading?: boolean;
+  currentUser?: AuthUser | null;
+  canEditCanvas?: boolean;
+  canCreateProject?: boolean;
+  onOpenSaveWebTemplate?: () => void;
+  onOpenEditWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onApplyWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onCreateProjectFromWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onOverwriteWebTemplateFromCanvas?: (tpl: SavedWebTemplate) => void;
+  onDeleteWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onImportWebTemplateJson?: (rawText: string) => void;
+  onRefreshWebTemplates?: () => void;
 }
 
 export interface ToolPaletteItem {
@@ -421,6 +436,19 @@ export function LeftSidebar({
   onUpdateBlock,
   onResetPageThemeOverrides,
   onAddChildToContainer,
+  webTemplates = [],
+  webTemplatesLoading = false,
+  currentUser = null,
+  canEditCanvas = true,
+  canCreateProject = true,
+  onOpenSaveWebTemplate,
+  onOpenEditWebTemplate,
+  onApplyWebTemplate,
+  onCreateProjectFromWebTemplate,
+  onOverwriteWebTemplateFromCanvas,
+  onDeleteWebTemplate,
+  onImportWebTemplateJson,
+  onRefreshWebTemplates,
 }: LeftSidebarProps) {
   const { label, isVisible } = useUiLabel();
   const [activeTab, setActiveTab] = useState<SidebarTab>('alat');
@@ -1002,6 +1030,19 @@ export function LeftSidebar({
           onUpdateBlock={onUpdateBlock}
           onResetPageThemeOverrides={onResetPageThemeOverrides}
           onAddChildToContainer={onAddChildToContainer}
+          webTemplates={webTemplates}
+          webTemplatesLoading={webTemplatesLoading}
+          currentUser={currentUser}
+          canEditCanvas={canEditCanvas}
+          canCreateProject={canCreateProject}
+          onOpenSaveWebTemplate={onOpenSaveWebTemplate}
+          onOpenEditWebTemplate={onOpenEditWebTemplate}
+          onApplyWebTemplate={onApplyWebTemplate}
+          onCreateProjectFromWebTemplate={onCreateProjectFromWebTemplate}
+          onOverwriteWebTemplateFromCanvas={onOverwriteWebTemplateFromCanvas}
+          onDeleteWebTemplate={onDeleteWebTemplate}
+          onImportWebTemplateJson={onImportWebTemplateJson}
+          onRefreshWebTemplates={onRefreshWebTemplates}
         />
       ) : (
       <div className="flex-1 overflow-y-auto px-2.5 pb-4 pt-1">

@@ -174,7 +174,7 @@ export function DomainAndAdsModal({
     if (validateDomainTab && slugConflictProject) {
       setFeedback({
         type: 'err',
-        text: `Slug "/p/${cleanSlug}" sudah dipakai oleh "${slugConflictProject.project.title}". Pilih slug lain.`,
+        text: `Slug "/${cleanSlug}" sudah dipakai oleh "${slugConflictProject.project.title}". Pilih slug lain.`,
       });
       setTab('domain');
       return;
@@ -360,7 +360,7 @@ export function DomainAndAdsModal({
                   </label>
                   <div className="flex items-center rounded-xl border border-[#DCE5EF] bg-[#F0F5FA]/60 overflow-hidden focus-within:border-[#00C98A] focus-within:bg-white transition-colors">
                     <span className="px-3 py-2 text-xs font-mono text-[#5B708B] border-r border-[#DCE5EF] bg-[#F0F5FA] select-none shrink-0">
-                      {origin.replace(/^https?:\/\//, '')}/p/
+                      {origin.replace(/^https?:\/\//, '')}/
                     </span>
                     <input
                       type="text"

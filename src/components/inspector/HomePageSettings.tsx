@@ -20,6 +20,7 @@ import {
   FilePlus2,
   Files,
   FileText,
+  Globe,
   GraduationCap,
   Grid3X3,
   GripVertical,
@@ -66,6 +67,7 @@ import {
 } from 'lucide-react';
 import {
   AdvanceOptions,
+  AuthUser,
   BlockType,
   BottomNavbarConfig,
   BottomNavbarItem,
@@ -74,6 +76,7 @@ import {
   BuilderSubPage,
   MenuIconSheetPosition,
   PageTheme,
+  SavedWebTemplate,
   ShadowPreset,
 } from '../../types/builder';
 import {
@@ -101,6 +104,7 @@ import { ButtonGlyph } from '../ButtonIcon';
 import { IconPicker } from '../IconPicker';
 import { SocialGlyph } from '../SocialIcon';
 import { AccordionSection, SliderRow, ToggleSwitch } from './InspectorPrimitives';
+import { WebTemplatesSection } from './WebTemplatesSection';
 
 interface HomePageSettingsProps {
   blocks: BuilderBlock[];
@@ -140,9 +144,23 @@ interface HomePageSettingsProps {
   onUpdateBlock?: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
   onResetPageThemeOverrides?: () => void;
   panelMode?: 'all' | 'tema' | 'layer';
+  // Template Web (Simpan & Bagikan 1 Halaman Penuh + Sub Halaman untuk Multi-User)
+  webTemplates?: SavedWebTemplate[];
+  webTemplatesLoading?: boolean;
+  currentUser?: AuthUser | null;
+  canEditCanvas?: boolean;
+  canCreateProject?: boolean;
+  onOpenSaveWebTemplate?: () => void;
+  onOpenEditWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onApplyWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onCreateProjectFromWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onOverwriteWebTemplateFromCanvas?: (tpl: SavedWebTemplate) => void;
+  onDeleteWebTemplate?: (tpl: SavedWebTemplate) => void;
+  onImportWebTemplateJson?: (rawText: string) => void;
+  onRefreshWebTemplates?: () => void;
 }
 
-type HomeSectionId = 'temaGlobal' | 'pages' | 'top' | 'bottom';
+type HomeSectionId = 'temaGlobal' | 'webTemplates' | 'pages' | 'top' | 'bottom';
 
 function hasBlockInTree(nodes: BuilderBlock[] | undefined, targetId: string): boolean {
   if (!Array.isArray(nodes) || !targetId) return false;
@@ -387,6 +405,19 @@ export function HomePageSettings({
   onUpdateBlock,
   onResetPageThemeOverrides,
   panelMode = 'all',
+  webTemplates = [],
+  webTemplatesLoading = false,
+  currentUser = null,
+  canEditCanvas = true,
+  canCreateProject = true,
+  onOpenSaveWebTemplate,
+  onOpenEditWebTemplate,
+  onApplyWebTemplate,
+  onCreateProjectFromWebTemplate,
+  onOverwriteWebTemplateFromCanvas,
+  onDeleteWebTemplate,
+  onImportWebTemplateJson,
+  onRefreshWebTemplates,
 }: HomePageSettingsProps) {
   const { label, isVisible } = useUiLabel();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -394,6 +425,7 @@ export function HomePageSettings({
   const showLayer = panelMode === 'all' || panelMode === 'layer';
   const [openSections, setOpenSections] = useState<Record<HomeSectionId, boolean>>({
     temaGlobal: false,
+    webTemplates: true,
     pages: true,
     top: false,
     bottom: false,
@@ -1548,6 +1580,34 @@ export function HomePageSettings({
           </div>
         </div>
       </AccordionSection>
+      )}
+
+      {/* 1a. Template Web (Simpan 1 Halaman Penuh + Sub Halaman untuk Multi-User) */}
+      {showTema && isVisible('home.sec.webTemplates') && onOpenSaveWebTemplate && (
+        <AccordionSection
+          id="webTemplates"
+          title={label('home.sec.webTemplates', 'Template Web')}
+          icon={<Globe className="w-3.5 h-3.5" />}
+          badge={`${webTemplates.length} template`}
+          isOpen={openSections.webTemplates}
+          onToggle={() => toggleSection('webTemplates')}
+        >
+          <WebTemplatesSection
+            templates={webTemplates}
+            loading={webTemplatesLoading}
+            currentUser={currentUser}
+            canEditCanvas={canEditCanvas}
+            canCreateProject={canCreateProject}
+            onOpenSaveModal={onOpenSaveWebTemplate}
+            onOpenEditModal={(tpl) => onOpenEditWebTemplate?.(tpl)}
+            onApplyToCurrentProject={(tpl) => onApplyWebTemplate?.(tpl)}
+            onCreateProjectFromTemplate={onCreateProjectFromWebTemplate}
+            onOverwriteFromCanvas={onOverwriteWebTemplateFromCanvas}
+            onDeleteTemplate={(tpl) => onDeleteWebTemplate?.(tpl)}
+            onImportTemplateJson={(raw) => onImportWebTemplateJson?.(raw)}
+            onRefresh={onRefreshWebTemplates}
+          />
+        </AccordionSection>
       )}
 
       {/* 1b. Multi Halaman (Beranda, Tambah Site, Duplikat Site, Hapus Site) */}

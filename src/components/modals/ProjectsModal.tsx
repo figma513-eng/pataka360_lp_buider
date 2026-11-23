@@ -206,7 +206,7 @@ export function ProjectsModal({
                       <span className="font-mono text-[#17243D]">
                         {pub.useCustomDomain && pub.customDomain
                           ? pub.customDomain
-                          : `/p/${pub.slug}`}
+                          : `/${pub.slug}`}
                       </span>
                       <span aria-hidden="true">·</span>
                       <span>{rec.project.blocks.length} elemen</span>

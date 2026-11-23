@@ -15,6 +15,7 @@ import type {
   FormSubmissionRecord,
   MediaAssetMeta,
   ProjectRecord,
+  SavedWebTemplate,
   UiAppearanceHiddenMap,
   UiAppearanceLabelsMap,
   UiAppearanceSettingsConfig,
@@ -31,6 +32,7 @@ import {
   sessionsTable,
   uiAppearanceSettingsTable,
   usersTable,
+  webTemplatesTable,
   webhookLogsTable,
 } from './schema.ts';
 import {
@@ -111,6 +113,7 @@ export interface JsonStoreData {
   webhookLogs: WebhookLogRecord[];
   mediaAssets?: MediaAssetMeta[];
   formSubmissions?: FormSubmissionRecord[];
+  webTemplates?: SavedWebTemplate[];
 }
 
 export const FULL_PERMISSIONS: FeaturePermissionsMap = {
@@ -390,6 +393,8 @@ export async function loadJsonStore(): Promise<JsonStoreData> {
       : undefined,
     webhookLogs: Array.isArray(parsed.webhookLogs) ? parsed.webhookLogs : [],
     mediaAssets: Array.isArray(parsed.mediaAssets) ? parsed.mediaAssets : [],
+    formSubmissions: Array.isArray(parsed.formSubmissions) ? parsed.formSubmissions : [],
+    webTemplates: Array.isArray(parsed.webTemplates) ? parsed.webTemplates : [],
   };
   return jsonCache;
 }
@@ -2191,6 +2196,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
       [apCnt],
       [mCnt],
       [uiCnt],
+      [wtCnt],
     ] = await Promise.all([
       state.db.select({ value: count() }).from(usersTable),
       state.db
@@ -2204,6 +2210,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
       state.db.select({ value: count() }).from(accessPoliciesTable),
       state.db.select({ value: count() }).from(mediaAssetsTable),
       state.db.select({ value: count() }).from(uiAppearanceSettingsTable),
+      state.db.select({ value: count() }).from(webTemplatesTable),
     ]);
 
     return {
@@ -2227,6 +2234,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         accessPolicies: Number(apCnt?.value ?? 0),
         mediaAssets: Number(mCnt?.value ?? 0),
         uiAppearance: Number(uiCnt?.value ?? 0),
+        webTemplates: Number(wtCnt?.value ?? 0),
       },
     };
   }
@@ -2256,6 +2264,7 @@ export async function getDbDiagnostics(): Promise<DbDiagnostics> {
         accessPolicies: store.accessSettings ? 1 : 0,
         mediaAssets: Array.isArray(store.mediaAssets) ? store.mediaAssets.length : 0,
         uiAppearance: store.uiAppearanceSettings ? 1 : 0,
+        webTemplates: Array.isArray(store.webTemplates) ? store.webTemplates.length : 0,
       },
     };
   } catch (err) {
@@ -2329,13 +2338,14 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   let mediaAssets: MediaAssetMeta[] = [];
   let sessions: StoredSessionRecord[] = [];
   let uiAppearance: UiAppearanceSettingsConfig | null = null;
+  let webTemplates: SavedWebTemplate[] = [];
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
 
-      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes, uiRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, whRes, mRes, sRes, uiRes, wtRes] = await Promise.all([
         client.query('SELECT * FROM users'),
         client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
         client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
@@ -2345,6 +2355,7 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         client.query('SELECT * FROM media_assets ORDER BY created_at DESC'),
         client.query('SELECT * FROM sessions WHERE expires_at > $1', [now]),
         client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
+        client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
       ]);
 
       await client.query('COMMIT');
@@ -2462,6 +2473,27 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
           updatedAt: Number(uiRow.updated_at || now),
         };
       }
+
+      webTemplates = wtRes.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || '',
+        category: r.category || 'bisnis',
+        visibility: r.visibility === 'private' ? 'private' : 'shared',
+        allowCollaborativeEdit: Boolean(r.allow_collaborative_edit),
+        snapshot: r.snapshot_json,
+        mainBlockCount: Number(r.main_block_count || 0),
+        subPageCount: Number(r.sub_page_count || 0),
+        totalBlockCount: Number(r.total_block_count || 0),
+        subPageTitles: Array.isArray(r.sub_page_titles_json) ? r.sub_page_titles_json : [],
+        paletteColors: Array.isArray(r.palette_colors_json) ? r.palette_colors_json : [],
+        createdByUserId: r.created_by_user_id,
+        createdByName: r.created_by_name || 'Pengguna',
+        updatedByName: r.updated_by_name ?? undefined,
+        usageCount: Number(r.usage_count || 0),
+        createdAt: Number(r.created_at || now),
+        updatedAt: Number(r.updated_at || now),
+      }));
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -2484,6 +2516,7 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
           updatedAt: Number(store.uiAppearanceSettings.updatedAt || now),
         }
       : null;
+    webTemplates = Array.isArray(store.webTemplates) ? [...store.webTemplates] : [];
   }
 
   const userIds = new Set(users.map((u) => u.id));
@@ -2576,8 +2609,225 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
     lines.push(``);
   }
 
+  lines.push(`-- 10. Web Templates (${webTemplates.length} baris)`);
+  for (const wt of webTemplates) {
+    lines.push(
+      `INSERT INTO web_templates (id, name, description, category, visibility, allow_collaborative_edit, snapshot_json, main_block_count, sub_page_count, total_block_count, sub_page_titles_json, palette_colors_json, created_by_user_id, created_by_name, updated_by_name, usage_count, created_at, updated_at) VALUES (${sqlText(wt.id)}, ${sqlText(wt.name)}, ${sqlText(wt.description || '')}, ${sqlText(wt.category || 'bisnis')}, ${sqlText(wt.visibility || 'shared')}, ${sqlBool(Boolean(wt.allowCollaborativeEdit))}, ${sqlJsonb(wt.snapshot)}, ${sqlNum(wt.mainBlockCount)}, ${sqlNum(wt.subPageCount)}, ${sqlNum(wt.totalBlockCount)}, ${sqlJsonb(wt.subPageTitles || [])}, ${sqlJsonb(wt.paletteColors || [])}, ${sqlText(wt.createdByUserId)}, ${sqlText(wt.createdByName || 'Pengguna')}, ${sqlText(wt.updatedByName ?? null)}, ${sqlNum(wt.usageCount || 0)}, ${sqlNum(wt.createdAt)}, ${sqlNum(wt.updatedAt)}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, category = EXCLUDED.category, visibility = EXCLUDED.visibility, allow_collaborative_edit = EXCLUDED.allow_collaborative_edit, snapshot_json = EXCLUDED.snapshot_json, main_block_count = EXCLUDED.main_block_count, sub_page_count = EXCLUDED.sub_page_count, total_block_count = EXCLUDED.total_block_count, sub_page_titles_json = EXCLUDED.sub_page_titles_json, palette_colors_json = EXCLUDED.palette_colors_json, updated_by_name = EXCLUDED.updated_by_name, usage_count = EXCLUDED.usage_count, updated_at = EXCLUDED.updated_at;`
+    );
+  }
+  lines.push(``);
+
   lines.push(`COMMIT;`);
   lines.push(``);
 
   return lines.join('\n');
+}
+
+// ============================================================
+// Web Templates Repository (Multi-User Full-Page + Subpages)
+// ============================================================
+function rowToSavedWebTemplate(
+  row: typeof webTemplatesTable.$inferSelect
+): SavedWebTemplate {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || '',
+    category: row.category || 'bisnis',
+    visibility: row.visibility === 'private' ? 'private' : 'shared',
+    allowCollaborativeEdit: Boolean(row.allowCollaborativeEdit),
+    snapshot: row.snapshotJson,
+    mainBlockCount: Number(row.mainBlockCount || 0),
+    subPageCount: Number(row.subPageCount || 0),
+    totalBlockCount: Number(row.totalBlockCount || 0),
+    subPageTitles: Array.isArray(row.subPageTitlesJson) ? row.subPageTitlesJson : [],
+    paletteColors: Array.isArray(row.paletteColorsJson) ? row.paletteColorsJson : [],
+    createdByUserId: row.createdByUserId,
+    createdByName: row.createdByName || 'Pengguna',
+    updatedByName: row.updatedByName || undefined,
+    usageCount: Number(row.usageCount || 0),
+    createdAt: Number(row.createdAt || Date.now()),
+    updatedAt: Number(row.updatedAt || Date.now()),
+  };
+}
+
+export async function listWebTemplates(
+  viewerUser?: StoredUserRecord | null
+): Promise<SavedWebTemplate[]> {
+  await assertStorageReady();
+  const state = await getDbState();
+  let all: SavedWebTemplate[] = [];
+
+  if (state.db) {
+    const rows = await state.db
+      .select()
+      .from(webTemplatesTable)
+      .orderBy(desc(webTemplatesTable.updatedAt));
+    all = rows.map(rowToSavedWebTemplate);
+  } else {
+    const store = await loadJsonStore();
+    all = Array.isArray(store.webTemplates) ? [...store.webTemplates] : [];
+    all.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+
+  if (!viewerUser) {
+    return all.filter((t) => t.visibility === 'shared');
+  }
+  const isAdmin = viewerUser.role === 'super_admin' || viewerUser.role === 'admin';
+  return all.filter(
+    (t) => t.visibility === 'shared' || t.createdByUserId === viewerUser.id || isAdmin
+  );
+}
+
+export async function getWebTemplateById(id: string): Promise<SavedWebTemplate | null> {
+  await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    const rows = await state.db
+      .select()
+      .from(webTemplatesTable)
+      .where(eq(webTemplatesTable.id, id))
+      .limit(1);
+    return rows[0] ? rowToSavedWebTemplate(rows[0]) : null;
+  }
+  const store = await loadJsonStore();
+  const list = Array.isArray(store.webTemplates) ? store.webTemplates : [];
+  return list.find((t) => t.id === id) || null;
+}
+
+export async function upsertWebTemplate(template: SavedWebTemplate): Promise<SavedWebTemplate> {
+  await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    await state.db
+      .insert(webTemplatesTable)
+      .values({
+        id: template.id,
+        name: template.name,
+        description: template.description || '',
+        category: template.category,
+        visibility: template.visibility,
+        allowCollaborativeEdit: Boolean(template.allowCollaborativeEdit),
+        snapshotJson: template.snapshot,
+        mainBlockCount: template.mainBlockCount,
+        subPageCount: template.subPageCount,
+        totalBlockCount: template.totalBlockCount,
+        subPageTitlesJson: template.subPageTitles,
+        paletteColorsJson: template.paletteColors,
+        createdByUserId: template.createdByUserId,
+        createdByName: template.createdByName,
+        updatedByName: template.updatedByName ?? null,
+        usageCount: template.usageCount,
+        createdAt: template.createdAt,
+        updatedAt: template.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: webTemplatesTable.id,
+        set: {
+          name: template.name,
+          description: template.description || '',
+          category: template.category,
+          visibility: template.visibility,
+          allowCollaborativeEdit: Boolean(template.allowCollaborativeEdit),
+          snapshotJson: template.snapshot,
+          mainBlockCount: template.mainBlockCount,
+          subPageCount: template.subPageCount,
+          totalBlockCount: template.totalBlockCount,
+          subPageTitlesJson: template.subPageTitles,
+          paletteColorsJson: template.paletteColors,
+          updatedByName: template.updatedByName ?? null,
+          usageCount: template.usageCount,
+          updatedAt: template.updatedAt,
+        },
+      });
+    return template;
+  }
+
+  return withJsonStoreLock(async () => {
+    const store = await loadJsonStore();
+    const existing = Array.isArray(store.webTemplates) ? store.webTemplates : [];
+    const idx = existing.findIndex((t) => t.id === template.id);
+    const next =
+      idx >= 0
+        ? existing.map((t, i) => (i === idx ? template : t))
+        : [template, ...existing];
+    await persistJsonStore({
+      ...store,
+      webTemplates: next.slice(0, 200),
+    });
+    return template;
+  });
+}
+
+export async function deleteWebTemplate(id: string): Promise<boolean> {
+  await assertStorageReady();
+  const state = await getDbState();
+  if (state.db) {
+    const deleted = await state.db
+      .delete(webTemplatesTable)
+      .where(eq(webTemplatesTable.id, id))
+      .returning({ id: webTemplatesTable.id });
+    return deleted.length > 0;
+  }
+
+  return withJsonStoreLock(async () => {
+    const store = await loadJsonStore();
+    const existing = Array.isArray(store.webTemplates) ? store.webTemplates : [];
+    const next = existing.filter((t) => t.id !== id);
+    if (next.length === existing.length) return false;
+    await persistJsonStore({
+      ...store,
+      webTemplates: next,
+    });
+    return true;
+  });
+}
+
+export async function incrementWebTemplateUsage(id: string): Promise<SavedWebTemplate | null> {
+  await assertStorageReady();
+  const existing = await getWebTemplateById(id);
+  if (!existing) return null;
+  const updated: SavedWebTemplate = {
+    ...existing,
+    usageCount: (existing.usageCount || 0) + 1,
+  };
+  await upsertWebTemplate(updated);
+  return updated;
+}
+
+/**
+ * Grants a self-service SaaS buyer scoped access strictly to their own newly created site
+ * (editor + publishing + analytics on their own unitScope ONLY — never elevates role or access_control).
+ */
+export async function grantBuyerSelfSiteAccess(
+  userId: string,
+  projectId: string
+): Promise<StoredUserRecord | null> {
+  await assertStorageReady();
+  const existing = await getUserById(userId);
+  if (!existing) return null;
+  const nextScope: 'all' | string[] =
+    existing.unitScope === 'all'
+      ? 'all'
+      : Array.from(new Set([...(Array.isArray(existing.unitScope) ? existing.unitScope : []), projectId]));
+  const nextPermissions: FeaturePermissionsMap =
+    existing.role === 'super_admin'
+      ? { ...FULL_PERMISSIONS }
+      : {
+          ...existing.permissions,
+          editor: true,
+          publishing: true,
+          analytics: true,
+        };
+  const nextRole: AccessRole =
+    existing.role === 'viewer' ? 'editor' : existing.role;
+  const updated: StoredUserRecord = {
+    ...existing,
+    role: nextRole,
+    unitScope: nextScope,
+    permissions: nextPermissions,
+    updatedAt: Date.now(),
+  };
+  await upsertUser(updated);
+  return updated;
 }

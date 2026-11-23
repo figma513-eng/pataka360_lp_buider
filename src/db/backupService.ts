@@ -10,6 +10,7 @@ import type {
   MediaAssetMeta,
   ProjectRecord,
   RestorePreviewSummary,
+  SavedWebTemplate,
   UiAppearanceSettingsConfig,
 } from '../types/builder.ts';
 import { getDbState } from './index.ts';
@@ -25,6 +26,7 @@ import {
   listAnalyticsEvents,
   listProjectEntries,
   listUsers,
+  listWebTemplates,
   loadJsonStore,
   normalizeHostHeader,
   normalizeServerSlug,
@@ -70,6 +72,7 @@ export interface CompleteBackupPayload {
   };
   apiSettings: ApiSettingsConfig;
   uiAppearanceSettings?: UiAppearanceSettingsConfig;
+  webTemplates?: SavedWebTemplate[];
 }
 
 export interface CompleteBackupBundle {
@@ -104,19 +107,21 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
   let access: AccessSettingsConfig = createDefaultAccessSettings();
   let apiSettings: ApiSettingsConfig = createDefaultApiSettings();
   let uiAppearanceSettings: UiAppearanceSettingsConfig = { labels: {}, updatedAt: 0 };
+  let webTemplates: SavedWebTemplate[] = [];
   let userCount = 0;
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const [uRes, pRes, eRes, apRes, apiRes, uiRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, uiRes, wtRes] = await Promise.all([
         client.query('SELECT id, name, email, role, is_active, unit_scope_json, permissions_json, created_at FROM users'),
         client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
         client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
         client.query(`SELECT * FROM access_policies WHERE id = 'default' LIMIT 1`),
         client.query(`SELECT * FROM api_settings WHERE id = 'default' LIMIT 1`),
         client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
+        client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
       ]);
       await client.query('COMMIT');
 
@@ -198,6 +203,26 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
           updatedAt: Number(uiRow.updated_at || 0),
         };
       }
+      webTemplates = wtRes.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || '',
+        category: r.category || 'bisnis',
+        visibility: r.visibility === 'private' ? 'private' : 'shared',
+        allowCollaborativeEdit: Boolean(r.allow_collaborative_edit),
+        snapshot: r.snapshot_json,
+        mainBlockCount: Number(r.main_block_count || 0),
+        subPageCount: Number(r.sub_page_count || 0),
+        totalBlockCount: Number(r.total_block_count || 0),
+        subPageTitles: Array.isArray(r.sub_page_titles_json) ? r.sub_page_titles_json : [],
+        paletteColors: Array.isArray(r.palette_colors_json) ? r.palette_colors_json : [],
+        createdByUserId: r.created_by_user_id,
+        createdByName: r.created_by_name || 'Pengguna',
+        updatedByName: r.updated_by_name ?? undefined,
+        usageCount: Number(r.usage_count || 0),
+        createdAt: Number(r.created_at || Date.now()),
+        updatedAt: Number(r.updated_at || Date.now()),
+      }));
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -205,20 +230,23 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       client.release();
     }
   } else {
-    const [users, entries, events, acc, api, ui] = await Promise.all([
+    const [users, entries, events, acc, api, ui, wts] = await Promise.all([
       listUsers(),
       listProjectEntries(),
       listAnalyticsEvents(),
       getAccessSettings(),
       getApiSettings(),
       getUiAppearanceSettings(),
+      listWebTemplates(null),
     ]);
+    const rawStore = await loadJsonStore();
     userCount = users.length;
     projects = entries;
     analyticsEvents = events;
     access = acc;
     apiSettings = api;
     uiAppearanceSettings = ui;
+    webTemplates = Array.isArray(rawStore.webTemplates) ? [...rawStore.webTemplates] : wts;
   }
 
   const media = await exportAllDiskMediaAssets();
@@ -259,6 +287,7 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
     ...(Object.keys(uiAppearanceSettings.labels).length > 0
       ? { uiAppearanceSettings }
       : {}),
+    ...(webTemplates.length > 0 ? { webTemplates } : {}),
   };
 
   const checksum = computeCanonicalChecksum(payload);
@@ -631,6 +660,56 @@ export async function applyBackupRestore(params: {
         );
       }
 
+      if (Array.isArray(payload.webTemplates)) {
+        await client.query('DELETE FROM web_templates');
+        for (const wt of payload.webTemplates) {
+          if (!wt || !wt.id || !wt.name || !wt.snapshot) continue;
+          await client.query(
+            `INSERT INTO web_templates (
+              id, name, description, category, visibility, allow_collaborative_edit,
+              snapshot_json, main_block_count, sub_page_count, total_block_count,
+              sub_page_titles_json, palette_colors_json, created_by_user_id,
+              created_by_name, updated_by_name, usage_count, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$18)
+            ON CONFLICT (id) DO UPDATE SET
+              name = EXCLUDED.name,
+              description = EXCLUDED.description,
+              category = EXCLUDED.category,
+              visibility = EXCLUDED.visibility,
+              allow_collaborative_edit = EXCLUDED.allow_collaborative_edit,
+              snapshot_json = EXCLUDED.snapshot_json,
+              main_block_count = EXCLUDED.main_block_count,
+              sub_page_count = EXCLUDED.sub_page_count,
+              total_block_count = EXCLUDED.total_block_count,
+              sub_page_titles_json = EXCLUDED.sub_page_titles_json,
+              palette_colors_json = EXCLUDED.palette_colors_json,
+              updated_by_name = EXCLUDED.updated_by_name,
+              usage_count = EXCLUDED.usage_count,
+              updated_at = EXCLUDED.updated_at`,
+            [
+              wt.id,
+              wt.name,
+              wt.description || '',
+              wt.category || 'bisnis',
+              wt.visibility === 'private' ? 'private' : 'shared',
+              Boolean(wt.allowCollaborativeEdit),
+              JSON.stringify(wt.snapshot),
+              Number(wt.mainBlockCount || 0),
+              Number(wt.subPageCount || 0),
+              Number(wt.totalBlockCount || 0),
+              JSON.stringify(Array.isArray(wt.subPageTitles) ? wt.subPageTitles : []),
+              JSON.stringify(Array.isArray(wt.paletteColors) ? wt.paletteColors : []),
+              wt.createdByUserId || params.actorUserId,
+              wt.createdByName || 'Pengguna',
+              wt.updatedByName ?? null,
+              Number(wt.usageCount || 0),
+              Number(wt.createdAt || now),
+              Number(wt.updatedAt || now),
+            ]
+          );
+        }
+      }
+
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
@@ -683,6 +762,12 @@ export async function applyBackupRestore(params: {
               updatedAt: now,
             }
           : store.uiAppearanceSettings,
+        formSubmissions: Array.isArray(store.formSubmissions) ? store.formSubmissions : [],
+        webTemplates: Array.isArray(payload.webTemplates)
+          ? payload.webTemplates
+          : Array.isArray(store.webTemplates)
+          ? store.webTemplates
+          : [],
       };
 
       await persistJsonStore(nextStore);

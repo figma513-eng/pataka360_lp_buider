@@ -17,6 +17,8 @@ import type {
   FeaturePermissionKey,
   FormSubmissionRecord,
   ProjectRecord,
+  SavedWebTemplate,
+  WebTemplateSnapshot,
 } from './src/types/builder.ts';
 import { getDbState, resetDbConnectionCheck } from './src/db/index.ts';
 import {
@@ -30,6 +32,7 @@ import {
   createSession,
   deleteProjectEntry,
   deleteSessionByToken,
+  deleteWebTemplate,
   dispatchWebhookEvent,
   ensureP0AAccessHardening,
   exportFullPostgresSqlDump,
@@ -43,13 +46,17 @@ import {
   getSessionUserByToken,
   getUiAppearanceSettings,
   getUserByEmail,
+  getWebTemplateById,
+  grantBuyerSelfSiteAccess,
   hashPassword,
+  incrementWebTemplateUsage,
   insertAnalyticsEvent,
   insertFormSubmission,
   listAnalyticsEvents,
   listFormSubmissions,
   listProjectEntries,
   listUsers,
+  listWebTemplates,
   listWebhookLogs,
   normalizeHostHeader,
   normalizeServerSlug,
@@ -62,8 +69,27 @@ import {
   upsertMediaAssetMeta,
   upsertProjectEntry,
   upsertUser,
+  upsertWebTemplate,
   verifyPassword,
 } from './src/db/repository.ts';
+import {
+  buildWebTemplateSnapshot,
+  computeWebTemplateStats,
+  instantiateWebTemplateSnapshot,
+  normalizeWebTemplateCategory,
+  normalizeWebTemplateVisibility,
+} from './src/utils/webTemplateHelpers.ts';
+import {
+  DEFAULT_ADVANCE_OPTIONS,
+  INITIAL_PROJECT,
+  createDefaultBottomNavbar,
+} from './src/data/presets.ts';
+import {
+  DEFAULT_ADS_CONFIG,
+  createDefaultPublishingConfig,
+  isReservedPublicSlug,
+} from './src/utils/publishingHelpers.ts';
+import { createDefaultWhatsappCenter } from './src/utils/whatsappBuilder.ts';
 import { validateDynamicFormSubmission } from './src/utils/formValidation.ts';
 import { findBlockById } from './src/utils/treeHelpers.ts';
 import {
@@ -1398,6 +1424,13 @@ export async function createApp(options?: {
         'unit-usaha'
       );
 
+      if (isReservedPublicSlug(requestedSlug)) {
+        return res.status(400).json({
+          error: `Alamat "/${requestedSlug}" dicadangkan oleh sistem. Gunakan slug nama usaha lain.`,
+          code: 'SLUG_RESERVED',
+        });
+      }
+
       const conflict = entries.find(
         (entry) =>
           entry.record.id !== projectId &&
@@ -1410,7 +1443,7 @@ export async function createApp(options?: {
       );
       if (conflict) {
         return res.status(409).json({
-          error: `Slug "/p/${requestedSlug}" sudah dipakai oleh unit usaha "${conflict.record.project.title}". Gunakan slug lain.`,
+          error: `Alamat "/${requestedSlug}" sudah dipakai oleh unit usaha "${conflict.record.project.title}". Gunakan slug lain.`,
           code: 'SLUG_CONFLICT',
         });
       }
@@ -1558,6 +1591,13 @@ export async function createApp(options?: {
         'unit-usaha'
       );
 
+      if (isReservedPublicSlug(requestedSlug)) {
+        return res.status(400).json({
+          error: `Alamat "/${requestedSlug}" dicadangkan oleh sistem. Pilih slug unik terlebih dahulu.`,
+          code: 'SLUG_RESERVED',
+        });
+      }
+
       const conflict = entries.find(
         (entry) =>
           entry.record.id !== projectId &&
@@ -1570,7 +1610,7 @@ export async function createApp(options?: {
       );
       if (conflict) {
         return res.status(409).json({
-          error: `Slug "/p/${requestedSlug}" sudah dipakai oleh unit usaha "${conflict.record.project.title}". Pilih slug unik terlebih dahulu.`,
+          error: `Alamat "/${requestedSlug}" sudah dipakai oleh unit usaha "${conflict.record.project.title}". Pilih slug unik terlebih dahulu.`,
           code: 'SLUG_CONFLICT',
         });
       }
@@ -1680,6 +1720,433 @@ export async function createApp(options?: {
         email: req.authUser!.email,
       });
       return res.json({ ok: true });
+    })
+  );
+
+  // ============================================================
+  // Web Templates Library (Full Page + Subpages, Multi-User Shared)
+  // ============================================================
+  const sanitizeTemplateSnapshotOnServer = (
+    rawSnap: unknown,
+    fallbackTitle: string
+  ): WebTemplateSnapshot | null => {
+    if (!rawSnap || typeof rawSnap !== 'object') return null;
+    const cand = rawSnap as Partial<WebTemplateSnapshot>;
+    if (!Array.isArray(cand.blocks) || !cand.theme || typeof cand.theme !== 'object') {
+      return null;
+    }
+    const sanitizedProj = sanitizeBuilderProject({
+      title: fallbackTitle,
+      theme: cand.theme,
+      blocks: cand.blocks,
+      pages: Array.isArray(cand.pages) ? cand.pages : [],
+      advanceOptions: cand.advanceOptions || { ...DEFAULT_ADVANCE_OPTIONS },
+      bottomNavbar: cand.bottomNavbar,
+    });
+    return buildWebTemplateSnapshot(sanitizedProj);
+  };
+
+  app.get(
+    '/api/web-templates',
+    requireAuthenticatedAccess(),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const templates = await listWebTemplates(req.authUser);
+      return res.json({ ok: true, templates });
+    })
+  );
+
+  app.post(
+    '/api/web-templates',
+    requireAuthenticatedAccess('editor'),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const body = (req.body || {}) as {
+        name?: unknown;
+        description?: unknown;
+        category?: unknown;
+        visibility?: unknown;
+        allowCollaborativeEdit?: unknown;
+        snapshot?: unknown;
+      };
+      const cleanName = String(body.name || '')
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .trim()
+        .slice(0, 80);
+      if (!cleanName) {
+        return res.status(400).json({ error: 'Nama Template Web wajib diisi.' });
+      }
+      const cleanDesc = String(body.description || '')
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .trim()
+        .slice(0, 240);
+      const safeSnapshot = sanitizeTemplateSnapshotOnServer(body.snapshot, cleanName);
+      if (!safeSnapshot) {
+        return res.status(400).json({
+          error: 'Data snapshot halaman tidak valid. Pastikan halaman memiliki tema dan blok.',
+        });
+      }
+
+      const now = Date.now();
+      const stats = computeWebTemplateStats(safeSnapshot);
+      const created: SavedWebTemplate = {
+        id: `wtpl_${crypto.randomBytes(6).toString('hex')}`,
+        name: cleanName,
+        description: cleanDesc,
+        category: normalizeWebTemplateCategory(body.category),
+        visibility: normalizeWebTemplateVisibility(body.visibility),
+        allowCollaborativeEdit: Boolean(body.allowCollaborativeEdit),
+        snapshot: safeSnapshot,
+        mainBlockCount: stats.mainBlockCount,
+        subPageCount: stats.subPageCount,
+        totalBlockCount: stats.totalBlockCount,
+        subPageTitles: stats.subPageTitles,
+        paletteColors: stats.paletteColors,
+        createdByUserId: req.authUser!.id,
+        createdByName: req.authUser!.name || req.authUser!.email || 'Pengguna',
+        usageCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await upsertWebTemplate(created);
+      return res.status(201).json({ ok: true, template: created });
+    })
+  );
+
+  app.put(
+    '/api/web-templates/:id',
+    requireAuthenticatedAccess('editor'),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const id = String(req.params.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'ID template tidak valid.' });
+      const existing = await getWebTemplateById(id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Template Web tidak ditemukan.' });
+      }
+
+      const user = req.authUser!;
+      const isOwnerOrAdmin =
+        existing.createdByUserId === user.id ||
+        user.role === 'super_admin' ||
+        user.role === 'admin';
+      const canCollaborate =
+        existing.visibility === 'shared' && Boolean(existing.allowCollaborativeEdit);
+
+      if (!isOwnerOrAdmin && !canCollaborate) {
+        return res.status(403).json({
+          error: 'Hanya pembuat template atau Admin yang dapat mengubah template master ini.',
+          code: 'TEMPLATE_FORBIDDEN',
+        });
+      }
+
+      const body = (req.body || {}) as {
+        name?: unknown;
+        description?: unknown;
+        category?: unknown;
+        visibility?: unknown;
+        allowCollaborativeEdit?: unknown;
+        snapshot?: unknown;
+      };
+
+      const nextName =
+        typeof body.name === 'string' && body.name.trim()
+          ? body.name.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 80)
+          : existing.name;
+      const nextDesc =
+        typeof body.description === 'string'
+          ? body.description.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 240)
+          : existing.description;
+      const nextCategory =
+        body.category !== undefined
+          ? normalizeWebTemplateCategory(body.category)
+          : existing.category;
+      const nextVisibility =
+        isOwnerOrAdmin && body.visibility !== undefined
+          ? normalizeWebTemplateVisibility(body.visibility)
+          : existing.visibility;
+      const nextAllowCollab =
+        isOwnerOrAdmin && body.allowCollaborativeEdit !== undefined
+          ? Boolean(body.allowCollaborativeEdit)
+          : existing.allowCollaborativeEdit;
+
+      let nextSnapshot = existing.snapshot;
+      if (body.snapshot !== undefined) {
+        const sanitized = sanitizeTemplateSnapshotOnServer(body.snapshot, nextName);
+        if (!sanitized) {
+          return res.status(400).json({ error: 'Data snapshot pembaruan tidak valid.' });
+        }
+        nextSnapshot = sanitized;
+      }
+
+      const stats = computeWebTemplateStats(nextSnapshot);
+      const updated: SavedWebTemplate = {
+        ...existing,
+        name: nextName,
+        description: nextDesc,
+        category: nextCategory,
+        visibility: nextVisibility,
+        allowCollaborativeEdit: nextAllowCollab,
+        snapshot: nextSnapshot,
+        mainBlockCount: stats.mainBlockCount,
+        subPageCount: stats.subPageCount,
+        totalBlockCount: stats.totalBlockCount,
+        subPageTitles: stats.subPageTitles,
+        paletteColors: stats.paletteColors,
+        updatedByName: user.name || user.email || 'Pengguna',
+        updatedAt: Date.now(),
+      };
+
+      await upsertWebTemplate(updated);
+      return res.json({ ok: true, template: updated });
+    })
+  );
+
+  app.post(
+    '/api/web-templates/:id/use',
+    requireAuthenticatedAccess('editor'),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const id = String(req.params.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'ID template tidak valid.' });
+      const existing = await getWebTemplateById(id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Template Web tidak ditemukan.' });
+      }
+      const user = req.authUser!;
+      const isAdmin = user.role === 'super_admin' || user.role === 'admin';
+      if (existing.visibility === 'private' && existing.createdByUserId !== user.id && !isAdmin) {
+        return res.status(403).json({
+          error: 'Template Web ini bersifat pribadi.',
+          code: 'TEMPLATE_PRIVATE',
+        });
+      }
+      const updated = await incrementWebTemplateUsage(id);
+      return res.json({ ok: true, template: updated || existing });
+    })
+  );
+
+  app.delete(
+    '/api/web-templates/:id',
+    requireAuthenticatedAccess(),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const id = String(req.params.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'ID template tidak valid.' });
+      const existing = await getWebTemplateById(id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Template Web tidak ditemukan.' });
+      }
+      const user = req.authUser!;
+      const canDelete =
+        existing.createdByUserId === user.id ||
+        user.role === 'super_admin' ||
+        user.role === 'admin';
+      if (!canDelete) {
+        return res.status(403).json({
+          error: 'Hanya pembuat template atau Admin yang dapat menghapus Template Web ini.',
+          code: 'TEMPLATE_FORBIDDEN',
+        });
+      }
+      await deleteWebTemplate(id);
+      return res.json({ ok: true });
+    })
+  );
+
+  // ============================================================
+  // SaaS Buyer Onboarding (Check Slug & Create Business Site)
+  // ============================================================
+  const findAvailableSaasSlugSuggestion = async (baseSlug: string): Promise<string> => {
+    const base = normalizeServerSlug(baseSlug, 'usaha-saya').slice(0, 48);
+    const candidates = [base];
+    for (let i = 2; i <= 12; i += 1) {
+      candidates.push(`${base}-${i}`);
+    }
+    candidates.push(`${base}-${crypto.randomBytes(2).toString('hex')}`);
+    for (const cand of candidates) {
+      if (isReservedPublicSlug(cand)) continue;
+      const existing = await getProjectEntryBySlug(cand);
+      if (!existing) return cand;
+    }
+    return `usaha-${crypto.randomBytes(4).toString('hex')}`;
+  };
+
+  app.get(
+    '/api/saas/check-slug',
+    requireAuthenticatedAccess(),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const raw = String(req.query.slug || '').trim();
+      const slug = normalizeServerSlug(raw, '').slice(0, 60);
+      if (!slug || slug.length < 2) {
+        return res.json({
+          ok: true,
+          slug,
+          available: false,
+          reason: 'Nama link minimal 2 karakter (huruf, angka, atau tanda hubung).',
+          suggestedSlug: await findAvailableSaasSlugSuggestion(raw || 'usaha-saya'),
+        });
+      }
+      if (isReservedPublicSlug(slug)) {
+        return res.json({
+          ok: true,
+          slug,
+          available: false,
+          reason: `Alamat "/${slug}" dicadangkan oleh sistem. Gunakan nama usaha yang lebih spesifik.`,
+          suggestedSlug: await findAvailableSaasSlugSuggestion(`${slug}-ku`),
+        });
+      }
+      const existing = await getProjectEntryBySlug(slug);
+      if (existing) {
+        return res.json({
+          ok: true,
+          slug,
+          available: false,
+          reason: `Alamat "/${slug}" sudah dipakai usaha lain.`,
+          suggestedSlug: await findAvailableSaasSlugSuggestion(slug),
+        });
+      }
+      return res.json({
+        ok: true,
+        slug,
+        available: true,
+        suggestedSlug: slug,
+      });
+    })
+  );
+
+  app.post(
+    '/api/saas/onboarding/create-site',
+    requireAuthenticatedAccess(),
+    asyncHandler(async (req: AuthenticatedRequest, res) => {
+      const user = req.authUser!;
+      const limitCheck = apiRateLimiter.consume(`saas_create:${user.id}`, 20, 60_000);
+      if (!limitCheck.allowed) {
+        res.setHeader('Retry-After', String(limitCheck.retryAfterSeconds));
+        return res.status(429).json({
+          error: 'Terlalu banyak percobaan membuat web usaha. Coba lagi sebentar lagi.',
+        });
+      }
+
+      const body = (req.body || {}) as {
+        businessName?: unknown;
+        slug?: unknown;
+        templateId?: unknown;
+        publishImmediately?: unknown;
+      };
+
+      const businessName = String(body.businessName || '')
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .trim()
+        .slice(0, 80);
+      if (businessName.length < 2) {
+        return res.status(400).json({ error: 'Nama usaha wajib diisi (minimal 2 karakter).' });
+      }
+
+      const rawSlug = String(body.slug || businessName).trim();
+      const slug = normalizeServerSlug(rawSlug, '').slice(0, 60);
+      if (!slug || slug.length < 2) {
+        return res.status(400).json({ error: 'Alamat link usaha minimal 2 karakter.' });
+      }
+      if (isReservedPublicSlug(slug)) {
+        return res.status(400).json({
+          error: `Alamat "/${slug}" dicadangkan oleh sistem. Silakan pilih nama link lain.`,
+          code: 'SLUG_RESERVED',
+          suggestedSlug: await findAvailableSaasSlugSuggestion(`${slug}-ku`),
+        });
+      }
+
+      const existingSlugEntry = await getProjectEntryBySlug(slug);
+      if (existingSlugEntry) {
+        return res.status(409).json({
+          error: `Alamat "/${slug}" sudah digunakan usaha lain. Pilih nama link lain.`,
+          code: 'SLUG_TAKEN',
+          suggestedSlug: await findAvailableSaasSlugSuggestion(slug),
+        });
+      }
+
+      const templateId =
+        typeof body.templateId === 'string' && body.templateId.trim()
+          ? body.templateId.trim()
+          : null;
+      const publishImmediately = Boolean(body.publishImmediately);
+
+      let instantiatedProject: ProjectRecord['project'];
+      if (templateId) {
+        const tpl = await getWebTemplateById(templateId);
+        if (!tpl) {
+          return res.status(404).json({ error: 'Template Web yang dipilih tidak ditemukan.' });
+        }
+        const isAdmin = user.role === 'super_admin' || user.role === 'admin';
+        if (tpl.visibility === 'private' && tpl.createdByUserId !== user.id && !isAdmin) {
+          return res.status(403).json({
+            error: 'Template Web ini bersifat pribadi dan tidak dapat digunakan.',
+            code: 'TEMPLATE_PRIVATE',
+          });
+        }
+        instantiatedProject = instantiateWebTemplateSnapshot(tpl.snapshot, {
+          mode: 'new_project',
+          nextTitle: businessName,
+        });
+        await incrementWebTemplateUsage(templateId);
+      } else {
+        instantiatedProject = {
+          title: businessName,
+          theme: { ...INITIAL_PROJECT.theme },
+          advanceOptions: { ...DEFAULT_ADVANCE_OPTIONS },
+          blocks: [],
+          pages: [],
+          bottomNavbar: createDefaultBottomNavbar(INITIAL_PROJECT.theme, false),
+          publishing: createDefaultPublishingConfig(businessName),
+          adsConfig: { ...DEFAULT_ADS_CONFIG },
+          whatsappCenter: createDefaultWhatsappCenter(businessName, ''),
+        };
+      }
+
+      const now = Date.now();
+      const basePub = createDefaultPublishingConfig(businessName);
+      const finalProject = sanitizeBuilderProject({
+        ...instantiatedProject,
+        title: businessName,
+        publishing: {
+          ...basePub,
+          ...(instantiatedProject.publishing || {}),
+          slug,
+          customDomain: '',
+          useCustomDomain: false,
+          isPublished: publishImmediately,
+          publishedAt: publishImmediately ? now : undefined,
+        },
+      });
+
+      const newProjectId = `proj_${crypto.randomBytes(6).toString('hex')}`;
+      const record: ProjectRecord = {
+        id: newProjectId,
+        project: finalProject,
+        revision: 1,
+        updatedAt: now,
+        lastSavedAt: now,
+      };
+
+      const requestOrigin = resolveRequestPublicOrigin(req);
+      const renderedHtml = generateProjectHtml(finalProject, {
+        projectId: newProjectId,
+        publicOrigin: requestOrigin || undefined,
+        canonicalUrl: requestOrigin ? `${requestOrigin}/${slug}` : undefined,
+      });
+
+      await upsertProjectEntry({
+        record,
+        renderedHtml,
+        savedAt: now,
+        ownerUserId: user.id,
+      });
+
+      // Berikan izin editor + publikasi + analitik yang ketat HANYA pada unit usaha miliknya sendiri
+      const updatedUser = await grantBuyerSelfSiteAccess(user.id, newProjectId);
+      publicPageCache.invalidateProject(newProjectId, [slug]);
+
+      return res.status(201).json({
+        ok: true,
+        record,
+        user: updatedUser ? toPublicAuthUser(updatedUser) : toPublicAuthUser(user),
+        livePath: `/${slug}`,
+      });
     })
   );
 
@@ -2537,7 +3004,7 @@ export async function createApp(options?: {
           .send(
             renderStatusHtml(
               'Halaman Belum Tersedia',
-              `Landing page dengan slug "/p/${slug}" belum disimpan atau dipublikasikan. Silakan klik Simpan & Tayangkan di Lynk Builder.`
+              `Landing page dengan alamat "/${slug}" belum disimpan atau dipublikasikan. Silakan klik Simpan & Tayangkan di Lynk Builder.`
             )
           );
       }
@@ -2563,7 +3030,7 @@ export async function createApp(options?: {
           .send(
             renderStatusHtml(
               'Halaman Masih Berstatus Draft',
-              `Unit usaha "${entry.record.project.title}" sudah tersimpan, namun status publikasinya masih Draft. Aktifkan status Tayang Publik di menu Domain & Iklan.`
+              `Unit usaha "${entry.record.project.title}" sudah tersimpan, namun status publikasinya masih Draft. Aktifkan status Tayang Publik di menu Pengaturan Usaha.`
             )
           );
       }
@@ -2573,7 +3040,7 @@ export async function createApp(options?: {
         {
           projectId: entry.record.id,
           publicOrigin: requestOrigin,
-          canonicalUrl: requestOrigin ? `${requestOrigin}/p/${slug}` : undefined,
+          canonicalUrl: requestOrigin ? `${requestOrigin}/${slug}` : undefined,
         }
       );
 
@@ -2611,8 +3078,32 @@ export async function createApp(options?: {
     }
   );
 
+  // Kompatibilitas mundur: /p/:slug dan /p/:slug/full tetap aktif
   app.get('/p/:slug', handlePublicSlugLandingPage);
   app.get('/p/:slug/full', handlePublicSlugLandingPage);
+
+  // URL Publik Bersih: domainanda.com/:slug dan domainanda.com/:slug/full
+  // Hanya mencegat jika slug tidak termasuk rute sistem dan benar-benar terdaftar di DB
+  const handleCleanRootSlugLandingPage = asyncHandler(
+    async (req: AuthenticatedRequest, res: ExpressResponse, next: NextFunction) => {
+      const rawSlug = String(req.params.slug || '').trim();
+      if (!rawSlug || isReservedPublicSlug(rawSlug)) {
+        return next();
+      }
+      const normalized = normalizeServerSlug(rawSlug, '');
+      if (!normalized || normalized !== rawSlug.toLowerCase() || isReservedPublicSlug(normalized)) {
+        return next();
+      }
+      const entry = await getProjectEntryBySlug(normalized);
+      if (!entry) {
+        return next();
+      }
+      return handlePublicSlugLandingPage(req, res, next);
+    }
+  );
+
+  app.get('/:slug', handleCleanRootSlugLandingPage);
+  app.get('/:slug/full', handleCleanRootSlugLandingPage);
 
   // ============================================================
   // Video Link Resolver (Strict SSRF Guard - F-03)

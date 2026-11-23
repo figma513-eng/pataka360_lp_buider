@@ -1059,6 +1059,8 @@ export const UI_LABEL_CATALOG: UiLabelCatalogItem[] = [
   { key: 'home.subtitle', category: 'home', defaultLabel: 'Tema Global, Multi Halaman, Top, Lapisan & Navbar', scopeNote: 'Subjudul Header Home', kind: 'deskripsi' },
   { key: 'home.sec.temaGlobal', category: 'home', defaultLabel: 'Tema Global', scopeNote: 'Bagian Accordion Tab Tema', kind: 'judul', groupTitle: 'Tema Global' },
   { key: 'home.desc.temaGlobal', category: 'home', defaultLabel: 'Atur palet warna & font standar halaman. Komponen dengan warna kustom lokal tetap dipertahankan kecuali di-reset.', scopeNote: 'Deskripsi Tema Global', kind: 'deskripsi', groupTitle: 'Tema Global' },
+  { key: 'home.sec.webTemplates', category: 'home', defaultLabel: 'Template Web', scopeNote: 'Bagian Accordion Tab Tema (Simpan & Bagikan Template Satu Halaman + Sub Halaman)', kind: 'judul', groupTitle: 'Template Web' },
+  { key: 'home.desc.webTemplates', category: 'home', defaultLabel: 'Simpan seluruh halaman penuh beserta sub-halaman agar bisa dipakai & diedit oleh banyak orang.', scopeNote: 'Deskripsi Template Web', kind: 'deskripsi', groupTitle: 'Template Web' },
   { key: 'home.sec.pages', category: 'home', defaultLabel: 'Multi Halaman', scopeNote: 'Bagian Accordion Tab Tema (Multi Halaman)', kind: 'judul', groupTitle: 'Multi Halaman' },
   { key: 'home.desc.pages', category: 'home', defaultLabel: 'Kelola Beranda, tambah, duplikat, atau hapus site.', scopeNote: 'Deskripsi Pengaturan Multi Halaman', kind: 'deskripsi', groupTitle: 'Multi Halaman' },
   { key: 'home.action.addSite', category: 'home', defaultLabel: '+ Tambah Site', scopeNote: 'Tombol Tambah Site di Multi Halaman', kind: 'label', groupTitle: 'Multi Halaman' },

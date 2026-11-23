@@ -1332,6 +1332,7 @@ export interface DbDiagnostics {
     accessPolicies: number;
     mediaAssets?: number;
     uiAppearance?: number;
+    webTemplates?: number;
   };
 }
 
@@ -1400,6 +1401,46 @@ export interface SavedItemTemplate {
   target: SavedItemTemplateTarget;
   blockType: BlockType;
   block: BuilderBlock;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type WebTemplateCategory =
+  | 'bisnis'
+  | 'kuliner'
+  | 'toko'
+  | 'portofolio'
+  | 'event'
+  | 'jasa'
+  | 'lainnya';
+
+export type WebTemplateVisibility = 'shared' | 'private';
+
+export interface WebTemplateSnapshot {
+  theme: PageTheme;
+  blocks: BuilderBlock[];
+  pages: BuilderSubPage[];
+  advanceOptions: AdvanceOptions;
+  bottomNavbar: BottomNavbarConfig;
+}
+
+export interface SavedWebTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: WebTemplateCategory;
+  visibility: WebTemplateVisibility;
+  allowCollaborativeEdit: boolean;
+  snapshot: WebTemplateSnapshot;
+  mainBlockCount: number;
+  subPageCount: number;
+  totalBlockCount: number;
+  subPageTitles: string[];
+  paletteColors: string[];
+  createdByUserId: string;
+  createdByName: string;
+  updatedByName?: string;
+  usageCount: number;
   createdAt: number;
   updatedAt: number;
 }

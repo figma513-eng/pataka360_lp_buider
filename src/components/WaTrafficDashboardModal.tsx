@@ -273,7 +273,7 @@ export function WaTrafficDashboardModal({
         projectId: rec.id,
         title: rec.project.title || 'Unit Usaha',
         slug: pub.slug,
-        domain: pub.useCustomDomain && pub.customDomain ? pub.customDomain : `/p/${pub.slug}`,
+        domain: pub.useCustomDomain && pub.customDomain ? pub.customDomain : `/${pub.slug}`,
         isPublished: pub.isPublished,
         views: 0,
         waClicks: 0,
@@ -951,7 +951,7 @@ export function WaTrafficDashboardModal({
                               </button>
                             )}
                             <a
-                              href={`/p/${row.slug}?preview=1`}
+                              href={`/${row.slug}?preview=1`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#00C98A]/35 bg-[#ECFDF6] hover:bg-[#00C98A]/15 text-[11px] font-semibold text-[#008F63] transition-colors"
@@ -1001,7 +1001,7 @@ export function WaTrafficDashboardModal({
                   Belum ada klik WhatsApp pada filter ini
                 </div>
                 <p className="text-[11px] text-[#5B708B] max-w-md mx-auto">
-                  Setiap kali pengunjung membuka link live <span className="font-mono text-[#17243D]">/p/slug</span> atau menekan tombol WhatsApp di mode Pratinjau, trafiknya akan langsung muncul di sini.
+                  Setiap kali pengunjung membuka link live <span className="font-mono text-[#17243D]">/nama-usaha</span> atau menekan tombol WhatsApp di mode Pratinjau, trafiknya akan langsung muncul di sini.
                 </p>
               </div>
             ) : (

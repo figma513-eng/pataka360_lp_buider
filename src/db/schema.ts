@@ -13,6 +13,9 @@ import type {
   BuilderProject,
   FeaturePermissionsMap,
   UiAppearanceLabelsMap,
+  WebTemplateCategory,
+  WebTemplateSnapshot,
+  WebTemplateVisibility,
   WebhookEventName,
 } from '../types/builder.ts';
 
@@ -178,3 +181,31 @@ export const uiAppearanceSettingsTable = pgTable('ui_appearance_settings', {
   labelsJson: jsonb('labels_json').$type<UiAppearanceLabelsMap>().notNull().default({}),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
 });
+
+export const webTemplatesTable = pgTable(
+  'web_templates',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    category: text('category').$type<WebTemplateCategory>().notNull().default('bisnis'),
+    visibility: text('visibility').$type<WebTemplateVisibility>().notNull().default('shared'),
+    allowCollaborativeEdit: boolean('allow_collaborative_edit').notNull().default(false),
+    snapshotJson: jsonb('snapshot_json').$type<WebTemplateSnapshot>().notNull(),
+    mainBlockCount: integer('main_block_count').notNull().default(0),
+    subPageCount: integer('sub_page_count').notNull().default(0),
+    totalBlockCount: integer('total_block_count').notNull().default(0),
+    subPageTitlesJson: jsonb('sub_page_titles_json').$type<string[]>().notNull().default([]),
+    paletteColorsJson: jsonb('palette_colors_json').$type<string[]>().notNull().default([]),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByName: text('created_by_name').notNull().default('Pengguna'),
+    updatedByName: text('updated_by_name'),
+    usageCount: integer('usage_count').notNull().default(0),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    index('idx_web_templates_updated').on(table.updatedAt.desc()),
+    index('idx_web_templates_visibility').on(table.visibility),
+  ]
+);

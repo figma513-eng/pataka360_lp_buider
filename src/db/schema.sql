@@ -1,4 +1,4 @@
--- Lynk Builder — Skema PostgreSQL Lengkap (v005)
+-- Lynk Builder — Skema PostgreSQL Lengkap (v006)
 -- Sinkron 100% dengan src/db/schema.ts & src/db/migrations.ts
 -- PostgreSQL 14+
 
@@ -132,3 +132,26 @@ CREATE TABLE IF NOT EXISTS ui_appearance_settings (
   labels_json JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS web_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT 'bisnis',
+  visibility TEXT NOT NULL DEFAULT 'shared',
+  allow_collaborative_edit BOOLEAN NOT NULL DEFAULT FALSE,
+  snapshot_json JSONB NOT NULL,
+  main_block_count INTEGER NOT NULL DEFAULT 0,
+  sub_page_count INTEGER NOT NULL DEFAULT 0,
+  total_block_count INTEGER NOT NULL DEFAULT 0,
+  sub_page_titles_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  palette_colors_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_by_user_id TEXT NOT NULL,
+  created_by_name TEXT NOT NULL DEFAULT 'Pengguna',
+  updated_by_name TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_templates_updated ON web_templates (updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_web_templates_visibility ON web_templates (visibility);

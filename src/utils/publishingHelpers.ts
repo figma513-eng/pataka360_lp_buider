@@ -7,6 +7,42 @@ import type {
 } from '../types/builder.ts';
 import { normalizeWhatsappNumber } from './cartHelpers.ts';
 
+export const RESERVED_PUBLIC_SLUGS = new Set([
+  'api',
+  'p',
+  'assets',
+  'src',
+  'node_modules',
+  'ws',
+  'login',
+  'register',
+  'logout',
+  'admin',
+  'editor',
+  'dashboard',
+  'builder',
+  'app',
+  'onboarding',
+  'templates',
+  'template',
+  'settings',
+  'preview',
+  'health',
+  'static',
+  'public',
+  'favicon.ico',
+  'robots.txt',
+  'sitemap.xml',
+]);
+
+export function isReservedPublicSlug(slug: string): boolean {
+  const clean = (slug || '').trim().toLowerCase();
+  if (!clean || clean.length < 2) return true;
+  if (RESERVED_PUBLIC_SLUGS.has(clean)) return true;
+  if (clean.includes('.') || clean.startsWith('@') || clean.startsWith('_')) return true;
+  return false;
+}
+
 export function sanitizeSlug(raw: string, fallback = 'unit-usaha'): string {
   const cleaned = raw
     .toLowerCase()
@@ -202,7 +238,7 @@ export function buildLiveUrls(
 } {
   const slug = sanitizeSlug(publishing.slug, 'unit-usaha');
   const cleanOrigin = origin.replace(/\/+$/, '');
-  const internalPath = `/p/${slug}`;
+  const internalPath = `/${slug}`;
   const internalUrl = `${cleanOrigin}${internalPath}`;
   const internalFullPath = `${internalPath}/full`;
   const internalFullUrl = `${cleanOrigin}${internalFullPath}`;

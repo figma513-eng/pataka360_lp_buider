@@ -69,7 +69,7 @@ export function generateProjectHtml(
     (pub.useCustomDomain && pub.customDomain
       ? `https://${pub.customDomain}`
       : effectiveOrigin
-      ? `${effectiveOrigin}/p/${pub.slug}`
+      ? `${effectiveOrigin}/${pub.slug}`
       : '');
   const pageSiteName = pub.seoSiteName?.trim() || project.title || 'Halaman Usaha';
   const rawShareImage =

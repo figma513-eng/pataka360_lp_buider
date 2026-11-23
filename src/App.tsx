@@ -10,6 +10,8 @@ import { SystemSettingsPage, SystemTabId } from './components/SystemSettingsPage
 import { LoginPage } from './components/LoginPage';
 import { ImportedPayload, PreviewModal } from './components/Modals';
 import { SaveItemTemplateModal } from './components/modals/SaveItemTemplateModal';
+import { SaveWebTemplateModal } from './components/modals/SaveWebTemplateModal';
+import { SaasOnboardingModal } from './components/modals/SaasOnboardingModal';
 import {
   getBlockThemeStatus,
   getDefaultBlockBgForTheme,
@@ -31,9 +33,12 @@ import {
   ProjectRecord,
   SavedItemTemplate,
   SavedItemTemplateTarget,
+  SavedWebTemplate,
   ServerSyncState,
   UiAppearanceSettingsConfig,
   ViewportBreakpoint,
+  WebTemplateCategory,
+  WebTemplateVisibility,
   WhatsappCenterConfig,
   WorkspaceBundle,
 } from './types/builder';
@@ -86,6 +91,19 @@ import {
   loadItemTemplatesSync,
   saveItemTemplates,
 } from './utils/itemTemplateStorage';
+import {
+  buildWebTemplateSnapshot,
+  computeWebTemplateStats,
+  instantiateWebTemplateSnapshot,
+  parseImportedWebTemplateJson,
+} from './utils/webTemplateHelpers';
+import {
+  createWebTemplateOnServer,
+  deleteWebTemplateOnServer,
+  fetchWebTemplatesFromServer,
+  recordWebTemplateUseOnServer,
+  updateWebTemplateOnServer,
+} from './utils/webTemplateClient';
 import {
   deleteProjectOnServer,
   saveProjectToServer,
@@ -264,6 +282,14 @@ export default function App() {
     block: BuilderBlock;
     defaultTarget: SavedItemTemplateTarget;
   } | null>(null);
+  const [webTemplates, setWebTemplates] = useState<SavedWebTemplate[]>([]);
+  const [webTemplatesLoading, setWebTemplatesLoading] = useState(false);
+  const [webTemplateModalState, setWebTemplateModalState] = useState<{
+    mode: 'create' | 'edit';
+    template?: SavedWebTemplate | null;
+  } | null>(null);
+  const [webTemplateSubmitting, setWebTemplateSubmitting] = useState(false);
+  const [showSaasOnboarding, setShowSaasOnboarding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [syncState, setSyncState] = useState<ServerSyncState>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -456,6 +482,17 @@ export default function App() {
         setSyncState('server_saved');
       } else {
         setSyncState(loadedActive ? 'idle' : 'idle');
+      }
+      // Auto-open Wizard SaaS untuk pembeli baru yang belum memiliki unit usaha
+      const isBuyerWithNoSites =
+        Boolean(user) &&
+        user!.role !== 'super_admin' &&
+        user!.unitScope !== 'all' &&
+        Array.isArray(user!.unitScope) &&
+        user!.unitScope.length === 0 &&
+        merged.projects.length === 0;
+      if (isBuyerWithNoSites) {
+        setShowSaasOnboarding(true);
       }
     }
   }, []);
@@ -1409,6 +1446,222 @@ export default function App() {
         `Item Template dipindahkan ke tab ${patch.target === 'alat' ? 'Alat' : 'Blok'}.`
       );
     }
+  };
+
+  // --- TEMPLATE WEB (1 Halaman Penuh + Semua Sub Halaman, Multi-User Shared) ---
+  const loadWebTemplates = useCallback(async () => {
+    setWebTemplatesLoading(true);
+    try {
+      const res = await fetchWebTemplatesFromServer();
+      if (mountedRef.current) {
+        setWebTemplates(res.templates);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setWebTemplatesLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWebTemplates();
+  }, [authUser?.id, loadWebTemplates]);
+
+  const handleSubmitWebTemplateModal = async (payload: {
+    name: string;
+    description: string;
+    category: WebTemplateCategory;
+    visibility: WebTemplateVisibility;
+    allowCollaborativeEdit: boolean;
+    includeCanvasSnapshot?: boolean;
+  }) => {
+    if (!project || !webTemplateModalState) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menyimpan Template Web.');
+      return;
+    }
+    setWebTemplateSubmitting(true);
+    try {
+      if (webTemplateModalState.mode === 'create') {
+        const snapshot = buildWebTemplateSnapshot(project);
+        const res = await createWebTemplateOnServer(
+          {
+            name: payload.name,
+            description: payload.description,
+            category: payload.category,
+            visibility: payload.visibility,
+            allowCollaborativeEdit: payload.allowCollaborativeEdit,
+            snapshot,
+          },
+          { id: authUser?.id, name: authUser?.name }
+        );
+        if (!res.ok || !res.template) {
+          showSaveToast('warn', res.error || 'Gagal menyimpan Template Web.');
+          return;
+        }
+        setWebTemplates((prev) => [
+          res.template!,
+          ...prev.filter((t) => t.id !== res.template!.id),
+        ]);
+        setWebTemplateModalState(null);
+        showSaveToast(
+          'ok',
+          `Template Web "${res.template.name}" (${res.template.subPageCount} sub-halaman) berhasil disimpan${res.template.visibility === 'shared' ? ' & dibagikan ke tim' : ''}.`
+        );
+      } else if (webTemplateModalState.template) {
+        const target = webTemplateModalState.template;
+        const res = await updateWebTemplateOnServer(target.id, {
+          name: payload.name,
+          description: payload.description,
+          category: payload.category,
+          visibility: payload.visibility,
+          allowCollaborativeEdit: payload.allowCollaborativeEdit,
+          snapshot: payload.includeCanvasSnapshot ? buildWebTemplateSnapshot(project) : undefined,
+        });
+        if (!res.ok || !res.template) {
+          showSaveToast('warn', res.error || 'Gagal memperbarui Template Web.');
+          return;
+        }
+        setWebTemplates((prev) =>
+          prev.map((t) => (t.id === res.template!.id ? res.template! : t))
+        );
+        setWebTemplateModalState(null);
+        showSaveToast('ok', `Template Web "${res.template.name}" berhasil diperbarui.`);
+      }
+    } finally {
+      setWebTemplateSubmitting(false);
+    }
+  };
+
+  const handleApplyWebTemplate = (tpl: SavedWebTemplate) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menerapkan Template Web.');
+      return;
+    }
+    const nextProj = instantiateWebTemplateSnapshot(tpl.snapshot, {
+      mode: 'replace_current',
+      baseProject: project,
+    });
+    commitProject(() => nextProj);
+    syncSelectionForProject(nextProj);
+    showSaveToast(
+      'ok',
+      `Template Web "${tpl.name}" diterapkan (${tpl.subPageCount} sub-halaman ikut dimuat).`
+    );
+    void recordWebTemplateUseOnServer(tpl.id).then((res) => {
+      if (res.ok && res.template && mountedRef.current) {
+        setWebTemplates((prev) =>
+          prev.map((item) => (item.id === res.template!.id ? res.template! : item))
+        );
+      }
+    });
+  };
+
+  const handleCreateProjectFromWebTemplate = (tpl: SavedWebTemplate) => {
+    if (!effectivePermissions.projects) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin membuat proyek usaha baru.');
+      return;
+    }
+    if (!isHydratedRef.current) hasUserMutatedBeforeHydrationRef.current = true;
+    const nextTitle = `${tpl.name}`;
+    const rawNew = instantiateWebTemplateSnapshot(tpl.snapshot, {
+      mode: 'new_project',
+      nextTitle,
+    });
+    const uniqueSlug = makeUniqueSlug(rawNew.publishing?.slug || nextTitle);
+    const newProj: BuilderProject = {
+      ...rawNew,
+      publishing: {
+        ...resolveProjectPublishing(rawNew),
+        slug: uniqueSlug,
+      },
+    };
+    const newId = createId('proj');
+    const now = Date.now();
+    const nextRecord: ProjectRecord = {
+      id: newId,
+      project: newProj,
+      updatedAt: now,
+      lastSavedAt: 0,
+    };
+    setWorkspace((prev) => ({
+      ...prev,
+      activeProjectId: newId,
+      projects: [...prev.projects, nextRecord],
+    }));
+    setPendingCreatedIds((prev) => [...prev, newId]);
+    syncSelectionForProject(newProj);
+    showSaveToast(
+      'ok',
+      `Proyek baru "${nextTitle}" dibuat dari Template Web (${tpl.subPageCount} sub-halaman).`
+    );
+    void recordWebTemplateUseOnServer(tpl.id).then((res) => {
+      if (res.ok && res.template && mountedRef.current) {
+        setWebTemplates((prev) =>
+          prev.map((item) => (item.id === res.template!.id ? res.template! : item))
+        );
+      }
+    });
+  };
+
+  const handleOverwriteWebTemplateFromCanvas = async (tpl: SavedWebTemplate) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin memperbarui Template Web.');
+      return;
+    }
+    const snapshot = buildWebTemplateSnapshot(project);
+    const res = await updateWebTemplateOnServer(tpl.id, { snapshot });
+    if (!res.ok || !res.template) {
+      showSaveToast('warn', res.error || 'Gagal memperbarui isi Template Web.');
+      return;
+    }
+    setWebTemplates((prev) =>
+      prev.map((item) => (item.id === res.template!.id ? res.template! : item))
+    );
+    showSaveToast(
+      'ok',
+      `Template Web "${res.template.name}" diperbarui dengan isi Kanvas saat ini.`
+    );
+  };
+
+  const handleDeleteWebTemplate = async (tpl: SavedWebTemplate) => {
+    const res = await deleteWebTemplateOnServer(tpl.id);
+    if (!res.ok) {
+      showSaveToast('warn', res.error || 'Gagal menghapus Template Web.');
+      return;
+    }
+    setWebTemplates((prev) => prev.filter((item) => item.id !== tpl.id));
+    showSaveToast('ok', `Template Web "${tpl.name}" dihapus.`);
+  };
+
+  const handleImportWebTemplateJson = async (rawText: string) => {
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin mengimpor Template Web.');
+      return;
+    }
+    const parsed = parseImportedWebTemplateJson(rawText);
+    if (!parsed) {
+      showSaveToast('warn', 'File JSON tidak valid untuk Template Web.');
+      return;
+    }
+    const res = await createWebTemplateOnServer(parsed, {
+      id: authUser?.id,
+      name: authUser?.name,
+    });
+    if (!res.ok || !res.template) {
+      showSaveToast('warn', res.error || 'Gagal mengimpor Template Web.');
+      return;
+    }
+    setWebTemplates((prev) => [
+      res.template!,
+      ...prev.filter((t) => t.id !== res.template!.id),
+    ]);
+    showSaveToast(
+      'ok',
+      `Template Web "${res.template.name}" (${res.template.subPageCount} sub-halaman) berhasil diimpor.`
+    );
   };
 
   const handleAddItemTemplate = (
@@ -2461,12 +2714,45 @@ export default function App() {
       showSaveToast(
         'ok',
         publishNow
-          ? `Unit usaha tayang di /p/${nextPublishing.slug}`
+          ? `Unit usaha tayang di /${nextPublishing.slug}`
           : 'Pengaturan Domain, Slug & Iklan tersimpan.'
       );
     }
     return res;
   };
+
+  const handleSaasSiteCreated = useCallback(
+    (result: { record: ProjectRecord; user?: AuthUser; livePath: string }) => {
+      const normalizedRecord: ProjectRecord = {
+        ...result.record,
+        project: normalizeProject(result.record.project),
+      };
+      if (result.user) {
+        setAuthUser(result.user);
+      }
+      setWorkspace((prev) => {
+        const filtered = prev.projects.filter((p) => p.id !== normalizedRecord.id);
+        const next: WorkspaceBundle = {
+          ...prev,
+          activeProjectId: normalizedRecord.id,
+          projects: [normalizedRecord, ...filtered],
+        };
+        void saveWorkspaceScoped(next, result.user?.id ?? authUserRef.current?.id);
+        return next;
+      });
+      latestProjectUpdatedAtRef.current[normalizedRecord.id] = normalizedRecord.updatedAt;
+      syncSelectionForProject(normalizedRecord.project);
+      setActivePage('editor');
+      setShowSaasOnboarding(false);
+      setSyncState('server_saved');
+      setSyncError(null);
+      showSaveToast(
+        'ok',
+        `Web "${normalizedRecord.project.title}" siap diedit! Link Anda: ${result.livePath}`
+      );
+    },
+    [showSaveToast, syncSelectionForProject]
+  );
 
   const handleSaveBusinessSettings = async ({
     title,
@@ -2502,7 +2788,7 @@ export default function App() {
       showSaveToast(
         'ok',
         publishNow
-          ? `Unit usaha tayang di /p/${nextPublishing.slug}`
+          ? `Unit usaha tayang di /${nextPublishing.slug}`
           : 'Pengaturan identitas & publikasi usaha tersimpan.'
       );
     }
@@ -2738,35 +3024,35 @@ export default function App() {
         <div className="flex-1 flex items-center justify-center p-6 bg-[#F0F5FA]">
           <div className="max-w-md w-full bg-white rounded-2xl border border-[#DCE5EF] p-6 text-center space-y-3 shadow-xs">
             <h2 className="text-base font-bold text-[#17243D]">
-              Belum Ada Unit Usaha di Cakupan Akun Anda
+              Mulai Buat Web Usaha Pertama Anda
             </h2>
             <p className="text-xs text-[#51637D] leading-relaxed">
-              Akun Anda aktif dengan peran terbatas dan belum diberikan akses ke proyek mana pun. Hubungi Super Admin untuk menetapkan Unit Usaha ke akun Anda.
+              Masukkan nama usaha Anda untuk mendapatkan alamat link langsung (domain/nama-usaha), lalu pilih Template Web siap pakai untuk langsung diedit dan ditayangkan.
             </p>
             <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
               {authUser && (
                 <button
                   type="button"
-                  onClick={() => void syncFromServerQuietly(true)}
-                  className="px-4 py-2 rounded-xl border border-[#00C98A]/40 bg-[#ECFDF6] hover:bg-[#D1FAE5] text-[#17243D] text-xs font-semibold transition-colors cursor-pointer"
+                  onClick={() => setShowSaasOnboarding(true)}
+                  className="px-4 py-2 rounded-xl bg-[#00C98A] hover:bg-[#00B37B] text-white text-xs font-bold transition-colors cursor-pointer"
                 >
-                  Cek Ulang Akses &amp; Unit Usaha
+                  Buat Web Usaha &amp; Pilih Template
                 </button>
               )}
-              {effectivePermissions.projects && (
+              {authUser && (
                 <button
                   type="button"
-                  onClick={() => handleCreateProject('template')}
-                  className="px-4 py-2 rounded-xl bg-[#17243D] hover:bg-[#223456] text-white text-xs font-semibold transition-colors cursor-pointer"
+                  onClick={() => void syncFromServerQuietly(true)}
+                  className="px-4 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-[#17243D] text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Buat Unit Usaha Baru
+                  Cek Ulang Akses
                 </button>
               )}
               {authUser && (
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
-                  className="px-4 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] text-[#17243D] text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-[#DCE5EF] bg-white hover:bg-rose-50 hover:text-rose-700 text-[#17243D] text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Keluar Akun
                 </button>
@@ -2889,6 +3175,29 @@ export default function App() {
             });
           }}
           onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
+          webTemplates={webTemplates}
+          webTemplatesLoading={webTemplatesLoading}
+          currentUser={authUser}
+          canEditCanvas={effectivePermissions.editor}
+          canCreateProject={effectivePermissions.projects}
+          onOpenSaveWebTemplate={() => setWebTemplateModalState({ mode: 'create' })}
+          onOpenEditWebTemplate={(tpl) =>
+            setWebTemplateModalState({ mode: 'edit', template: tpl })
+          }
+          onApplyWebTemplate={handleApplyWebTemplate}
+          onCreateProjectFromWebTemplate={handleCreateProjectFromWebTemplate}
+          onOverwriteWebTemplateFromCanvas={(tpl) => {
+            void handleOverwriteWebTemplateFromCanvas(tpl);
+          }}
+          onDeleteWebTemplate={(tpl) => {
+            void handleDeleteWebTemplate(tpl);
+          }}
+          onImportWebTemplateJson={(raw) => {
+            void handleImportWebTemplateJson(raw);
+          }}
+          onRefreshWebTemplates={() => {
+            void loadWebTemplates();
+          }}
         />
 
         <MobileCanvas
@@ -3015,6 +3324,7 @@ export default function App() {
           handleCreateProject(mode);
           setActivePage('editor');
         }}
+        onOpenSaasWizard={authUser ? () => setShowSaasOnboarding(true) : undefined}
         onOpenProjectsManager={() => {
           setSystemSubTab('daftar_usaha');
           setActivePage('setting_sistem');
@@ -3142,6 +3452,50 @@ export default function App() {
           advanceOptions={project.advanceOptions}
           onClose={() => setSaveTemplateModalState(null)}
           onConfirm={handleConfirmSaveItemTemplate}
+        />
+      )}
+      {webTemplateModalState && project && (() => {
+        const liveStats = computeWebTemplateStats(buildWebTemplateSnapshot(project));
+        const modalTpl = webTemplateModalState.template;
+        const canChangeVisibility =
+          webTemplateModalState.mode === 'create' ||
+          !modalTpl ||
+          !authUser ||
+          modalTpl.createdByUserId === authUser.id ||
+          authUser.role === 'super_admin' ||
+          authUser.role === 'admin';
+        return (
+          <SaveWebTemplateModal
+            isOpen
+            mode={webTemplateModalState.mode}
+            initialTemplate={modalTpl}
+            defaultName={project.title || 'Template Web'}
+            mainBlockCount={liveStats.mainBlockCount}
+            subPageTitles={liveStats.subPageTitles}
+            paletteColors={liveStats.paletteColors}
+            hasBottomNavbar={Boolean(bottomNavbar?.enabled)}
+            canEditVisibility={canChangeVisibility}
+            isSubmitting={webTemplateSubmitting}
+            onClose={() => setWebTemplateModalState(null)}
+            onSubmit={(payload) => {
+              void handleSubmitWebTemplateModal(payload);
+            }}
+          />
+        );
+      })()}
+      {authUser && (
+        <SaasOnboardingModal
+          isOpen={showSaasOnboarding}
+          canDismiss={visibleProjects.length > 0}
+          userName={authUser.name}
+          templates={webTemplates}
+          templatesLoading={webTemplatesLoading}
+          onRefreshTemplates={() => {
+            void loadWebTemplates();
+          }}
+          onClose={() => setShowSaasOnboarding(false)}
+          onLogout={() => void handleLogout()}
+          onCreated={handleSaasSiteCreated}
         />
       )}
       {saveToast && (

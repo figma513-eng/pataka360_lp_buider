@@ -993,13 +993,14 @@ export function ApiSettingsModal({
                   {/* Table Counts */}
                   <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                     <h3 className="text-xs font-bold text-[#17243D]">
-                      Statistik Tabel Database (7+ Tabel)
+                      Statistik Tabel Database (PostgreSQL v006)
                     </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {[
                         { label: 'users', val: diagnostics.tables.users },
                         { label: 'sessions', val: diagnostics.tables.sessions },
                         { label: 'projects', val: diagnostics.tables.projects },
+                        { label: 'web_templates', val: diagnostics.tables.webTemplates ?? 0 },
                         { label: 'analytics_events', val: diagnostics.tables.analyticsEvents },
                         { label: 'access_policies', val: diagnostics.tables.accessPolicies },
                         { label: 'api_settings', val: diagnostics.tables.apiSettings },
