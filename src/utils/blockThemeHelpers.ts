@@ -25,6 +25,9 @@ export function getDefaultBlockBgForTheme(block: BuilderBlock, theme: PageTheme)
     block.type === 'maps_place' ||
     block.type === 'catalog' ||
     block.type === 'fnb_catalog' ||
+    block.type === 'fnb_hero_slider' ||
+    block.type === 'culinary_spin_slider' ||
+    block.type === 'floating_product_studio' ||
     block.type === 'training_catalog' ||
     block.type === 'hero_profile'
   ) {

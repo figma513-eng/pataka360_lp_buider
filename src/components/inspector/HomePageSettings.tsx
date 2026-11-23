@@ -9,10 +9,12 @@ import {
   Check,
   ChevronDown,
   ChevronsUpDown,
+  Coffee,
   Columns2,
   Columns3,
   Copy,
   CornerLeftUp,
+  Disc3,
   Eye,
   EyeOff,
   FilePlus2,
@@ -44,6 +46,7 @@ import {
   RotateCcw,
   Shapes,
   Share2,
+  Shirt,
   ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
@@ -203,6 +206,8 @@ function renderShowcaseVariantIcon(
       return <Award className={className} strokeWidth={1.85} />;
     case 'store_card':
       return <ShoppingBag className={className} strokeWidth={1.85} />;
+    case 'popout_product':
+      return <Sparkles className={className} strokeWidth={1.85} />;
     case 'activity_post':
       return <Users className={className} strokeWidth={1.85} />;
     case 'membership_ticket':
@@ -219,7 +224,11 @@ function renderBlockLayerIcon(blk: BuilderBlock, className = 'w-3.5 h-3.5'): Rea
     case 'text':
       return <Type className={className} strokeWidth={1.85} />;
     case 'image':
-      return <ImageIcon className={className} strokeWidth={1.85} />;
+      return blk.content?.imagePngMode ? (
+        <Sparkles className={className} strokeWidth={1.85} />
+      ) : (
+        <ImageIcon className={className} strokeWidth={1.85} />
+      );
     case 'button':
       return <MousePointerClick className={className} strokeWidth={1.85} />;
     case 'cart_button':
@@ -323,6 +332,12 @@ function renderBlockLayerIcon(blk: BuilderBlock, className = 'w-3.5 h-3.5'): Rea
       );
     case 'fnb_catalog':
       return <UtensilsCrossed className={className} strokeWidth={1.85} />;
+    case 'fnb_hero_slider':
+      return <Coffee className={className} strokeWidth={1.85} />;
+    case 'culinary_spin_slider':
+      return <Disc3 className={className} strokeWidth={1.85} />;
+    case 'floating_product_studio':
+      return <Shirt className={className} strokeWidth={1.85} />;
     case 'catalog':
       return blk.content?.catalogProductType === 'digital' || lbl.includes('digital') ? (
         <ShoppingBag className={className} strokeWidth={1.85} />

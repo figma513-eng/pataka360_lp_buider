@@ -9,6 +9,7 @@ import { BusinessSettingsPage } from './components/BusinessSettingsPage';
 import { SystemSettingsPage, SystemTabId } from './components/SystemSettingsPage';
 import { LoginPage } from './components/LoginPage';
 import { ImportedPayload, PreviewModal } from './components/Modals';
+import { SaveItemTemplateModal } from './components/modals/SaveItemTemplateModal';
 import {
   getBlockThemeStatus,
   getDefaultBlockBgForTheme,
@@ -28,6 +29,8 @@ import {
   ProjectAdsConfig,
   ProjectPublishingConfig,
   ProjectRecord,
+  SavedItemTemplate,
+  SavedItemTemplateTarget,
   ServerSyncState,
   UiAppearanceSettingsConfig,
   ViewportBreakpoint,
@@ -40,6 +43,7 @@ import {
   PrebuiltSection,
   createBlock,
   createId,
+  createPngImageBlock,
   createSubPage,
   resolveBottomNavbar,
 } from './data/presets';
@@ -76,6 +80,12 @@ import {
   saveWorkspaceScoped,
   slugifyFilename,
 } from './utils/projectStorage';
+import {
+  createSavedItemTemplate,
+  loadItemTemplates,
+  loadItemTemplatesSync,
+  saveItemTemplates,
+} from './utils/itemTemplateStorage';
 import {
   deleteProjectOnServer,
   saveProjectToServer,
@@ -247,6 +257,13 @@ export default function App() {
   const [selectedSubLayerId, setSelectedSubLayerId] = useState<string | null>(null);
   const [copyWarning, setCopyWarning] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null);
+  const [itemTemplates, setItemTemplates] = useState<SavedItemTemplate[]>(() =>
+    loadItemTemplatesSync(null)
+  );
+  const [saveTemplateModalState, setSaveTemplateModalState] = useState<{
+    block: BuilderBlock;
+    defaultTarget: SavedItemTemplateTarget;
+  } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [syncState, setSyncState] = useState<ServerSyncState>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -1025,13 +1042,20 @@ export default function App() {
     setInspectorMode('element');
   };
 
-  const handleAddChildToCardFooter = (cardId: string, type: BlockType) => {
+  const handleAddChildToCardFooter = (
+    cardId: string,
+    type: BlockType,
+    toolPreset?: 'png'
+  ) => {
     if (!project) return;
     if (!effectivePermissions.editor) {
       showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah elemen.');
       return;
     }
-    const rawChild = createBlock(type, project.theme);
+    const rawChild =
+      type === 'image' && toolPreset === 'png'
+        ? createPngImageBlock(project.theme)
+        : createBlock(type, project.theme);
     const newChild: BuilderBlock = {
       ...rawChild,
       style: {
@@ -1146,14 +1170,18 @@ export default function App() {
   const handleAddBlock = (
     type: BlockType,
     targetId?: string,
-    position: 'before' | 'after' | 'inside' = 'inside'
+    position: 'before' | 'after' | 'inside' = 'inside',
+    toolPreset?: 'png'
   ) => {
     if (!project) return;
     if (!effectivePermissions.editor) {
       showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah blok.');
       return;
     }
-    const newBlock = createBlock(type, project.theme);
+    const newBlock =
+      type === 'image' && toolPreset === 'png'
+        ? createPngImageBlock(project.theme)
+        : createBlock(type, project.theme);
     const activePageTargetId = activeSubPage?.id ?? null;
     commitProject((prev) => {
       const curNav = resolveBottomNavbar(prev);
@@ -1263,6 +1291,245 @@ export default function App() {
     if (section) {
       handleAddSection(section, targetId, position);
     }
+  };
+
+  useEffect(() => {
+    let active = true;
+    void loadItemTemplates(authUser?.id).then((loaded) => {
+      if (active) setItemTemplates(loaded);
+    });
+    return () => {
+      active = false;
+    };
+  }, [authUser?.id]);
+
+  const inferDefaultTemplateTarget = (block: BuilderBlock): SavedItemTemplateTarget => {
+    const hasNested =
+      (block.children?.length ?? 0) > 0 ||
+      (block.content?.cardFooterBlocks?.length ?? 0) > 0 ||
+      (block.content?.actionSheetBlocks?.length ?? 0) > 0;
+    if (hasNested) return 'blok';
+    const blokTypes: BlockType[] = [
+      'container',
+      'row',
+      'catalog',
+      'training_catalog',
+      'fnb_catalog',
+      'fnb_hero_slider',
+      'culinary_spin_slider',
+      'floating_product_studio',
+      'carousel',
+      'social_feed',
+      'social_follower',
+      'hero_profile',
+      'showcase_card',
+    ];
+    return blokTypes.includes(block.type) ? 'blok' : 'alat';
+  };
+
+  const handleOpenSaveItemTemplate = (
+    blockId?: string | null,
+    explicitTarget?: SavedItemTemplateTarget
+  ) => {
+    if (!project) return;
+    const targetBlockId = blockId || selectedIdRef.current;
+    if (!targetBlockId) {
+      showSaveToast('warn', 'Pilih satu elemen di Canvas terlebih dahulu untuk disimpan.');
+      return;
+    }
+    const found =
+      findBlockById(currentCanvasBlocks, targetBlockId) ||
+      resolveBottomNavbar(project).items.reduce<BuilderBlock | null>(
+        (acc, it) => acc || findBlockById(it.children, targetBlockId),
+        null
+      );
+    if (!found) {
+      showSaveToast('warn', 'Elemen yang dipilih tidak ditemukan di Canvas.');
+      return;
+    }
+    setSaveTemplateModalState({
+      block: cloneBlockDeep(found),
+      defaultTarget: explicitTarget ?? inferDefaultTemplateTarget(found),
+    });
+  };
+
+  const handleConfirmSaveItemTemplate = (payload: {
+    name: string;
+    description: string;
+    target: SavedItemTemplateTarget;
+  }) => {
+    if (!saveTemplateModalState) return;
+    const created = createSavedItemTemplate(saveTemplateModalState.block, payload);
+    setItemTemplates((prev) => {
+      const next = [created, ...prev];
+      void saveItemTemplates(next, authUser?.id);
+      return next;
+    });
+    setSaveTemplateModalState(null);
+    showSaveToast(
+      'ok',
+      `Item Template "${created.name}" disimpan ke ${created.target === 'alat' ? 'Alat' : 'Blok'}.`
+    );
+  };
+
+  const handleDeleteItemTemplate = (templateId: string) => {
+    setItemTemplates((prev) => {
+      const targetTpl = prev.find((t) => t.id === templateId);
+      const next = prev.filter((t) => t.id !== templateId);
+      void saveItemTemplates(next, authUser?.id);
+      if (targetTpl) {
+        showSaveToast('ok', `Item Template "${targetTpl.name}" dihapus.`);
+      }
+      return next;
+    });
+  };
+
+  const handleUpdateItemTemplate = (
+    templateId: string,
+    patch: Partial<Pick<SavedItemTemplate, 'name' | 'description' | 'target'>>
+  ) => {
+    setItemTemplates((prev) => {
+      const next = prev.map((tpl) => {
+        if (tpl.id !== templateId) return tpl;
+        const nextName = patch.name !== undefined ? patch.name.trim() || tpl.name : tpl.name;
+        return {
+          ...tpl,
+          ...patch,
+          name: nextName,
+          block: { ...tpl.block, label: nextName },
+          updatedAt: Date.now(),
+        };
+      });
+      void saveItemTemplates(next, authUser?.id);
+      return next;
+    });
+    if (patch.target) {
+      showSaveToast(
+        'ok',
+        `Item Template dipindahkan ke tab ${patch.target === 'alat' ? 'Alat' : 'Blok'}.`
+      );
+    }
+  };
+
+  const handleAddItemTemplate = (
+    template: SavedItemTemplate,
+    targetId?: string,
+    position: 'before' | 'after' | 'inside' = 'after'
+  ) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah elemen.');
+      return;
+    }
+    const freshBlock = cloneBlockDeep(template.block);
+    const activePageTargetId = activeSubPage?.id ?? null;
+    commitProject((prev) => {
+      const curNav = resolveBottomNavbar(prev);
+      const isNavTarget = targetId && curNav.items.some((it) => it.id === targetId);
+      if (isNavTarget && position === 'inside') {
+        return {
+          ...prev,
+          bottomNavbar: {
+            ...curNav,
+            items: curNav.items.map((it) =>
+              it.id === targetId ? { ...it, children: [...it.children, freshBlock] } : it
+            ),
+          },
+        };
+      }
+      if (activePageTargetId && prev.pages?.some((pg) => pg.id === activePageTargetId)) {
+        return {
+          ...prev,
+          pages: prev.pages.map((pg) => {
+            if (pg.id !== activePageTargetId) return pg;
+            const nextPgBlocks = targetId
+              ? position === 'inside'
+                ? insertChildIntoContainer(pg.blocks, targetId, freshBlock)
+                : insertBlocksAtTarget(pg.blocks, [freshBlock], targetId, position)
+              : [...pg.blocks, freshBlock];
+            return { ...pg, blocks: nextPgBlocks };
+          }),
+        };
+      }
+      const nextBlocks = targetId
+        ? position === 'inside'
+          ? insertChildIntoContainer(prev.blocks, targetId, freshBlock)
+          : insertBlocksAtTarget(prev.blocks, [freshBlock], targetId, position)
+        : [...prev.blocks, freshBlock];
+      const nextNavItems = targetId
+        ? curNav.items.map((it) => ({
+            ...it,
+            children:
+              position === 'inside'
+                ? insertChildIntoContainer(it.children, targetId, freshBlock)
+                : insertBlocksAtTarget(it.children, [freshBlock], targetId, position),
+          }))
+        : curNav.items;
+      return {
+        ...prev,
+        blocks: nextBlocks,
+        bottomNavbar: prev.bottomNavbar ? { ...curNav, items: nextNavItems } : prev.bottomNavbar,
+      };
+    });
+    setSelectedId(freshBlock.id);
+    setInspectorMode('element');
+    showSaveToast('ok', `Item Template "${template.name}" ditambahkan ke Canvas.`);
+  };
+
+  const handleDropItemTemplateById = (
+    templateId: string,
+    targetId?: string,
+    position: 'before' | 'after' | 'inside' = 'after'
+  ) => {
+    const tpl = itemTemplates.find((t) => t.id === templateId);
+    if (tpl) {
+      handleAddItemTemplate(tpl, targetId, position);
+    }
+  };
+
+  const handleDropItemTemplateToCardFooter = (templateId: string, cardId: string) => {
+    if (!project) return;
+    if (!effectivePermissions.editor) {
+      showSaveToast('warn', 'Akun Anda tidak memiliki izin menambah elemen.');
+      return;
+    }
+    const tpl = itemTemplates.find((t) => t.id === templateId);
+    if (!tpl) return;
+    const freshBlock = cloneBlockDeep(tpl.block);
+    freshBlock.style = { ...freshBlock.style, marginBottom: 0 };
+    const appendOne = (list: BuilderBlock[]): BuilderBlock[] =>
+      updateBlockById(list, cardId, (blk) => ({
+        ...blk,
+        content: {
+          ...blk.content,
+          cardFooterBlocks: [...(blk.content.cardFooterBlocks ?? []), freshBlock],
+        },
+      }));
+    commitProject((prev) => {
+      const curNav = prev.bottomNavbar;
+      return {
+        ...prev,
+        blocks: appendOne(prev.blocks),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: appendOne(pg.blocks),
+            }))
+          : prev.pages,
+        bottomNavbar: curNav
+          ? {
+              ...curNav,
+              items: curNav.items.map((it) => ({
+                ...it,
+                children: appendOne(it.children),
+              })),
+            }
+          : curNav,
+      };
+    });
+    setSelectedId(freshBlock.id);
+    setInspectorMode('element');
+    showSaveToast('ok', `Item Template "${tpl.name}" ditambahkan ke footer kartu.`);
   };
 
   const handleReorderBlock = (
@@ -2552,8 +2819,15 @@ export default function App() {
     return (
       <div className="flex-1 flex overflow-hidden">
         <LeftSidebar
-          onAddBlock={(type) => handleAddBlock(type)}
+          onAddBlock={(type, preset) => handleAddBlock(type, undefined, 'inside', preset)}
           onAddSection={(section) => handleAddSection(section)}
+          itemTemplates={itemTemplates}
+          onAddItemTemplate={(tpl) => handleAddItemTemplate(tpl)}
+          onOpenSaveItemTemplate={(defaultTarget) =>
+            handleOpenSaveItemTemplate(selectedBlock?.id ?? null, defaultTarget)
+          }
+          onDeleteItemTemplate={handleDeleteItemTemplate}
+          onUpdateItemTemplate={handleUpdateItemTemplate}
           blocks={currentCanvasBlocks}
           pages={subPages}
           activeSubPageId={activeSubPage?.id ?? null}
@@ -2649,6 +2923,7 @@ export default function App() {
           onOpenNavbarSettings={handleOpenNavbarSettings}
           onMoveBlock={handleMoveBlock}
           onDuplicateBlock={handleDuplicateBlock}
+          onSaveAsItemTemplate={(id) => handleOpenSaveItemTemplate(id)}
           onDeleteBlock={handleDeleteBlock}
           onToggleFullBleed={(id) =>
             handleUpdateBlock(id, (blk) => {
@@ -2665,9 +2940,11 @@ export default function App() {
           }
           onDropNewBlock={handleAddBlock}
           onDropSection={handleDropSectionById}
+          onDropItemTemplate={handleDropItemTemplateById}
           onReorderBlock={handleReorderBlock}
           onDropNewBlockToCardFooter={handleAddChildToCardFooter}
           onDropSectionToCardFooter={handleDropSectionToCardFooter}
+          onDropItemTemplateToCardFooter={handleDropItemTemplateToCardFooter}
           onMoveBlockToCardFooter={handleMoveBlockToCardFooter}
         />
 
@@ -2703,6 +2980,7 @@ export default function App() {
           onUpdateAdvanceOptions={handleUpdateAdvanceOptions}
           onUpdateBlock={handleUpdateBlock}
           onDuplicateBlock={handleDuplicateBlock}
+          onSaveAsItemTemplate={(id) => handleOpenSaveItemTemplate(id)}
           onAddChildToContainer={(containerId, type) => handleAddBlock(type, containerId)}
           onSelectBlock={handleSelectBlock}
         />
@@ -2855,6 +3133,16 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+      {saveTemplateModalState && project && (
+        <SaveItemTemplateModal
+          block={saveTemplateModalState.block}
+          defaultTarget={saveTemplateModalState.defaultTarget}
+          theme={project.theme}
+          advanceOptions={project.advanceOptions}
+          onClose={() => setSaveTemplateModalState(null)}
+          onConfirm={handleConfirmSaveItemTemplate}
+        />
       )}
       {saveToast && (
         <div

@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowUp,
+  BookmarkPlus,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -38,6 +39,7 @@ import {
   BuilderBlock,
   BuilderSubPage,
   CategoryJumpItem,
+  FnbHeroSlideItem,
   FnbMenuItem,
   PageTheme,
   ViewportBreakpoint,
@@ -63,6 +65,7 @@ import {
   resolveProjectFloatingCartConfig,
   resolveUniversalCartMeta,
 } from '../utils/universalLayerHelpers';
+import { blockHasPopoutVisual, resolveImagePopoutMetrics } from '../utils/popoutHelpers';
 import { ButtonGlyph } from './ButtonIcon';
 import { CleanVideoEmbed } from './CleanVideoEmbed';
 import {
@@ -72,6 +75,9 @@ import {
   HeroProfileCard,
   fnbPriceSum,
 } from './DynamicBlocks';
+import { CulinarySpinSlider } from './CulinarySpinSlider';
+import { FloatingProductStudio } from './FloatingProductStudio';
+import { FnbHeroSlider } from './FnbHeroSlider';
 import { MapsPlaceCard } from './MapsPlaceCard';
 import { PhotoCarousel } from './PhotoCarousel';
 import { SocialFeedCard } from './SocialFeedCard';
@@ -120,15 +126,22 @@ interface MobileCanvasProps {
   onOpenNavbarSettings: (itemId?: string) => void;
   onMoveBlock: (id: string, dir: 'up' | 'down') => void;
   onDuplicateBlock: (id: string) => void;
+  onSaveAsItemTemplate?: (id: string) => void;
   onDeleteBlock: (id: string) => void;
   onToggleFullBleed?: (id: string) => void;
   onDropNewBlock: (
     type: BlockType,
     targetId?: string,
-    position?: 'before' | 'after' | 'inside'
+    position?: 'before' | 'after' | 'inside',
+    toolPreset?: 'png'
   ) => void;
   onDropSection: (
     sectionId: string,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside'
+  ) => void;
+  onDropItemTemplate?: (
+    templateId: string,
     targetId?: string,
     position?: 'before' | 'after' | 'inside'
   ) => void;
@@ -137,8 +150,9 @@ interface MobileCanvasProps {
     targetId: string,
     position: 'before' | 'after' | 'inside'
   ) => void;
-  onDropNewBlockToCardFooter?: (cardId: string, type: BlockType) => void;
+  onDropNewBlockToCardFooter?: (cardId: string, type: BlockType, toolPreset?: 'png') => void;
   onDropSectionToCardFooter?: (sectionId: string, cardId: string) => void;
+  onDropItemTemplateToCardFooter?: (templateId: string, cardId: string) => void;
   onMoveBlockToCardFooter?: (draggedId: string, cardId: string) => void;
 }
 
@@ -173,13 +187,16 @@ export function MobileCanvas({
   onOpenNavbarSettings,
   onMoveBlock,
   onDuplicateBlock,
+  onSaveAsItemTemplate,
   onDeleteBlock,
   onToggleFullBleed,
   onDropNewBlock,
   onDropSection,
+  onDropItemTemplate,
   onReorderBlock,
   onDropNewBlockToCardFooter,
   onDropSectionToCardFooter,
+  onDropItemTemplateToCardFooter,
   onMoveBlockToCardFooter,
 }: MobileCanvasProps) {
   const { label, isVisible } = useUiLabel();
@@ -594,13 +611,16 @@ export function MobileCanvas({
       ? '0px'
       : `${s.borderRadius}px`;
     const sectionDStyle = buildSectionDReactStyle(s);
+    const hasPopoutOverflow = blockHasPopoutVisual(block);
     const inlineStyle: React.CSSProperties = {
       ...sectionDStyle,
       width: `${s.widthPercent}%`,
       minHeight: isEmptyText || isCircleImage ? '0px' : `${s.minHeight}px`,
       maxHeight: !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0 ? `${s.maxHeight}px` : sectionDStyle.maxHeight,
       overflow:
-        !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0
+        hasPopoutOverflow
+          ? 'visible'
+          : !isEmptyText && !isCircleImage && s.maxHeight && s.maxHeight > 0
           ? 'hidden'
           : sectionDStyle.overflow,
       borderRadius: resolvedRadius,
@@ -671,14 +691,18 @@ export function MobileCanvas({
 
       const existingId = e.dataTransfer.getData('application/lynk-existing-block');
       const newBlockType = e.dataTransfer.getData('application/lynk-block-type') as BlockType;
+      const blockPreset = e.dataTransfer.getData('application/lynk-block-preset') as 'png' | '';
       const sectionId = e.dataTransfer.getData('application/lynk-section-id');
+      const itemTemplateId = e.dataTransfer.getData('application/lynk-item-template-id');
 
       if (existingId && existingId !== targetId) {
         onReorderBlock(existingId, targetId, pos);
       } else if (newBlockType) {
-        onDropNewBlock(newBlockType, targetId, pos);
+        onDropNewBlock(newBlockType, targetId, pos, blockPreset === 'png' ? 'png' : undefined);
       } else if (sectionId) {
         onDropSection(sectionId, targetId, pos);
+      } else if (itemTemplateId) {
+        onDropItemTemplate?.(itemTemplateId, targetId, pos);
       }
 
       setDragState({ draggedId: null, targetId: null, position: null });
@@ -693,9 +717,21 @@ export function MobileCanvas({
 
         <div
           data-block-id={block.id}
-          draggable={interactionMode === 'drag' && !s.locked}
+          draggable={
+            interactionMode === 'drag' &&
+            !s.locked &&
+            block.type !== 'fnb_hero_slider' &&
+            block.type !== 'culinary_spin_slider' &&
+            block.type !== 'floating_product_studio'
+          }
           onDragStart={(e) => {
-            if (interactionMode !== 'drag' || s.locked) {
+            if (
+              interactionMode !== 'drag' ||
+              s.locked ||
+              block.type === 'fnb_hero_slider' ||
+              block.type === 'culinary_spin_slider' ||
+              block.type === 'floating_product_studio'
+            ) {
               e.preventDefault();
               return;
             }
@@ -1488,6 +1524,7 @@ export function MobileCanvas({
             const showScrollbar = Boolean(block.content.rowShowScrollbar);
             const showDots = block.content.rowShowDots !== false;
             const rowDotsPosition = block.content.rowDotsPosition ?? 'below';
+            const hasPopoutChild = rowChildren.some(blockHasPopoutVisual);
             return (
               <div className="relative">
                 <div
@@ -1508,8 +1545,10 @@ export function MobileCanvas({
                     WebkitOverflowScrolling: 'touch',
                     scrollSnapType: 'x proximity',
                   }}
-                  className={`flex flex-row flex-nowrap items-stretch overflow-x-auto pt-1 px-0.5 touch-pan-x ${
-                    showScrollbar ? 'pb-2' : 'pb-1 no-scrollbar'
+                  className={`flex flex-row flex-nowrap items-stretch overflow-x-auto touch-pan-x ${
+                    hasPopoutChild
+                      ? `pt-3 pr-5 pl-1 ${showScrollbar ? 'pb-6' : 'pb-5 no-scrollbar'}`
+                      : `pt-1 px-0.5 ${showScrollbar ? 'pb-2' : 'pb-1 no-scrollbar'}`
                   }`}
                 >
                   {rowChildren.map((child) => (
@@ -1521,6 +1560,7 @@ export function MobileCanvas({
                         minWidth: `${rowColWidth}px`,
                         minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined,
                         scrollSnapAlign: 'start',
+                        overflow: hasPopoutChild ? 'visible' : undefined,
                       }}
                       className="flex flex-col [&>*]:flex-1"
                     >
@@ -1736,7 +1776,60 @@ export function MobileCanvas({
               </div>
             );
           })() : (() => {
-            const rectZoom = Math.max(50, Math.min(250, block.content.imageZoom ?? 100));
+            const rectZoom = Math.max(40, Math.min(250, block.content.imageZoom ?? 100));
+            const isPngOrPopout = Boolean(
+              block.content.imagePngMode ||
+                block.content.imagePopoutEnabled ||
+                block.content.imageDropShadowEnabled ||
+                block.content.imageHoverFloat3D
+            );
+            if (isPngOrPopout) {
+              const pop = resolveImagePopoutMetrics(block.content);
+              return (
+                <div
+                  className={`w-full h-full flex items-center justify-center lynk-png-float-wrap${
+                    pop.hoverFloat3D ? ' has-float-3d' : ''
+                  }`}
+                  style={{
+                    overflow: pop.enabled ? 'visible' : 'hidden',
+                    borderRadius: pop.enabled ? undefined : `${s.borderRadius}px`,
+                    aspectRatio:
+                      block.content.aspectRatio && block.content.aspectRatio !== 'auto'
+                        ? block.content.aspectRatio
+                        : undefined,
+                    backgroundColor: 'transparent',
+                  }}
+                >
+                  {!block.content.src || brokenImages[block.id] ? (
+                    <div className="flex flex-col items-center justify-center gap-1.5 py-6 px-4 text-slate-400 text-xs rounded-xl border border-dashed border-slate-300 bg-slate-50/70">
+                      <ImageOff className="w-5 h-5" />
+                      <span>{block.content.alt || 'Gambar PNG belum dimuat'}</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={block.content.src}
+                      alt={block.content.alt || 'Gambar PNG'}
+                      referrerPolicy="no-referrer"
+                      onError={() => setBrokenImages((prev) => ({ ...prev, [block.id]: true }))}
+                      className="w-full h-full block lynk-png-float-img"
+                      style={
+                        {
+                          objectFit: block.content.objectFit ?? 'contain',
+                          objectPosition: block.content.objectPosition || 'center',
+                          borderRadius: pop.enabled ? undefined : `${s.borderRadius}px`,
+                          '--png-x': `${pop.offsetX}px`,
+                          '--png-y': `${pop.offsetY}px`,
+                          '--png-rot': `${pop.rotate}deg`,
+                          '--png-scale': String(pop.scale),
+                          '--png-shadow': pop.dropShadowCss,
+                          '--png-shadow-hover': pop.hoverDropShadowCss,
+                        } as React.CSSProperties
+                      }
+                    />
+                  )}
+                </div>
+              );
+            }
             return (
               <div
                 className="overflow-hidden w-full h-full flex items-center justify-center bg-slate-100/70"
@@ -2645,6 +2738,78 @@ export function MobileCanvas({
           />
         )}
 
+        {block.type === 'fnb_hero_slider' && (
+          <FnbHeroSlider
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            cartQtyMap={fnbPreviewQtys}
+            onAddCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onIncCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onDecCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({
+                ...prev,
+                [item.id]: Math.max(0, (prev[item.id] ?? 0) - 1),
+              }));
+            }}
+            onOpenCart={onOpenPreview}
+          />
+        )}
+
+        {block.type === 'culinary_spin_slider' && (
+          <CulinarySpinSlider
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            cartQtyMap={fnbPreviewQtys}
+            onAddCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onIncCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onDecCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({
+                ...prev,
+                [item.id]: Math.max(0, (prev[item.id] ?? 0) - 1),
+              }));
+            }}
+            onOpenCart={onOpenPreview}
+          />
+        )}
+
+        {block.type === 'floating_product_studio' && (
+          <FloatingProductStudio
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            cartQtyMap={fnbPreviewQtys}
+            onAddCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onIncCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onDecCart={(item: FnbHeroSlideItem) => {
+              setFnbPreviewQtys((prev) => ({
+                ...prev,
+                [item.id]: Math.max(0, (prev[item.id] ?? 0) - 1),
+              }));
+            }}
+            onOpenCart={onOpenPreview}
+          />
+        )}
+
         {block.type === 'cart_button' && (() => {
           const itemKey = `cb_${block.id}`;
           const qty = fnbPreviewQtys[itemKey] ?? 0;
@@ -2788,13 +2953,21 @@ export function MobileCanvas({
             e.stopPropagation();
             const existingId = e.dataTransfer.getData('application/lynk-existing-block');
             const newBlockType = e.dataTransfer.getData('application/lynk-block-type') as BlockType;
+            const blockPreset = e.dataTransfer.getData('application/lynk-block-preset') as 'png' | '';
             const sectionId = e.dataTransfer.getData('application/lynk-section-id');
+            const itemTemplateId = e.dataTransfer.getData('application/lynk-item-template-id');
             if (existingId && existingId !== block.id) {
               onMoveBlockToCardFooter?.(existingId, block.id);
             } else if (newBlockType) {
-              onDropNewBlockToCardFooter?.(block.id, newBlockType);
+              onDropNewBlockToCardFooter?.(
+                block.id,
+                newBlockType,
+                blockPreset === 'png' ? 'png' : undefined
+              );
             } else if (sectionId) {
               onDropSectionToCardFooter?.(sectionId, block.id);
+            } else if (itemTemplateId) {
+              onDropItemTemplateToCardFooter?.(itemTemplateId, block.id);
             }
             setDragState({ draggedId: null, targetId: null, position: null });
             setDragOverRoot(false);
@@ -3464,7 +3637,9 @@ export function MobileCanvas({
 
             const existingId = e.dataTransfer.getData('application/lynk-existing-block');
             const droppedType = e.dataTransfer.getData('application/lynk-block-type') as BlockType;
+            const blockPreset = e.dataTransfer.getData('application/lynk-block-preset') as 'png' | '';
             const sectionId = e.dataTransfer.getData('application/lynk-section-id');
+            const itemTemplateId = e.dataTransfer.getData('application/lynk-item-template-id');
 
             if (existingId && blocks.length > 0) {
               const lastId = blocks[blocks.length - 1].id;
@@ -3472,9 +3647,16 @@ export function MobileCanvas({
                 onReorderBlock(existingId, lastId, 'after');
               }
             } else if (droppedType) {
-              onDropNewBlock(droppedType);
+              onDropNewBlock(
+                droppedType,
+                undefined,
+                'inside',
+                blockPreset === 'png' ? 'png' : undefined
+              );
             } else if (sectionId) {
               onDropSection(sectionId);
+            } else if (itemTemplateId) {
+              onDropItemTemplate?.(itemTemplateId);
             }
           }}
           className={`shadow-xl transition-all shrink-0 overflow-hidden ${
@@ -3536,12 +3718,46 @@ export function MobileCanvas({
             const floatingCartRenderData = (() => {
               if (!canvasFloatingCart) return null;
               const fnbBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'fnb_catalog');
+              const fnbSliderBlocks = allFlatCanvasBlocks.filter(
+                (b) => b.type === 'fnb_hero_slider' && b.content.fnbSliderEnableCart !== false
+              );
+              const culinarySliderBlocks = allFlatCanvasBlocks.filter(
+                (b) =>
+                  b.type === 'culinary_spin_slider' &&
+                  b.content.culinaryShowCartButton !== false
+              );
+              const studioSliderBlocks = allFlatCanvasBlocks.filter(
+                (b) =>
+                  b.type === 'floating_product_studio' &&
+                  b.content.studioShowCartButton !== false
+              );
               const cartBtnBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'cart_button');
               const universalCartBlocks = allFlatCanvasBlocks.filter(
                 (b) => resolveUniversalCartMeta(b, theme) !== null
               );
               const fnbItems = fnbBlocks.flatMap((b) => b.content.fnbItems ?? []);
+              const fnbSliderItems = fnbSliderBlocks.flatMap(
+                (b) => b.content.fnbSliderItems ?? []
+              );
+              const culinarySliderItems = culinarySliderBlocks.flatMap(
+                (b) => b.content.culinarySpinItems ?? []
+              );
+              const studioSliderItems = studioSliderBlocks.flatMap(
+                (b) => b.content.floatingStudioItems ?? []
+              );
               const fnbCount = fnbItems.reduce(
+                (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
+                0
+              );
+              const fnbSliderCount = fnbSliderItems.reduce(
+                (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
+                0
+              );
+              const culinaryCount = culinarySliderItems.reduce(
+                (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
+                0
+              );
+              const studioCount = studioSliderItems.reduce(
                 (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
                 0
               );
@@ -3553,9 +3769,22 @@ export function MobileCanvas({
                 (sum, ub) => sum + (fnbPreviewQtys[`uc_${ub.id}`] ?? 0),
                 0
               );
-              const activeCount = fnbCount + cbCount + ucCount;
+              const activeCount =
+                fnbCount + fnbSliderCount + culinaryCount + studioCount + cbCount + ucCount;
               const pricedEntries: Array<{ price: string; qty: number }> = [
                 ...fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 })),
+                ...fnbSliderItems.map((it) => ({
+                  price: it.price,
+                  qty: fnbPreviewQtys[it.id] ?? 0,
+                })),
+                ...culinarySliderItems.map((it) => ({
+                  price: it.price,
+                  qty: fnbPreviewQtys[it.id] ?? 0,
+                })),
+                ...studioSliderItems.map((it) => ({
+                  price: it.price,
+                  qty: fnbPreviewQtys[it.id] ?? 0,
+                })),
                 ...cartBtnBlocks.map((cb) => ({
                   price: cb.content.cartProductPrice || '0',
                   qty: fnbPreviewQtys[`cb_${cb.id}`] ?? 0,
@@ -3576,6 +3805,9 @@ export function MobileCanvas({
                   selectedId &&
                     (selectedId === canvasFloatingCart.sourceBlockId ||
                       fnbBlocks.some((b) => b.id === selectedId) ||
+                      fnbSliderBlocks.some((b) => b.id === selectedId) ||
+                      culinarySliderBlocks.some((b) => b.id === selectedId) ||
+                      studioSliderBlocks.some((b) => b.id === selectedId) ||
                       cartBtnBlocks.some((b) => b.id === selectedId) ||
                       universalCartBlocks.some((b) => b.id === selectedId))
                 );
@@ -3584,6 +3816,12 @@ export function MobileCanvas({
               const previewUnitPrice =
                 sourceBlk?.type === 'fnb_catalog'
                   ? sourceBlk.content.fnbItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'fnb_hero_slider'
+                  ? sourceBlk.content.fnbSliderItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'culinary_spin_slider'
+                  ? sourceBlk.content.culinarySpinItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'floating_product_studio'
+                  ? sourceBlk.content.floatingStudioItems?.[0]?.price || '0'
                   : sourceBlk?.type === 'cart_button'
                   ? sourceBlk.content.cartProductPrice || '0'
                   : sourceBlk
@@ -4059,6 +4297,17 @@ export function MobileCanvas({
                 >
                   <Copy className="w-3 h-3" />
                 </button>
+                {onSaveAsItemTemplate && (
+                  <button
+                    type="button"
+                    onClick={() => onSaveAsItemTemplate(selectedBlockObj.id)}
+                    title="Simpan ke Item Template"
+                    aria-label="Simpan ke Item Template"
+                    className="p-1 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded cursor-pointer transition-colors"
+                  >
+                    <BookmarkPlus className="w-3 h-3" />
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={Boolean(selStyle.locked)}

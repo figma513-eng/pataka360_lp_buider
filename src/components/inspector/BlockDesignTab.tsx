@@ -718,6 +718,583 @@ export function BlockDesignTab({
         );
       }
 
+      case 'fnb_hero_slider': {
+        const archHeight = c.fnbSliderArchHeight ?? 225;
+        const archCurve = c.fnbSliderArchCurve ?? 100;
+        const productSize = c.fnbSliderProductSize ?? 198;
+        const imageZoom = c.fnbSliderImageZoom ?? 100;
+        const peekScale = c.fnbSliderPeekScale ?? 74;
+        const showDots = Boolean(c.fnbSliderShowDots);
+        const dotsPos = c.fnbSliderDotsPosition ?? 'below';
+        return (
+          <div className="space-y-3">
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Lengkungan Backdrop & Proporsi Produk
+              </div>
+              <SliderRow
+                label="Tinggi Lengkungan Atas"
+                value={`${archHeight}px`}
+                min={140}
+                max={320}
+                step={2}
+                current={archHeight}
+                onChange={(val) => updateContent({ fnbSliderArchHeight: val })}
+              />
+              <SliderRow
+                label="Kedalaman Lengkungan"
+                value={`${archCurve}%`}
+                min={30}
+                max={140}
+                step={2}
+                current={archCurve}
+                onChange={(val) => updateContent({ fnbSliderArchCurve: val })}
+              />
+              <SliderRow
+                label="Ukuran Produk Utama (PNG)"
+                value={`${productSize}px`}
+                min={120}
+                max={280}
+                step={2}
+                current={productSize}
+                onChange={(val) => updateContent({ fnbSliderProductSize: val })}
+              />
+              <SliderRow
+                label="Scale Manual Foto Produk"
+                value={`${imageZoom}%`}
+                min={60}
+                max={180}
+                step={2}
+                current={imageZoom}
+                onChange={(val) => updateContent({ fnbSliderImageZoom: val })}
+              />
+              <SliderRow
+                label="Skala Produk Samping (Peek)"
+                value={`${peekScale}%`}
+                min={55}
+                max={92}
+                step={1}
+                current={peekScale}
+                onChange={(val) => updateContent({ fnbSliderPeekScale: val })}
+              />
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Bayangan Siluet PNG (3D)
+                </span>
+                <ToggleSwitch
+                  checked={c.fnbSliderDropShadow !== false}
+                  onChange={(val) => updateContent({ fnbSliderDropShadow: val })}
+                  label="Bayangan Siluet PNG"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                  Warna Latar Bawah Kartu
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={c.fnbSliderCardBg ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ fnbSliderCardBg: e.target.value })}
+                    className="w-10 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={c.fnbSliderCardBg ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ fnbSliderCardBg: e.target.value })}
+                    className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Titik Indikator Slide
+                </span>
+                <ToggleSwitch
+                  checked={showDots}
+                  onChange={(val) => updateContent({ fnbSliderShowDots: val })}
+                  label="Tampilkan titik indikator slide"
+                />
+              </div>
+              {showDots && (
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                    Posisi Titik Slide
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'below', label: 'Di Bawah Foto' },
+                        { id: 'overlay', label: 'Mengambang Atas' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ fnbSliderDotsPosition: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors ${
+                          dotsPos === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={c.fnbSliderFloatingCartEnabled !== false}
+                  onChange={(val) => updateContent({ fnbSliderFloatingCartEnabled: val })}
+                  label="Keranjang Mengambang"
+                />
+              </div>
+              {c.fnbSliderFloatingCartEnabled !== false && (
+                <>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                      Posisi Kotak Mengambang
+                    </label>
+                    <select
+                      value={c.fnbSliderFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          fnbSliderFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                      Warna Tombol Keranjang
+                    </label>
+                    <input
+                      type="color"
+                      value={c.fnbSliderFloatingCartBg ?? '#0F172A'}
+                      onChange={(e) =>
+                        updateAccentContent({ fnbSliderFloatingCartBg: e.target.value })
+                      }
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      case 'culinary_spin_slider': {
+        const plateSize = c.culinaryPlateSize ?? 220;
+        const imageZoom = c.culinaryImageZoom ?? 100;
+        const spinAngle = c.culinarySpinAngle ?? 58;
+        const blurOpacity = c.culinaryBlurOpacity ?? 45;
+        const blurAmount = c.culinaryBlurAmount ?? 12;
+        const showDots = Boolean(c.culinaryShowDots);
+        const dotsPos = c.culinaryDotsPosition ?? 'below';
+        return (
+          <div className="space-y-3">
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Proporsi Piring, Putaran & Ambient Blur
+              </div>
+              <SliderRow
+                label="Ukuran Piring Utama (PNG)"
+                value={`${plateSize}px`}
+                min={140}
+                max={290}
+                step={2}
+                current={plateSize}
+                onChange={(val) => updateContent({ culinaryPlateSize: val })}
+              />
+              <SliderRow
+                label="Scale Manual Foto PNG"
+                value={`${imageZoom}%`}
+                min={60}
+                max={180}
+                step={2}
+                current={imageZoom}
+                onChange={(val) => updateContent({ culinaryImageZoom: val })}
+              />
+              <SliderRow
+                label="Sudut Putar Saat Swipe"
+                value={`${spinAngle}°`}
+                min={0}
+                max={120}
+                step={2}
+                current={spinAngle}
+                onChange={(val) => updateContent({ culinarySpinAngle: val })}
+              />
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Latar Ambient Blur Cermin
+                </span>
+                <ToggleSwitch
+                  checked={c.culinaryShowAmbientBlur !== false}
+                  onChange={(val) => updateContent({ culinaryShowAmbientBlur: val })}
+                  label="Latar Ambient Blur Cermin"
+                />
+              </div>
+              {c.culinaryShowAmbientBlur !== false && (
+                <>
+                  <SliderRow
+                    label="Intensitas Blur Latar"
+                    value={`${blurOpacity}%`}
+                    min={10}
+                    max={85}
+                    step={1}
+                    current={blurOpacity}
+                    onChange={(val) => updateContent({ culinaryBlurOpacity: val })}
+                  />
+                  <SliderRow
+                    label="Tingkat Keburaman (Blur)"
+                    value={`${blurAmount}px`}
+                    min={4}
+                    max={28}
+                    step={1}
+                    current={blurAmount}
+                    onChange={(val) => updateContent({ culinaryBlurAmount: val })}
+                  />
+                </>
+              )}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Bayangan Siluet Piring (3D)
+                </span>
+                <ToggleSwitch
+                  checked={c.culinaryDropShadow !== false}
+                  onChange={(val) => updateContent({ culinaryDropShadow: val })}
+                  label="Bayangan Siluet Piring"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                    Warna Latar Kartu
+                  </label>
+                  <input
+                    type="color"
+                    value={c.culinaryCardBg ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ culinaryCardBg: e.target.value })}
+                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                    Warna Aksen Tombol
+                  </label>
+                  <input
+                    type="color"
+                    value={c.culinaryAccentColor ?? '#DC2626'}
+                    onChange={(e) => updateAccentContent({ culinaryAccentColor: e.target.value })}
+                    className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Titik Indikator Slide
+                </span>
+                <ToggleSwitch
+                  checked={showDots}
+                  onChange={(val) => updateContent({ culinaryShowDots: val })}
+                  label="Tampilkan titik indikator slide"
+                />
+              </div>
+              {showDots && (
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                    Posisi Titik Slide
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'below', label: 'Di Bawah Foto' },
+                        { id: 'overlay', label: 'Mengambang Atas' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ culinaryDotsPosition: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors ${
+                          dotsPos === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={c.culinaryFloatingCartEnabled !== false}
+                  onChange={(val) => updateContent({ culinaryFloatingCartEnabled: val })}
+                  label="Keranjang Mengambang"
+                />
+              </div>
+              {c.culinaryFloatingCartEnabled !== false && (
+                <>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                      Posisi Kotak Mengambang
+                    </label>
+                    <select
+                      value={c.culinaryFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          culinaryFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                      Warna Tombol Keranjang
+                    </label>
+                    <input
+                      type="color"
+                      value={c.culinaryFloatingCartBg ?? c.culinaryAccentColor ?? '#DC2626'}
+                      onChange={(e) =>
+                        updateContent({ culinaryFloatingCartBg: e.target.value })
+                      }
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      case 'floating_product_studio': {
+        const productSize = c.studioProductSize ?? 224;
+        const imageZoom = c.studioImageZoom ?? 100;
+        const cornerSize = c.studioCornerSize ?? 86;
+        const minHeight = c.studioMinHeight ?? 430;
+        const showDots = Boolean(c.studioShowDots);
+        const dotsPos = c.studioDotsPosition ?? 'below';
+        return (
+          <div className="space-y-3">
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Studio Produk Melayang & Bayangan Lantai
+              </div>
+              <SliderRow
+                label="Ukuran Produk Utama (PNG)"
+                value={`${productSize}px`}
+                min={140}
+                max={290}
+                step={2}
+                current={productSize}
+                onChange={(val) => updateContent({ studioProductSize: val })}
+              />
+              <SliderRow
+                label="Scale Manual Foto PNG"
+                value={`${imageZoom}%`}
+                min={60}
+                max={180}
+                step={2}
+                current={imageZoom}
+                onChange={(val) => updateContent({ studioImageZoom: val })}
+              />
+              <SliderRow
+                label="Ukuran Miniatur Sudut Bawah"
+                value={`${cornerSize}px`}
+                min={56}
+                max={124}
+                step={2}
+                current={cornerSize}
+                onChange={(val) => updateContent({ studioCornerSize: val })}
+              />
+              <SliderRow
+                label="Tinggi Area Studio"
+                value={`${minHeight}px`}
+                min={320}
+                max={580}
+                step={5}
+                current={minHeight}
+                onChange={(val) => updateContent({ studioMinHeight: val })}
+              />
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Animasi Produk Melayang
+                </span>
+                <ToggleSwitch
+                  checked={c.studioLevitateEnabled !== false}
+                  onChange={(val) => updateContent({ studioLevitateEnabled: val })}
+                  label="Animasi Produk Melayang"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-[#17243D]">
+                  Bayangan Lantai Oval 3D
+                </span>
+                <ToggleSwitch
+                  checked={c.studioGroundShadow !== false}
+                  onChange={(val) => updateContent({ studioGroundShadow: val })}
+                  label="Bayangan Lantai Oval 3D"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                  Warna Teks Studio
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={c.studioTextColor ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ studioTextColor: e.target.value })}
+                    className="w-10 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={c.studioTextColor ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ studioTextColor: e.target.value })}
+                    className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Titik Indikator Slide
+                </span>
+                <ToggleSwitch
+                  checked={showDots}
+                  onChange={(val) => updateContent({ studioShowDots: val })}
+                  label="Tampilkan titik indikator slide"
+                />
+              </div>
+              {showDots && (
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                    Posisi Titik Slide
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'below', label: 'Di Bawah Foto' },
+                        { id: 'overlay', label: 'Mengambang Atas' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ studioDotsPosition: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors ${
+                          dotsPos === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={c.studioFloatingCartEnabled !== false}
+                  onChange={(val) => updateContent({ studioFloatingCartEnabled: val })}
+                  label="Keranjang Mengambang"
+                />
+              </div>
+              {c.studioFloatingCartEnabled !== false && (
+                <>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                      Posisi Kotak Mengambang
+                    </label>
+                    <select
+                      value={c.studioFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          studioFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                      Warna Tombol Keranjang
+                    </label>
+                    <input
+                      type="color"
+                      value={c.studioFloatingCartBg ?? '#111827'}
+                      onChange={(e) =>
+                        updateAccentContent({ studioFloatingCartBg: e.target.value })
+                      }
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      }
+
       case 'fnb_catalog':
         return (
           <div className="space-y-3">
@@ -1689,6 +2266,195 @@ export function BlockDesignTab({
                 </select>
               </div>
             </div>
+
+            {!isCircle && (
+              <div className="p-2.5 rounded-xl bg-[#ECFDF6]/65 border border-[#00C98A]/35 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sparkles className="w-3.5 h-3.5 text-[#00A873] shrink-0" />
+                    <span className="text-[11px] font-bold text-[#17243D] truncate">
+                      Kontrol Pop-Out, Anti-Potong &amp; Bayangan PNG
+                    </span>
+                  </div>
+                  {(c.imageOffsetX || c.imageOffsetY || c.imageRotate) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateContent({ imageOffsetX: 0, imageOffsetY: 0, imageRotate: 0 })
+                      }
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#51637D] hover:text-[#17243D] cursor-pointer shrink-0"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>Reset</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">
+                    Anti-Potong (Objek Boleh Keluar Bingkai)
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(c.imagePopoutEnabled || c.imagePngMode)}
+                    onChange={(enabled) =>
+                      onUpdateBlock(selectedBlock.id, (blk) => ({
+                        ...blk,
+                        style: {
+                          ...blk.style,
+                          overflow: enabled ? 'visible' : 'hidden',
+                          backgroundColor: enabled ? 'transparent' : blk.style.backgroundColor,
+                        },
+                        content: {
+                          ...blk.content,
+                          imagePopoutEnabled: enabled,
+                          imagePngMode: enabled ? true : blk.content.imagePngMode,
+                          objectFit: enabled ? 'contain' : blk.content.objectFit ?? 'cover',
+                        },
+                      }))
+                    }
+                    label="Anti-Potong Overflow Visible"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">
+                    Efek Floating 3D (Hover / Tap)
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(c.imageHoverFloat3D)}
+                    onChange={(enabled) => updateContent({ imageHoverFloat3D: enabled })}
+                    label="Efek Floating 3D Hover"
+                  />
+                </div>
+
+                <div className="space-y-2 pt-1 border-t border-[#00C98A]/20">
+                  <SliderRow
+                    label="Geser Horizontal (Offset X)"
+                    value={`${c.imageOffsetX ?? 0}px`}
+                    min={-100}
+                    max={100}
+                    step={2}
+                    current={c.imageOffsetX ?? 0}
+                    onChange={(val) =>
+                      updateContent({ imageOffsetX: val, imagePopoutEnabled: true })
+                    }
+                  />
+                  <SliderRow
+                    label="Geser Vertikal (Offset Y)"
+                    value={`${c.imageOffsetY ?? 0}px`}
+                    min={-100}
+                    max={100}
+                    step={2}
+                    current={c.imageOffsetY ?? 0}
+                    onChange={(val) =>
+                      updateContent({ imageOffsetY: val, imagePopoutEnabled: true })
+                    }
+                  />
+                  <SliderRow
+                    label="Rotasi Objek PNG"
+                    value={`${c.imageRotate ?? 0}°`}
+                    min={-45}
+                    max={45}
+                    step={1}
+                    current={c.imageRotate ?? 0}
+                    onChange={(val) =>
+                      updateContent({ imageRotate: val, imagePopoutEnabled: true })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2 pt-1.5 border-t border-[#00C98A]/20">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-[#17243D]">
+                      Bayangan PNG Siluet (Drop Shadow)
+                    </span>
+                    <ToggleSwitch
+                      checked={Boolean(c.imageDropShadowEnabled)}
+                      onChange={(enabled) =>
+                        updateContent({
+                          imageDropShadowEnabled: enabled,
+                          imageDropShadowX: c.imageDropShadowX ?? 0,
+                          imageDropShadowY: c.imageDropShadowY ?? 14,
+                          imageDropShadowBlur: c.imageDropShadowBlur ?? 18,
+                          imageDropShadowColor: c.imageDropShadowColor ?? 'rgba(15, 23, 42, 0.34)',
+                        })
+                      }
+                      label="Aktifkan Bayangan PNG Siluet"
+                    />
+                  </div>
+                  {c.imageDropShadowEnabled && (
+                    <div className="space-y-2 bg-white/85 rounded-lg p-2 border border-[#DCE5EF]">
+                      <div className="grid grid-cols-2 gap-2">
+                        <SliderRow
+                          label="Posisi X"
+                          value={`${c.imageDropShadowX ?? 0}px`}
+                          min={-30}
+                          max={30}
+                          step={1}
+                          current={c.imageDropShadowX ?? 0}
+                          onChange={(val) => updateContent({ imageDropShadowX: val })}
+                        />
+                        <SliderRow
+                          label="Posisi Y"
+                          value={`${c.imageDropShadowY ?? 14}px`}
+                          min={-20}
+                          max={40}
+                          step={1}
+                          current={c.imageDropShadowY ?? 14}
+                          onChange={(val) => updateContent({ imageDropShadowY: val })}
+                        />
+                      </div>
+                      <SliderRow
+                        label="Blur Bayangan"
+                        value={`${c.imageDropShadowBlur ?? 18}px`}
+                        min={0}
+                        max={44}
+                        step={1}
+                        current={c.imageDropShadowBlur ?? 18}
+                        onChange={(val) => updateContent({ imageDropShadowBlur: val })}
+                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10.5px] font-medium text-[#51637D]">
+                          Warna Bayangan
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {[
+                            { label: 'Gelap', val: 'rgba(15, 23, 42, 0.36)' },
+                            { label: 'Lembut', val: 'rgba(15, 23, 42, 0.22)' },
+                            { label: 'Pekat', val: 'rgba(15, 23, 42, 0.52)' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => updateContent({ imageDropShadowColor: preset.val })}
+                              className={`px-1.5 py-0.5 rounded border text-[9.5px] font-semibold cursor-pointer ${
+                                (c.imageDropShadowColor ?? 'rgba(15, 23, 42, 0.36)') === preset.val
+                                  ? 'bg-[#17243D] text-white border-[#17243D]'
+                                  : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                          <input
+                            type="color"
+                            value={
+                              c.imageDropShadowColor && c.imageDropShadowColor.startsWith('#')
+                                ? c.imageDropShadowColor
+                                : '#0F172A'
+                            }
+                            onChange={(e) =>
+                              updateContent({ imageDropShadowColor: e.target.value })
+                            }
+                            className="w-6 h-6 rounded border border-[#DCE5EF] p-0.5 bg-white cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {isProfilePhoto && (
               <div className="p-2.5 rounded-lg bg-[#F0F5FA]/80 border border-[#DCE5EF] space-y-2.5">
@@ -2859,12 +3625,121 @@ export function BlockDesignTab({
       }
 
       case 'showcase_card': {
+        const isPopoutCard = c.cardVariant === 'popout_product';
+        const renderPopoutControls = () => (
+          <div className="p-2.5 rounded-xl bg-[#ECFDF6]/65 border border-[#00C98A]/35 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 text-[#00A873] shrink-0" />
+                <span className="text-[11px] font-bold text-[#17243D] truncate">
+                  Kontrol Pop-Out 3D &amp; Bayangan Siluet
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  updateContent({
+                    imageOffsetX: 16,
+                    imageOffsetY: 6,
+                    imageRotate: -12,
+                    cardImageZoom: 112,
+                  })
+                }
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-[#DCE5EF] text-[10px] font-semibold text-[#51637D] hover:text-[#17243D] cursor-pointer shrink-0"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>Default</span>
+              </button>
+            </div>
+            <SliderRow
+              label="Geser Horizontal (Offset X)"
+              value={`${c.imageOffsetX ?? 16}px`}
+              min={-60}
+              max={70}
+              step={2}
+              current={c.imageOffsetX ?? 16}
+              onChange={(val) => updateContent({ imageOffsetX: val })}
+            />
+            <SliderRow
+              label="Geser Vertikal (Offset Y)"
+              value={`${c.imageOffsetY ?? 6}px`}
+              min={-60}
+              max={60}
+              step={2}
+              current={c.imageOffsetY ?? 6}
+              onChange={(val) => updateContent({ imageOffsetY: val })}
+            />
+            <SliderRow
+              label="Rotasi Objek Produk"
+              value={`${c.imageRotate ?? -12}°`}
+              min={-45}
+              max={45}
+              step={1}
+              current={c.imageRotate ?? -12}
+              onChange={(val) => updateContent({ imageRotate: val })}
+            />
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#00C98A]/20">
+              <span className="text-[11px] font-medium text-[#17243D]">
+                Efek Floating 3D (Hover / Tap)
+              </span>
+              <ToggleSwitch
+                checked={c.imageHoverFloat3D !== false}
+                onChange={(enabled) => updateContent({ imageHoverFloat3D: enabled })}
+                label="Floating 3D Hover"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-[#17243D]">
+                Bayangan PNG Siluet (Drop Shadow)
+              </span>
+              <ToggleSwitch
+                checked={c.imageDropShadowEnabled !== false}
+                onChange={(enabled) => updateContent({ imageDropShadowEnabled: enabled })}
+                label="Bayangan Siluet PNG"
+              />
+            </div>
+            {c.imageDropShadowEnabled !== false && (
+              <div className="space-y-2 bg-white/85 rounded-lg p-2 border border-[#DCE5EF]">
+                <div className="grid grid-cols-2 gap-2">
+                  <SliderRow
+                    label="Bayangan X"
+                    value={`${c.imageDropShadowX ?? 0}px`}
+                    min={-25}
+                    max={25}
+                    step={1}
+                    current={c.imageDropShadowX ?? 0}
+                    onChange={(val) => updateContent({ imageDropShadowX: val })}
+                  />
+                  <SliderRow
+                    label="Bayangan Y"
+                    value={`${c.imageDropShadowY ?? 14}px`}
+                    min={-15}
+                    max={36}
+                    step={1}
+                    current={c.imageDropShadowY ?? 14}
+                    onChange={(val) => updateContent({ imageDropShadowY: val })}
+                  />
+                </div>
+                <SliderRow
+                  label="Blur Bayangan"
+                  value={`${c.imageDropShadowBlur ?? 18}px`}
+                  min={0}
+                  max={40}
+                  step={1}
+                  current={c.imageDropShadowBlur ?? 18}
+                  onChange={(val) => updateContent({ imageDropShadowBlur: val })}
+                />
+              </div>
+            )}
+          </div>
+        );
+
         if (!selectedSubLayer) {
           return (
             <div className="space-y-3">
               <PhotoScaleControl
                 label="Scale Foto di Dalam Kartu"
-                value={c.cardImageZoom ?? 100}
+                value={c.cardImageZoom ?? (isPopoutCard ? 112 : 100)}
                 onChange={(val) => updateContent({ cardImageZoom: val })}
               />
               <div>
@@ -2873,7 +3748,7 @@ export function BlockDesignTab({
                 </label>
                 <SegmentedControl<'cover' | 'contain'>
                   columns={2}
-                  value={c.cardImageFit ?? 'cover'}
+                  value={c.cardImageFit ?? (isPopoutCard ? 'contain' : 'cover')}
                   onChange={(fit) => updateContent({ cardImageFit: fit })}
                   options={[
                     { id: 'cover', label: 'Penuh (Cover)' },
@@ -2881,6 +3756,7 @@ export function BlockDesignTab({
                   ]}
                 />
               </div>
+              {isPopoutCard && renderPopoutControls()}
             </div>
           );
         }
@@ -2909,11 +3785,14 @@ export function BlockDesignTab({
             </div>
 
             {subId === 'card_media' && (
-              <PhotoScaleControl
-                label="Scale Foto di Dalam Kartu"
-                value={c.cardImageZoom ?? 100}
-                onChange={(val) => updateContent({ cardImageZoom: val })}
-              />
+              <>
+                <PhotoScaleControl
+                  label="Scale Foto di Dalam Kartu"
+                  value={c.cardImageZoom ?? (isPopoutCard ? 112 : 100)}
+                  onChange={(val) => updateContent({ cardImageZoom: val })}
+                />
+                {isPopoutCard && renderPopoutControls()}
+              </>
             )}
 
             <div className="grid grid-cols-2 gap-2">

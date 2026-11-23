@@ -1,12 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  ArrowLeftRight,
   Award,
   BadgeCheck,
+  Bookmark,
+  BookmarkPlus,
   CalendarDays,
+  Check,
   ChevronsUpDown,
+  Coffee,
   Columns2,
   Columns3,
+  Disc3,
+  Eye,
   FileText,
   GraduationCap,
   Grid3X3,
@@ -24,10 +31,12 @@ import {
   Palette,
   PanelBottomOpen,
   PanelTop,
+  Pencil,
   Quote,
   Search,
   Shapes,
   Share2,
+  Shirt,
   ShoppingBag,
   ShoppingCart,
   Sparkles,
@@ -36,12 +45,14 @@ import {
   Tag,
   Tags,
   Ticket,
+  Trash2,
   Type,
   UserCheck,
   Users,
   UtensilsCrossed,
   Video,
   Wrench,
+  X,
 } from 'lucide-react';
 import {
   AdvanceOptions,
@@ -51,17 +62,26 @@ import {
   BuilderSubPage,
   PageTheme,
   PrebuiltSectionCategory,
+  SavedItemTemplate,
+  SavedItemTemplateTarget,
 } from '../types/builder';
 import {
+  BLOCK_TYPE_NAMES,
   PREBUILT_SECTION_CATEGORIES,
   PREBUILT_SECTIONS,
   PrebuiltSection,
+  createBlock,
+  createPngImageBlock,
 } from '../data/presets';
 import { useUiLabel } from '../contexts/UiLabelsContext';
 import { SocialGlyph } from './SocialIcon';
 import { HomePageSettings } from './inspector/HomePageSettings';
+import { ItemPreviewModal, ItemPreviewPayload } from './modals/ItemPreviewModal';
+import { countNestedBlocks } from '../utils/itemTemplateStorage';
 
 type SidebarTab = 'alat' | 'blok' | 'tema' | 'layer';
+
+const PREVIEW_MODE_LS_KEY = 'lynk_sidebar_preview_before_insert_v1';
 
 function hasBlockInTree(nodes: BuilderBlock[] | undefined, targetId: string): boolean {
   if (!Array.isArray(nodes) || !targetId) return false;
@@ -75,8 +95,16 @@ function hasBlockInTree(nodes: BuilderBlock[] | undefined, targetId: string): bo
 }
 
 interface LeftSidebarProps {
-  onAddBlock: (type: BlockType) => void;
+  onAddBlock: (type: BlockType, toolPreset?: 'png') => void;
   onAddSection: (section: PrebuiltSection) => void;
+  itemTemplates?: SavedItemTemplate[];
+  onAddItemTemplate?: (template: SavedItemTemplate) => void;
+  onOpenSaveItemTemplate?: (defaultTarget?: SavedItemTemplateTarget) => void;
+  onDeleteItemTemplate?: (id: string) => void;
+  onUpdateItemTemplate?: (
+    id: string,
+    patch: Partial<Pick<SavedItemTemplate, 'name' | 'description' | 'target'>>
+  ) => void;
   blocks: BuilderBlock[];
   pages?: BuilderSubPage[];
   activeSubPageId?: string | null;
@@ -118,6 +146,7 @@ interface LeftSidebarProps {
 export interface ToolPaletteItem {
   key: string;
   type: BlockType;
+  toolPreset?: 'png';
   sectionId?: string;
   label: string;
   desc: string;
@@ -143,6 +172,14 @@ export const TOOL_ITEMS: ToolPaletteItem[] = [
     label: 'Gambar',
     desc: 'Foto, logo, poster, atau ilustrasi',
     icon: <ImageIcon className="w-4 h-4" strokeWidth={1.85} />,
+  },
+  {
+    key: 'image_png',
+    type: 'image',
+    toolPreset: 'png',
+    label: 'Gambar PNG',
+    desc: 'PNG transparan, hapus latar putih/polos, bayangan siluet & pop-out 3D',
+    icon: <Sparkles className="w-4 h-4" strokeWidth={1.85} />,
   },
   {
     key: 'button',
@@ -270,6 +307,7 @@ export const SECTION_ICONS: Record<string, React.ReactNode> = {
   'kartu-informasi-nasional': <Newspaper className="w-4 h-4" strokeWidth={1.85} />,
   'kartu-even-promo': <CalendarDays className="w-4 h-4" strokeWidth={1.85} />,
   'kartu-sertifikasi': <Award className="w-4 h-4" strokeWidth={1.85} />,
+  'kartu-produk-3d-popout': <Sparkles className="w-4 h-4" strokeWidth={1.85} />,
   'kartu-store-gradasi': <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />,
   'kartu-feed-kegiatan': <Users className="w-4 h-4" strokeWidth={1.85} />,
   'kartu-tarif-keanggotaan': <Ticket className="w-4 h-4" strokeWidth={1.85} />,
@@ -278,6 +316,9 @@ export const SECTION_ICONS: Record<string, React.ReactNode> = {
   'hero-profil-banner': <PanelTop className="w-4 h-4" strokeWidth={1.85} />,
   'tombol-kategori-scroll': <Tags className="w-4 h-4" strokeWidth={1.85} />,
   'row-slide-horizontal': <Columns3 className="w-4 h-4" strokeWidth={1.85} />,
+  'slide-produk-fnb': <Coffee className="w-4 h-4" strokeWidth={1.85} />,
+  'slide-kuliner-putar': <Disc3 className="w-4 h-4" strokeWidth={1.85} />,
+  'studio-produk-melayang': <Shirt className="w-4 h-4" strokeWidth={1.85} />,
   'katalog-fnb': <UtensilsCrossed className="w-4 h-4" strokeWidth={1.85} />,
   'kotak-outlet-dinamis': <Store className="w-4 h-4" strokeWidth={1.85} />,
   'kotak-promo-gradasi': <Sparkles className="w-4 h-4" strokeWidth={1.85} />,
@@ -299,6 +340,37 @@ export function getSectionIcon(sectionId: string): React.ReactNode {
   return SECTION_ICONS[sectionId] ?? <LayoutGrid className="w-4 h-4" strokeWidth={1.85} />;
 }
 
+export function getBlockTypePaletteIcon(type: BlockType): React.ReactNode {
+  const toolMatch = TOOL_ITEMS.find((t) => t.type === type);
+  if (toolMatch) return toolMatch.icon;
+  switch (type) {
+    case 'catalog':
+      return <ShoppingBag className="w-4 h-4" strokeWidth={1.85} />;
+    case 'training_catalog':
+      return <GraduationCap className="w-4 h-4" strokeWidth={1.85} />;
+    case 'fnb_catalog':
+      return <UtensilsCrossed className="w-4 h-4" strokeWidth={1.85} />;
+    case 'fnb_hero_slider':
+      return <Coffee className="w-4 h-4" strokeWidth={1.85} />;
+    case 'culinary_spin_slider':
+      return <Disc3 className="w-4 h-4" strokeWidth={1.85} />;
+    case 'floating_product_studio':
+      return <Shirt className="w-4 h-4" strokeWidth={1.85} />;
+    case 'carousel':
+      return <Images className="w-4 h-4" strokeWidth={1.85} />;
+    case 'social_feed':
+      return <Share2 className="w-4 h-4" strokeWidth={1.85} />;
+    case 'social_follower':
+      return <UserCheck className="w-4 h-4" strokeWidth={1.85} />;
+    case 'hero_profile':
+      return <PanelTop className="w-4 h-4" strokeWidth={1.85} />;
+    case 'showcase_card':
+      return <Sparkles className="w-4 h-4" strokeWidth={1.85} />;
+    default:
+      return <Bookmark className="w-4 h-4" strokeWidth={1.85} />;
+  }
+}
+
 const CATEGORY_LABEL_MAP: Record<PrebuiltSectionCategory, string> = {
   kartu_info: 'Kartu & Info',
   katalog_store: 'Katalog & Store',
@@ -312,6 +384,11 @@ const CATEGORY_LABEL_MAP: Record<PrebuiltSectionCategory, string> = {
 export function LeftSidebar({
   onAddBlock,
   onAddSection,
+  itemTemplates = [],
+  onAddItemTemplate,
+  onOpenSaveItemTemplate,
+  onDeleteItemTemplate,
+  onUpdateItemTemplate,
   blocks,
   pages = [],
   activeSubPageId = null,
@@ -349,8 +426,32 @@ export function LeftSidebar({
   const [activeTab, setActiveTab] = useState<SidebarTab>('alat');
   const [query, setQuery] = useState('');
   const [selectedBlockCategory, setSelectedBlockCategory] = useState<
-    'semua' | PrebuiltSectionCategory
+    'semua' | 'item_template' | PrebuiltSectionCategory
   >('semua');
+  const [previewBeforeInsert, setPreviewBeforeInsert] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(PREVIEW_MODE_LS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [previewItem, setPreviewItem] = useState<ItemPreviewPayload | null>(null);
+  const [confirmDeleteTemplateId, setConfirmDeleteTemplateId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingTemplateName, setEditingTemplateName] = useState<string>('');
+
+  const togglePreviewBeforeInsert = () => {
+    setPreviewBeforeInsert((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(PREVIEW_MODE_LS_KEY, next ? '1' : '0');
+      } catch {
+        // ignore storage error
+      }
+      return next;
+    });
+  };
 
   const prevNavbarFocusNonceRef = useRef(navbarFocusNonce);
   const prevLayerFocusNonceRef = useRef(layerFocusNonce);
@@ -398,6 +499,7 @@ export function LeftSidebar({
   }, [query, label, isVisible]);
 
   const filteredSections = useMemo(() => {
+    if (selectedBlockCategory === 'item_template') return [];
     const q = query.trim().toLowerCase();
     return PREBUILT_SECTIONS.filter((sec) => {
       if (!isVisible(`blok.sec.${sec.id}`)) return false;
@@ -415,6 +517,322 @@ export function LeftSidebar({
       );
     });
   }, [query, selectedBlockCategory, label, isVisible]);
+
+  const alatTemplates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return itemTemplates.filter((tpl) => {
+      if (tpl.target !== 'alat') return false;
+      if (!q) return true;
+      const typeName = BLOCK_TYPE_NAMES[tpl.blockType] ?? tpl.blockType;
+      return (
+        tpl.name.toLowerCase().includes(q) ||
+        (tpl.description ?? '').toLowerCase().includes(q) ||
+        typeName.toLowerCase().includes(q)
+      );
+    });
+  }, [itemTemplates, query]);
+
+  const blokTemplates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return itemTemplates.filter((tpl) => {
+      if (tpl.target !== 'blok') return false;
+      if (!q) return true;
+      const typeName = BLOCK_TYPE_NAMES[tpl.blockType] ?? tpl.blockType;
+      return (
+        tpl.name.toLowerCase().includes(q) ||
+        (tpl.description ?? '').toLowerCase().includes(q) ||
+        typeName.toLowerCase().includes(q)
+      );
+    });
+  }, [itemTemplates, query]);
+
+  const totalBlokTemplatesCount = useMemo(
+    () => itemTemplates.filter((t) => t.target === 'blok').length,
+    [itemTemplates]
+  );
+
+  const openToolPreview = (item: ToolPaletteItem, displayLabel: string) => {
+    if (item.sectionId) {
+      const sec = PREBUILT_SECTIONS.find((s) => s.id === item.sectionId);
+      if (sec) {
+        setPreviewItem({
+          title: displayLabel,
+          description: item.desc,
+          badge: 'Alat',
+          icon: item.icon,
+          blocks: sec.createBlocks(theme),
+          onInsert: () => onAddSection(sec),
+        });
+        return;
+      }
+    }
+    const previewBlock =
+      item.toolPreset === 'png'
+        ? createPngImageBlock(theme)
+        : createBlock(item.type, theme);
+    setPreviewItem({
+      title: displayLabel,
+      description: item.desc,
+      badge: item.toolPreset === 'png' ? 'Alat PNG 3D' : 'Alat Mandiri',
+      icon: item.icon,
+      blocks: [previewBlock],
+      onInsert: () => onAddBlock(item.type, item.toolPreset),
+    });
+  };
+
+  const openSectionPreview = (section: PrebuiltSection, displayTitle: string) => {
+    const catLabel = CATEGORY_LABEL_MAP[section.category] ?? 'Blok';
+    setPreviewItem({
+      title: displayTitle,
+      description: section.description,
+      badge: `Blok · ${catLabel}`,
+      icon: getSectionIcon(section.id),
+      blocks: section.createBlocks(theme),
+      onInsert: () => onAddSection(section),
+    });
+  };
+
+  const openSavedTemplatePreview = (tpl: SavedItemTemplate) => {
+    setPreviewItem({
+      title: tpl.name,
+      description:
+        tpl.description ||
+        `Item Template tersimpan (${BLOCK_TYPE_NAMES[tpl.blockType] ?? tpl.blockType})`,
+      badge: `Item Template · ${tpl.target === 'alat' ? 'Alat' : 'Blok'}`,
+      icon: getBlockTypePaletteIcon(tpl.blockType),
+      blocks: [tpl.block],
+      onInsert: () => onAddItemTemplate?.(tpl),
+    });
+  };
+
+  const handleSaveInlineRename = (tplId: string) => {
+    const clean = editingTemplateName.trim();
+    if (clean) {
+      onUpdateItemTemplate?.(tplId, { name: clean });
+    }
+    setEditingTemplateId(null);
+    setEditingTemplateName('');
+  };
+
+  const renderSavedTemplatesSection = (
+    target: SavedItemTemplateTarget,
+    templatesList: SavedItemTemplate[]
+  ) => {
+    const otherTarget: SavedItemTemplateTarget = target === 'alat' ? 'blok' : 'alat';
+    const otherLabel = otherTarget === 'alat' ? 'Alat' : 'Blok';
+
+    return (
+      <div className="space-y-1.5 rounded-xl border border-[#DCE5EF] bg-[#F8FAFC]/80 p-2">
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-5 h-5 rounded-md bg-[#ECFDF6] border border-[#00C98A]/35 text-[#00A873] flex items-center justify-center shrink-0">
+              <Bookmark className="w-3 h-3" />
+            </span>
+            <span className="text-[11px] font-bold text-[#17243D] truncate">
+              Item Template ({templatesList.length})
+            </span>
+          </div>
+          {onOpenSaveItemTemplate && (
+            <button
+              type="button"
+              disabled={!selectedId}
+              onClick={() => onOpenSaveItemTemplate(target)}
+              title={
+                selectedId
+                  ? `Simpan elemen yang sedang dipilih di Canvas ke Item Template (${target === 'alat' ? 'Alat' : 'Blok'})`
+                  : 'Pilih satu elemen di Canvas terlebih dahulu untuk disimpan sebagai Item Template'
+              }
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#00C98A] hover:bg-[#00B078] disabled:bg-[#DCE5EF] disabled:text-[#8FA4BF] text-white text-[10px] font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed shrink-0"
+            >
+              <BookmarkPlus className="w-3 h-3" />
+              <span>Simpan</span>
+            </button>
+          )}
+        </div>
+
+        {templatesList.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#CBD5E1] bg-white/80 px-2.5 py-2 text-[10.5px] text-[#64748B] leading-snug">
+            {query.trim()
+              ? 'Tidak ada Item Template yang cocok dengan pencarian.'
+              : selectedId
+              ? `Klik "Simpan" untuk menyimpan desain terpilih di Canvas ke koleksi Item Template ${target === 'alat' ? 'Alat' : 'Blok'}.`
+              : 'Pilih elemen di Canvas lalu klik tombol simpan untuk memperkaya koleksi Item Template Anda.'}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {templatesList.map((tpl) => {
+              const typeLabel = BLOCK_TYPE_NAMES[tpl.blockType] ?? tpl.blockType;
+              const elementCount = countNestedBlocks([tpl.block]);
+              const isConfirmDelete = confirmDeleteTemplateId === tpl.id;
+              const isEditing = editingTemplateId === tpl.id;
+
+              return (
+                <div
+                  key={tpl.id}
+                  draggable={!isEditing}
+                  onDragStart={(e) => {
+                    if (isEditing) {
+                      e.preventDefault();
+                      return;
+                    }
+                    e.dataTransfer.setData('application/lynk-item-template-id', tpl.id);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  className="rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] transition-colors group overflow-hidden"
+                >
+                  {isEditing ? (
+                    <div className="p-2 flex items-center gap-1">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingTemplateName}
+                        onChange={(e) => setEditingTemplateName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveInlineRename(tpl.id);
+                          if (e.key === 'Escape') {
+                            setEditingTemplateId(null);
+                            setEditingTemplateName('');
+                          }
+                        }}
+                        className="flex-1 min-w-0 px-2 py-1 text-[11.5px] rounded-md border border-[#00C98A] bg-white text-[#17243D] outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveInlineRename(tpl.id)}
+                        title="Simpan nama"
+                        className="p-1 rounded-md bg-[#00C98A] text-white hover:bg-[#00B078] cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingTemplateId(null);
+                          setEditingTemplateName('');
+                        }}
+                        title="Batal"
+                        className="p-1 rounded-md border border-[#DCE5EF] text-[#5B708B] hover:bg-[#F0F5FA] cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-stretch">
+                      <button
+                        type="button"
+                        title={
+                          previewBeforeInsert
+                            ? `Klik untuk pratinjau "${tpl.name}" (atau seret ke Canvas)`
+                            : `Klik untuk masukkan "${tpl.name}" ke Canvas (atau seret)`
+                        }
+                        onClick={() => {
+                          if (previewBeforeInsert) {
+                            openSavedTemplatePreview(tpl);
+                          } else {
+                            onAddItemTemplate?.(tpl);
+                          }
+                        }}
+                        className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[#F0F5FA]/70 transition-colors cursor-pointer min-w-0"
+                      >
+                        <span className="w-6 h-6 rounded-md bg-[#ECFDF6] text-[#00A873] shrink-0 flex items-center justify-center">
+                          {getBlockTypePaletteIcon(tpl.blockType)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-semibold text-[#17243D] truncate">
+                            {tpl.name}
+                          </div>
+                          <div className="text-[9.5px] text-[#8FA4BF] truncate">
+                            {tpl.description
+                              ? tpl.description
+                              : `${typeLabel} · ${elementCount} lapisan`}
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Action icons */}
+                      <div className="flex items-center gap-0.5 pr-1.5 pl-0.5 bg-white shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openSavedTemplatePreview(tpl)}
+                          title="Pratinjau Item Template"
+                          aria-label={`Pratinjau ${tpl.name}`}
+                          className="p-1 rounded-md text-[#64748B] hover:text-[#00A873] hover:bg-[#ECFDF6] transition-colors cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {onUpdateItemTemplate && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateItemTemplate(tpl.id, { target: otherTarget })
+                            }
+                            title={`Pindahkan ke tab ${otherLabel}`}
+                            aria-label={`Pindahkan ${tpl.name} ke ${otherLabel}`}
+                            className="p-1 rounded-md text-[#64748B] hover:text-[#17243D] hover:bg-[#F0F5FA] transition-colors cursor-pointer"
+                          >
+                            <ArrowLeftRight className="w-3 h-3" />
+                          </button>
+                        )}
+                        {onUpdateItemTemplate && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTemplateId(tpl.id);
+                              setEditingTemplateName(tpl.name);
+                              setConfirmDeleteTemplateId(null);
+                            }}
+                            title="Ubah nama Item Template"
+                            aria-label={`Ubah nama ${tpl.name}`}
+                            className="p-1 rounded-md text-[#64748B] hover:text-[#17243D] hover:bg-[#F0F5FA] transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                        {onDeleteItemTemplate &&
+                          (isConfirmDelete ? (
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDeleteItemTemplate(tpl.id);
+                                  setConfirmDeleteTemplateId(null);
+                                }}
+                                title="Konfirmasi hapus"
+                                className="p-1 rounded-md bg-rose-600 text-white hover:bg-rose-700 cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteTemplateId(null)}
+                                title="Batal hapus"
+                                className="p-1 rounded-md border border-[#DCE5EF] text-[#5B708B] hover:bg-[#F0F5FA] cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteTemplateId(tpl.id)}
+                              title="Hapus Item Template"
+                              aria-label={`Hapus ${tpl.name}`}
+                              className="p-1 rounded-md text-[#8FA4BF] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <aside className="w-64 xl:w-[19%] min-w-[240px] max-w-[300px] bg-white border-r border-[#DCE5EF] flex flex-col shrink-0 h-full overflow-hidden">
@@ -453,7 +871,7 @@ export function LeftSidebar({
         })}
       </div>
 
-      {/* Quick Filter (Alat & Blok only) */}
+      {/* Quick Filter & Preview Mode Option (Alat & Blok only) */}
       {(activeTab === 'alat' || activeTab === 'blok') && (
         <div className="px-2.5 pt-2.5 pb-1.5 shrink-0 space-y-2">
           <div className="relative">
@@ -464,13 +882,42 @@ export function LeftSidebar({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={
                 activeTab === 'alat'
-                  ? label('alat.search', 'Cari alat mandiri...')
-                  : label('blok.search', 'Cari template blok / card...')
+                  ? label('alat.search', 'Cari alat / item template...')
+                  : label('blok.search', 'Cari blok / item template...')
               }
               aria-label={activeTab === 'alat' ? label('alat.search', 'Cari alat') : label('blok.search', 'Cari blok')}
               className="w-full pl-8 pr-2.5 py-1.5 text-[12px] rounded-lg border border-[#DCE5EF] bg-[#F0F5FA]/50 text-[#17243D] placeholder:text-[#8FA4BF] outline-none focus:bg-white focus:border-[#00C98A] transition-colors"
             />
           </div>
+
+          {/* Preview Item Before Insert Toggle */}
+          <button
+            type="button"
+            onClick={togglePreviewBeforeInsert}
+            aria-pressed={previewBeforeInsert}
+            title="Jika aktif, mengklik item akan menampilkan pratinjau dulu sebelum masuk ke Canvas. Anda juga selalu bisa klik ikon mata pada setiap item."
+            className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+              previewBeforeInsert
+                ? 'bg-[#ECFDF6] border-[#00C98A] text-[#065F46]'
+                : 'bg-[#F8FAFC] border-[#DCE5EF] text-[#51637D] hover:border-[#00C98A]/60 hover:text-[#17243D]'
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5 min-w-0 truncate">
+              <Eye
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  previewBeforeInsert ? 'text-[#00A873]' : 'text-[#8FA4BF]'
+                }`}
+              />
+              <span className="truncate">Preview sebelum masuk</span>
+            </span>
+            <span
+              className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center shrink-0 ${
+                previewBeforeInsert ? 'bg-[#00C98A] justify-end' : 'bg-[#CBD5E1] justify-start'
+              }`}
+            >
+              <span className="w-3 h-3 rounded-full bg-white shadow-xs block" />
+            </span>
+          </button>
 
           {activeTab === 'blok' && (
             <div className="flex flex-wrap gap-1" role="group" aria-label="Kategori Blok">
@@ -491,6 +938,29 @@ export function LeftSidebar({
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => setSelectedBlockCategory('item_template')}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-semibold border transition-colors cursor-pointer ${
+                  selectedBlockCategory === 'item_template'
+                    ? 'bg-[#00C98A] text-white border-[#00C98A]'
+                    : 'bg-[#ECFDF6] text-[#008F63] border-[#00C98A]/40 hover:border-[#00C98A]'
+                }`}
+              >
+                <Bookmark className="w-3 h-3" />
+                <span>Item Template</span>
+                {totalBlokTemplatesCount > 0 && (
+                  <span
+                    className={`px-1 rounded text-[9.5px] font-bold ${
+                      selectedBlockCategory === 'item_template'
+                        ? 'bg-white/25 text-white'
+                        : 'bg-[#00C98A]/15 text-[#065F46]'
+                    }`}
+                  >
+                    {totalBlokTemplatesCount}
+                  </span>
+                )}
+              </button>
             </div>
           )}
         </div>
@@ -536,141 +1006,222 @@ export function LeftSidebar({
       ) : (
       <div className="flex-1 overflow-y-auto px-2.5 pb-4 pt-1">
         {activeTab === 'alat' && (
-          <div className="space-y-2">
-            <div className="px-0.5 space-y-0.5">
-              <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D]">
-                <span>{label('alat.header', 'Alat Mandiri')} ({filteredTools.length})</span>
-                {isVisible('alat.hint.dragClick') && (
-                  <span className="text-[9.5px] font-medium text-[#8FA4BF]">
-                    {label('alat.hint.dragClick', 'Seret / Klik')}
-                  </span>
+          <div className="space-y-3">
+            {/* Saved Item Template for Alat */}
+            {renderSavedTemplatesSection('alat', alatTemplates)}
+
+            {/* Built-in Alat Mandiri */}
+            <div className="space-y-2">
+              <div className="px-0.5 space-y-0.5">
+                <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D]">
+                  <span>{label('alat.header', 'Alat Mandiri')} ({filteredTools.length})</span>
+                  {isVisible('alat.hint.dragClick') && (
+                    <span className="text-[9.5px] font-medium text-[#8FA4BF]">
+                      {previewBeforeInsert
+                        ? 'Klik = Preview'
+                        : label('alat.hint.dragClick', 'Seret / Klik')}
+                    </span>
+                  )}
+                </div>
+                {isVisible('alat.desc') && (
+                  <p className="text-[10px] text-[#8FA4BF] leading-snug">
+                    {label('alat.desc', 'Komponen dasar atomik untuk menyusun halaman bebas dari awal.')}
+                  </p>
                 )}
               </div>
-              {isVisible('alat.desc') && (
-                <p className="text-[10px] text-[#8FA4BF] leading-snug">
-                  {label('alat.desc', 'Komponen dasar atomik untuk menyusun halaman bebas dari awal.')}
-                </p>
+              {filteredTools.length === 0 ? (
+                <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
+                  Alat tidak ditemukan.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {filteredTools.map((item) => {
+                    const displayLabel = label(`alat.tool.${item.key}`, item.label);
+                    return (
+                      <div
+                        key={item.key}
+                        draggable
+                        onDragStart={(e) => {
+                          if (item.sectionId) {
+                            e.dataTransfer.setData('application/lynk-section-id', item.sectionId);
+                          } else {
+                            e.dataTransfer.setData('application/lynk-block-type', item.type);
+                            if (item.toolPreset) {
+                              e.dataTransfer.setData('application/lynk-block-preset', item.toolPreset);
+                            }
+                          }
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                        className="relative flex items-center rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#00C98A] transition-colors group min-w-0 overflow-hidden"
+                      >
+                        <button
+                          type="button"
+                          title={
+                            previewBeforeInsert
+                              ? `Preview ${displayLabel} — ${item.desc}`
+                              : `${displayLabel} — ${item.desc}`
+                          }
+                          onClick={() => {
+                            if (previewBeforeInsert) {
+                              openToolPreview(item, displayLabel);
+                              return;
+                            }
+                            if (item.sectionId) {
+                              const sec = PREBUILT_SECTIONS.find((s) => s.id === item.sectionId);
+                              if (sec) {
+                                onAddSection(sec);
+                                return;
+                              }
+                            }
+                            onAddBlock(item.type, item.toolPreset);
+                          }}
+                          className="flex-1 flex items-center gap-1.5 pl-2 pr-1 py-2.5 text-left cursor-pointer min-w-0"
+                        >
+                          <span className="text-[#8FA4BF] group-hover:text-[#00C98A] shrink-0 flex items-center justify-center transition-colors">
+                            {item.icon}
+                          </span>
+                          <span className="text-[11px] font-medium text-[#17243D] truncate min-w-0">
+                            {displayLabel}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openToolPreview(item, displayLabel);
+                          }}
+                          title={`Preview ${displayLabel}`}
+                          aria-label={`Preview ${displayLabel}`}
+                          className="p-1.5 mr-0.5 rounded-md text-[#94A3B8] hover:text-[#00A873] hover:bg-[#ECFDF6] transition-colors cursor-pointer shrink-0"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
-            {filteredTools.length === 0 ? (
-              <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
-                Alat tidak ditemukan.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-1.5">
-                {filteredTools.map((item) => {
-                  const displayLabel = label(`alat.tool.${item.key}`, item.label);
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      title={`${displayLabel} — ${item.desc}`}
-                      draggable
-                      onDragStart={(e) => {
-                        if (item.sectionId) {
-                          e.dataTransfer.setData('application/lynk-section-id', item.sectionId);
-                        } else {
-                          e.dataTransfer.setData('application/lynk-block-type', item.type);
-                        }
-                        e.dataTransfer.effectAllowed = 'copy';
-                      }}
-                      onClick={() => {
-                        if (item.sectionId) {
-                          const sec = PREBUILT_SECTIONS.find((s) => s.id === item.sectionId);
-                          if (sec) {
-                            onAddSection(sec);
-                            return;
-                          }
-                        }
-                        onAddBlock(item.type);
-                      }}
-                      className="flex items-center gap-2 px-2 py-2.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#00C98A] text-left transition-colors group cursor-pointer min-w-0"
-                    >
-                      <span className="text-[#8FA4BF] group-hover:text-[#00C98A] shrink-0 flex items-center justify-center transition-colors">
-                        {item.icon}
-                      </span>
-                      <span className="text-[11.5px] font-medium text-[#17243D] truncate min-w-0">
-                        {displayLabel}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
         {activeTab === 'blok' && (
-          <div className="space-y-2">
-            <div className="px-0.5 space-y-0.5">
-              <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D]">
-                <span>{label('blok.header', 'Template Blok & Card')} ({filteredSections.length})</span>
-                {isVisible('blok.badge.ready') && (
-                  <span className="text-[9.5px] font-medium text-[#008F63]">
-                    {label('blok.badge.ready', 'Siap Pakai')}
-                  </span>
-                )}
-              </div>
-              {isVisible('blok.desc') && (
-                <p className="text-[10px] text-[#8FA4BF] leading-snug">
-                  {label('blok.desc', 'Template bagian jadi berisi kombinasi elemen & data contoh siap edit.')}
-                </p>
-              )}
-            </div>
-            {filteredSections.length === 0 ? (
-              <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
-                Blok tidak ditemukan.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {filteredSections.map((section) => {
-                  const displayTitle = label(`blok.sec.${section.id}`, section.title);
-                  const catLabel = CATEGORY_LABEL_MAP[section.category];
-                  return (
-                    <button
-                      key={section.id}
-                      type="button"
-                      title={`${displayTitle} — ${section.description}`}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/lynk-section-id', section.id);
-                        e.dataTransfer.effectAllowed = 'copy';
-                      }}
-                      onClick={() => onAddSection(section)}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#00C98A] text-left transition-colors group cursor-pointer min-w-0"
-                    >
-                      <span className="w-7 h-7 rounded-md bg-[#F0F5FA] group-hover:bg-[#ECFDF6] text-[#8FA4BF] group-hover:text-[#00C98A] shrink-0 flex items-center justify-center transition-colors">
-                        {getSectionIcon(section.id)}
+          <div className="space-y-3">
+            {/* Saved Item Template for Blok */}
+            {(selectedBlockCategory === 'semua' || selectedBlockCategory === 'item_template') &&
+              renderSavedTemplatesSection('blok', blokTemplates)}
+
+            {/* Built-in Template Blok & Card */}
+            {selectedBlockCategory !== 'item_template' && (
+              <div className="space-y-2">
+                <div className="px-0.5 space-y-0.5">
+                  <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D]">
+                    <span>{label('blok.header', 'Template Blok & Card')} ({filteredSections.length})</span>
+                    {isVisible('blok.badge.ready') && (
+                      <span className="text-[9.5px] font-medium text-[#008F63]">
+                        {previewBeforeInsert
+                          ? 'Klik = Preview'
+                          : label('blok.badge.ready', 'Siap Pakai')}
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[12px] font-semibold text-[#17243D] truncate">
-                            {displayTitle}
-                          </span>
-                        </div>
-                        <div className="text-[10.5px] text-[#8FA4BF] truncate">
-                          {section.description}
-                        </div>
-                        <div className="flex items-center gap-1 mt-1 flex-wrap">
-                          {selectedBlockCategory === 'semua' && catLabel && (
-                            <span className="inline-block px-1.5 py-0.5 rounded bg-[#F0F5FA] text-[9.5px] font-semibold text-[#5B708B]">
-                              {catLabel}
+                    )}
+                  </div>
+                  {isVisible('blok.desc') && (
+                    <p className="text-[10px] text-[#8FA4BF] leading-snug">
+                      {label('blok.desc', 'Template bagian jadi berisi kombinasi elemen & data contoh siap edit.')}
+                    </p>
+                  )}
+                </div>
+                {filteredSections.length === 0 ? (
+                  <div className="py-6 px-3 text-center text-xs text-[#8FA4BF] border border-dashed border-[#DCE5EF] rounded-xl">
+                    Blok tidak ditemukan.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {filteredSections.map((section) => {
+                      const displayTitle = label(`blok.sec.${section.id}`, section.title);
+                      const catLabel = CATEGORY_LABEL_MAP[section.category];
+                      return (
+                        <div
+                          key={section.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/lynk-section-id', section.id);
+                            e.dataTransfer.effectAllowed = 'copy';
+                          }}
+                          className="w-full flex items-center rounded-lg border border-[#DCE5EF] bg-white hover:bg-[#F0F5FA] hover:border-[#00C98A] transition-colors group min-w-0 overflow-hidden"
+                        >
+                          <button
+                            type="button"
+                            title={
+                              previewBeforeInsert
+                                ? `Preview ${displayTitle} — ${section.description}`
+                                : `${displayTitle} — ${section.description}`
+                            }
+                            onClick={() => {
+                              if (previewBeforeInsert) {
+                                openSectionPreview(section, displayTitle);
+                              } else {
+                                onAddSection(section);
+                              }
+                            }}
+                            className="flex-1 flex items-center gap-2.5 pl-2.5 pr-1.5 py-2.5 text-left cursor-pointer min-w-0"
+                          >
+                            <span className="w-7 h-7 rounded-md bg-[#F0F5FA] group-hover:bg-[#ECFDF6] text-[#8FA4BF] group-hover:text-[#00C98A] shrink-0 flex items-center justify-center transition-colors">
+                              {getSectionIcon(section.id)}
                             </span>
-                          )}
-                          <span className="inline-block px-1.5 py-0.5 rounded bg-[#ECFDF6] text-[9px] font-semibold text-[#008F63]">
-                            Template
-                          </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[12px] font-semibold text-[#17243D] truncate">
+                                  {displayTitle}
+                                </span>
+                              </div>
+                              <div className="text-[10.5px] text-[#8FA4BF] truncate">
+                                {section.description}
+                              </div>
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                {selectedBlockCategory === 'semua' && catLabel && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded bg-[#F0F5FA] text-[9.5px] font-semibold text-[#5B708B]">
+                                    {catLabel}
+                                  </span>
+                                )}
+                                <span className="inline-block px-1.5 py-0.5 rounded bg-[#ECFDF6] text-[9px] font-semibold text-[#008F63]">
+                                  Template
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSectionPreview(section, displayTitle);
+                            }}
+                            title={`Preview ${displayTitle}`}
+                            aria-label={`Preview ${displayTitle}`}
+                            className="p-2 mr-1 rounded-lg text-[#8FA4BF] hover:text-[#00A873] hover:bg-[#ECFDF6] transition-colors cursor-pointer shrink-0"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
       )}
+
+      {/* Live Preview Modal before inserting item to Canvas */}
+      <ItemPreviewModal
+        item={previewItem}
+        theme={theme}
+        advanceOptions={advanceOptions}
+        onClose={() => setPreviewItem(null)}
+      />
     </aside>
   );
 }
+

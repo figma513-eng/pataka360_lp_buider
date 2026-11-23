@@ -2,6 +2,7 @@ import React from 'react';
 import { Eye, Minus, Play, Plus, ShoppingCart, Wallet } from 'lucide-react';
 import { BlockContent, BlockStyle, PageTheme } from '../types/builder';
 import { buildLineClampStyle } from '../utils/universalLayerHelpers';
+import { resolveImagePopoutMetrics } from '../utils/popoutHelpers';
 
 interface ShowcaseCardViewProps {
   content: BlockContent;
@@ -195,6 +196,7 @@ export function ShowcaseCardView({
       !hasInteractiveSlots &&
       actionUrl &&
       variant !== 'store_card' &&
+      variant !== 'popout_product' &&
       variant !== 'activity_post'
     ) {
       return (
@@ -701,6 +703,215 @@ export function ShowcaseCardView({
         {renderOptionalFooterStrip()}
       </div>
     );
+  }
+
+  if (variant === 'popout_product') {
+    const cartEnabled = Boolean(content.cardEnableCart) && !content.universalCartEnabled;
+    const cartPos = content.cardPopoutCartPosition ?? 'bottom-left';
+    const showAccentLine = content.cardPopoutAccentLine !== false;
+    const mediaW = Math.max(88, Math.min(240, content.cardMediaSize ?? 150));
+    const titleSize = content.cardTitleSize ?? blockStyle?.fontSize ?? 15.5;
+    const subtitleSize = content.cardSubtitleSize ?? 11.5;
+    const pop = resolveImagePopoutMetrics(content, {
+      offsetX: 16,
+      offsetY: 10,
+      rotate: -24,
+      scale: 108,
+      dropShadowEnabled: true,
+      dropShadowX: 8,
+      dropShadowY: 18,
+      dropShadowBlur: 20,
+      dropShadowColor: 'rgba(15, 23, 42, 0.35)',
+      hoverFloat3D: true,
+      popoutEnabled: true,
+    });
+    const cardSurfaceStyle: React.CSSProperties = {
+      background: `linear-gradient(160deg, ${gradFrom} 0%, ${gradTo} 100%)`,
+      borderRadius: `${radius}px`,
+      color: textColor,
+      minHeight: minHStyle ?? '208px',
+      maxHeight: maxHStyle,
+      letterSpacing,
+      overflow: 'visible',
+      boxShadow: '0 14px 26px -12px rgba(15, 23, 42, 0.24)',
+    };
+    const imgVarsStyle = {
+      '--pop-x': `${pop.offsetX}px`,
+      '--pop-y': `${pop.offsetY}px`,
+      '--pop-rot': `${pop.rotate}deg`,
+      '--pop-scale': `${pop.scale}`,
+      '--pop-shadow': pop.dropShadowCss,
+      '--pop-shadow-hover': pop.hoverDropShadowCss,
+    } as React.CSSProperties;
+
+    const cardNode = (
+      <div className="relative pr-3.5 pb-2.5 overflow-visible">
+        <div
+          style={cardSurfaceStyle}
+          className={`lynk-popout-card ${pop.hoverFloat3D ? 'has-float-3d' : ''} relative flex flex-col justify-between`}
+        >
+          {renderCardHeaderBar(true)}
+
+          <div className="relative z-10 px-3.5 pt-3.5 pb-3 flex flex-col justify-between flex-1">
+            {!hideDefaultContent && (
+              <div
+                {...subSelectProps('card_body')}
+                className={`w-full flex flex-col items-start text-left ${subOutlineClass('card_body')}`}
+                style={{ gap: `${Math.max(2, textGap)}px`, ...bodyTextStyleOverride }}
+              >
+                <div
+                  style={{
+                    fontSize: `${bodySubStyle?.fontSize ?? titleSize}px`,
+                    lineHeight: lineHeight || 1.18,
+                    ...buildLineClampStyle(titleLines || 2),
+                  }}
+                  className="font-extrabold tracking-tight w-full pr-6"
+                >
+                  {content.cardTitle || 'Alpha Savage'}
+                </div>
+
+                {content.cardPrice?.trim() && !content.universalCartEnabled && (
+                  <div
+                    style={{ fontSize: `${subtitleSize}px` }}
+                    className="font-semibold opacity-85 tabular-nums"
+                  >
+                    {content.cardPrice}
+                  </div>
+                )}
+
+                {content.cardSubtitle?.trim() && (
+                  <div
+                    style={{
+                      fontSize: `${Math.max(9.5, subtitleSize - 1)}px`,
+                      lineHeight,
+                      ...buildLineClampStyle(subtitleLines || 2),
+                    }}
+                    className="opacity-80 max-w-[78%]"
+                  >
+                    {content.cardSubtitle}
+                  </div>
+                )}
+
+                {showAccentLine && (
+                  <span
+                    aria-hidden="true"
+                    className="block mt-2 w-[1.5px] h-11 rounded-full"
+                    style={{ backgroundColor: textColor, opacity: 0.28 }}
+                  />
+                )}
+              </div>
+            )}
+
+            {bodySlot && <div className="w-full relative z-20 mt-2">{bodySlot}</div>}
+
+            {/* Compact corner Cart (+ / Beli) button */}
+            {cartEnabled && (
+              <div
+                className={
+                  cartPos === 'top-right'
+                    ? 'absolute top-2.5 right-2.5 z-30'
+                    : 'mt-auto pt-3 z-30 self-start'
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                {!isEditor && cartQty > 0 ? (
+                  <div className="inline-flex items-center gap-1 bg-white/95 text-slate-900 rounded-full px-1.5 py-0.5 shadow-md backdrop-blur-xs">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDecCart?.();
+                      }}
+                      className="w-5 h-5 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+                      aria-label="Kurangi jumlah"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-[11px] font-bold min-w-[14px] text-center tabular-nums">
+                      {cartQty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onIncCart?.();
+                      }}
+                      className="w-5 h-5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center cursor-pointer"
+                      aria-label="Tambah jumlah"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isEditor) onAddCart?.();
+                    }}
+                    title="Tambah ke Keranjang"
+                    aria-label="Tambah ke Keranjang"
+                    className="w-7 h-7 rounded-full bg-white/95 hover:bg-white text-slate-900 shadow-md flex items-center justify-center cursor-pointer transition-transform active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.6]" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Floating Pop-Out PNG Image */}
+          {!isMediaRemoved && content.cardImage && (
+            <div
+              {...subSelectProps('card_media')}
+              style={{
+                width: `${mediaW}px`,
+                height: `${Math.round(mediaW * 0.78)}px`,
+              }}
+              className={`absolute right-0 bottom-0 z-20 flex items-center justify-center overflow-visible ${
+                isEditor ? 'cursor-pointer' : 'pointer-events-none'
+              } ${subOutlineClass('card_media')}`}
+            >
+              <img
+                src={content.cardImage}
+                alt={content.cardTitle || 'Produk 3D'}
+                referrerPolicy="no-referrer"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: content.cardImageFit ?? 'contain',
+                  display: 'block',
+                  opacity:
+                    typeof mediaSubStyle?.opacity === 'number'
+                      ? mediaSubStyle.opacity / 100
+                      : undefined,
+                  ...imgVarsStyle,
+                }}
+                className="lynk-popout-card-img select-none"
+              />
+            </div>
+          )}
+
+          {renderOptionalFooterStrip()}
+        </div>
+      </div>
+    );
+
+    if (!isEditor && !hasUniversalAction && !hasInteractiveSlots && actionUrl) {
+      return (
+        <a
+          href={actionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block no-underline"
+        >
+          {cardNode}
+        </a>
+      );
+    }
+    return cardNode;
   }
 
   if (variant === 'activity_post') {

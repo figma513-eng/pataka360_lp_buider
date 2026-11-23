@@ -10,6 +10,7 @@ import type {
   CarouselItem,
   CatalogItem,
   CategoryJumpItem,
+  FnbHeroSlideItem,
   FnbMenuItem,
   PageTheme,
   PrebuiltSectionCategory,
@@ -57,6 +58,508 @@ export const PRODUCT_CARD_SVG =
     <rect x="156" y="58" width="96" height="12" rx="6" fill="#1E293B"/>
     <rect x="156" y="80" width="74" height="8" rx="4" fill="#94A3B8"/>
     <rect x="156" y="102" width="60" height="22" rx="6" fill="#2563EB"/>
+  </svg>`);
+
+export const FNB_CUP_CARAMEL_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 300" fill="none">
+    <defs>
+      <linearGradient id="cupC" x1="40" y1="60" x2="180" y2="275" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#F27A54"/>
+        <stop offset="55%" stop-color="#E56742"/>
+        <stop offset="100%" stop-color="#C94F2D"/>
+      </linearGradient>
+      <linearGradient id="lidC" x1="32" y1="22" x2="188" y2="66" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#FFFFFF"/>
+        <stop offset="65%" stop-color="#F1F5F9"/>
+        <stop offset="100%" stop-color="#E2E8F0"/>
+      </linearGradient>
+      <clipPath id="bodyClipC">
+        <path d="M46 66H174L154 268C152.5 278 134 284 110 284C86 284 67.5 278 66 268L46 66Z"/>
+      </clipPath>
+    </defs>
+    <path d="M52 34C52 24 72 18 110 18C148 18 168 24 168 34L174 44H46L52 34Z" fill="url(#lidC)"/>
+    <rect x="34" y="42" width="152" height="16" rx="8" fill="#FFFFFF"/>
+    <rect x="36" y="54" width="148" height="10" rx="5" fill="#E2E8F0"/>
+    <ellipse cx="110" cy="24" rx="44" ry="6" fill="#FFFFFF" opacity="0.9"/>
+    <path d="M46 66H174L154 268C152.5 278 134 284 110 284C86 284 67.5 278 66 268L46 66Z" fill="url(#cupC)"/>
+    <g clip-path="url(#bodyClipC)">
+      <path d="M126 112C122 103 114 98 104 98C88 98 78 109 78 124C78 139 89 150 105 150C115 150 123 145 127 137" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.92"/>
+      <circle cx="136" cy="108" r="5" fill="#FDE68A"/>
+      <path d="M48 164H172V286H48Z" fill="#2A1F1D"/>
+      <rect x="48" y="164" width="32" height="32" fill="#0F766E"/>
+      <rect x="80" y="164" width="30" height="32" fill="#D97757"/>
+      <rect x="110" y="164" width="32" height="32" fill="#134E4A"/>
+      <rect x="142" y="164" width="30" height="32" fill="#F59E0B"/>
+      <rect x="48" y="196" width="32" height="34" fill="#9A3412"/>
+      <rect x="80" y="196" width="30" height="34" fill="#115E59"/>
+      <rect x="110" y="196" width="32" height="34" fill="#E07A5F"/>
+      <rect x="142" y="196" width="30" height="34" fill="#1E293B"/>
+      <rect x="48" y="230" width="32" height="54" fill="#14B8A6"/>
+      <rect x="80" y="230" width="30" height="54" fill="#7C2D12"/>
+      <rect x="110" y="230" width="32" height="54" fill="#0D9488"/>
+      <rect x="142" y="230" width="30" height="54" fill="#C2410C"/>
+      <circle cx="64" cy="180" r="8" fill="#FDE68A" opacity="0.85"/>
+      <circle cx="95" cy="213" r="7" fill="#CCFBF1" opacity="0.8"/>
+      <circle cx="126" cy="180" r="7" fill="#FDBA74" opacity="0.85"/>
+      <circle cx="126" cy="248" r="8" fill="#FEF3C7" opacity="0.75"/>
+      <path d="M52 66H74L84 284H64L52 66Z" fill="#FFFFFF" opacity="0.16"/>
+      <path d="M148 66H174L154 284H136L148 66Z" fill="#0F172A" opacity="0.16"/>
+    </g>
+    <path d="M46 64H174" stroke="#0F172A" stroke-opacity="0.12" stroke-width="3"/>
+  </svg>`);
+
+export const FNB_CUP_GREEN_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 300" fill="none">
+    <defs>
+      <linearGradient id="cupG" x1="40" y1="60" x2="180" y2="275" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#14B8A6"/>
+        <stop offset="55%" stop-color="#0D9488"/>
+        <stop offset="100%" stop-color="#0F766E"/>
+      </linearGradient>
+      <linearGradient id="lidG" x1="32" y1="22" x2="188" y2="66" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#FFFFFF"/>
+        <stop offset="65%" stop-color="#F1F5F9"/>
+        <stop offset="100%" stop-color="#E2E8F0"/>
+      </linearGradient>
+      <clipPath id="bodyClipG">
+        <path d="M46 66H174L154 268C152.5 278 134 284 110 284C86 284 67.5 278 66 268L46 66Z"/>
+      </clipPath>
+    </defs>
+    <path d="M52 34C52 24 72 18 110 18C148 18 168 24 168 34L174 44H46L52 34Z" fill="url(#lidG)"/>
+    <rect x="34" y="42" width="152" height="16" rx="8" fill="#FFFFFF"/>
+    <rect x="36" y="54" width="148" height="10" rx="5" fill="#E2E8F0"/>
+    <ellipse cx="110" cy="24" rx="44" ry="6" fill="#FFFFFF" opacity="0.9"/>
+    <path d="M46 66H174L154 268C152.5 278 134 284 110 284C86 284 67.5 278 66 268L46 66Z" fill="url(#cupG)"/>
+    <g clip-path="url(#bodyClipG)">
+      <path d="M126 112C122 103 114 98 104 98C88 98 78 109 78 124C78 139 89 150 105 150C115 150 123 145 127 137" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.92"/>
+      <circle cx="136" cy="108" r="5" fill="#BEF264"/>
+      <path d="M48 164H172V286H48Z" fill="#134E4A"/>
+      <rect x="48" y="164" width="32" height="32" fill="#EA580C"/>
+      <rect x="80" y="164" width="30" height="32" fill="#0F766E"/>
+      <rect x="110" y="164" width="32" height="32" fill="#84CC16"/>
+      <rect x="142" y="164" width="30" height="32" fill="#F97316"/>
+      <rect x="48" y="196" width="32" height="34" fill="#115E59"/>
+      <rect x="80" y="196" width="30" height="34" fill="#E07A5F"/>
+      <rect x="110" y="196" width="32" height="34" fill="#065F46"/>
+      <rect x="142" y="196" width="30" height="34" fill="#14B8A6"/>
+      <rect x="48" y="230" width="32" height="54" fill="#F59E0B"/>
+      <rect x="80" y="230" width="30" height="54" fill="#0D9488"/>
+      <rect x="110" y="230" width="32" height="54" fill="#B45309"/>
+      <rect x="142" y="230" width="30" height="54" fill="#047857"/>
+      <circle cx="64" cy="180" r="8" fill="#FEF3C7" opacity="0.85"/>
+      <circle cx="126" cy="180" r="7" fill="#ECFCCB" opacity="0.9"/>
+      <circle cx="95" cy="213" r="7" fill="#FFFFFF" opacity="0.75"/>
+      <circle cx="126" cy="248" r="8" fill="#D9F99D" opacity="0.8"/>
+      <path d="M52 66H74L84 284H64L52 66Z" fill="#FFFFFF" opacity="0.18"/>
+      <path d="M148 66H174L154 284H136L148 66Z" fill="#0F172A" opacity="0.16"/>
+    </g>
+    <path d="M46 64H174" stroke="#0F172A" stroke-opacity="0.12" stroke-width="3"/>
+  </svg>`);
+
+export const FNB_CUP_JAVANESE_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 300" fill="none">
+    <defs>
+      <linearGradient id="cupJ" x1="40" y1="60" x2="180" y2="275" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#5C4033"/>
+        <stop offset="55%" stop-color="#4A3228"/>
+        <stop offset="100%" stop-color="#322019"/>
+      </linearGradient>
+      <linearGradient id="lidJ" x1="32" y1="22" x2="188" y2="66" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#FFFFFF"/>
+        <stop offset="65%" stop-color="#F1F5F9"/>
+        <stop offset="100%" stop-color="#E2E8F0"/>
+      </linearGradient>
+      <clipPath id="bodyClipJ">
+        <path d="M46 66H174L154 268C152.5 278 134 284 110 284C86 284 67.5 278 66 268L46 66Z"/>
+      </clipPath>
+    </defs>
+    <path d="M52 34C52 24 72 18 110 18C148 18 168 24 168 34L174 44H46L52 34Z" fill="url(#lidJ)"/>
+    <rect x="34" y="42" width="152" height="16" rx="8" fill="#FFFFFF"/>
+    <rect x="36" y="54" width="148" height="10" rx="5" fill="#E2E8F0"/>
+    <ellipse cx="110" cy="24" rx="44" ry="6" fill="#FFFFFF" opacity="0.9"/>
+    <path d="M46 66H174L154 268C152.5 278 134 284 110 284C86 284 67.5 278 66 268L46 66Z" fill="url(#cupJ)"/>
+    <g clip-path="url(#bodyClipJ)">
+      <path d="M126 112C122 103 114 98 104 98C88 98 78 109 78 124C78 139 89 150 105 150C115 150 123 145 127 137" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.94"/>
+      <circle cx="136" cy="108" r="5" fill="#FDBA74"/>
+      <path d="M48 164H172V286H48Z" fill="#231712"/>
+      <rect x="48" y="164" width="32" height="32" fill="#0D9488"/>
+      <rect x="80" y="164" width="30" height="32" fill="#EA580C"/>
+      <rect x="110" y="164" width="32" height="32" fill="#78350F"/>
+      <rect x="142" y="164" width="30" height="32" fill="#14B8A6"/>
+      <rect x="48" y="196" width="32" height="34" fill="#D97706"/>
+      <rect x="80" y="196" width="30" height="34" fill="#134E4A"/>
+      <rect x="110" y="196" width="32" height="34" fill="#C2410C"/>
+      <rect x="142" y="196" width="30" height="34" fill="#451A03"/>
+      <rect x="48" y="230" width="32" height="54" fill="#0F766E"/>
+      <rect x="80" y="230" width="30" height="54" fill="#9A3412"/>
+      <rect x="110" y="230" width="32" height="54" fill="#115E59"/>
+      <rect x="142" y="230" width="30" height="54" fill="#B45309"/>
+      <circle cx="64" cy="180" r="8" fill="#CCFBF1" opacity="0.8"/>
+      <circle cx="95" cy="180" r="7" fill="#FDE68A" opacity="0.85"/>
+      <circle cx="126" cy="213" r="7" fill="#FED7AA" opacity="0.85"/>
+      <circle cx="95" cy="248" r="8" fill="#FEF3C7" opacity="0.75"/>
+      <path d="M52 66H74L84 284H64L52 66Z" fill="#FFFFFF" opacity="0.14"/>
+      <path d="M148 66H174L154 284H136L148 66Z" fill="#000000" opacity="0.22"/>
+    </g>
+    <path d="M46 64H174" stroke="#0F172A" stroke-opacity="0.14" stroke-width="3"/>
+  </svg>`);
+
+export const DEFAULT_FNB_HERO_SLIDES: FnbHeroSlideItem[] = [
+  {
+    id: 'fhs_1',
+    title: 'Bali Caramel Latte',
+    price: 'Rp 35.000',
+    subtitle: 'Espresso Kintamani · Susu Segar · Saus Karamel Gurih',
+    description:
+      'Perpaduan biji Arabika Bali Kintamani panggang medium dengan susu creamy dan sirup karamel buatan sendiri.',
+    badge: 'Best Seller',
+    image: FNB_CUP_CARAMEL_SVG,
+    gradientFrom: '#FF9A7B',
+    gradientTo: '#FFB778',
+    titleColor: '#B5836D',
+    variants: 'Regular, Large, Less Sugar, Extra Shot',
+  },
+  {
+    id: 'fhs_2',
+    title: 'Atjeh Green Coffee',
+    price: 'Rp 39.000',
+    subtitle: 'Gayo Green Bean · Matcha Herbal · Segar & Aromatik',
+    description:
+      'Seduhan khas biji hijau Aceh Gayo yang lembut berpadu aroma herbal segar dan manis seimbang.',
+    badge: 'Signature',
+    image: FNB_CUP_GREEN_SVG,
+    gradientFrom: '#1FB98B',
+    gradientTo: '#84DA6E',
+    titleColor: '#6C9A7F',
+    variants: 'Regular, Large, Oat Milk, Less Ice',
+  },
+  {
+    id: 'fhs_3',
+    title: 'Black Javanese',
+    price: 'Rp 42.000',
+    subtitle: 'Single Origin Java · Gula Aren Organik · Bold & Smooth',
+    description:
+      'Kopi hitam pekat khas pegunungan Jawa dengan sentuhan karamel alami gula aren dan aftertaste cokelat.',
+    badge: 'Favorit',
+    image: FNB_CUP_JAVANESE_SVG,
+    gradientFrom: '#9E5C2E',
+    gradientTo: '#C78E5A',
+    titleColor: '#9E7458',
+    variants: 'Hot, Iced, Less Sugar, Double Shot',
+  },
+];
+
+// Top-Down Transparent Culinary Dish SVGs for "Slide Kuliner Putar"
+export const CULINARY_DISH_NOODLE_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" fill="none">
+    <defs>
+      <radialGradient id="cnPlate" cx="45%" cy="40%" r="58%">
+        <stop offset="0%" stop-color="#FAF6EE"/>
+        <stop offset="82%" stop-color="#E7DEC8"/>
+        <stop offset="100%" stop-color="#C8BC9F"/>
+      </radialGradient>
+      <radialGradient id="cnYolk" cx="40%" cy="35%" r="60%">
+        <stop offset="0%" stop-color="#FDE047"/>
+        <stop offset="65%" stop-color="#F59E0B"/>
+        <stop offset="100%" stop-color="#D97706"/>
+      </radialGradient>
+    </defs>
+    <circle cx="130" cy="126" r="106" fill="url(#cnPlate)" stroke="#D6CCB2" stroke-width="4"/>
+    <circle cx="130" cy="126" r="88" fill="#EFE7D6" stroke="#DFD5BF" stroke-width="2"/>
+    <g stroke="#B47B32" stroke-width="7" stroke-linecap="round" fill="none">
+      <path d="M74 106C92 80 132 76 164 92"/>
+      <path d="M68 124C98 96 144 96 180 116"/>
+      <path d="M78 144C108 118 152 122 184 140"/>
+      <path d="M88 162C116 144 156 148 176 160"/>
+    </g>
+    <g stroke="#EAB308" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.8">
+      <path d="M82 98C104 82 140 84 166 102"/>
+      <path d="M74 134C104 114 146 112 178 130"/>
+      <path d="M92 156C122 138 152 140 172 152"/>
+    </g>
+    <ellipse cx="164" cy="154" rx="22" ry="12" transform="rotate(-24 164 154)" fill="#15803D"/>
+    <ellipse cx="176" cy="136" rx="18" ry="10" transform="rotate(-48 176 136)" fill="#22C55E"/>
+    <ellipse cx="152" cy="166" rx="16" ry="8" transform="rotate(-12 152 166)" fill="#166534"/>
+    <path d="M104 108C92 118 92 144 112 154C132 164 158 152 162 132C166 110 144 94 122 98C114 100 108 104 104 108Z" fill="#FFFDF7" stroke="#F1E8D6" stroke-width="2"/>
+    <circle cx="128" cy="126" r="19" fill="url(#cnYolk)"/>
+    <ellipse cx="122" cy="120" rx="6" ry="4" transform="rotate(-24 122 120)" fill="#FEF9C3" opacity="0.85"/>
+    <circle cx="94" cy="112" r="5" fill="#78350F"/>
+    <circle cx="158" cy="96" r="6" fill="#92400E"/>
+    <circle cx="110" cy="168" r="5" fill="#78350F"/>
+    <path d="M48 212H166C174 212 180 207 180 202C180 197 174 192 166 192H48V212Z" fill="#B59F6B" opacity="0.92"/>
+    <path d="M168 194H212M168 202H214M168 210H212" stroke="#A18854" stroke-width="3.2" stroke-linecap="round"/>
+  </svg>`);
+
+export const CULINARY_DISH_PANCAKE_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" fill="none">
+    <defs>
+      <radialGradient id="cpPan" cx="45%" cy="40%" r="58%">
+        <stop offset="0%" stop-color="#334155"/>
+        <stop offset="80%" stop-color="#1E293B"/>
+        <stop offset="100%" stop-color="#0F172A"/>
+      </radialGradient>
+      <radialGradient id="cpCake" cx="42%" cy="38%" r="60%">
+        <stop offset="0%" stop-color="#FDE68A"/>
+        <stop offset="55%" stop-color="#D97706"/>
+        <stop offset="100%" stop-color="#92400E"/>
+      </radialGradient>
+    </defs>
+    <rect x="208" y="114" width="38" height="24" rx="12" fill="#1E293B"/>
+    <circle cx="126" cy="126" r="102" fill="url(#cpPan)" stroke="#0F172A" stroke-width="5"/>
+    <circle cx="126" cy="126" r="88" fill="#111827"/>
+    <circle cx="126" cy="128" r="78" fill="url(#cpCake)"/>
+    <circle cx="124" cy="124" r="66" fill="#EAB308" opacity="0.45"/>
+    <path d="M84 114C102 100 142 102 166 122C150 144 106 154 84 114Z" fill="#B45309" opacity="0.35"/>
+    <path d="M114 96C126 88 144 96 146 112C134 118 118 112 114 96Z" fill="#FACC15"/>
+    <path d="M100 116C114 106 132 114 134 130C120 136 104 130 100 116Z" fill="#FB923C"/>
+    <path d="M126 112C140 104 156 114 154 130C140 134 126 126 126 112Z" fill="#F59E0B"/>
+    <circle cx="94" cy="156" r="9" fill="#1E3A8A"/>
+    <circle cx="91" cy="153" r="2.5" fill="#93C5FD"/>
+    <circle cx="114" cy="170" r="10" fill="#1D4ED8"/>
+    <circle cx="111" cy="167" r="2.8" fill="#93C5FD"/>
+    <circle cx="140" cy="172" r="9" fill="#1E3A8A"/>
+    <circle cx="137" cy="169" r="2.5" fill="#93C5FD"/>
+    <circle cx="164" cy="156" r="10" fill="#1E40AF"/>
+    <circle cx="161" cy="153" r="2.8" fill="#93C5FD"/>
+    <circle cx="174" cy="132" r="8" fill="#1E3A8A"/>
+  </svg>`);
+
+export const CULINARY_DISH_POKE_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" fill="none">
+    <defs>
+      <radialGradient id="pkBowl" cx="45%" cy="40%" r="58%">
+        <stop offset="0%" stop-color="#FFFFFF"/>
+        <stop offset="85%" stop-color="#E2E8F0"/>
+        <stop offset="100%" stop-color="#CBD5E1"/>
+      </radialGradient>
+    </defs>
+    <circle cx="130" cy="130" r="104" fill="url(#pkBowl)" stroke="#CBD5E1" stroke-width="4"/>
+    <circle cx="130" cy="130" r="88" fill="#F8FAFC"/>
+    <path d="M62 126C62 88 94 60 132 62V130H62Z" fill="#FB7185"/>
+    <rect x="74" y="84" width="22" height="20" rx="5" fill="#F43F5E"/>
+    <rect x="100" y="72" width="22" height="22" rx="5" fill="#FDA4AF"/>
+    <rect x="86" y="104" width="24" height="20" rx="5" fill="#E11D48"/>
+    <path d="M132 62C170 62 198 92 198 130H132V62Z" fill="#84CC16"/>
+    <path d="M142 78C164 78 182 96 182 118H142V78Z" fill="#D9F99D"/>
+    <path d="M132 130H198C196 168 166 196 130 196V130Z" fill="#FDE047"/>
+    <circle cx="152" cy="150" r="8" fill="#F59E0B"/>
+    <circle cx="170" cy="160" r="8" fill="#F59E0B"/>
+    <circle cx="148" cy="172" r="8" fill="#EA580C"/>
+    <path d="M64 130H130V196C92 196 64 166 64 130Z" fill="#4ADE80"/>
+    <circle cx="96" cy="154" r="9" fill="#16A34A"/>
+    <circle cx="112" cy="172" r="9" fill="#15803D"/>
+    <circle cx="82" cy="168" r="8" fill="#22C55E"/>
+    <circle cx="130" cy="130" r="16" fill="#0F172A"/>
+    <circle cx="126" cy="126" r="3" fill="#F8FAFC"/>
+    <circle cx="135" cy="128" r="2.5" fill="#F8FAFC"/>
+    <circle cx="130" cy="136" r="2.5" fill="#F8FAFC"/>
+  </svg>`);
+
+export const DEFAULT_CULINARY_SPIN_SLIDES: FnbHeroSlideItem[] = [
+  {
+    id: 'cs_1',
+    title: 'Truffle Egg Noodles',
+    price: 'Rp 54.000',
+    subtitle: 'Mie Artisan · Jamur Panggang · Telur Omega',
+    description:
+      'Mie kenyal berlumur minyak truffle harum, jamur panggang gurih, sayuran segar, dan telur mata sapi setengah matang.',
+    badge: 'Chef Choice',
+    image: CULINARY_DISH_NOODLE_SVG,
+    gradientFrom: '#F59E0B',
+    gradientTo: '#FDE68A',
+    titleColor: '#1E293B',
+    variants: 'Original, Pedas, Extra Telur',
+  },
+  {
+    id: 'cs_2',
+    title: 'Skillet Berry Pancake',
+    price: 'Rp 48.000',
+    subtitle: 'Fluffy Pancake · Blueberry Segar · Madu Jeruk',
+    description:
+      'Pancake panggang hangat di atas wajan besi dengan topping blueberry segar, irisan jeruk manis, dan sirup maple.',
+    badge: 'Best Seller',
+    image: CULINARY_DISH_PANCAKE_SVG,
+    gradientFrom: '#F43F5E',
+    gradientTo: '#FDA4AF',
+    titleColor: '#1E293B',
+    variants: 'Maple Syrup, Ice Cream, Extra Berry',
+  },
+  {
+    id: 'cs_3',
+    title: 'Salmon Avocado Bowl',
+    price: 'Rp 68.000',
+    subtitle: 'Salmon Sashimi · Alpukat Mentega · Edamame',
+    description:
+      'Semangkuk sehat salmon segar, potongan alpukat lembut, edamame, jagung manis, dan saus wijen panggang.',
+    badge: 'Healthy',
+    image: CULINARY_DISH_POKE_SVG,
+    gradientFrom: '#10B981',
+    gradientTo: '#6EE7B7',
+    titleColor: '#1E293B',
+    variants: 'Nasi Jepang, Quinoa, Saus Wijen',
+  },
+];
+
+// Floating 3D Puffer Jacket SVGs for "Studio Produk Melayang" (Video 2)
+function buildPufferJacketSvg(
+  main: string,
+  highlight: string,
+  shade: string,
+  zip: string
+): string {
+  return (
+    'data:image/svg+xml;utf8,' +
+    encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" fill="none">
+      <defs>
+        <linearGradient id="pjMain" x1="20%" y1="10%" x2="85%" y2="90%">
+          <stop offset="0%" stop-color="${highlight}"/>
+          <stop offset="52%" stop-color="${main}"/>
+          <stop offset="100%" stop-color="${shade}"/>
+        </linearGradient>
+        <linearGradient id="pjArm" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${highlight}"/>
+          <stop offset="100%" stop-color="${shade}"/>
+        </linearGradient>
+      </defs>
+      <path d="M98 42C98 34 108 30 130 30C152 30 162 34 162 42L166 66H94L98 42Z" fill="url(#pjMain)" stroke="${shade}" stroke-width="2.5"/>
+      <ellipse cx="130" cy="36" rx="28" ry="6" fill="${shade}" opacity="0.55"/>
+      <path d="M74 64C54 70 42 98 34 140L24 198C22 208 30 214 40 214H56C64 214 68 206 72 190L84 128L74 64Z" fill="url(#pjArm)" stroke="${shade}" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M186 64C206 70 218 98 226 140L236 198C238 208 230 214 220 214H204C196 214 192 206 188 190L176 128L186 64Z" fill="url(#pjArm)" stroke="${shade}" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="66" y="60" width="128" height="142" rx="30" fill="url(#pjMain)" stroke="${shade}" stroke-width="2.5"/>
+      <path d="M68 96C94 104 166 104 192 96" stroke="${shade}" stroke-width="3" opacity="0.55"/>
+      <path d="M68 134C94 142 166 142 192 134" stroke="${shade}" stroke-width="3" opacity="0.55"/>
+      <path d="M68 170C94 178 166 178 192 170" stroke="${shade}" stroke-width="3" opacity="0.55"/>
+      <path d="M40 104C52 108 64 108 78 104" stroke="${shade}" stroke-width="2.5" opacity="0.5"/>
+      <path d="M32 146C44 150 58 150 72 146" stroke="${shade}" stroke-width="2.5" opacity="0.5"/>
+      <path d="M26 184C38 188 52 188 64 184" stroke="${shade}" stroke-width="2.5" opacity="0.5"/>
+      <path d="M182 104C196 108 208 108 220 104" stroke="${shade}" stroke-width="2.5" opacity="0.5"/>
+      <path d="M188 146C202 150 216 150 228 146" stroke="${shade}" stroke-width="2.5" opacity="0.5"/>
+      <path d="M196 184C208 188 222 188 234 184" stroke="${shade}" stroke-width="2.5" opacity="0.5"/>
+      <line x1="130" y1="62" x2="130" y2="202" stroke="${zip}" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M88 136V174M172 136V174" stroke="${shade}" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+      <ellipse cx="102" cy="82" rx="18" ry="8" fill="#FFFFFF" opacity="0.22"/>
+      <ellipse cx="102" cy="118" rx="18" ry="8" fill="#FFFFFF" opacity="0.18"/>
+      <ellipse cx="158" cy="118" rx="18" ry="8" fill="#FFFFFF" opacity="0.14"/>
+    </svg>`)
+  );
+}
+
+export const STUDIO_JACKET_GREY_SVG = buildPufferJacketSvg('#D4D7DD', '#F3F4F6', '#9CA3AF', '#6B7280');
+export const STUDIO_JACKET_BLACK_SVG = buildPufferJacketSvg('#2B2D31', '#4B5563', '#111315', '#09090B');
+export const STUDIO_JACKET_ORANGE_SVG = buildPufferJacketSvg('#EA580C', '#FB923C', '#9A3412', '#7C2D12');
+export const STUDIO_JACKET_RED_SVG = buildPufferJacketSvg('#DC2626', '#F87171', '#991B1B', '#7F1D1D');
+
+export const DEFAULT_FLOATING_STUDIO_SLIDES: FnbHeroSlideItem[] = [
+  {
+    id: 'fs_1',
+    title: 'Cloud Puffer Jacket',
+    price: 'Rp 799.000',
+    subtitle: 'Edisi Cloud Grey · Ringan & Tahan Angin',
+    description:
+      'Jaket puffer berlapis down sintetis ultra-ringan dengan siluet cropped modern dan bahan water-repellent.',
+    badge: 'New Drop',
+    image: STUDIO_JACKET_GREY_SVG,
+    gradientFrom: '#B0B6BE',
+    gradientTo: '#7A828E',
+    titleColor: '#FFFFFF',
+    variants: 'S, M, L, XL',
+  },
+  {
+    id: 'fs_2',
+    title: 'Obsidian Puffer Jacket',
+    price: 'Rp 829.000',
+    subtitle: 'Edisi Matte Black · Minimalis & Hangat',
+    description:
+      'Finishing matte hitam pekat dengan kerah tinggi pelindung angin dan saku ritsleting tersembunyi.',
+    badge: 'Best Seller',
+    image: STUDIO_JACKET_BLACK_SVG,
+    gradientFrom: '#3B3F46',
+    gradientTo: '#17191D',
+    titleColor: '#FFFFFF',
+    variants: 'S, M, L, XL',
+  },
+  {
+    id: 'fs_3',
+    title: 'Sunset Puffer Jacket',
+    price: 'Rp 849.000',
+    subtitle: 'Edisi Burnt Orange · Statement Streetwear',
+    description:
+      'Warna oranye ikonik dengan kilau satin halus untuk tampilan streetwear penuh karakter.',
+    badge: 'Limited',
+    image: STUDIO_JACKET_ORANGE_SVG,
+    gradientFrom: '#E07019',
+    gradientTo: '#9A3F06',
+    titleColor: '#FFFFFF',
+    variants: 'S, M, L, XL',
+  },
+  {
+    id: 'fs_4',
+    title: 'Crimson Puffer Jacket',
+    price: 'Rp 859.000',
+    subtitle: 'Edisi Glossy Red · Bold Winter Edition',
+    description:
+      'Merah menyala berkarakter dengan insulasi termal hangat dan potongan bahu presisi.',
+    badge: 'Hot',
+    image: STUDIO_JACKET_RED_SVG,
+    gradientFrom: '#C81E1E',
+    gradientTo: '#7F0B0B',
+    titleColor: '#FFFFFF',
+    variants: 'S, M, L, XL',
+  },
+];
+
+export const POPOUT_SHOE_RED_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 180" fill="none">
+    <path d="M26 116C20 128 24 142 42 146C76 153 162 152 216 144C236 141 246 129 242 117C239 109 228 106 214 106C190 106 168 92 152 68C144 56 135 45 123 43C115 42 108 50 104 60C96 80 78 93 52 98C38 101 30 107 26 116Z" fill="#B91C1C"/>
+    <path d="M36 116C52 106 80 102 100 84C111 74 117 58 124 48C136 52 146 68 158 84C172 102 195 112 222 112C232 112 238 117 238 124C212 134 146 139 76 136C52 135 34 128 36 116Z" fill="#DC2626"/>
+    <path d="M84 96C106 88 128 70 144 64C154 78 168 98 188 108C164 119 124 124 88 119C78 117 75 101 84 96Z" fill="#FFFFFF"/>
+    <path d="M108 66L136 86M100 76L128 94M92 86L118 102" stroke="#111827" stroke-width="5" stroke-linecap="round"/>
+    <path d="M114 64L134 78M106 74L126 88M98 84L116 96" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M122 46C128 36 138 30 146 32C149 33 148 41 142 52L134 62Z" fill="#111827"/>
+    <path d="M214 106C222 93 231 86 236 88C240 90 237 101 228 110Z" fill="#991B1B"/>
+    <path d="M116 105C134 109 156 105 174 92C162 110 141 118 118 115C112 114 111 104 116 105Z" fill="#111827"/>
+    <path d="M24 134C22 146 34 155 56 157C112 162 184 158 228 147C242 143 248 134 244 124C240 119 231 122 216 125C168 135 102 138 50 132C35 130 26 129 24 134Z" fill="#F8FAFC"/>
+    <path d="M40 151C76 156 130 157 176 152C196 150 220 146 238 138C234 146 220 152 198 156C148 164 82 165 44 158C35 156 34 150 40 151Z" fill="#1E293B"/>
+    <rect x="172" y="135" width="34" height="9" rx="4.5" fill="#111827"/>
+    <rect x="177" y="137.5" width="24" height="4" rx="2" fill="#EF4444" fill-opacity="0.7"/>
+  </svg>`);
+
+export const POPOUT_SHOE_AMBER_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 180" fill="none">
+    <path d="M26 118C22 129 28 143 48 147C94 155 168 152 218 143C236 139 244 127 240 115C236 104 224 100 208 101C186 102 168 88 154 64C146 50 136 42 126 44C118 46 112 56 106 67C96 86 76 96 48 102C35 105 29 110 26 118Z" fill="#18181B"/>
+    <path d="M104 68C114 50 124 44 136 46C148 48 160 68 176 88C190 103 210 105 232 104C239 109 241 118 238 125C208 133 162 136 124 132C112 114 102 90 104 68Z" fill="#D97706"/>
+    <path d="M114 62C122 50 132 48 141 52C152 57 162 74 176 90C190 104 208 108 228 107C214 117 188 122 158 119C136 116 118 92 114 62Z" fill="#F59E0B"/>
+    <path d="M126 100C150 106 178 102 204 86C188 108 160 118 130 112C122 110 121 98 126 100Z" fill="#FFFFFF"/>
+    <path d="M98 76L122 92M90 86L114 102M82 96L106 110" stroke="#FBBF24" stroke-width="4" stroke-linecap="round"/>
+    <path d="M24 135C22 146 34 155 56 157C114 162 186 157 228 146C242 142 248 133 244 123C239 118 228 122 210 126C162 136 98 138 48 132C34 130 26 130 24 135Z" fill="#FFFFFF"/>
+    <path d="M36 151C78 158 146 159 208 150C224 147 236 142 242 135C236 144 222 151 200 155C144 164 80 165 40 157C32 155 31 150 36 151Z" fill="#0F172A"/>
+    <path d="M214 128H230C234 128 237 131 236 135C235 138 231 140 226 141L214 142V128Z" fill="#18181B"/>
+  </svg>`);
+
+export const POPOUT_SHOE_BLUE_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 180" fill="none">
+    <path d="M26 114C21 126 26 142 46 146C92 155 170 152 218 142C236 138 244 126 240 113C236 98 224 88 210 86C192 84 176 70 164 46C156 32 144 26 132 30C122 33 114 48 106 64C94 86 74 96 48 101C35 103 29 107 26 114Z" fill="#E2E8F0"/>
+    <path d="M34 114C50 104 78 100 98 80C110 68 120 46 132 36C144 33 154 44 164 62C176 82 196 92 218 92C230 93 238 102 238 115C214 128 152 135 80 133C54 132 32 125 34 114Z" fill="#FFFFFF"/>
+    <path d="M126 38C136 32 148 34 156 44L168 64L142 74L126 38Z" fill="#1E293B"/>
+    <path d="M104 68L130 88M96 78L122 98M88 88L114 106" stroke="#0F172A" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M122 104C148 108 178 100 206 80C188 108 158 119 126 116C118 115 117 103 122 104Z" fill="#0F172A"/>
+    <path d="M24 134C22 146 34 156 58 158C114 163 186 158 228 147C242 143 248 133 244 123C239 118 228 122 212 126C162 136 98 138 48 131C34 129 26 129 24 134Z" fill="#F8FAFC"/>
+    <path d="M34 144C78 152 154 152 232 135L236 144C186 159 102 164 42 155Z" fill="#3B82F6"/>
+    <circle cx="62" cy="149" r="3.5" fill="#F43F5E"/>
+    <circle cx="84" cy="152" r="3" fill="#FBBF24"/>
+    <circle cx="112" cy="153" r="3.5" fill="#10B981"/>
+    <circle cx="144" cy="152" r="3" fill="#EC4899"/>
+    <circle cx="176" cy="148" r="3.5" fill="#FACC15"/>
+    <circle cx="206" cy="142" r="3" fill="#F43F5E"/>
   </svg>`);
 
 export const CAROUSEL_SAMPLE_1_SVG =
@@ -732,6 +1235,9 @@ export const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   training_catalog: 'Katalog Produk Pelatihan',
   hero_profile: 'Hero Profil',
   fnb_catalog: 'Katalog F&B',
+  fnb_hero_slider: 'Slide Produk F&B',
+  culinary_spin_slider: 'Slide Kuliner Putar',
+  floating_product_studio: 'Studio Produk Melayang',
   category_tabs: 'Tombol Kategori',
   menu_icon: 'Menu Icon',
   cart_button: 'Tombol Keranjang',
@@ -1440,6 +1946,171 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
         },
       };
 
+    case 'fnb_hero_slider':
+      return {
+        id: createId('fhs'),
+        type: 'fnb_hero_slider',
+        label: 'Slide Produk F&B',
+        style: {
+          ...baseStyle,
+          minHeight: 380,
+          padding: 0,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 24,
+          borderWidth: 0,
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          fnbSliderItems: DEFAULT_FNB_HERO_SLIDES.map((it) => ({ ...it, id: createId('fhs_it') })),
+          fnbSliderShowHeader: true,
+          fnbSliderShowSearch: true,
+          fnbSliderShowCart: true,
+          fnbSliderShowDots: false,
+          fnbSliderDotsPosition: 'below',
+          fnbSliderEnableDetail: true,
+          fnbSliderEnableCart: true,
+          fnbSliderAutoplay: false,
+          fnbSliderArchHeight: 205,
+          fnbSliderArchCurve: 100,
+          fnbSliderProductSize: 215,
+          fnbSliderImageZoom: 100,
+          fnbSliderPeekScale: 74,
+          fnbSliderDropShadow: true,
+          fnbSliderCardBg: '#FFFFFF',
+          fnbSliderWhatsappNumber: '6281234567890',
+          fnbSliderStoreName: 'Kopi Nusantara',
+          fnbSliderFloatingCartEnabled: true,
+          fnbSliderFloatingCartLabel: 'Lihat Keranjang',
+          fnbSliderFloatingCartBg: '#EA580C',
+          fnbSliderFloatingCartPosition: 'bottom-floating',
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Kopi Nusantara',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan menu berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+
+    case 'culinary_spin_slider':
+      return {
+        id: createId('css'),
+        type: 'culinary_spin_slider',
+        label: 'Slide Kuliner Putar',
+        style: {
+          ...baseStyle,
+          minHeight: 380,
+          padding: 0,
+          backgroundColor: '#F8FAFC',
+          borderRadius: 24,
+          borderWidth: 0,
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          culinarySpinItems: DEFAULT_CULINARY_SPIN_SLIDES.map((it) => ({
+            ...it,
+            id: createId('cs_it'),
+          })),
+          culinaryShowHeader: true,
+          culinaryShowCartBadge: true,
+          culinaryShowAmbientBlur: true,
+          culinaryShowInfo: true,
+          culinaryShowPrice: true,
+          culinaryShowDescription: false,
+          culinaryShowCartButton: true,
+          culinaryShowDots: false,
+          culinaryDotsPosition: 'below',
+          culinaryEnableDetail: true,
+          culinaryAutoplay: false,
+          culinaryPlateSize: 216,
+          culinaryImageZoom: 100,
+          culinarySpinAngle: 58,
+          culinaryBlurOpacity: 32,
+          culinaryBlurAmount: 7,
+          culinaryDropShadow: true,
+          culinaryCardBg: '#F8FAFC',
+          culinaryAccentColor: '#F43F5E',
+          culinaryWhatsappNumber: '6281234567890',
+          culinaryStoreName: 'Dapur Artisan',
+          culinaryFloatingCartEnabled: true,
+          culinaryFloatingCartLabel: 'Lihat Pesanan',
+          culinaryFloatingCartBg: '#F43F5E',
+          culinaryFloatingCartPosition: 'bottom-floating',
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Dapur Artisan',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan hidangan berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+
+    case 'floating_product_studio':
+      return {
+        id: createId('fps'),
+        type: 'floating_product_studio',
+        label: 'Studio Produk Melayang',
+        style: {
+          ...baseStyle,
+          minHeight: 420,
+          padding: 0,
+          backgroundColor: '#7A828E',
+          borderRadius: 24,
+          borderWidth: 0,
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          floatingStudioItems: DEFAULT_FLOATING_STUDIO_SLIDES.map((it) => ({
+            ...it,
+            id: createId('fs_it'),
+          })),
+          studioShowHeader: false,
+          studioShowCornerPreview: true,
+          studioShowInfo: true,
+          studioShowPrice: true,
+          studioShowSwatches: true,
+          studioShowDescription: false,
+          studioShowCartButton: true,
+          studioShowDots: false,
+          studioDotsPosition: 'below',
+          studioLevitateEnabled: true,
+          studioGroundShadow: true,
+          studioAutoplay: false,
+          studioProductSize: 236,
+          studioImageZoom: 100,
+          studioCornerSize: 64,
+          studioMinHeight: 430,
+          studioTextColor: '#FFFFFF',
+          studioWhatsappNumber: '6281234567890',
+          studioStoreName: 'Urban Studio Wear',
+          studioFloatingCartEnabled: true,
+          studioFloatingCartLabel: 'Lihat Keranjang',
+          studioFloatingCartBg: '#111827',
+          studioFloatingCartPosition: 'bottom-floating',
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Urban Studio Wear',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+
     case 'category_tabs':
       return {
         id: createId('ctab'),
@@ -1864,6 +2535,44 @@ export const PREBUILT_SECTION_CATEGORIES: Array<{
   { id: 'kontak_medsos', label: 'Medsos & Kontak' },
 ];
 
+export function createPngImageBlock(theme: PageTheme): BuilderBlock {
+  const base = createBlock('image', theme);
+  return {
+    ...base,
+    label: 'Gambar PNG',
+    style: {
+      ...base.style,
+      backgroundColor: 'transparent',
+      borderRadius: 0,
+      borderWidth: 0,
+      shadow: 'none',
+      overflow: 'visible',
+      minHeight: 148,
+      padding: 8,
+    },
+    content: {
+      src: POPOUT_SHOE_RED_SVG,
+      alt: 'Objek PNG Transparan',
+      imageName: 'produk-3d.png',
+      aspectRatio: 'auto',
+      objectFit: 'contain',
+      imageShape: 'rect',
+      imageZoom: 100,
+      imagePngMode: true,
+      imagePopoutEnabled: true,
+      imageDropShadowEnabled: true,
+      imageDropShadowX: 8,
+      imageDropShadowY: 16,
+      imageDropShadowBlur: 18,
+      imageDropShadowColor: 'rgba(15, 23, 42, 0.34)',
+      imageOffsetX: 0,
+      imageOffsetY: 0,
+      imageRotate: -12,
+      imageHoverFloat3D: true,
+    },
+  };
+}
+
 function makeShowcaseCardBlock(
   label: string,
   variant: ShowcaseCardVariant,
@@ -2270,6 +2979,152 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
     ],
   },
   {
+    id: 'kartu-produk-3d-popout',
+    category: 'katalog_store',
+    title: 'Kartu Produk 3D Pop-Out',
+    description: 'Kartu produk 3D dengan foto PNG keluar bingkai, bayangan siluet, efek hover melayang & tombol keranjang',
+    createBlocks: (theme) => [
+      {
+        id: createId('sec_popout'),
+        type: 'container',
+        label: 'Koleksi Produk 3D Pop-Out',
+        style: {
+          ...DEFAULT_STYLE,
+          backgroundColor: 'transparent',
+          borderWidth: 0,
+          shadow: 'none',
+          overflow: 'visible',
+          padding: 0,
+          marginBottom: 14,
+          minHeight: 240,
+        },
+        content: {},
+        children: [
+          makeSectionHeaderRow('Koleksi Unggulan', 'Lihat Semua', theme),
+          {
+            id: createId('row'),
+            type: 'row',
+            label: 'Slide Produk 3D Pop-Out',
+            style: {
+              ...DEFAULT_STYLE,
+              backgroundColor: 'transparent',
+              borderWidth: 0,
+              shadow: 'none',
+              overflow: 'visible',
+              padding: 0,
+              marginBottom: 0,
+              minHeight: 224,
+            },
+            content: {
+              rowLayoutMode: 'horizontal',
+              rowColumns: 3,
+              rowColumnWidth: 168,
+              rowColumnMinHeight: 212,
+              rowGap: 18,
+              rowShowDots: true,
+              rowDotsPosition: 'below',
+            },
+            children: [
+              makeShowcaseCardBlock(
+                'Alpha Savage',
+                'popout_product',
+                theme,
+                {
+                  cardTitle: 'Alpha Savage',
+                  cardPrice: 'Rp 1.499.000',
+                  cardImage: POPOUT_SHOE_RED_SVG,
+                  cardGradientFrom: '#E94352',
+                  cardGradientTo: '#DC2D3F',
+                  cardTextColor: '#FFFFFF',
+                  cardMediaSize: 152,
+                  cardImageZoom: 108,
+                  cardImageFit: 'contain',
+                  cardPopoutAccentLine: true,
+                  cardEnableCart: true,
+                  cardPopoutCartPosition: 'bottom-left',
+                  imagePngMode: true,
+                  imagePopoutEnabled: true,
+                  imageOffsetX: 16,
+                  imageOffsetY: 10,
+                  imageRotate: -24,
+                  imageDropShadowEnabled: true,
+                  imageDropShadowX: 8,
+                  imageDropShadowY: 18,
+                  imageDropShadowBlur: 20,
+                  imageDropShadowColor: 'rgba(15, 23, 42, 0.36)',
+                  imageHoverFloat3D: true,
+                },
+                { borderRadius: 18, overflow: 'visible', minHeight: 208 }
+              ),
+              makeShowcaseCardBlock(
+                'Air Max 97',
+                'popout_product',
+                theme,
+                {
+                  cardTitle: 'Air Max 97',
+                  cardPrice: 'Rp 1.899.000',
+                  cardImage: POPOUT_SHOE_AMBER_SVG,
+                  cardGradientFrom: '#FCC659',
+                  cardGradientTo: '#F6AF3A',
+                  cardTextColor: '#17243D',
+                  cardMediaSize: 152,
+                  cardImageZoom: 108,
+                  cardImageFit: 'contain',
+                  cardPopoutAccentLine: true,
+                  cardEnableCart: true,
+                  cardPopoutCartPosition: 'bottom-left',
+                  imagePngMode: true,
+                  imagePopoutEnabled: true,
+                  imageOffsetX: 16,
+                  imageOffsetY: 10,
+                  imageRotate: -22,
+                  imageDropShadowEnabled: true,
+                  imageDropShadowX: 8,
+                  imageDropShadowY: 18,
+                  imageDropShadowBlur: 20,
+                  imageDropShadowColor: 'rgba(120, 53, 15, 0.34)',
+                  imageHoverFloat3D: true,
+                },
+                { borderRadius: 18, overflow: 'visible', minHeight: 208 }
+              ),
+              makeShowcaseCardBlock(
+                'KD13 EP',
+                'popout_product',
+                theme,
+                {
+                  cardTitle: 'KD13 EP',
+                  cardPrice: 'Rp 2.150.000',
+                  cardImage: POPOUT_SHOE_BLUE_SVG,
+                  cardGradientFrom: '#4584FA',
+                  cardGradientTo: '#2E6DF6',
+                  cardTextColor: '#FFFFFF',
+                  cardMediaSize: 152,
+                  cardImageZoom: 108,
+                  cardImageFit: 'contain',
+                  cardPopoutAccentLine: true,
+                  cardEnableCart: true,
+                  cardPopoutCartPosition: 'bottom-left',
+                  imagePngMode: true,
+                  imagePopoutEnabled: true,
+                  imageOffsetX: 16,
+                  imageOffsetY: 10,
+                  imageRotate: -24,
+                  imageDropShadowEnabled: true,
+                  imageDropShadowX: 8,
+                  imageDropShadowY: 18,
+                  imageDropShadowBlur: 20,
+                  imageDropShadowColor: 'rgba(15, 23, 42, 0.34)',
+                  imageHoverFloat3D: true,
+                },
+                { borderRadius: 18, overflow: 'visible', minHeight: 208 }
+              ),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'kartu-feed-kegiatan',
     category: 'event_kegiatan',
     title: 'Kartu Feed Kegiatan (3 Foto)',
@@ -2620,6 +3475,30 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
         },
       ];
     },
+  },
+  {
+    id: 'slide-produk-fnb',
+    category: 'katalog_store',
+    title: 'Slide Produk F&B',
+    description:
+      'Carousel produk F&B melengkung dengan gradasi warna berubah halus saat digeser, peek kiri-kanan & klik detail expand',
+    createBlocks: (theme) => [createBlock('fnb_hero_slider', theme)],
+  },
+  {
+    id: 'slide-kuliner-putar',
+    category: 'katalog_store',
+    title: 'Slide Kuliner Putar',
+    description:
+      'Slide piring kuliner top-down dengan latar blur aura makanan yang berganti otomatis & efek putar melengkung saat di-swipe',
+    createBlocks: (theme) => [createBlock('culinary_spin_slider', theme)],
+  },
+  {
+    id: 'studio-produk-melayang',
+    category: 'katalog_store',
+    title: 'Studio Produk Melayang',
+    description:
+      'Panggung studio warna penuh yang berubah mulus mengikuti produk melayang 3D + miniatur klik-pindah di sudut kanan bawah',
+    createBlocks: (theme) => [createBlock('floating_product_studio', theme)],
   },
   {
     id: 'katalog-fnb',

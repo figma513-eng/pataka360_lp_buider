@@ -57,6 +57,9 @@ export function isTopFloatingCartPosition(pos?: FloatingCartPosition): boolean {
 export const UNIVERSAL_CART_EXCLUDED_TYPES = new Set([
   'catalog',
   'fnb_catalog',
+  'fnb_hero_slider',
+  'culinary_spin_slider',
+  'floating_product_studio',
   'cart_button',
   'divider',
   'back_button',
@@ -219,7 +222,18 @@ export function resolveProjectFloatingCartConfig(
 
   const inspect = (list: BuilderBlock[]) => {
     walkAllBlocks(list, (b) => {
-      if (b.type === 'fnb_catalog' && b.content.fnbFloatingCartEnabled !== false) {
+      if (
+        (b.type === 'fnb_catalog' && b.content.fnbFloatingCartEnabled !== false) ||
+        (b.type === 'fnb_hero_slider' &&
+          b.content.fnbSliderEnableCart !== false &&
+          b.content.fnbSliderFloatingCartEnabled !== false) ||
+        (b.type === 'culinary_spin_slider' &&
+          b.content.culinaryShowCartButton !== false &&
+          b.content.culinaryFloatingCartEnabled !== false) ||
+        (b.type === 'floating_product_studio' &&
+          b.content.studioShowCartButton !== false &&
+          b.content.studioFloatingCartEnabled !== false)
+      ) {
         totalSources += 1;
         if (!fnbMatch) fnbMatch = b;
       } else if (b.type === 'cart_button' && b.content.cartFloatingEnabled !== false) {
@@ -247,13 +261,42 @@ export function resolveProjectFloatingCartConfig(
   if (fnbMatch) {
     const blk = fnbMatch as BuilderBlock;
     const c = blk.content;
+    const isHeroSlider = blk.type === 'fnb_hero_slider';
+    const isCulinary = blk.type === 'culinary_spin_slider';
+    const isStudio = blk.type === 'floating_product_studio';
     return {
-      label: c.fnbFloatingCartLabel || 'Lanjut',
-      bg: c.fnbFloatingCartBg || c.fnbAccentColor || '#EA580C',
-      position: c.fnbFloatingCartPosition || 'bottom-floating',
+      label: isHeroSlider
+        ? c.fnbSliderFloatingCartLabel || 'Lihat Keranjang'
+        : isCulinary
+        ? c.culinaryFloatingCartLabel || 'Lihat Pesanan'
+        : isStudio
+        ? c.studioFloatingCartLabel || 'Lihat Keranjang'
+        : c.fnbFloatingCartLabel || 'Lanjut',
+      bg: isHeroSlider
+        ? c.fnbSliderFloatingCartBg || c.fnbSliderItems?.[0]?.gradientFrom || '#EA580C'
+        : isCulinary
+        ? c.culinaryFloatingCartBg || c.culinaryAccentColor || '#F43F5E'
+        : isStudio
+        ? c.studioFloatingCartBg || c.floatingStudioItems?.[0]?.gradientTo || '#111827'
+        : c.fnbFloatingCartBg || c.fnbAccentColor || '#EA580C',
+      position: isHeroSlider
+        ? c.fnbSliderFloatingCartPosition || 'bottom-floating'
+        : isCulinary
+        ? c.culinaryFloatingCartPosition || 'bottom-floating'
+        : isStudio
+        ? c.studioFloatingCartPosition || 'bottom-floating'
+        : c.fnbFloatingCartPosition || 'bottom-floating',
       offsetY: typeof c.fnbFloatingCartOffsetY === 'number' ? c.fnbFloatingCartOffsetY : 16,
       sourceBlockId: blk.id,
-      sourceBlockLabel: blk.label || 'Katalog FnB',
+      sourceBlockLabel:
+        blk.label ||
+        (isHeroSlider
+          ? 'Slide Produk F&B'
+          : isCulinary
+          ? 'Slide Kuliner Putar'
+          : isStudio
+          ? 'Studio Produk Melayang'
+          : 'Katalog FnB'),
       sourceType: 'fnb_catalog',
       totalSources,
     };

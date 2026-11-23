@@ -110,6 +110,24 @@ export function findFallbackShareImageFromBlocks(blocks: BuilderBlock[]): string
         if (img) return img;
       }
     }
+    if (blk.type === 'fnb_hero_slider' && Array.isArray(c.fnbSliderItems)) {
+      for (const item of c.fnbSliderItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'culinary_spin_slider' && Array.isArray(c.culinarySpinItems)) {
+      for (const item of c.culinarySpinItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'floating_product_studio' && Array.isArray(c.floatingStudioItems)) {
+      for (const item of c.floatingStudioItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
     if (blk.type === 'menu_icon') {
       const img = isShareableImageCandidate(c.menuIconImage);
       if (img) return img;

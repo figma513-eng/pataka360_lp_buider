@@ -21,6 +21,9 @@ export type BlockType =
   | 'training_catalog'
   | 'hero_profile'
   | 'fnb_catalog'
+  | 'fnb_hero_slider'
+  | 'culinary_spin_slider'
+  | 'floating_product_studio'
   | 'category_tabs'
   | 'menu_icon'
   | 'cart_button'
@@ -33,6 +36,7 @@ export type ShowcaseCardVariant =
   | 'event_poster'
   | 'badge_tile'
   | 'store_card'
+  | 'popout_product'
   | 'activity_post'
   | 'membership_ticket';
 
@@ -79,6 +83,21 @@ export interface FnbMenuItem {
   monogram?: string;
   monogramBg?: string;
   monogramColor?: string;
+}
+
+export interface FnbHeroSlideItem {
+  id: string;
+  title: string;
+  price: string;
+  subtitle?: string;
+  description?: string;
+  badge?: string;
+  image: string;
+  gradientFrom: string;
+  gradientTo: string;
+  titleColor?: string;
+  variants?: string;
+  url?: string;
 }
 
 export interface CategoryJumpItem {
@@ -572,6 +591,21 @@ export interface BlockContent {
   imageShape?: 'rect' | 'circle';
   circleSize?: number;
   imageZoom?: number;
+  /** Mode Gambar PNG Transparan (latar transparan, contain, anti-potong, shadow siluet) */
+  imagePngMode?: boolean;
+  /** Aktifkan bayangan siluet mengikuti bentuk PNG (CSS filter: drop-shadow) */
+  imageDropShadowEnabled?: boolean;
+  imageDropShadowX?: number;
+  imageDropShadowY?: number;
+  imageDropShadowBlur?: number;
+  imageDropShadowColor?: string;
+  /** Aktifkan kontrol Pop-Out & Anti-Potong (overflow: visible + geser X/Y + rotasi) */
+  imagePopoutEnabled?: boolean;
+  imageOffsetX?: number;
+  imageOffsetY?: number;
+  imageRotate?: number;
+  /** Efek Interaktif Floating 3D saat hover / disentuh */
+  imageHoverFloat3D?: boolean;
   // Button (3-Layer Standard: Wadah, Icon, Teks)
   label?: string;
   url?: string;
@@ -922,6 +956,10 @@ export interface BlockContent {
   cardHideDefaultContent?: boolean;
   cardHideDefaultFooter?: boolean;
   cardFooterBlocks?: BuilderBlock[];
+  /** Garis vertikal aksen halus di kiri bawah harga pada Kartu Produk 3D Pop-Out */
+  cardPopoutAccentLine?: boolean;
+  /** Posisi tombol keranjang kompak (+ / Beli) pada Kartu Produk 3D Pop-Out */
+  cardPopoutCartPosition?: 'bottom-left' | 'top-right';
   // Aksi Universal (Berlaku pada semua lapisan: Link, Sheet 4 Arah, Halaman Baru, Card Lain, Back)
   actionType?: UniversalActionType;
   actionUrl?: string;
@@ -953,6 +991,81 @@ export interface BlockContent {
   backButtonIcon?: ButtonIconId;
   backButtonIconColor?: string;
   backTargetPageId?: string;
+  // Slide Produk F&B (Curved Arch Dynamic Color Morphing + Center-Focus Peek Carousel + Hero Expand Detail)
+  fnbSliderItems?: FnbHeroSlideItem[];
+  fnbSliderShowHeader?: boolean;
+  fnbSliderShowSearch?: boolean;
+  fnbSliderShowCart?: boolean;
+  fnbSliderShowDots?: boolean;
+  fnbSliderDotsPosition?: SlideDotsPosition;
+  fnbSliderEnableDetail?: boolean;
+  fnbSliderEnableCart?: boolean;
+  fnbSliderAutoplay?: boolean;
+  fnbSliderArchHeight?: number;
+  fnbSliderArchCurve?: number;
+  fnbSliderProductSize?: number;
+  fnbSliderImageZoom?: number;
+  fnbSliderPeekScale?: number;
+  fnbSliderDropShadow?: boolean;
+  fnbSliderCardBg?: string;
+  fnbSliderWhatsappNumber?: string;
+  fnbSliderStoreName?: string;
+  fnbSliderFloatingCartEnabled?: boolean;
+  fnbSliderFloatingCartLabel?: string;
+  fnbSliderFloatingCartBg?: string;
+  fnbSliderFloatingCartPosition?: FloatingCartPosition;
+  // Slide Kuliner Putar (Ambient Blurred Mirror Backdrop + Spin-Arc Rotational Swipe)
+  culinarySpinItems?: FnbHeroSlideItem[];
+  culinaryShowHeader?: boolean;
+  culinaryShowCartBadge?: boolean;
+  culinaryShowAmbientBlur?: boolean;
+  culinaryShowInfo?: boolean;
+  culinaryShowPrice?: boolean;
+  culinaryShowDescription?: boolean;
+  culinaryShowCartButton?: boolean;
+  culinaryShowDots?: boolean;
+  culinaryDotsPosition?: SlideDotsPosition;
+  culinaryEnableDetail?: boolean;
+  culinaryAutoplay?: boolean;
+  culinaryPlateSize?: number;
+  culinaryImageZoom?: number;
+  culinarySpinAngle?: number;
+  culinaryBlurOpacity?: number;
+  culinaryBlurAmount?: number;
+  culinaryDropShadow?: boolean;
+  culinaryCardBg?: string;
+  culinaryAccentColor?: string;
+  culinaryWhatsappNumber?: string;
+  culinaryStoreName?: string;
+  culinaryFloatingCartEnabled?: boolean;
+  culinaryFloatingCartLabel?: string;
+  culinaryFloatingCartBg?: string;
+  culinaryFloatingCartPosition?: FloatingCartPosition;
+  // Studio Produk Melayang (Full-Bleed Color Studio + Levitating Ground Shadow + Corner Next-Item Switcher)
+  floatingStudioItems?: FnbHeroSlideItem[];
+  studioShowHeader?: boolean;
+  studioShowCornerPreview?: boolean;
+  studioShowInfo?: boolean;
+  studioShowPrice?: boolean;
+  studioShowSwatches?: boolean;
+  studioShowDescription?: boolean;
+  studioShowCartButton?: boolean;
+  studioShowDots?: boolean;
+  studioDotsPosition?: SlideDotsPosition;
+  studioLevitateEnabled?: boolean;
+  studioGroundShadow?: boolean;
+  studioAutoplay?: boolean;
+  studioProductSize?: number;
+  studioImageZoom?: number;
+  studioCornerSize?: number;
+  studioMinHeight?: number;
+  studioTextColor?: string;
+  studioWhatsappNumber?: string;
+  studioStoreName?: string;
+  studioFloatingCartEnabled?: boolean;
+  studioFloatingCartLabel?: string;
+  studioFloatingCartBg?: string;
+  studioFloatingCartPosition?: FloatingCartPosition;
   // Independent Sub-Layer Storage (per-element styling, visibility, deletion & lock without mutating siblings/parent)
   hiddenSubLayers?: string[];
   deletedSubLayers?: string[];
@@ -1277,5 +1390,19 @@ export interface RestorePreviewSummary {
     incomingRevision: number;
   }>;
 }
+
+export type SavedItemTemplateTarget = 'alat' | 'blok';
+
+export interface SavedItemTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  target: SavedItemTemplateTarget;
+  blockType: BlockType;
+  block: BuilderBlock;
+  createdAt: number;
+  updatedAt: number;
+}
+
 
 

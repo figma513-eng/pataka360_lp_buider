@@ -298,3 +298,199 @@ export async function readVideoFileSafe(file: File, maxMb = 12): Promise<string>
   }
   return readFileAsDataUrl(file);
 }
+
+export interface RemoveBackgroundOptions {
+  /** Toleransi warna latar belakang (10 - 110, default 42) */
+  tolerance?: number;
+  /** Kehalusan tepi anti-aliasing (0 - 30, default 16) */
+  edgeFeather?: number;
+  /** Deteksi otomatis warna 4 sudut ('auto_corners') atau khusus latar putih ('white') */
+  mode?: 'auto_corners' | 'white';
+  /** Dimensi maksimal output PNG (default 1024px) */
+  maxDimension?: number;
+}
+
+function loadImageForCanvas(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (/^https?:\/\//i.test(src)) {
+      img.crossOrigin = 'anonymous';
+    }
+    img.onload = () => resolve(img);
+    img.onerror = () =>
+      reject(
+        new Error(
+          'Gagal memuat gambar untuk hapus background (pastikan gambar diupload langsung atau URL mendukung CORS).'
+        )
+      );
+    img.src = src;
+  });
+}
+
+/**
+ * Menghapus background putih atau warna polos menggunakan edge flood-fill dari 4 tepi gambar
+ * dengan anti-aliased feathering sehingga detail putih di dalam objek tetap aman terjaga.
+ * Mengembalikan URL PNG transparan (otomatis disimpan via /api/media/upload jika tersedia).
+ */
+export async function removeSolidBackgroundFromImage(
+  src: string,
+  options: RemoveBackgroundOptions = {}
+): Promise<string> {
+  if (!src?.trim()) {
+    throw new Error('Belum ada gambar untuk diproses.');
+  }
+  const tolerance = Math.max(8, Math.min(120, options.tolerance ?? 42));
+  const feather = Math.max(0, Math.min(40, options.edgeFeather ?? 18));
+  const mode = options.mode ?? 'auto_corners';
+  const maxDimension = options.maxDimension ?? 1024;
+
+  const img = await loadImageForCanvas(src);
+  const naturalW = img.naturalWidth || img.width;
+  const naturalH = img.naturalHeight || img.height;
+  if (!naturalW || !naturalH) {
+    throw new Error('Dimensi gambar tidak valid.');
+  }
+
+  const scale = Math.min(1, maxDimension / Math.max(naturalW, naturalH));
+  const w = Math.max(1, Math.round(naturalW * scale));
+  const h = Math.max(1, Math.round(naturalH * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) {
+    throw new Error('Canvas 2D tidak tersedia pada browser ini.');
+  }
+
+  ctx.drawImage(img, 0, 0, w, h);
+
+  let imageData: ImageData;
+  try {
+    imageData = ctx.getImageData(0, 0, w, h);
+  } catch {
+    throw new Error(
+      'Gambar dari URL eksternal diblokir oleh kebijakan CORS browser. Upload file gambar langsung untuk menghapus background.'
+    );
+  }
+
+  const data = imageData.data;
+
+  // Sample target background colors (white or 4-corner solid color)
+  const samplePoints: Array<[number, number]> = [
+    [0, 0],
+    [w - 1, 0],
+    [0, h - 1],
+    [w - 1, h - 1],
+    [Math.floor(w / 2), 0],
+    [Math.floor(w / 2), h - 1],
+  ];
+
+  const bgColors: Array<[number, number, number]> = [];
+  if (mode === 'white') {
+    bgColors.push([255, 255, 255]);
+  } else {
+    for (const [sx, sy] of samplePoints) {
+      const idx = (sy * w + sx) * 4;
+      if (data[idx + 3] < 20) continue; // already transparent
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      // Avoid duplicate near-identical samples
+      const exists = bgColors.some(
+        ([cr, cg, cb]) => Math.abs(cr - r) + Math.abs(cg - g) + Math.abs(cb - b) < 24
+      );
+      if (!exists) bgColors.push([r, g, b]);
+    }
+    if (bgColors.length === 0) {
+      bgColors.push([255, 255, 255]);
+    }
+  }
+
+  const colorDist = (r: number, g: number, b: number): number => {
+    let best = 999;
+    for (let i = 0; i < bgColors.length; i += 1) {
+      const [br, bg, bb] = bgColors[i];
+      const dr = r - br;
+      const dg = g - bg;
+      const db = b - bb;
+      // Weighted Euclidean distance scaled to 0..255
+      const d = Math.sqrt(dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11);
+      if (d < best) best = d;
+    }
+    return best;
+  };
+
+  const totalPixels = w * h;
+  const visited = new Uint8Array(totalPixels);
+  const isBg = new Uint8Array(totalPixels);
+  const queue = new Int32Array(totalPixels);
+  let head = 0;
+  let tail = 0;
+
+  const tryEnqueue = (px: number, py: number) => {
+    const pIdx = py * w + px;
+    if (visited[pIdx]) return;
+    const i4 = pIdx * 4;
+    const alpha = data[i4 + 3];
+    const d = alpha < 20 ? 0 : colorDist(data[i4], data[i4 + 1], data[i4 + 2]);
+    if (d <= tolerance) {
+      visited[pIdx] = 1;
+      isBg[pIdx] = 1;
+      queue[tail++] = pIdx;
+    }
+  };
+
+  // Seed flood-fill from all 4 outer edges
+  for (let x = 0; x < w; x += 1) {
+    tryEnqueue(x, 0);
+    tryEnqueue(x, h - 1);
+  }
+  for (let y = 1; y < h - 1; y += 1) {
+    tryEnqueue(0, y);
+    tryEnqueue(w - 1, y);
+  }
+
+  while (head < tail) {
+    const cur = queue[head++];
+    const cx = cur % w;
+    const cy = (cur - cx) / w;
+    if (cx > 0) tryEnqueue(cx - 1, cy);
+    if (cx < w - 1) tryEnqueue(cx + 1, cy);
+    if (cy > 0) tryEnqueue(cx, cy - 1);
+    if (cy < h - 1) tryEnqueue(cx, cy + 1);
+  }
+
+  // Clear flood-filled background pixels + smooth feather border pixels adjacent to background
+  const maxDist = tolerance + feather;
+  for (let p = 0; p < totalPixels; p += 1) {
+    const i4 = p * 4;
+    if (isBg[p]) {
+      data[i4 + 3] = 0;
+    } else if (feather > 0 && data[i4 + 3] > 0) {
+      const px = p % w;
+      const py = (p - px) / w;
+      const touchesBg =
+        (px > 0 && isBg[p - 1]) ||
+        (px < w - 1 && isBg[p + 1]) ||
+        (py > 0 && isBg[p - w]) ||
+        (py < h - 1 && isBg[p + w]);
+      if (touchesBg) {
+        const d = colorDist(data[i4], data[i4 + 1], data[i4 + 2]);
+        if (d < maxDist) {
+          const ratio = Math.max(0, Math.min(1, (d - tolerance) / Math.max(1, feather)));
+          data[i4 + 3] = Math.round(data[i4 + 3] * ratio);
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  const pngDataUrl = canvas.toDataURL('image/png');
+  const uploaded = await uploadMediaAsset(pngDataUrl);
+  if (uploaded.ok && uploaded.url) {
+    return uploaded.url;
+  }
+  return pngDataUrl;
+}
+

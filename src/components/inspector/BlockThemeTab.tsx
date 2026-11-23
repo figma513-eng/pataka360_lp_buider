@@ -56,6 +56,24 @@ function getBlockAccentField(block: BuilderBlock): {
       return { key: 'socialColor', label: 'Warna Aksen Sosmed', value: c.socialColor || '' };
     case 'fnb_catalog':
       return { key: 'fnbAccentColor', label: 'Warna Aksen F&B', value: c.fnbAccentColor || '' };
+    case 'fnb_hero_slider':
+      return {
+        key: 'fnbSliderFloatingCartBg',
+        label: 'Warna Aksen Keranjang F&B',
+        value: c.fnbSliderFloatingCartBg || '',
+      };
+    case 'culinary_spin_slider':
+      return {
+        key: 'culinaryAccentColor',
+        label: 'Warna Aksen Kuliner Putar',
+        value: c.culinaryAccentColor || '',
+      };
+    case 'floating_product_studio':
+      return {
+        key: 'studioFloatingCartBg',
+        label: 'Warna Aksen Studio Produk',
+        value: c.studioFloatingCartBg || '',
+      };
     case 'category_tabs':
       return { key: 'categoryActiveBg', label: 'Warna Tab Aktif', value: c.categoryActiveBg || '' };
     case 'catalog':

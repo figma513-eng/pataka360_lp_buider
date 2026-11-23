@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
+  BookmarkPlus,
   ChevronRight,
   ClipboardCopy,
   ClipboardPaste,
@@ -65,6 +66,7 @@ interface RightInspectorProps {
   onUpdateAdvanceOptions: (patch: Partial<AdvanceOptions>) => void;
   onUpdateBlock: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
   onDuplicateBlock: (id: string) => void;
+  onSaveAsItemTemplate?: (id: string) => void;
   onAddChildToContainer: (containerId: string, type: BlockType) => void;
   onSelectBlock: (id: string | null) => void;
 }
@@ -103,6 +105,7 @@ export function RightInspector({
   onUpdateAdvanceOptions,
   onUpdateBlock,
   onDuplicateBlock,
+  onSaveAsItemTemplate,
   onAddChildToContainer,
   onSelectBlock,
 }: RightInspectorProps) {
@@ -216,6 +219,17 @@ export function RightInspector({
                     className="p-1 rounded-md border border-[#DCE5EF] text-[#51637D] hover:bg-[#F0F5FA] hover:text-[#17243D] transition-colors cursor-pointer"
                   >
                     <Copy className="w-3 h-3" />
+                  </button>
+                )}
+                {onSaveAsItemTemplate && (
+                  <button
+                    type="button"
+                    onClick={() => onSaveAsItemTemplate(selectedBlock.id)}
+                    title="Simpan ke Item Template"
+                    aria-label="Simpan ke Item Template"
+                    className="p-1 rounded-md border border-[#00C98A]/50 bg-[#ECFDF6] text-[#00A873] hover:bg-[#D1FAE5] transition-colors cursor-pointer"
+                  >
+                    <BookmarkPlus className="w-3 h-3" />
                   </button>
                 )}
                 {isVisible('komponen.action.resetTheme') && (() => {

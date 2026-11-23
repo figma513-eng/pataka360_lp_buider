@@ -11,16 +11,19 @@ import {
   Image as ImageIcon,
   Link2,
   ListOrdered,
+  Loader2,
   MousePointerClick,
   Plus,
   RotateCcw,
   Search,
   Settings2,
   ShoppingBag,
+  Sparkles,
   Trash2,
   Type,
   Upload,
   Video,
+  Wand2,
   X,
 } from 'lucide-react';
 import {
@@ -38,6 +41,7 @@ import {
   CategoryJumpItem,
   CustomFieldInputType,
   FloatingCartPosition,
+  FnbHeroSlideItem,
   FnbMenuItem,
   MenuIconAction,
   MenuIconSheetPosition,
@@ -66,10 +70,13 @@ import {
   CAROUSEL_SAMPLE_1_SVG,
   CAROUSEL_SAMPLE_2_SVG,
   CAROUSEL_SAMPLE_3_SVG,
+  CULINARY_DISH_NOODLE_SVG,
   DEFAULT_STYLE,
+  FNB_CUP_CARAMEL_SVG,
   MAPS_LOCATION_SVG,
   PREBUILT_SECTIONS,
   PRODUCT_CARD_SVG,
+  STUDIO_JACKET_GREY_SVG,
   createBlock,
   createId,
 } from '../../data/presets';
@@ -86,7 +93,11 @@ import {
   resolveTrainingFormFields,
 } from '../../utils/cartHelpers';
 import { SOCIAL_PLATFORMS, SOCIAL_PLATFORM_LIST } from '../../utils/socialIcons';
-import { readVideoFileSafe, uploadCompressedImageOrFallback } from '../../utils/imageHelpers';
+import {
+  readVideoFileSafe,
+  removeSolidBackgroundFromImage,
+  uploadCompressedImageOrFallback,
+} from '../../utils/imageHelpers';
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
 import { cloneBlockDeep } from '../../utils/treeHelpers';
 import { removeSelectedItemByIdOrIndex } from '../../utils/itemListHelpers';
@@ -224,6 +235,9 @@ export function BlockContentTab({
       selectedBlock.type === 'carousel' ||
       selectedBlock.type === 'catalog' ||
       selectedBlock.type === 'fnb_catalog' ||
+      selectedBlock.type === 'fnb_hero_slider' ||
+      selectedBlock.type === 'culinary_spin_slider' ||
+      selectedBlock.type === 'floating_product_studio' ||
       selectedBlock.type === 'training_catalog' ||
       selectedBlock.type === 'category_tabs' ||
       selectedBlock.type === 'social' ||
@@ -350,9 +364,13 @@ export function BlockContentTab({
 
 
 
+  const [bgRemoveTolerance, setBgRemoveTolerance] = useState<number>(42);
+  const [bgRemoveMode, setBgRemoveMode] = useState<'auto_corners' | 'white'>('auto_corners');
+  const [isRemovingBg, setIsRemovingBg] = useState<boolean>(false);
+
   const handleCompressAndSet = async (
     file: File,
-    opts: { maxDimension: number; quality: number },
+    opts: { maxDimension: number; quality: number; format?: 'webp' | 'jpeg' | 'png' },
     applyUrl: (blk: BuilderBlock, url: string) => BuilderBlock
   ) => {
     const targetBlockId = selectedBlock.id;
@@ -362,6 +380,34 @@ export function BlockContentTab({
       onUpdateBlock(targetBlockId, (blk) => applyUrl(blk, url));
     } catch (err) {
       onSetUploadError(err instanceof Error ? err.message : 'Gagal memproses gambar.');
+    }
+  };
+
+  const handleRemoveSolidBg = async (
+    currentSrc: string | undefined,
+    applyUrl: (blk: BuilderBlock, url: string) => BuilderBlock
+  ) => {
+    if (!currentSrc?.trim()) {
+      onSetUploadError('Upload atau masukkan gambar terlebih dahulu sebelum menghapus background.');
+      return;
+    }
+    const targetBlockId = selectedBlock.id;
+    onSetUploadError(null);
+    setIsRemovingBg(true);
+    try {
+      const transparentUrl = await removeSolidBackgroundFromImage(currentSrc, {
+        tolerance: bgRemoveTolerance,
+        edgeFeather: 16,
+        mode: bgRemoveMode,
+        maxDimension: 1080,
+      });
+      onUpdateBlock(targetBlockId, (blk) => applyUrl(blk, transparentUrl));
+    } catch (err) {
+      onSetUploadError(
+        err instanceof Error ? err.message : 'Gagal menghapus background gambar.'
+      );
+    } finally {
+      setIsRemovingBg(false);
     }
   };
 
@@ -423,7 +469,11 @@ export function BlockContentTab({
         return (
           <div className="space-y-2.5">
             <MediaSourceInput
-              label={label('konten.field.gambarUtama', 'Sumber Gambar (Upload WebP / URL)')}
+              label={
+                c.imagePngMode
+                  ? 'Sumber Gambar PNG / Transparan (Upload PNG atau Foto)'
+                  : label('konten.field.gambarUtama', 'Sumber Gambar (Upload WebP / PNG / URL)')
+              }
               value={c.src ?? ''}
               onChangeUrl={(url) => updateContent({ src: url })}
               onSavePreparedUrl={(url, meta) =>
@@ -432,15 +482,145 @@ export function BlockContentTab({
                   imageName: c.imageName?.trim() ? c.imageName : meta.fileName,
                 })
               }
-              onUploadFile={(file) =>
+              onUploadFile={(file) => {
+                const preservePng =
+                  Boolean(c.imagePngMode) ||
+                  file.type === 'image/png' ||
+                  file.name.toLowerCase().endsWith('.png');
                 handleCompressAndSet(
                   file,
-                  { maxDimension: 1080, quality: 0.82 },
-                  (blk, url) => ({ ...blk, content: { ...blk.content, src: url } })
-                )
-              }
+                  {
+                    maxDimension: 1080,
+                    quality: preservePng ? 0.92 : 0.82,
+                    format: preservePng ? 'png' : 'webp',
+                  },
+                  (blk, url) => ({
+                    ...blk,
+                    content: {
+                      ...blk.content,
+                      src: url,
+                      imageName: blk.content.imageName?.trim()
+                        ? blk.content.imageName
+                        : file.name,
+                    },
+                  })
+                );
+              }}
               onClear={c.src ? () => updateContent({ src: '' }) : undefined}
             />
+
+            {/* Mode PNG Transparan & Hapus Background Putih / Polos */}
+            <div className="p-2.5 rounded-xl bg-[#ECFDF6]/70 border border-[#00C98A]/35 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles className="w-3.5 h-3.5 text-[#00A873] shrink-0" />
+                  <span className="text-[11px] font-bold text-[#17243D] truncate">
+                    Mode PNG &amp; Hapus Background Polos
+                  </span>
+                </div>
+                <ToggleSwitch
+                  checked={Boolean(c.imagePngMode || c.imagePopoutEnabled)}
+                  onChange={(enabled) =>
+                    onUpdateBlock(selectedBlock.id, (blk) => ({
+                      ...blk,
+                      style: {
+                        ...blk.style,
+                        backgroundColor: enabled ? 'transparent' : blk.style.backgroundColor,
+                        overflow: enabled ? 'visible' : 'hidden',
+                      },
+                      content: {
+                        ...blk.content,
+                        imagePngMode: enabled,
+                        imagePopoutEnabled: enabled,
+                        objectFit: enabled ? 'contain' : blk.content.objectFit ?? 'cover',
+                        imageDropShadowEnabled: enabled
+                          ? blk.content.imageDropShadowEnabled ?? true
+                          : false,
+                        imageHoverFloat3D: enabled
+                          ? blk.content.imageHoverFloat3D ?? true
+                          : false,
+                      },
+                    }))
+                  }
+                  label="Aktifkan mode PNG transparan & anti-potong"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setBgRemoveMode('auto_corners')}
+                  className={`px-2 py-1 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                    bgRemoveMode === 'auto_corners'
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                  }`}
+                >
+                  Deteksi Warna Sudut
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBgRemoveMode('white')}
+                  className={`px-2 py-1 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                    bgRemoveMode === 'white'
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                  }`}
+                >
+                  Hapus Latar Putih
+                </button>
+              </div>
+
+              <SliderRow
+                label="Toleransi Warna Background"
+                value={`${bgRemoveTolerance}`}
+                min={15}
+                max={95}
+                step={1}
+                current={bgRemoveTolerance}
+                onChange={setBgRemoveTolerance}
+              />
+
+              <button
+                type="button"
+                disabled={!c.src?.trim() || isRemovingBg}
+                onClick={() =>
+                  handleRemoveSolidBg(c.src, (blk, transparentUrl) => ({
+                    ...blk,
+                    style: {
+                      ...blk.style,
+                      backgroundColor: 'transparent',
+                      overflow: 'visible',
+                    },
+                    content: {
+                      ...blk.content,
+                      src: transparentUrl,
+                      imagePngMode: true,
+                      imagePopoutEnabled: true,
+                      objectFit: 'contain',
+                      imageDropShadowEnabled: blk.content.imageDropShadowEnabled ?? true,
+                      imageHoverFloat3D: blk.content.imageHoverFloat3D ?? true,
+                    },
+                  }))
+                }
+                className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-[#00C98A] hover:bg-[#00B078] disabled:bg-[#CBD5E1] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+              >
+                {isRemovingBg ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menghapus Background...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span>Hapus Background Putih / Polos → PNG</span>
+                  </>
+                )}
+              </button>
+              <p className="text-[9.5px] text-[#51637D] leading-snug">
+                Cocok untuk foto produk berlatar putih/polos. Atur bayangan siluet &amp; posisi pop-out di tab <strong>Desain</strong>.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
@@ -829,6 +1009,268 @@ export function BlockContentTab({
           </div>
         );
       }
+
+      case 'fnb_hero_slider':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Nama Brand / Kafe F&B
+              </label>
+              <input
+                type="text"
+                value={c.fnbSliderStoreName ?? 'Nusantara Coffee Bar'}
+                onChange={(e) => updateContent({ fnbSliderStoreName: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              />
+            </div>
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Elemen Interaktif Header & Slide
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Header Minimalis Atas</span>
+                <ToggleSwitch
+                  checked={c.fnbSliderShowHeader !== false}
+                  onChange={(val) => updateContent({ fnbSliderShowHeader: val })}
+                  label="Header Minimalis Atas"
+                />
+              </div>
+              {c.fnbSliderShowHeader !== false && (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-[#17243D]">Tombol Cari Produk</span>
+                    <ToggleSwitch
+                      checked={c.fnbSliderShowSearch !== false}
+                      onChange={(val) => updateContent({ fnbSliderShowSearch: val })}
+                      label="Tombol Cari Produk"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-[#17243D]">Ikon Keranjang Header</span>
+                    <ToggleSwitch
+                      checked={c.fnbSliderShowCart !== false}
+                      onChange={(val) => updateContent({ fnbSliderShowCart: val })}
+                      label="Ikon Keranjang Header"
+                    />
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-xs font-medium text-[#17243D]">
+                  Tap Produk Buka Detail (Expand)
+                </span>
+                <ToggleSwitch
+                  checked={c.fnbSliderEnableDetail !== false}
+                  onChange={(val) => updateContent({ fnbSliderEnableDetail: val })}
+                  label="Tap Produk Buka Detail"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">
+                  Tombol Tambah ke Keranjang
+                </span>
+                <ToggleSwitch
+                  checked={c.fnbSliderEnableCart !== false}
+                  onChange={(val) => updateContent({ fnbSliderEnableCart: val })}
+                  label="Tombol Tambah ke Keranjang"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">
+                  Autoplay Slide Otomatis
+                </span>
+                <ToggleSwitch
+                  checked={Boolean(c.fnbSliderAutoplay)}
+                  onChange={(val) => updateContent({ fnbSliderAutoplay: val })}
+                  label="Autoplay Slide Otomatis"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'culinary_spin_slider':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Nama Brand / Resto Kuliner
+              </label>
+              <input
+                type="text"
+                value={c.culinaryStoreName ?? 'Dapur Nusantara'}
+                onChange={(e) => updateContent({ culinaryStoreName: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              />
+            </div>
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Tampil / Sembunyi Elemen Slide
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Header Atas (Panah & Keranjang)</span>
+                <ToggleSwitch
+                  checked={c.culinaryShowHeader !== false}
+                  onChange={(val) => updateContent({ culinaryShowHeader: val })}
+                  label="Header Atas"
+                />
+              </div>
+              {c.culinaryShowHeader !== false && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#17243D]">Tombol Keranjang Header</span>
+                  <ToggleSwitch
+                    checked={c.culinaryShowCartBadge !== false}
+                    onChange={(val) => updateContent({ culinaryShowCartBadge: val })}
+                    label="Tombol Keranjang Header"
+                  />
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Latar Ambient Blur Cermin</span>
+                <ToggleSwitch
+                  checked={c.culinaryShowAmbientBlur !== false}
+                  onChange={(val) => updateContent({ culinaryShowAmbientBlur: val })}
+                  label="Latar Ambient Blur Cermin"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-xs font-medium text-[#17243D]">Judul & Badge Menu</span>
+                <ToggleSwitch
+                  checked={c.culinaryShowInfo !== false}
+                  onChange={(val) => updateContent({ culinaryShowInfo: val })}
+                  label="Judul & Badge Menu"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Harga Menu</span>
+                <ToggleSwitch
+                  checked={c.culinaryShowPrice !== false}
+                  onChange={(val) => updateContent({ culinaryShowPrice: val })}
+                  label="Harga Menu"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Deskripsi & Varian Langsung</span>
+                <ToggleSwitch
+                  checked={Boolean(c.culinaryShowDescription)}
+                  onChange={(val) => updateContent({ culinaryShowDescription: val })}
+                  label="Deskripsi & Varian Langsung"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Tombol Tambah ke Keranjang</span>
+                <ToggleSwitch
+                  checked={c.culinaryShowCartButton !== false}
+                  onChange={(val) => updateContent({ culinaryShowCartButton: val })}
+                  label="Tombol Tambah ke Keranjang"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-xs font-medium text-[#17243D]">Tap Piring Buka Detail</span>
+                <ToggleSwitch
+                  checked={c.culinaryEnableDetail !== false}
+                  onChange={(val) => updateContent({ culinaryEnableDetail: val })}
+                  label="Tap Piring Buka Detail"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Autoplay Slide Otomatis</span>
+                <ToggleSwitch
+                  checked={Boolean(c.culinaryAutoplay)}
+                  onChange={(val) => updateContent({ culinaryAutoplay: val })}
+                  label="Autoplay Slide Otomatis"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'floating_product_studio':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Nama Brand / Studio Koleksi
+              </label>
+              <input
+                type="text"
+                value={c.studioStoreName ?? 'NORDIC STUDIO'}
+                onChange={(e) => updateContent({ studioStoreName: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              />
+            </div>
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Tampil / Sembunyi Elemen Studio
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Miniatur Produk Berikutnya (Sudut)</span>
+                <ToggleSwitch
+                  checked={c.studioShowCornerPreview !== false}
+                  onChange={(val) => updateContent({ studioShowCornerPreview: val })}
+                  label="Miniatur Produk Berikutnya"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Header Brand & Ikon Keranjang</span>
+                <ToggleSwitch
+                  checked={Boolean(c.studioShowHeader)}
+                  onChange={(val) => updateContent({ studioShowHeader: val })}
+                  label="Header Brand & Ikon Keranjang"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-xs font-medium text-[#17243D]">Nama Produk & Badge</span>
+                <ToggleSwitch
+                  checked={c.studioShowInfo !== false}
+                  onChange={(val) => updateContent({ studioShowInfo: val })}
+                  label="Nama Produk & Badge"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Harga Produk</span>
+                <ToggleSwitch
+                  checked={c.studioShowPrice !== false}
+                  onChange={(val) => updateContent({ studioShowPrice: val })}
+                  label="Harga Produk"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Pemilih Warna (Swatches)</span>
+                <ToggleSwitch
+                  checked={c.studioShowSwatches !== false}
+                  onChange={(val) => updateContent({ studioShowSwatches: val })}
+                  label="Pemilih Warna"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Deskripsi & Ukuran</span>
+                <ToggleSwitch
+                  checked={Boolean(c.studioShowDescription)}
+                  onChange={(val) => updateContent({ studioShowDescription: val })}
+                  label="Deskripsi & Ukuran"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Tombol Tambah ke Keranjang</span>
+                <ToggleSwitch
+                  checked={c.studioShowCartButton !== false}
+                  onChange={(val) => updateContent({ studioShowCartButton: val })}
+                  label="Tombol Tambah ke Keranjang"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                <span className="text-xs font-medium text-[#17243D]">Autoplay Slide Otomatis</span>
+                <ToggleSwitch
+                  checked={Boolean(c.studioAutoplay)}
+                  onChange={(val) => updateContent({ studioAutoplay: val })}
+                  label="Autoplay Slide Otomatis"
+                />
+              </div>
+            </div>
+          </div>
+        );
 
       case 'fnb_catalog':
         return (
@@ -1679,6 +2121,7 @@ export function BlockContentTab({
           variant === 'event_poster' ||
           variant === 'badge_tile' ||
           variant === 'store_card' ||
+          variant === 'popout_product' ||
           variant === 'activity_post';
 
         const bodyChildren = selectedBlock.children ?? [];
@@ -1830,6 +2273,7 @@ export function BlockContentTab({
                   <option value="event_poster">Poster Even & Promo</option>
                   <option value="badge_tile">Kartu Sertifikasi / Badge</option>
                   <option value="store_card">Kartu Store Gradasi + Harga</option>
+                  <option value="popout_product">Kartu Produk 3D Pop-Out</option>
                   <option value="activity_post">Feed Kegiatan + Galeri</option>
                   <option value="membership_ticket">Kartu Tarif / Tiket Anggota</option>
                 </select>
@@ -2082,19 +2526,109 @@ export function BlockContentTab({
             )}
 
             {showCardMediaFields && hasMainImage && (
-              <MediaSourceInput
-                label={variant === 'activity_post' ? 'Foto Profil Penulis' : 'Gambar / Foto Kartu'}
-                value={c.cardImage ?? ''}
-                placeholder="https://..."
-                onChangeUrl={(url) => updateContent({ cardImage: url })}
-                onUploadFile={(f) =>
-                  handleCompressAndSet(f, { maxDimension: 960, quality: 0.85 }, (blk, url) => ({
-                    ...blk,
-                    content: { ...blk.content, cardImage: url },
-                  }))
-                }
-                onClear={c.cardImage ? () => updateContent({ cardImage: '' }) : undefined}
-              />
+              <div className="space-y-2">
+                <MediaSourceInput
+                  label={
+                    variant === 'activity_post'
+                      ? 'Foto Profil Penulis'
+                      : variant === 'popout_product'
+                      ? 'Foto Produk PNG Transparan (atau Foto Latar Polos)'
+                      : 'Gambar / Foto Kartu'
+                  }
+                  value={c.cardImage ?? ''}
+                  placeholder="https://..."
+                  onChangeUrl={(url) => updateContent({ cardImage: url })}
+                  onUploadFile={(f) => {
+                    const preservePng =
+                      variant === 'popout_product' ||
+                      f.type === 'image/png' ||
+                      f.name.toLowerCase().endsWith('.png');
+                    handleCompressAndSet(
+                      f,
+                      {
+                        maxDimension: 960,
+                        quality: preservePng ? 0.92 : 0.85,
+                        format: preservePng ? 'png' : 'webp',
+                      },
+                      (blk, url) => ({
+                        ...blk,
+                        content: { ...blk.content, cardImage: url },
+                      })
+                    );
+                  }}
+                  onClear={c.cardImage ? () => updateContent({ cardImage: '' }) : undefined}
+                />
+
+                {variant === 'popout_product' && (
+                  <div className="p-2.5 rounded-xl bg-[#ECFDF6]/70 border border-[#00C98A]/35 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#17243D]">
+                      <Wand2 className="w-3.5 h-3.5 text-[#00A873]" />
+                      <span>Hapus Background Putih / Polos (PNG)</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setBgRemoveMode('auto_corners')}
+                        className={`px-2 py-1 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                          bgRemoveMode === 'auto_corners'
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        Deteksi Warna Sudut
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBgRemoveMode('white')}
+                        className={`px-2 py-1 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                          bgRemoveMode === 'white'
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        Hapus Latar Putih
+                      </button>
+                    </div>
+                    <SliderRow
+                      label="Toleransi Warna"
+                      value={`${bgRemoveTolerance}`}
+                      min={15}
+                      max={95}
+                      step={1}
+                      current={bgRemoveTolerance}
+                      onChange={setBgRemoveTolerance}
+                    />
+                    <button
+                      type="button"
+                      disabled={!c.cardImage?.trim() || isRemovingBg}
+                      onClick={() =>
+                        handleRemoveSolidBg(c.cardImage, (blk, transparentUrl) => ({
+                          ...blk,
+                          content: {
+                            ...blk.content,
+                            cardImage: transparentUrl,
+                            cardImageFit: 'contain',
+                            imageDropShadowEnabled: blk.content.imageDropShadowEnabled ?? true,
+                          },
+                        }))
+                      }
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#00C98A] hover:bg-[#00B078] disabled:bg-[#CBD5E1] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      {isRemovingBg ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Memproses PNG Transparan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          <span>Hapus Background Polos → PNG</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Ukuran Box Foto & Perbesar/Perkecil Foto di Dalam Card */}
@@ -2105,6 +2639,7 @@ export function BlockContentTab({
                 </div>
                 {(variant === 'badge_tile' ||
                   variant === 'store_card' ||
+                  variant === 'popout_product' ||
                   variant === 'quote_banner' ||
                   variant === 'activity_post') && (
                   <SliderRow
@@ -2113,11 +2648,13 @@ export function BlockContentTab({
                         ? 'Ukuran Foto Profil'
                         : variant === 'quote_banner'
                         ? 'Lebar Box Foto'
+                        : variant === 'popout_product'
+                        ? 'Ukuran Objek Produk PNG'
                         : 'Ukuran Box Foto / Ikon'
                     }
-                    value={`${c.cardMediaSize ?? (variant === 'badge_tile' ? 56 : variant === 'store_card' ? 80 : variant === 'quote_banner' ? 112 : 42)}px`}
-                    min={32}
-                    max={200}
+                    value={`${c.cardMediaSize ?? (variant === 'badge_tile' ? 56 : variant === 'store_card' ? 80 : variant === 'popout_product' ? 152 : variant === 'quote_banner' ? 112 : 42)}px`}
+                    min={variant === 'popout_product' ? 84 : 32}
+                    max={variant === 'popout_product' ? 240 : 200}
                     step={2}
                     current={
                       c.cardMediaSize ??
@@ -2125,6 +2662,8 @@ export function BlockContentTab({
                         ? 56
                         : variant === 'store_card'
                         ? 80
+                        : variant === 'popout_product'
+                        ? 152
                         : variant === 'quote_banner'
                         ? 112
                         : 42)
@@ -2195,7 +2734,14 @@ export function BlockContentTab({
                     </label>
                     <SegmentedControl<'cover' | 'contain'>
                       columns={2}
-                      value={c.cardImageFit ?? (variant === 'badge_tile' || variant === 'store_card' ? 'contain' : 'cover')}
+                      value={
+                        c.cardImageFit ??
+                        (variant === 'badge_tile' ||
+                        variant === 'store_card' ||
+                        variant === 'popout_product'
+                          ? 'contain'
+                          : 'cover')
+                      }
                       onChange={(fit) => updateContent({ cardImageFit: fit })}
                       options={[
                         { id: 'cover', label: 'Cover' },
@@ -2367,6 +2913,88 @@ export function BlockContentTab({
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {showCardTextFields && variant === 'popout_product' && (
+              <div className="space-y-2.5 p-2.5 rounded-xl bg-[#F0F5FA] border border-[#DCE5EF]">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#17243D]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#00A873]" />
+                  <span>Pengaturan Kartu Produk 3D Pop-Out</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga Produk
+                  </label>
+                  <input
+                    type="text"
+                    value={c.cardPrice ?? 'Rp 1.499.000'}
+                    onChange={(e) => updateContent({ cardPrice: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">
+                    Garis Aksen Vertikal (Kiri)
+                  </span>
+                  <ToggleSwitch
+                    checked={c.cardPopoutAccentLine !== false}
+                    onChange={(val) => updateContent({ cardPopoutAccentLine: val })}
+                    label="Garis Aksen Vertikal"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-[#17243D]">
+                    Efek Floating 3D (Hover / Tap)
+                  </span>
+                  <ToggleSwitch
+                    checked={c.imageHoverFloat3D !== false}
+                    onChange={(val) => updateContent({ imageHoverFloat3D: val })}
+                    label="Efek Floating 3D Hover"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#DCE5EF]">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Tombol Keranjang Kompak (+ / Beli)
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(c.cardEnableCart)}
+                    onChange={(val) => updateContent({ cardEnableCart: val })}
+                    label="Aktifkan Tombol Keranjang Sudut"
+                  />
+                </div>
+                {c.cardEnableCart && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                        Posisi Tombol Keranjang
+                      </label>
+                      <SegmentedControl<'bottom-left' | 'top-right'>
+                        columns={2}
+                        value={c.cardPopoutCartPosition ?? 'bottom-left'}
+                        onChange={(pos) => updateContent({ cardPopoutCartPosition: pos })}
+                        options={[
+                          { id: 'bottom-left', label: 'Kiri Bawah' },
+                          { id: 'top-right', label: 'Kanan Atas' },
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                        No. WhatsApp Checkout
+                      </label>
+                      <input
+                        type="text"
+                        value={c.cardWhatsappNumber ?? '6281234567890'}
+                        onChange={(e) => updateContent({ cardWhatsappNumber: e.target.value })}
+                        className="w-full px-2 py-1 text-xs rounded border border-[#DCE5EF] bg-white tabular-nums"
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-[9.5px] text-[#51637D] leading-snug">
+                  Klik kartu mendukung <strong>Aksi Universal</strong> (Buka Link, Bottom Sheet, Halaman, atau Keranjang) di seksi <strong>Aksi &amp; Navigasi</strong> di bawah.
+                </p>
               </div>
             )}
 
@@ -3520,6 +4148,925 @@ export function BlockContentTab({
                 ))}
               </div>
             )}
+          </div>
+        ),
+      };
+    }
+
+    // --- SLIDE PRODUK F&B (HERO CAROUSEL) ---
+    if (selectedBlock.type === 'fnb_hero_slider') {
+      const items: FnbHeroSlideItem[] = c.fnbSliderItems ?? [];
+      const updateSlideItem = (id: string, patch: Partial<FnbHeroSlideItem>) => {
+        updateContent({
+          fnbSliderItems: items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+        });
+      };
+
+      const FNB_GRADIENT_PRESETS = [
+        { name: 'Caramel', from: '#FF7C76', to: '#F8B088' },
+        { name: 'Matcha', from: '#16A34A', to: '#A3E635' },
+        { name: 'Espresso', from: '#3B2316', to: '#9A6343' },
+        { name: 'Berry', from: '#E11D48', to: '#FB7185' },
+        { name: 'Taro', from: '#7C3AED', to: '#C084FC' },
+        { name: 'Ocean', from: '#0284C7', to: '#38BDF8' },
+      ];
+
+      if (editingItemKey?.startsWith('fhs:')) {
+        const targetId = editingItemKey.slice('fhs:'.length);
+        const item = items.find((it) => it.id === targetId);
+        if (!item) return { badge: items.length, body: renderDrillHeader('Slide Produk F&B') };
+
+        return {
+          badge: items.length,
+          body: (
+            <div className="space-y-2.5">
+              {renderDrillHeader(item.title || 'Detail Produk Slide', () =>
+                updateContent({
+                  fnbSliderItems: removeSelectedItemByIdOrIndex(items, item.id),
+                })
+              )}
+
+              <MediaSourceInput
+                label="Foto Produk PNG Transparan"
+                value={item.image ?? ''}
+                placeholder="Upload PNG / tempel URL foto produk"
+                onChangeUrl={(url) => updateSlideItem(item.id, { image: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(
+                    f,
+                    { maxDimension: 900, quality: 0.92, format: 'png' },
+                    (blk, url) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        fnbSliderItems: (blk.content.fnbSliderItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, image: url } : it
+                        ),
+                      },
+                    })
+                  )
+                }
+                onClear={item.image ? () => updateSlideItem(item.id, { image: '' }) : undefined}
+              />
+
+              <div className="p-2 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/35 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10.5px] font-bold text-[#0F5132]">
+                    Foto Masih Ada Background Polos?
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={!item.image?.trim() || isRemovingBg}
+                  onClick={() =>
+                    handleRemoveSolidBg(item.image, (blk, transparentUrl) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        fnbSliderItems: (blk.content.fnbSliderItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, image: transparentUrl } : it
+                        ),
+                      },
+                    }))
+                  }
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#00C98A] hover:bg-[#00B078] disabled:bg-[#CBD5E1] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isRemovingBg ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menghapus Background...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>Hapus Background Polos → PNG</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Nama Produk
+                  </label>
+                  <input
+                    type="text"
+                    value={item.title}
+                    onChange={(e) => updateSlideItem(item.id, { title: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga
+                  </label>
+                  <input
+                    type="text"
+                    value={item.price}
+                    placeholder="Rp 32.000"
+                    onChange={(e) => updateSlideItem(item.id, { price: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] tabular-nums"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Badge / Label
+                  </label>
+                  <input
+                    type="text"
+                    value={item.badge ?? ''}
+                    placeholder="Best Seller"
+                    onChange={(e) => updateSlideItem(item.id, { badge: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Subjudul Singkat
+                  </label>
+                  <input
+                    type="text"
+                    value={item.subtitle ?? ''}
+                    placeholder="Signature Iced Latte"
+                    onChange={(e) => updateSlideItem(item.id, { subtitle: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Deskripsi Detail (Saat Di-Expand)
+                </label>
+                <textarea
+                  rows={2}
+                  value={item.description ?? ''}
+                  placeholder="Jelaskan cita rasa dan bahan utama minuman/makanan ini..."
+                  onChange={(e) => updateSlideItem(item.id, { description: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] resize-y"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Pilihan Varian (pisahkan dengan koma)
+                </label>
+                <input
+                  type="text"
+                  value={item.variants ?? ''}
+                  placeholder="Regular, Large, Less Sugar"
+                  onChange={(e) =>
+                    updateSlideItem(item.id, {
+                      variants: e.target.value,
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  Warna Gradasi Lengkungan Produk Ini
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {FNB_GRADIENT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() =>
+                        updateSlideItem(item.id, {
+                          gradientFrom: preset.from,
+                          gradientTo: preset.to,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white border border-[#DCE5EF] hover:border-[#00C98A] text-[10px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{
+                          background: `linear-gradient(135deg, ${preset.from}, ${preset.to})`,
+                        }}
+                      />
+                      <span>{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-[#64748B] mb-1">
+                      Gradasi Awal
+                    </label>
+                    <input
+                      type="color"
+                      value={item.gradientFrom || '#FF7C76'}
+                      onChange={(e) => updateSlideItem(item.id, { gradientFrom: e.target.value })}
+                      className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[#64748B] mb-1">
+                      Gradasi Akhir
+                    </label>
+                    <input
+                      type="color"
+                      value={item.gradientTo || '#F8B088'}
+                      onChange={(e) => updateSlideItem(item.id, { gradientTo: e.target.value })}
+                      className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[#64748B] mb-1">
+                      Warna Judul
+                    </label>
+                    <input
+                      type="color"
+                      value={item.titleColor || '#1E293B'}
+                      onChange={(e) => updateSlideItem(item.id, { titleColor: e.target.value })}
+                      className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: items.length,
+        body: (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const palette = FNB_GRADIENT_PRESETS[items.length % FNB_GRADIENT_PRESETS.length];
+                const nextItem: FnbHeroSlideItem = {
+                  id: createId('fhs'),
+                  title: `Menu Signature ${items.length + 1}`,
+                  price: 'Rp 30.000',
+                  subtitle: 'Minuman Favorit',
+                  description: 'Racikan spesial dengan bahan pilihan segar.',
+                  badge: 'Baru',
+                  image: FNB_CUP_CARAMEL_SVG,
+                  gradientFrom: palette.from,
+                  gradientTo: palette.to,
+                  titleColor: '#1E293B',
+                  variants: 'Regular, Large, Less Sugar',
+                };
+                updateContent({ fnbSliderItems: [...items, nextItem] });
+                setEditingItemKey(`fhs:${nextItem.id}`);
+              }}
+              className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
+              <span>Tambah Produk Slide</span>
+            </button>
+
+            {items.map((item, idx) => (
+              <div
+                key={item.id}
+                onClick={() => setEditingItemKey(`fhs:${item.id}`)}
+                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center gap-2 cursor-pointer"
+              >
+                <div
+                  style={{
+                    background: `linear-gradient(135deg, ${item.gradientFrom || '#FF7C76'}, ${item.gradientTo || '#F8B088'})`,
+                  }}
+                  className="w-9 h-9 rounded-lg border border-black/5 overflow-hidden shrink-0 flex items-center justify-center p-1"
+                >
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-contain drop-shadow"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-bold text-white">F&B</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-[#17243D] truncate">{item.title}</div>
+                  <div className="text-[10.5px] text-[#8FA4BF] truncate tabular-nums">
+                    {item.price}
+                    {item.badge ? ` · ${item.badge}` : ''}
+                  </div>
+                </div>
+                <ItemOverflowMenu
+                  onEdit={() => setEditingItemKey(`fhs:${item.id}`)}
+                  onDuplicate={() => {
+                    const dup: FnbHeroSlideItem = {
+                      ...item,
+                      id: createId('fhs'),
+                      title: `${item.title} Salinan`,
+                    };
+                    const copy = [...items];
+                    copy.splice(idx + 1, 0, dup);
+                    updateContent({ fnbSliderItems: copy });
+                  }}
+                  onMoveUp={() =>
+                    updateContent({ fnbSliderItems: moveArrayItem(items, idx, -1) })
+                  }
+                  onMoveDown={() =>
+                    updateContent({ fnbSliderItems: moveArrayItem(items, idx, 1) })
+                  }
+                  disableMoveUp={idx === 0}
+                  disableMoveDown={idx === items.length - 1}
+                  onDelete={() => {
+                    updateContent({
+                      fnbSliderItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                    });
+                    if (editingItemKey === `fhs:${item.id}`) setEditingItemKey(null);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ),
+      };
+    }
+
+    // --- SLIDE KULINER PUTAR (AMBIENT BLUR + SPIN-ARC ROTATIONAL SWIPE) ---
+    if (selectedBlock.type === 'culinary_spin_slider') {
+      const items: FnbHeroSlideItem[] = c.culinarySpinItems ?? [];
+      const updateSpinItem = (id: string, patch: Partial<FnbHeroSlideItem>) => {
+        updateContent({
+          culinarySpinItems: items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+        });
+      };
+
+      if (editingItemKey?.startsWith('css:')) {
+        const targetId = editingItemKey.slice('css:'.length);
+        const item = items.find((it) => it.id === targetId);
+        if (!item) return { badge: items.length, body: renderDrillHeader('Slide Kuliner Putar') };
+
+        return {
+          badge: items.length,
+          body: (
+            <div className="space-y-2.5">
+              {renderDrillHeader(item.title || 'Detail Menu Putar', () =>
+                updateContent({
+                  culinarySpinItems: removeSelectedItemByIdOrIndex(items, item.id),
+                })
+              )}
+
+              <MediaSourceInput
+                label="Foto Piring / Menu PNG (Top-Down)"
+                value={item.image ?? ''}
+                placeholder="Upload PNG piring transparan / URL"
+                onChangeUrl={(url) => updateSpinItem(item.id, { image: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(
+                    f,
+                    { maxDimension: 900, quality: 0.92, format: 'png' },
+                    (blk, url) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        culinarySpinItems: (blk.content.culinarySpinItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, image: url } : it
+                        ),
+                      },
+                    })
+                  )
+                }
+                onClear={item.image ? () => updateSpinItem(item.id, { image: '' }) : undefined}
+              />
+
+              <div className="p-2 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/35 space-y-1.5">
+                <div className="text-[10.5px] font-bold text-[#0F5132]">
+                  Foto Masih Ada Background Polos?
+                </div>
+                <button
+                  type="button"
+                  disabled={!item.image?.trim() || isRemovingBg}
+                  onClick={() =>
+                    handleRemoveSolidBg(item.image, (blk, transparentUrl) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        culinarySpinItems: (blk.content.culinarySpinItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, image: transparentUrl } : it
+                        ),
+                      },
+                    }))
+                  }
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#00C98A] hover:bg-[#00B078] disabled:bg-[#CBD5E1] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isRemovingBg ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menghapus Background...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>Hapus Background Polos → PNG</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Nama Hidangan
+                  </label>
+                  <input
+                    type="text"
+                    value={item.title}
+                    onChange={(e) => updateSpinItem(item.id, { title: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga
+                  </label>
+                  <input
+                    type="text"
+                    value={item.price}
+                    placeholder="Rp 42.000"
+                    onChange={(e) => updateSpinItem(item.id, { price: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] tabular-nums"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Badge / Label
+                  </label>
+                  <input
+                    type="text"
+                    value={item.badge ?? ''}
+                    placeholder="Chef Special"
+                    onChange={(e) => updateSpinItem(item.id, { badge: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Subjudul Singkat
+                  </label>
+                  <input
+                    type="text"
+                    value={item.subtitle ?? ''}
+                    placeholder="Kuah Gurih & Pedas"
+                    onChange={(e) => updateSpinItem(item.id, { subtitle: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Deskripsi Menu
+                </label>
+                <textarea
+                  rows={2}
+                  value={item.description ?? ''}
+                  placeholder="Jelaskan komposisi dan cita rasa hidangan..."
+                  onChange={(e) => updateSpinItem(item.id, { description: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] resize-y"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Pilihan Varian (pisahkan koma)
+                  </label>
+                  <input
+                    type="text"
+                    value={item.variants ?? ''}
+                    placeholder="Original, Pedas, Extra Topping"
+                    onChange={(e) => updateSpinItem(item.id, { variants: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Warna Judul
+                  </label>
+                  <input
+                    type="color"
+                    value={item.titleColor || '#1E293B'}
+                    onChange={(e) => updateSpinItem(item.id, { titleColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: items.length,
+        body: (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const nextItem: FnbHeroSlideItem = {
+                  id: createId('css'),
+                  title: `Hidangan Spesial ${items.length + 1}`,
+                  price: 'Rp 45.000',
+                  subtitle: 'Menu Signature Chef',
+                  description: 'Disajikan hangat dengan bumbu rempah pilihan.',
+                  badge: 'Favorit',
+                  image: CULINARY_DISH_NOODLE_SVG,
+                  gradientFrom: '#FFFFFF',
+                  gradientTo: '#F8FAFC',
+                  titleColor: '#1E293B',
+                  variants: 'Original, Pedas, Extra Topping',
+                };
+                updateContent({ culinarySpinItems: [...items, nextItem] });
+                setEditingItemKey(`css:${nextItem.id}`);
+              }}
+              className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
+              <span>Tambah Menu Putar</span>
+            </button>
+
+            {items.map((item, idx) => (
+              <div
+                key={item.id}
+                onClick={() => setEditingItemKey(`css:${item.id}`)}
+                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center gap-2 cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg border border-[#DCE5EF] bg-[#F8FAFC] overflow-hidden shrink-0 flex items-center justify-center p-1">
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-contain drop-shadow"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-bold text-[#64748B]">PNG</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-[#17243D] truncate">{item.title}</div>
+                  <div className="text-[10.5px] text-[#8FA4BF] truncate tabular-nums">
+                    {item.price}
+                    {item.badge ? ` · ${item.badge}` : ''}
+                  </div>
+                </div>
+                <ItemOverflowMenu
+                  onEdit={() => setEditingItemKey(`css:${item.id}`)}
+                  onDuplicate={() => {
+                    const dup: FnbHeroSlideItem = {
+                      ...item,
+                      id: createId('css'),
+                      title: `${item.title} Salinan`,
+                    };
+                    const copy = [...items];
+                    copy.splice(idx + 1, 0, dup);
+                    updateContent({ culinarySpinItems: copy });
+                  }}
+                  onMoveUp={() =>
+                    updateContent({ culinarySpinItems: moveArrayItem(items, idx, -1) })
+                  }
+                  onMoveDown={() =>
+                    updateContent({ culinarySpinItems: moveArrayItem(items, idx, 1) })
+                  }
+                  disableMoveUp={idx === 0}
+                  disableMoveDown={idx === items.length - 1}
+                  onDelete={() => {
+                    updateContent({
+                      culinarySpinItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                    });
+                    if (editingItemKey === `css:${item.id}`) setEditingItemKey(null);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ),
+      };
+    }
+
+    // --- STUDIO PRODUK MELAYANG (FULL-BLEED COLOR STUDIO + LEVITATING CORNER SWITCHER) ---
+    if (selectedBlock.type === 'floating_product_studio') {
+      const items: FnbHeroSlideItem[] = c.floatingStudioItems ?? [];
+      const updateStudioItem = (id: string, patch: Partial<FnbHeroSlideItem>) => {
+        updateContent({
+          floatingStudioItems: items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+        });
+      };
+
+      const STUDIO_COLOR_PRESETS = [
+        { name: 'Slate Mist', from: '#A3A8B2', to: '#828894' },
+        { name: 'Obsidian', from: '#3B3F46', to: '#23262B' },
+        { name: 'Sunset', from: '#FF7048', to: '#F54B24' },
+        { name: 'Crimson', from: '#B92C31', to: '#8F191E' },
+        { name: 'Forest', from: '#2A6F56', to: '#184A38' },
+        { name: 'Cobalt', from: '#3358B8', to: '#1E3A8A' },
+      ];
+
+      if (editingItemKey?.startsWith('fps:')) {
+        const targetId = editingItemKey.slice('fps:'.length);
+        const item = items.find((it) => it.id === targetId);
+        if (!item) return { badge: items.length, body: renderDrillHeader('Studio Produk Melayang') };
+
+        return {
+          badge: items.length,
+          body: (
+            <div className="space-y-2.5">
+              {renderDrillHeader(item.title || 'Detail Produk Studio', () =>
+                updateContent({
+                  floatingStudioItems: removeSelectedItemByIdOrIndex(items, item.id),
+                })
+              )}
+
+              <MediaSourceInput
+                label="Foto Produk Melayang PNG Transparan"
+                value={item.image ?? ''}
+                placeholder="Upload PNG produk transparan / URL"
+                onChangeUrl={(url) => updateStudioItem(item.id, { image: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(
+                    f,
+                    { maxDimension: 900, quality: 0.92, format: 'png' },
+                    (blk, url) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        floatingStudioItems: (blk.content.floatingStudioItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, image: url } : it
+                        ),
+                      },
+                    })
+                  )
+                }
+                onClear={item.image ? () => updateStudioItem(item.id, { image: '' }) : undefined}
+              />
+
+              <div className="p-2 rounded-lg bg-[#ECFDF6] border border-[#00C98A]/35 space-y-1.5">
+                <div className="text-[10.5px] font-bold text-[#0F5132]">
+                  Foto Masih Ada Background Polos?
+                </div>
+                <button
+                  type="button"
+                  disabled={!item.image?.trim() || isRemovingBg}
+                  onClick={() =>
+                    handleRemoveSolidBg(item.image, (blk, transparentUrl) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        floatingStudioItems: (blk.content.floatingStudioItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, image: transparentUrl } : it
+                        ),
+                      },
+                    }))
+                  }
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#00C98A] hover:bg-[#00B078] disabled:bg-[#CBD5E1] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isRemovingBg ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menghapus Background...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>Hapus Background Polos → PNG</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Nama Produk / Varian
+                  </label>
+                  <input
+                    type="text"
+                    value={item.title}
+                    onChange={(e) => updateStudioItem(item.id, { title: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga
+                  </label>
+                  <input
+                    type="text"
+                    value={item.price}
+                    placeholder="Rp 899.000"
+                    onChange={(e) => updateStudioItem(item.id, { price: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] tabular-nums"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Badge / Label
+                  </label>
+                  <input
+                    type="text"
+                    value={item.badge ?? ''}
+                    placeholder="Limited Edition"
+                    onChange={(e) => updateStudioItem(item.id, { badge: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Subjudul Singkat
+                  </label>
+                  <input
+                    type="text"
+                    value={item.subtitle ?? ''}
+                    placeholder="Water-Resistant Puffer"
+                    onChange={(e) => updateStudioItem(item.id, { subtitle: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Deskripsi Produk
+                </label>
+                <textarea
+                  rows={2}
+                  value={item.description ?? ''}
+                  placeholder="Jelaskan material dan keunggulan produk..."
+                  onChange={(e) => updateStudioItem(item.id, { description: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] resize-y"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Pilihan Ukuran / Varian (pisahkan koma)
+                </label>
+                <input
+                  type="text"
+                  value={item.variants ?? ''}
+                  placeholder="S, M, L, XL"
+                  onChange={(e) => updateStudioItem(item.id, { variants: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  Warna Latar Studio Produk Ini
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {STUDIO_COLOR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() =>
+                        updateStudioItem(item.id, {
+                          gradientFrom: preset.from,
+                          gradientTo: preset.to,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white border border-[#DCE5EF] hover:border-[#00C98A] text-[10px] font-semibold text-[#17243D] cursor-pointer"
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{
+                          background: `radial-gradient(circle, ${preset.from}, ${preset.to})`,
+                        }}
+                      />
+                      <span>{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-[#64748B] mb-1">
+                      Spotlight Tengah
+                    </label>
+                    <input
+                      type="color"
+                      value={item.gradientFrom || '#A3A8B2'}
+                      onChange={(e) => updateStudioItem(item.id, { gradientFrom: e.target.value })}
+                      className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[#64748B] mb-1">
+                      Latar Tepi Studio
+                    </label>
+                    <input
+                      type="color"
+                      value={item.gradientTo || '#828894'}
+                      onChange={(e) => updateStudioItem(item.id, { gradientTo: e.target.value })}
+                      className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: items.length,
+        body: (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const palette = STUDIO_COLOR_PRESETS[items.length % STUDIO_COLOR_PRESETS.length];
+                const nextItem: FnbHeroSlideItem = {
+                  id: createId('fps'),
+                  title: `Studio Koleksi ${items.length + 1}`,
+                  price: 'Rp 899.000',
+                  subtitle: 'Edisi Studio Terbaru',
+                  description: 'Desain ergonomis dengan material premium tahan cuaca.',
+                  badge: 'Baru',
+                  image: STUDIO_JACKET_GREY_SVG,
+                  gradientFrom: palette.from,
+                  gradientTo: palette.to,
+                  titleColor: '#FFFFFF',
+                  variants: 'S, M, L, XL',
+                };
+                updateContent({ floatingStudioItems: [...items, nextItem] });
+                setEditingItemKey(`fps:${nextItem.id}`);
+              }}
+              className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
+              <span>Tambah Produk Studio</span>
+            </button>
+
+            {items.map((item, idx) => (
+              <div
+                key={item.id}
+                onClick={() => setEditingItemKey(`fps:${item.id}`)}
+                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center gap-2 cursor-pointer"
+              >
+                <div
+                  style={{
+                    background: `radial-gradient(circle, ${item.gradientFrom || '#A3A8B2'}, ${item.gradientTo || '#828894'})`,
+                  }}
+                  className="w-9 h-9 rounded-lg border border-black/10 overflow-hidden shrink-0 flex items-center justify-center p-1"
+                >
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-contain drop-shadow"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-bold text-white">PNG</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-[#17243D] truncate">{item.title}</div>
+                  <div className="text-[10.5px] text-[#8FA4BF] truncate tabular-nums">
+                    {item.price}
+                    {item.badge ? ` · ${item.badge}` : ''}
+                  </div>
+                </div>
+                <ItemOverflowMenu
+                  onEdit={() => setEditingItemKey(`fps:${item.id}`)}
+                  onDuplicate={() => {
+                    const dup: FnbHeroSlideItem = {
+                      ...item,
+                      id: createId('fps'),
+                      title: `${item.title} Salinan`,
+                    };
+                    const copy = [...items];
+                    copy.splice(idx + 1, 0, dup);
+                    updateContent({ floatingStudioItems: copy });
+                  }}
+                  onMoveUp={() =>
+                    updateContent({ floatingStudioItems: moveArrayItem(items, idx, -1) })
+                  }
+                  onMoveDown={() =>
+                    updateContent({ floatingStudioItems: moveArrayItem(items, idx, 1) })
+                  }
+                  disableMoveUp={idx === 0}
+                  disableMoveDown={idx === items.length - 1}
+                  onDelete={() => {
+                    updateContent({
+                      floatingStudioItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                    });
+                    if (editingItemKey === `fps:${item.id}`) setEditingItemKey(null);
+                  }}
+                />
+              </div>
+            ))}
           </div>
         ),
       };
@@ -7294,6 +8841,120 @@ export function BlockContentTab({
         );
       }
 
+      case 'fnb_hero_slider':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                No. WhatsApp Checkout
+              </label>
+              <input
+                type="text"
+                value={c.fnbSliderWhatsappNumber ?? '6281234567890'}
+                onChange={(e) => updateContent({ fnbSliderWhatsappNumber: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Teks Tombol Keranjang Mengambang
+              </label>
+              <input
+                type="text"
+                value={c.fnbSliderFloatingCartLabel ?? 'Lihat Pesanan'}
+                onChange={(e) => updateContent({ fnbSliderFloatingCartLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[#17243D]">
+                Label Keranjang Mengambang
+              </span>
+              <ToggleSwitch
+                checked={c.fnbSliderFloatingCartEnabled !== false}
+                onChange={(val) => updateContent({ fnbSliderFloatingCartEnabled: val })}
+                label="Label Keranjang Mengambang"
+              />
+            </div>
+          </div>
+        );
+
+      case 'culinary_spin_slider':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                No. WhatsApp Checkout
+              </label>
+              <input
+                type="text"
+                value={c.culinaryWhatsappNumber ?? '6281234567890'}
+                onChange={(e) => updateContent({ culinaryWhatsappNumber: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Teks Tombol Keranjang Mengambang
+              </label>
+              <input
+                type="text"
+                value={c.culinaryFloatingCartLabel ?? 'Lihat Pesanan'}
+                onChange={(e) => updateContent({ culinaryFloatingCartLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[#17243D]">
+                Label Keranjang Mengambang
+              </span>
+              <ToggleSwitch
+                checked={c.culinaryFloatingCartEnabled !== false}
+                onChange={(val) => updateContent({ culinaryFloatingCartEnabled: val })}
+                label="Label Keranjang Mengambang"
+              />
+            </div>
+          </div>
+        );
+
+      case 'floating_product_studio':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                No. WhatsApp Checkout
+              </label>
+              <input
+                type="text"
+                value={c.studioWhatsappNumber ?? '6281234567890'}
+                onChange={(e) => updateContent({ studioWhatsappNumber: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Teks Tombol Keranjang Mengambang
+              </label>
+              <input
+                type="text"
+                value={c.studioFloatingCartLabel ?? 'Lihat Keranjang'}
+                onChange={(e) => updateContent({ studioFloatingCartLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[#17243D]">
+                Label Keranjang Mengambang
+              </span>
+              <ToggleSwitch
+                checked={c.studioFloatingCartEnabled !== false}
+                onChange={(val) => updateContent({ studioFloatingCartEnabled: val })}
+                label="Label Keranjang Mengambang"
+              />
+            </div>
+          </div>
+        );
+
       case 'fnb_catalog':
         return (
           <div className="space-y-2.5">
@@ -8464,6 +10125,9 @@ export function BlockContentTab({
     selectedBlock.type === 'button' ||
     selectedBlock.type === 'catalog' ||
     selectedBlock.type === 'fnb_catalog' ||
+    selectedBlock.type === 'fnb_hero_slider' ||
+    selectedBlock.type === 'culinary_spin_slider' ||
+    selectedBlock.type === 'floating_product_studio' ||
     selectedBlock.type === 'cart_button' ||
     selectedBlock.type === 'training_catalog' ||
     selectedBlock.type === 'form' ||

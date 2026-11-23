@@ -25,6 +25,7 @@ import {
   BuilderProject,
   CatalogItem,
   CategoryJumpItem,
+  FnbHeroSlideItem,
   FnbMenuItem,
   MenuIconSheetPosition,
 } from '../../types/builder';
@@ -84,6 +85,9 @@ import {
   FnbFloatingCartCapsule,
   HeroProfileCard,
 } from '../DynamicBlocks';
+import { CulinarySpinSlider } from '../CulinarySpinSlider';
+import { FloatingProductStudio } from '../FloatingProductStudio';
+import { FnbHeroSlider } from '../FnbHeroSlider';
 import { MapsPlaceCard } from '../MapsPlaceCard';
 import { PhotoCarousel } from '../PhotoCarousel';
 import { SocialFeedCard } from '../SocialFeedCard';
@@ -100,6 +104,7 @@ import {
   supportsUniversalCart,
 } from '../../utils/universalLayerHelpers';
 import { isSubLayerDeleted, isSubLayerHidden } from '../../utils/layerStructure';
+import { blockHasPopoutVisual, resolveImagePopoutMetrics } from '../../utils/popoutHelpers';
 import type { BuilderSubPage } from '../../types/builder';
 
 type PreviewSubPage =
@@ -152,9 +157,13 @@ function findFirstCatalogBlock(
     if (
       blk.type === 'catalog' ||
       blk.type === 'fnb_catalog' ||
+      (blk.type === 'fnb_hero_slider' && blk.content.fnbSliderEnableCart !== false) ||
+      (blk.type === 'culinary_spin_slider' && blk.content.culinaryShowCartButton !== false) ||
+      (blk.type === 'floating_product_studio' && blk.content.studioShowCartButton !== false) ||
       blk.type === 'cart_button' ||
       (blk.type === 'showcase_card' &&
-        blk.content.cardVariant === 'store_card' &&
+        (blk.content.cardVariant === 'store_card' ||
+          blk.content.cardVariant === 'popout_product') &&
         Boolean(blk.content.cardEnableCart)) ||
       (supportsUniversalCart(blk.type) && Boolean(blk.content.universalCartEnabled))
     ) {
@@ -1190,6 +1199,7 @@ export function PreviewModal({
         const activeDot = rowActiveDots[block.id] ?? 0;
         const showScrollbar = Boolean(block.content.rowShowScrollbar);
         const showDots = block.content.rowShowDots !== false;
+        const hasPopoutChild = rowChildren.some(blockHasPopoutVisual);
         return (
           <div key={block.id} style={style} className="relative">
             <div
@@ -1215,7 +1225,13 @@ export function PreviewModal({
                 scrollSnapType: 'x proximity',
                 WebkitOverflowScrolling: 'touch',
               }}
-              className={`touch-pan-x ${showScrollbar ? 'pb-2' : 'pb-1 no-scrollbar'}`}
+              className={`touch-pan-x ${
+                hasPopoutChild
+                  ? `pt-3 pr-5 pl-1 ${showScrollbar ? 'pb-6' : 'pb-5 no-scrollbar'}`
+                  : showScrollbar
+                  ? 'pb-2'
+                  : 'pb-1 no-scrollbar'
+              }`}
             >
               {rowChildren.map((child) => (
                 <div
@@ -1226,6 +1242,7 @@ export function PreviewModal({
                     minWidth: `${rowColWidth}px`,
                     minHeight: rowColMinH > 0 ? `${rowColMinH}px` : undefined,
                     scrollSnapAlign: 'start',
+                    overflow: hasPopoutChild ? 'visible' : undefined,
                   }}
                   className="flex flex-col [&>*]:h-full"
                 >
@@ -1426,7 +1443,60 @@ export function PreviewModal({
         );
       }
 
-      const rectZoom = Math.max(50, Math.min(250, block.content.imageZoom ?? 100));
+      const rectZoom = Math.max(40, Math.min(250, block.content.imageZoom ?? 100));
+      const isPngOrPopout = Boolean(
+        block.content.imagePngMode ||
+          block.content.imagePopoutEnabled ||
+          block.content.imageDropShadowEnabled ||
+          block.content.imageHoverFloat3D
+      );
+      if (isPngOrPopout) {
+        const pop = resolveImagePopoutMetrics(block.content);
+        return (
+          <div
+            key={block.id}
+            style={{
+              ...style,
+              overflow: pop.enabled ? 'visible' : style.overflow,
+            }}
+          >
+            <div
+              className={`w-full h-full flex items-center justify-center lynk-png-float-wrap${
+                pop.hoverFloat3D ? ' has-float-3d' : ''
+              }`}
+              style={{
+                overflow: pop.enabled ? 'visible' : 'hidden',
+                borderRadius: pop.enabled ? undefined : `${s.borderRadius}px`,
+                aspectRatio:
+                  block.content.aspectRatio && block.content.aspectRatio !== 'auto'
+                    ? block.content.aspectRatio
+                    : undefined,
+                backgroundColor: 'transparent',
+              }}
+            >
+              <img
+                src={block.content.src}
+                alt={block.content.alt || 'Gambar PNG'}
+                referrerPolicy="no-referrer"
+                className="w-full h-full block lynk-png-float-img"
+                style={
+                  {
+                    objectFit: block.content.objectFit ?? 'contain',
+                    objectPosition: objPos,
+                    borderRadius: pop.enabled ? undefined : `${s.borderRadius}px`,
+                    '--png-x': `${pop.offsetX}px`,
+                    '--png-y': `${pop.offsetY}px`,
+                    '--png-rot': `${pop.rotate}deg`,
+                    '--png-scale': String(pop.scale),
+                    '--png-shadow': pop.dropShadowCss,
+                    '--png-shadow-hover': pop.hoverDropShadowCss,
+                  } as React.CSSProperties
+                }
+              />
+            </div>
+          </div>
+        );
+      }
       return (
         <div key={block.id} style={style}>
           <div
@@ -2618,6 +2688,144 @@ export function PreviewModal({
               const targetKey = `${block.id}::${item.id}::`;
               updateCartQty(targetKey, -1);
             }}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === 'fnb_hero_slider') {
+      const toSliderCatalogItem = (it: FnbHeroSlideItem): CatalogItem => ({
+        id: it.id,
+        title: it.title,
+        subtitle: it.subtitle || '',
+        description: it.description || it.subtitle || '',
+        price: it.price || 'Rp 0',
+        ctaLabel: 'Tambah',
+        url: it.url || '',
+        image: it.image || '',
+        unitSold: 0,
+      });
+      const sliderQtyMap: Record<string, number> = {};
+      for (const entry of cart) {
+        if (entry.blockId === block.id) {
+          sliderQtyMap[`${entry.itemId}::${entry.variant}`] =
+            (sliderQtyMap[`${entry.itemId}::${entry.variant}`] ?? 0) + entry.qty;
+          sliderQtyMap[entry.itemId] = (sliderQtyMap[entry.itemId] ?? 0) + entry.qty;
+        }
+      }
+      const totalCartBadge = cart.reduce((sum, e) => sum + e.qty, 0);
+      return (
+        <div key={block.id} style={style}>
+          <FnbHeroSlider
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            cartQtyMap={sliderQtyMap}
+            totalCartCount={totalCartBadge}
+            onAddCart={(item, variant) => {
+              addToCart(block.id, toSliderCatalogItem(item), variant, 1);
+            }}
+            onIncCart={(item, variant) => {
+              addToCart(block.id, toSliderCatalogItem(item), variant, 1);
+            }}
+            onDecCart={(item, variant) => {
+              const targetKey = `${block.id}::${item.id}::${variant}`;
+              updateCartQty(targetKey, -1);
+            }}
+            onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === 'culinary_spin_slider') {
+      const toCulinaryCatalogItem = (it: FnbHeroSlideItem): CatalogItem => ({
+        id: it.id,
+        title: it.title,
+        subtitle: it.subtitle || '',
+        description: it.description || it.subtitle || '',
+        price: it.price || 'Rp 0',
+        ctaLabel: 'Tambah',
+        url: it.url || '',
+        image: it.image || '',
+        unitSold: 0,
+      });
+      const sliderQtyMap: Record<string, number> = {};
+      for (const entry of cart) {
+        if (entry.blockId === block.id) {
+          sliderQtyMap[`${entry.itemId}::${entry.variant}`] =
+            (sliderQtyMap[`${entry.itemId}::${entry.variant}`] ?? 0) + entry.qty;
+          sliderQtyMap[entry.itemId] = (sliderQtyMap[entry.itemId] ?? 0) + entry.qty;
+        }
+      }
+      const totalCartBadge = cart.reduce((sum, e) => sum + e.qty, 0);
+      return (
+        <div key={block.id} style={style}>
+          <CulinarySpinSlider
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            cartQtyMap={sliderQtyMap}
+            totalCartCount={totalCartBadge}
+            onAddCart={(item, variant) => {
+              addToCart(block.id, toCulinaryCatalogItem(item), variant, 1);
+            }}
+            onIncCart={(item, variant) => {
+              addToCart(block.id, toCulinaryCatalogItem(item), variant, 1);
+            }}
+            onDecCart={(item, variant) => {
+              const targetKey = `${block.id}::${item.id}::${variant}`;
+              updateCartQty(targetKey, -1);
+            }}
+            onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === 'floating_product_studio') {
+      const toStudioCatalogItem = (it: FnbHeroSlideItem): CatalogItem => ({
+        id: it.id,
+        title: it.title,
+        subtitle: it.subtitle || '',
+        description: it.description || it.subtitle || '',
+        price: it.price || 'Rp 0',
+        ctaLabel: 'Tambah',
+        url: it.url || '',
+        image: it.image || '',
+        unitSold: 0,
+      });
+      const sliderQtyMap: Record<string, number> = {};
+      for (const entry of cart) {
+        if (entry.blockId === block.id) {
+          sliderQtyMap[`${entry.itemId}::${entry.variant}`] =
+            (sliderQtyMap[`${entry.itemId}::${entry.variant}`] ?? 0) + entry.qty;
+          sliderQtyMap[entry.itemId] = (sliderQtyMap[entry.itemId] ?? 0) + entry.qty;
+        }
+      }
+      const totalCartBadge = cart.reduce((sum, e) => sum + e.qty, 0);
+      return (
+        <div key={block.id} style={style}>
+          <FloatingProductStudio
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            cartQtyMap={sliderQtyMap}
+            totalCartCount={totalCartBadge}
+            onAddCart={(item, variant) => {
+              addToCart(block.id, toStudioCatalogItem(item), variant, 1);
+            }}
+            onIncCart={(item, variant) => {
+              addToCart(block.id, toStudioCatalogItem(item), variant, 1);
+            }}
+            onDecCart={(item, variant) => {
+              const targetKey = `${block.id}::${item.id}::${variant}`;
+              updateCartQty(targetKey, -1);
+            }}
+            onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
           />
         </div>
       );

@@ -295,6 +295,38 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       },
     };
   }
+  if (subId.startsWith('fhs_') && Array.isArray(c.fnbSliderItems)) {
+    const key = subId.slice(4);
+    return {
+      ...block,
+      content: {
+        ...c,
+        fnbSliderItems: c.fnbSliderItems.filter((it, idx) => String(it.id || idx) !== key),
+      },
+    };
+  }
+  if (subId.startsWith('css_') && Array.isArray(c.culinarySpinItems)) {
+    const key = subId.slice(4);
+    return {
+      ...block,
+      content: {
+        ...c,
+        culinarySpinItems: c.culinarySpinItems.filter((it, idx) => String(it.id || idx) !== key),
+      },
+    };
+  }
+  if (subId.startsWith('fps_') && Array.isArray(c.floatingStudioItems)) {
+    const key = subId.slice(4);
+    return {
+      ...block,
+      content: {
+        ...c,
+        floatingStudioItems: c.floatingStudioItems.filter(
+          (it, idx) => String(it.id || idx) !== key
+        ),
+      },
+    };
+  }
   if (subId.startsWith('tr_prog_') && Array.isArray(c.trainingPrograms)) {
     const key = subId.slice(8);
     return {
@@ -531,6 +563,7 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
         variant === 'event_poster' ||
         variant === 'badge_tile' ||
         variant === 'store_card' ||
+        variant === 'popout_product' ||
         variant === 'activity_post';
       const hasMediaContent =
         Boolean(c.cardImage?.trim()) ||
@@ -861,6 +894,69 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
           isLocked: isSubLayerLocked(block, `fnb_${item.id || idx}`),
           contentSections: ['items'],
           designSections: ['specific', 'visual', 'typo'],
+        });
+      });
+      break;
+    }
+
+    case 'fnb_hero_slider': {
+      const items = c.fnbSliderItems ?? [];
+      items.forEach((item, idx) => {
+        layers.push({
+          id: `fhs_${item.id || idx}`,
+          label: item.title?.trim() || `Slide Produk ${idx + 1}`,
+          typeLabel: item.price?.trim() || 'Slide F&B',
+          kind: 'item',
+          icon: 'image',
+          itemKey: `fhs:${item.id}`,
+          canDelete: true,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `fhs_${item.id || idx}`),
+          contentSections: ['items'],
+          designSections: ['specific', 'visual'],
+        });
+      });
+      break;
+    }
+
+    case 'culinary_spin_slider': {
+      const items = c.culinarySpinItems ?? [];
+      items.forEach((item, idx) => {
+        layers.push({
+          id: `css_${item.id || idx}`,
+          label: item.title?.trim() || `Menu Putar ${idx + 1}`,
+          typeLabel: item.price?.trim() || 'Kuliner Putar',
+          kind: 'item',
+          icon: 'image',
+          itemKey: `css:${item.id}`,
+          canDelete: true,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `css_${item.id || idx}`),
+          contentSections: ['items'],
+          designSections: ['specific', 'visual'],
+        });
+      });
+      break;
+    }
+
+    case 'floating_product_studio': {
+      const items = c.floatingStudioItems ?? [];
+      items.forEach((item, idx) => {
+        layers.push({
+          id: `fps_${item.id || idx}`,
+          label: item.title?.trim() || `Produk Studio ${idx + 1}`,
+          typeLabel: item.price?.trim() || 'Studio Melayang',
+          kind: 'item',
+          icon: 'image',
+          itemKey: `fps:${item.id}`,
+          canDelete: true,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `fps_${item.id || idx}`),
+          contentSections: ['items'],
+          designSections: ['specific', 'visual'],
         });
       });
       break;
