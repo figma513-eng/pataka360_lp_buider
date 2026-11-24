@@ -3243,61 +3243,64 @@ export function MobileCanvas({
       onClick={() => onSelectBlock(null)}
       className="flex-1 bg-[#F0F5FA] flex flex-col overflow-hidden relative"
     >
-      {/* Workspace Toolbar: Kiri (Halaman + Site) | Tengah (Perangkat & Riwayat Ikon Minimalis) | Kanan (Zoom Terpadu) */}
+      {/* Workspace Toolbar: Kiri (Halaman) | Tengah (Perangkat · Mode Pointer · Riwayat) | Kanan (Zoom) */}
       <div
         onClick={(e) => e.stopPropagation()}
         data-canvas-toolbar="1"
-        className="h-10 px-3 bg-white/95 backdrop-blur-xs border-b border-[#E6EDF5] flex items-center justify-between gap-3 text-[12px] text-[#334155] shrink-0 relative z-20"
+        className="h-12 px-4 sm:px-5 bg-white border-b border-slate-200/80 flex items-center justify-between gap-4 text-[12px] text-slate-700 shrink-0 relative z-20"
       >
-        {/* Kiri: Ikon Beranda & Sub-Halaman */}
+        {/* Kiri: Navigasi Halaman */}
         <div
           data-canvas-page-bar="1"
           role="group"
           aria-label="Navigasi Halaman"
-          className="flex items-center gap-1 min-w-0 max-w-[44%] overflow-x-auto no-scrollbar shrink"
+          className="flex items-center gap-1.5 min-w-0 max-w-[36%] overflow-x-auto no-scrollbar shrink"
         >
-          <div className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5 shrink-0">
+          <div className="inline-flex items-center gap-1 bg-slate-100/85 border border-slate-200/60 rounded-xl p-1 shrink-0">
             <button
               type="button"
               onClick={() => onSelectSubPage?.(null)}
               title={label('canvas.toolbar.home', 'Beranda')}
               aria-label={label('canvas.toolbar.home', 'Beranda')}
               aria-pressed={activeSubPageId === null}
-              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`h-7 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-lg text-[11.5px] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 activeSubPageId === null
-                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                  : 'text-[#64748B] hover:text-[#0F172A]'
+                  ? 'bg-white text-slate-900 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                  : 'text-slate-500 font-medium hover:text-slate-800 hover:bg-white/60'
               }`}
             >
-              <Home className="w-3.5 h-3.5" />
+              <Home
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  activeSubPageId === null ? 'text-emerald-600' : 'text-current'
+                }`}
+              />
+              <span className="hidden xl:inline">{label('canvas.toolbar.home', 'Beranda')}</span>
             </button>
             {pages.map((pg) => (
               <button
                 key={pg.id}
                 type="button"
                 onClick={() => onSelectSubPage?.(pg.id)}
-                className={`inline-flex items-center gap-1.5 px-2.5 h-6 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 h-7 rounded-lg text-[11.5px] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                   activeSubPageId === pg.id
-                    ? 'bg-white text-[#0F172A] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                    : 'text-[#64748B] hover:text-[#0F172A]'
+                    ? 'bg-white text-slate-900 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                    : 'text-slate-500 font-medium hover:text-slate-800 hover:bg-white/60'
                 }`}
               >
-                {activeSubPageId === pg.id && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00C98A] shrink-0" />
-                )}
-                <span>{pg.title}</span>
+                <span className="max-w-[120px] truncate">{pg.title}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Tengah: Perangkat (PC, Tablet, HP) | Mode Pointer (Klik / Drag) | Undo & Redo */}
+        {/* Tengah: Perangkat (PC, Tablet, HP) | Mode Pointer (Klik / Drag) | Riwayat */}
         <div
-          className="flex items-center gap-2 shrink-0"
+          className="flex items-center gap-3 lg:gap-4 shrink-0"
           role="group"
           aria-label="Preview Perangkat, Mode Pointer & Riwayat"
         >
-          <div className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5">
+          {/* Switcher Ukuran Layar */}
+          <div className="inline-flex items-center gap-1 bg-slate-100/85 border border-slate-200/60 rounded-xl p-1">
             <button
               type="button"
               data-viewport-preset="desktop"
@@ -3305,13 +3308,13 @@ export function MobileCanvas({
               aria-pressed={activeBreakpoint === 'desktop'}
               title={label('canvas.toolbar.desktop', 'PC / Desktop (1024 px)')}
               aria-label={label('canvas.toolbar.desktop', 'PC / Desktop (1024 px)')}
-              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`w-8 h-7 inline-flex items-center justify-center rounded-lg transition-all duration-150 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 activeBreakpoint === 'desktop'
-                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                  : 'text-[#64748B] hover:text-[#0F172A]'
+                  ? 'bg-white text-emerald-600 shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
               }`}
             >
-              <Monitor className="w-3.5 h-3.5" />
+              <Monitor className="w-4 h-4" />
             </button>
 
             <button
@@ -3321,13 +3324,13 @@ export function MobileCanvas({
               aria-pressed={activeBreakpoint === 'tablet'}
               title={label('canvas.toolbar.tablet', 'Tablet (768 px)')}
               aria-label={label('canvas.toolbar.tablet', 'Tablet (768 px)')}
-              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`w-8 h-7 inline-flex items-center justify-center rounded-lg transition-all duration-150 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 activeBreakpoint === 'tablet'
-                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                  : 'text-[#64748B] hover:text-[#0F172A]'
+                  ? 'bg-white text-emerald-600 shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
               }`}
             >
-              <Tablet className="w-3.5 h-3.5" />
+              <Tablet className="w-4 h-4" />
             </button>
 
             <button
@@ -3337,21 +3340,21 @@ export function MobileCanvas({
               aria-pressed={activeBreakpoint === 'mobile'}
               title={label('canvas.toolbar.mobile', 'HP / Mobile (440 px)')}
               aria-label={label('canvas.toolbar.mobile', 'HP / Mobile (440 px)')}
-              className={`w-7 h-6 inline-flex items-center justify-center rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`w-8 h-7 inline-flex items-center justify-center rounded-lg transition-all duration-150 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 activeBreakpoint === 'mobile'
-                  ? 'bg-white text-[#059669] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                  : 'text-[#64748B] hover:text-[#0F172A]'
+                  ? 'bg-white text-emerald-600 shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
               }`}
             >
-              <Smartphone className="w-3.5 h-3.5" />
+              <Smartphone className="w-4 h-4" />
             </button>
           </div>
 
-          <span className="w-px h-4 bg-[#E2E8F0] shrink-0" aria-hidden="true" />
+          <span className="w-px h-5 bg-slate-200/90 shrink-0" aria-hidden="true" />
 
-          {/* Mode Pointer Penunjuk: Klik vs Drag */}
+          {/* Mode Pointer Penunjuk: Klik vs Drag (selaras & nyaman di mata) */}
           <div
-            className="inline-flex items-center gap-0.5 bg-[#F1F5F9] rounded-lg p-0.5 shrink-0"
+            className="inline-flex items-center gap-1 bg-slate-100/85 border border-slate-200/60 rounded-xl p-1 shrink-0"
             role="group"
             aria-label="Mode Pointer Penunjuk Kanvas"
           >
@@ -3361,15 +3364,15 @@ export function MobileCanvas({
               aria-pressed={interactionMode === 'pointer'}
               onClick={() => onChangeInteractionMode?.('pointer')}
               title="Mode Klik (V) — Klik objek & sub-layer di kanvas untuk edit Konten & Desain"
-              className={`h-6 px-2 inline-flex items-center justify-center gap-1 rounded-md text-[10.5px] font-semibold transition-all shrink-0 cursor-pointer ${
+              className={`h-7 px-3 inline-flex items-center justify-center gap-1.5 rounded-lg text-[11.5px] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 interactionMode === 'pointer'
-                  ? 'bg-[#17243D] text-white shadow-[0_1px_2px_rgba(15,23,42,0.14)]'
-                  : 'text-[#64748B] hover:text-[#0F172A]'
+                  ? 'bg-white text-slate-900 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                  : 'text-slate-500 font-medium hover:text-slate-800 hover:bg-white/60'
               }`}
             >
               <MousePointer2
-                className={`w-3 h-3 shrink-0 ${
-                  interactionMode === 'pointer' ? 'text-[#00C98A]' : 'text-current'
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  interactionMode === 'pointer' ? 'text-emerald-600' : 'text-current'
                 }`}
               />
               <span>{label('canvas.toolbar.modeClick', 'Klik')}</span>
@@ -3381,24 +3384,25 @@ export function MobileCanvas({
               aria-pressed={interactionMode === 'drag'}
               onClick={() => onChangeInteractionMode?.('drag')}
               title="Mode Drag (D) — Tarik & lepas blok untuk mengatur posisi di kanvas"
-              className={`h-6 px-2 inline-flex items-center justify-center gap-1 rounded-md text-[10.5px] font-semibold transition-all shrink-0 cursor-pointer ${
+              className={`h-7 px-3 inline-flex items-center justify-center gap-1.5 rounded-lg text-[11.5px] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 interactionMode === 'drag'
-                  ? 'bg-[#17243D] text-white shadow-[0_1px_2px_rgba(15,23,42,0.14)]'
-                  : 'text-[#64748B] hover:text-[#0F172A]'
+                  ? 'bg-white text-slate-900 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                  : 'text-slate-500 font-medium hover:text-slate-800 hover:bg-white/60'
               }`}
             >
               <Move
-                className={`w-3 h-3 shrink-0 ${
-                  interactionMode === 'drag' ? 'text-[#00C98A]' : 'text-current'
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  interactionMode === 'drag' ? 'text-emerald-600' : 'text-current'
                 }`}
               />
               <span>{label('canvas.toolbar.modeDrag', 'Drag')}</span>
             </button>
           </div>
 
-          <span className="w-px h-4 bg-[#E2E8F0] shrink-0" aria-hidden="true" />
+          <span className="w-px h-5 bg-slate-200/90 shrink-0" aria-hidden="true" />
 
-          <div className="flex items-center gap-0.5 shrink-0">
+          {/* Aksi Riwayat & Clipboard (simetris & lega) */}
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               data-toolbar-undo="1"
@@ -3410,14 +3414,13 @@ export function MobileCanvas({
                   : 'Belum ada riwayat pembatalan'
               }
               aria-label={label('canvas.toolbar.undo', 'Undo')}
-              className={`h-7 px-2 inline-flex items-center justify-center gap-1 rounded-md text-[10.5px] font-semibold transition-colors shrink-0 ${
+              className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 canUndo && onUndo
-                  ? 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer'
-                  : 'text-[#CBD5E1] cursor-not-allowed'
+                  ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
+                  : 'text-slate-300 cursor-not-allowed'
               }`}
             >
-              <Undo2 className="w-3.5 h-3.5 shrink-0" />
-              <span>{label('canvas.toolbar.undo', 'Undo')}</span>
+              <Undo2 className="w-4 h-4 shrink-0" />
             </button>
 
             <button
@@ -3431,13 +3434,13 @@ export function MobileCanvas({
                   : 'Belum ada riwayat ulangi'
               }
               aria-label={label('canvas.toolbar.redo', 'Redo')}
-              className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors shrink-0 ${
+              className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                 canRedo && onRedo
-                  ? 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer'
-                  : 'text-[#CBD5E1] cursor-not-allowed'
+                  ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer'
+                  : 'text-slate-300 cursor-not-allowed'
               }`}
             >
-              <Redo2 className="w-3.5 h-3.5" />
+              <Redo2 className="w-4 h-4 shrink-0" />
             </button>
 
             {onCopyBlock && selectedId && (
@@ -3446,9 +3449,9 @@ export function MobileCanvas({
                 onClick={() => onCopyBlock(selectedId)}
                 title="Salin komponen terpilih (Ctrl+C)"
                 aria-label="Salin"
-                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A] transition-colors cursor-pointer shrink-0"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-150 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
               >
-                <ClipboardCopy className="w-3.5 h-3.5" />
+                <ClipboardCopy className="w-4 h-4" />
               </button>
             )}
 
@@ -3458,9 +3461,9 @@ export function MobileCanvas({
                 onClick={onPasteBlock}
                 title="Tempel komponen (Ctrl+V)"
                 aria-label="Tempel"
-                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-[#059669] bg-[#ECFDF6] hover:bg-[#D1FAE5] transition-colors cursor-pointer shrink-0"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors duration-150 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
               >
-                <ClipboardPaste className="w-3.5 h-3.5" />
+                <ClipboardPaste className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -3478,20 +3481,20 @@ export function MobileCanvas({
             const sliderFill = Math.max(0, Math.min(100, ((zoomPct - 50) / (250 - 50)) * 100));
             return (
               <>
-                <div className="inline-flex items-center bg-[#F1F5F9] rounded-lg p-0.5 gap-0.5">
+                <div className="inline-flex items-center bg-slate-100/85 border border-slate-200/60 rounded-xl p-1 gap-1">
                   <button
                     type="button"
                     onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
                     disabled={zoomPct <= 50}
                     title="Perkecil tampilan kanvas"
                     aria-label="Perkecil"
-                    className={`w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors ${
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                       zoomPct > 50
-                        ? 'text-[#475569] hover:bg-white hover:text-[#0F172A] cursor-pointer'
-                        : 'text-[#CBD5E1] cursor-not-allowed'
+                        ? 'text-slate-600 hover:bg-white hover:text-slate-900 cursor-pointer'
+                        : 'text-slate-300 cursor-not-allowed'
                     }`}
                   >
-                    <Minus className="w-3 h-3" />
+                    <Minus className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
@@ -3499,15 +3502,15 @@ export function MobileCanvas({
                     aria-expanded={isZoomMenuOpen}
                     onClick={() => setIsZoomMenuOpen((v) => !v)}
                     title="Atur skala zoom kanvas (50% – 250%)"
-                    className={`inline-flex items-center gap-0.5 px-2 h-6 rounded-md text-[11px] font-semibold tabular-nums transition-all cursor-pointer ${
+                    className={`inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[11.5px] font-semibold tabular-nums transition-all duration-150 whitespace-nowrap cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                       isZoomMenuOpen
-                        ? 'bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                        : 'text-[#334155] hover:bg-white/80 hover:text-[#0F172A]'
+                        ? 'bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70'
+                        : 'text-slate-700 hover:bg-white/80 hover:text-slate-900'
                     }`}
                   >
                     <span>{zoomPct}%</span>
                     <ChevronDown
-                      className={`w-3 h-3 text-[#64748B] transition-transform ${
+                      className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${
                         isZoomMenuOpen ? 'rotate-180' : ''
                       }`}
                     />
@@ -3518,30 +3521,30 @@ export function MobileCanvas({
                     disabled={zoomPct >= 250}
                     title="Perbesar tampilan kanvas"
                     aria-label="Perbesar"
-                    className={`w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors ${
+                    className={`w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                       zoomPct < 250
-                        ? 'text-[#475569] hover:bg-white hover:text-[#0F172A] cursor-pointer'
-                        : 'text-[#CBD5E1] cursor-not-allowed'
+                        ? 'text-slate-600 hover:bg-white hover:text-slate-900 cursor-pointer'
+                        : 'text-slate-300 cursor-not-allowed'
                     }`}
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {isZoomMenuOpen && (
                   <div
                     data-zoom-popover="1"
-                    className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-[#E2E8F0] rounded-xl shadow-[0_10px_28px_rgba(15,23,42,0.12)] p-2.5 z-40"
+                    className="absolute right-0 top-full mt-2 w-60 bg-white border border-slate-200/90 rounded-2xl shadow-[0_12px_32px_rgba(15,23,42,0.12)] p-3 z-40"
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-semibold text-[#334155]">Skala Kanvas</span>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[11.5px] font-semibold text-slate-700">Skala Kanvas</span>
                       <button
                         type="button"
                         onClick={() => {
                           setZoom(1);
                           setIsZoomMenuOpen(false);
                         }}
-                        className="text-[10.5px] font-medium text-[#059669] hover:underline cursor-pointer"
+                        className="text-[11px] font-medium text-emerald-600 hover:underline cursor-pointer"
                       >
                         Reset 100%
                       </button>
