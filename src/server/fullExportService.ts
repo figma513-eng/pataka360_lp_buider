@@ -144,6 +144,7 @@ async function loadCleanDatabaseSnapshot(): Promise<{
   let uiAppearanceSettings: UiAppearanceSettingsConfig | undefined;
   let webhookLogs: WebhookLogRecord[] = [];
   let mediaAssets: MediaAssetMeta[] = [];
+  const pgMediaBase64ByFilename = new Map<string, string>();
   let webTemplates: SavedWebTemplate[] = [];
   let formSubmissions: FormSubmissionRecord[] = [];
 
@@ -281,15 +282,24 @@ async function loadCleanDatabaseSnapshot(): Promise<{
         createdAt: Number(r.created_at),
       }));
 
-      mediaAssets = mRes.rows.map((r) => ({
-        id: r.id,
-        filename: r.filename,
-        url: `/api/media/${r.filename}`,
-        mimeType: r.mime_type,
-        sizeBytes: Number(r.size_bytes),
-        sha256: r.sha256,
-        createdAt: Number(r.created_at),
-      }));
+      mediaAssets = mRes.rows.map((r) => {
+        if (
+          isSafeMediaFilename(String(r.filename || '')) &&
+          typeof r.data_base64 === 'string' &&
+          r.data_base64.length > 0
+        ) {
+          pgMediaBase64ByFilename.set(String(r.filename), r.data_base64);
+        }
+        return {
+          id: r.id,
+          filename: r.filename,
+          url: `/api/media/${r.filename}`,
+          mimeType: r.mime_type,
+          sizeBytes: Number(r.size_bytes),
+          sha256: r.sha256,
+          createdAt: Number(r.created_at),
+        };
+      });
 
       webTemplates = wtRes.rows.map((r) => ({
         id: r.id,
@@ -362,6 +372,16 @@ async function loadCleanDatabaseSnapshot(): Promise<{
       filename: m.filename,
       buffer: Buffer.from(m.base64, 'base64'),
     }));
+  const exportedBinaryFilenames = new Set(mediaBinaries.map((m) => m.filename));
+  for (const [filename, b64] of pgMediaBase64ByFilename.entries()) {
+    if (!exportedBinaryFilenames.has(filename) && isSafeMediaFilename(filename)) {
+      mediaBinaries.push({
+        filename,
+        buffer: Buffer.from(b64, 'base64'),
+      });
+      exportedBinaryFilenames.add(filename);
+    }
+  }
 
   // Ensure mediaAssets metadata reflects disk media cleanly
   const mediaMetaByFilename = new Map<string, MediaAssetMeta>();

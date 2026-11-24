@@ -251,6 +251,105 @@ function mergeServerAndLocalWorkspace(
   };
 }
 
+const LAST_ACTIVE_PROJECT_KEY_PREFIX = 'lynk_last_active_project_v1:';
+
+function getLastActiveProjectStorageKey(userId?: string | null): string {
+  return `${LAST_ACTIVE_PROJECT_KEY_PREFIX}${userId || 'anon'}`;
+}
+
+function readUrlPreferredProjectRef(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return (params.get('usaha') || params.get('project') || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function readStoredActiveProjectId(userId?: string | null): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return (window.localStorage.getItem(getLastActiveProjectStorageKey(userId)) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function resolvePreferredActiveProjectId(
+  projects: ProjectRecord[],
+  fallbackActiveId: string,
+  userId?: string | null
+): string {
+  if (projects.length === 0) return '';
+  const urlRef = readUrlPreferredProjectRef();
+  if (urlRef) {
+    const lower = urlRef.toLowerCase();
+    const byUrl = projects.find((p) => {
+      const slug = sanitizeSlug(p.project.publishing?.slug || p.project.title, '');
+      return p.id === urlRef || (slug && slug.toLowerCase() === lower);
+    });
+    if (byUrl) return byUrl.id;
+  }
+  const storedId = readStoredActiveProjectId(userId);
+  if (storedId && projects.some((p) => p.id === storedId)) {
+    return storedId;
+  }
+  if (fallbackActiveId && projects.some((p) => p.id === fallbackActiveId)) {
+    return fallbackActiveId;
+  }
+  return projects[0].id;
+}
+
+function writeActiveProjectSelectionToBrowser(
+  record: ProjectRecord | null | undefined,
+  userId?: string | null
+) {
+  if (typeof window === 'undefined' || !record) return;
+  try {
+    window.localStorage.setItem(getLastActiveProjectStorageKey(userId), record.id);
+  } catch {
+    // Ignore quota or restricted storage errors
+  }
+  try {
+    if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+      const slug = sanitizeSlug(record.project.publishing?.slug || record.project.title, '');
+      const nextParam = slug || record.id;
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('usaha') !== nextParam) {
+        url.searchParams.set('usaha', nextParam);
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${url.pathname}${url.search}${url.hash}`
+        );
+      }
+    }
+  } catch {
+    // Ignore history API restrictions in sandboxed environments
+  }
+}
+
+function clearActiveProjectUrlParam() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('usaha') || url.searchParams.has('project')) {
+        url.searchParams.delete('usaha');
+        url.searchParams.delete('project');
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${url.pathname}${url.search}${url.hash}`
+        );
+      }
+    }
+  } catch {
+    // Ignore history API errors
+  }
+}
+
 export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -299,6 +398,8 @@ export default function App() {
     serverRecord?: ProjectRecord;
     currentRevision?: number;
   } | null>(null);
+  const [pendingSwitchProjectId, setPendingSwitchProjectId] = useState<string | null>(null);
+  const [isSwitchingWithSave, setIsSwitchingWithSave] = useState(false);
   const retryBackoffRef = useRef(5000);
   const retryTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -467,6 +568,15 @@ export default function App() {
     }
 
     const merged = mergeServerAndLocalWorkspace(idbRes.workspace, serverProjects, user);
+    const preferredActiveId = resolvePreferredActiveProjectId(
+      merged.projects,
+      merged.activeProjectId,
+      user?.id
+    );
+    const hydratedWorkspace: WorkspaceBundle = {
+      ...merged,
+      activeProjectId: preferredActiveId,
+    };
     isHydratedRef.current = true;
     setAccessSettings(loadedAccess);
     if (loadedAppearance) {
@@ -474,9 +584,14 @@ export default function App() {
     }
 
     if (!hasUserMutatedBeforeHydrationRef.current) {
-      setWorkspace(merged);
+      setWorkspace(hydratedWorkspace);
       const loadedActive =
-        merged.projects.find((p) => p.id === merged.activeProjectId) ?? merged.projects[0];
+        hydratedWorkspace.projects.find((p) => p.id === hydratedWorkspace.activeProjectId) ??
+        hydratedWorkspace.projects[0];
+      writeActiveProjectSelectionToBrowser(loadedActive, user?.id);
+      if (hydratedWorkspace.activeProjectId !== idbRes.workspace.activeProjectId) {
+        void saveWorkspaceScoped(hydratedWorkspace, user?.id);
+      }
       setSelectedId(loadedActive?.project.blocks[0]?.id ?? null);
       if (user && loadedActive && (loadedActive.lastSavedAt ?? 0) >= loadedActive.updatedAt) {
         setSyncState('server_saved');
@@ -490,7 +605,7 @@ export default function App() {
         user!.unitScope !== 'all' &&
         Array.isArray(user!.unitScope) &&
         user!.unitScope.length === 0 &&
-        merged.projects.length === 0;
+        hydratedWorkspace.projects.length === 0;
       if (isBuyerWithNoSites) {
         setShowSaasOnboarding(true);
       }
@@ -565,8 +680,10 @@ export default function App() {
     setAuthUser(null);
     setPendingCreatedIds([]);
     setConflictState(null);
+    setPendingSwitchProjectId(null);
     setSyncState('idle');
     setSyncError(null);
+    clearActiveProjectUrlParam();
     // Reset in-memory workspace immediately so multi-user data never lingers after logout
     const cleanAnon = createStarterWorkspaceSync(false);
     setWorkspace(cleanAnon);
@@ -789,13 +906,38 @@ export default function App() {
     showSaveToast('ok', `Komponen "${pasted.label}" ditempel ke kanvas.`);
   }, [activeRecord, activeSubPageId, copiedBlock, effectivePermissions.editor, showSaveToast]);
 
+  const performSwitchProject = (id: string) => {
+    const target = visibleProjects.find((p) => p.id === id);
+    if (!target) return;
+    if (!isHydratedRef.current) hasUserMutatedBeforeHydrationRef.current = true;
+    const nextWorkspace: WorkspaceBundle = {
+      ...workspaceRef.current,
+      activeProjectId: id,
+    };
+    setWorkspace(nextWorkspace);
+    writeActiveProjectSelectionToBrowser(target, authUserRef.current?.id);
+    void saveWorkspaceScoped(nextWorkspace, authUserRef.current?.id);
+    syncSelectionForProject(target.project);
+    const targetUnsaved = target.updatedAt > (target.lastSavedAt ?? 0);
+    if (targetUnsaved) {
+      setSyncState('pending');
+    } else if (authUserRef.current) {
+      setSyncState('server_saved');
+    } else {
+      setSyncState('idle');
+    }
+    setSyncError(null);
+  };
+
   const handleSelectProject = (id: string) => {
     if (activeRecord && id === activeRecord.id) return;
     const target = visibleProjects.find((p) => p.id === id);
     if (!target) return;
-    if (!isHydratedRef.current) hasUserMutatedBeforeHydrationRef.current = true;
-    setWorkspace((prev) => ({ ...prev, activeProjectId: id }));
-    syncSelectionForProject(target.project);
+    if (activeRecord && hasUnsavedChanges && effectivePermissions.editor) {
+      setPendingSwitchProjectId(id);
+      return;
+    }
+    performSwitchProject(id);
   };
 
   const makeUniqueSlug = (baseSlug: string, excludeId?: string) => {
@@ -2572,6 +2714,17 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedChanges]);
 
+  // Keep browser URL (?usaha=<slug>) and localStorage in sync with active business across refreshes
+  useEffect(() => {
+    if (!isHydratedRef.current || !activeRecord) return;
+    writeActiveProjectSelectionToBrowser(activeRecord, authUser?.id);
+  }, [
+    activeRecord?.id,
+    activeRecord?.project.publishing?.slug,
+    activeRecord?.project.title,
+    authUser?.id,
+  ]);
+
   // Background & focus/visibility multi-user sync (read-only refresh, never auto-saves edits)
   useEffect(() => {
     if (!authUser?.id) return;
@@ -3358,6 +3511,89 @@ export default function App() {
           </button>
         </div>
       )}
+      {pendingSwitchProjectId && activeRecord && (() => {
+        const targetSwitchRecord = visibleProjects.find((p) => p.id === pendingSwitchProjectId);
+        if (!targetSwitchRecord) return null;
+        return (
+          <div className="fixed inset-0 z-[72] bg-slate-900/55 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-5 shadow-2xl space-y-3.5">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Simpan Perubahan Sebelum Pindah Usaha?
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Unit usaha{' '}
+                  <strong className="font-semibold text-slate-800">
+                    {activeRecord.project.title || 'Usaha Aktif'}
+                  </strong>{' '}
+                  memiliki perubahan yang belum disimpan ke server. Anda akan berpindah ke{' '}
+                  <strong className="font-semibold text-slate-800">
+                    {targetSwitchRecord.project.title || 'Usaha Tujuan'}
+                  </strong>
+                  .
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isSwitchingWithSave}
+                  onClick={() => {
+                    const targetId = targetSwitchRecord.id;
+                    const fromTitle = activeRecord.project.title || 'Usaha';
+                    const toTitle = targetSwitchRecord.project.title || 'Usaha';
+                    setIsSwitchingWithSave(true);
+                    void persistActiveRecord(activeRecord, false).then((res) => {
+                      setIsSwitchingWithSave(false);
+                      setPendingSwitchProjectId(null);
+                      if (res.ok) {
+                        performSwitchProject(targetId);
+                        showSaveToast(
+                          'ok',
+                          `"${fromTitle}" disimpan. Beralih ke "${toTitle}".`
+                        );
+                      } else if (!res.conflict) {
+                        showSaveToast(
+                          'warn',
+                          res.error || 'Gagal menyimpan ke server. Perubahan tetap aman di draft lokal.'
+                        );
+                      }
+                    });
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#00A873] hover:bg-[#009263] disabled:opacity-60 text-white text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  {isSwitchingWithSave ? 'Menyimpan & Berpindah...' : 'Simpan & Pindah Usaha'}
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isSwitchingWithSave}
+                    onClick={() => {
+                      const targetId = targetSwitchRecord.id;
+                      setPendingSwitchProjectId(null);
+                      performSwitchProject(targetId);
+                      showSaveToast(
+                        'ok',
+                        `Beralih ke "${targetSwitchRecord.project.title}". Draft sebelumnya tetap tersimpan lokal.`
+                      );
+                    }}
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-60 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+                  >
+                    Pindah Tanpa Simpan
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSwitchingWithSave}
+                    onClick={() => setPendingSwitchProjectId(null)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-600 text-xs font-medium cursor-pointer transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {conflictState && (
         <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-5 shadow-2xl space-y-3">

@@ -66,6 +66,7 @@ import {
   saveUiAppearanceSettings,
   toPublicAuthUser,
   updateUserLoginTime,
+  getMediaAssetDataByFilename,
   upsertMediaAssetMeta,
   upsertProjectEntry,
   upsertUser,
@@ -102,6 +103,7 @@ import { applyZipRestore, previewZipRestore } from './src/server/zipRestoreServi
 import {
   isSafeMediaFilename,
   readMediaFileSafe,
+  writeMediaBufferExact,
   writeMediaFile,
 } from './src/server/mediaService.ts';
 import {
@@ -1240,11 +1242,11 @@ export async function createApp(options?: {
           code: 'INVALID_MEDIA_PAYLOAD',
         });
       }
-      const { meta } = await writeMediaFile({
+      const { meta, buffer } = await writeMediaFile({
         dataUrl: body.dataUrl,
         preferredId: body.preferredId,
       });
-      await upsertMediaAssetMeta(meta, req.authUser?.id ?? null);
+      await upsertMediaAssetMeta(meta, req.authUser?.id ?? null, buffer.toString('base64'));
       return res.status(201).json({ ok: true, asset: meta });
     })
   );
@@ -1256,7 +1258,20 @@ export async function createApp(options?: {
       if (!isSafeMediaFilename(filename)) {
         return res.status(400).json({ error: 'Nama berkas media tidak valid.' });
       }
-      const loaded = await readMediaFileSafe(filename);
+      let loaded = await readMediaFileSafe(filename);
+      if (!loaded) {
+        // Self-healing fallback: retrieve persistent binary from PostgreSQL when container disk is fresh/ephemeral
+        const fromDb = await getMediaAssetDataByFilename(filename).catch(() => null);
+        if (fromDb) {
+          loaded = { buffer: fromDb.buffer, mimeType: fromDb.mimeType };
+          // Best-effort rehydrate local disk cache for instant subsequent reads
+          void writeMediaBufferExact({
+            id: fromDb.id,
+            filename: fromDb.filename,
+            base64Data: fromDb.buffer.toString('base64'),
+          }).catch(() => {});
+        }
+      }
       if (!loaded) {
         return res.status(404).json({ error: 'Media tidak ditemukan.' });
       }

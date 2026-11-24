@@ -3,7 +3,7 @@ import {
   INITIAL_PROJECT,
   createId,
   resolveBottomNavbar,
-} from '../data/presets';
+} from '../data/presets.ts';
 import type {
   BuilderBlock,
   BuilderProject,
@@ -13,15 +13,15 @@ import type {
   WebTemplateCategory,
   WebTemplateSnapshot,
   WebTemplateVisibility,
-} from '../types/builder';
+} from '../types/builder.ts';
 import {
   DEFAULT_ADS_CONFIG,
   createDefaultPublishingConfig,
   resolveProjectAds,
   resolveProjectPublishing,
   sanitizeSlug,
-} from './publishingHelpers';
-import { createDefaultWhatsappCenter, resolveWhatsappCenter } from './whatsappBuilder';
+} from './publishingHelpers.ts';
+import { createDefaultWhatsappCenter, resolveWhatsappCenter } from './whatsappBuilder.ts';
 
 export const WEB_TEMPLATE_CATEGORIES: Array<{
   id: WebTemplateCategory;

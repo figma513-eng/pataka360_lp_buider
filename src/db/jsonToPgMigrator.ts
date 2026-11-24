@@ -32,6 +32,7 @@ import {
   detectImageMagicMime,
   isSafeMediaFilename,
   mimeTypeFromExt,
+  readMediaFileSafe,
 } from '../server/mediaService.ts';
 
 export interface MediaAuditEntry {
@@ -1515,15 +1516,18 @@ export async function migrateJsonToPostgres(params: {
 
       // 7. Media Assets
       for (const m of sourceSnapshot.mediaAssets) {
+        const diskFile = await readMediaFileSafe(m.filename);
+        const dataBase64 = diskFile ? diskFile.buffer.toString('base64') : null;
         await client.query(
-          `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, created_by, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, data_base64, created_by, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (id) DO UPDATE SET
              filename = EXCLUDED.filename,
              mime_type = EXCLUDED.mime_type,
              size_bytes = EXCLUDED.size_bytes,
-             sha256 = EXCLUDED.sha256`,
-          [m.id, m.filename, m.mimeType, m.sizeBytes, m.sha256, null, m.createdAt]
+             sha256 = EXCLUDED.sha256,
+             data_base64 = COALESCE(EXCLUDED.data_base64, media_assets.data_base64)`,
+          [m.id, m.filename, m.mimeType, m.sizeBytes, m.sha256, dataBase64, null, m.createdAt]
         );
       }
 

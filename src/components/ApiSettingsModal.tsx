@@ -993,7 +993,7 @@ export function ApiSettingsModal({
                   {/* Table Counts */}
                   <div className="bg-white rounded-xl border border-[#DCE5EF] p-4 space-y-3">
                     <h3 className="text-xs font-bold text-[#17243D]">
-                      Statistik Tabel Database (PostgreSQL v007)
+                      Statistik Tabel Database (PostgreSQL v008)
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                       {[

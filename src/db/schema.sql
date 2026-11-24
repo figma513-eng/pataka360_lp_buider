@@ -1,6 +1,6 @@
--- Lynk Builder — Skema PostgreSQL Lengkap (v007)
+-- Lynk Builder — Skema PostgreSQL Lengkap (v008)
 -- Sinkron 100% dengan src/db/schema.ts & src/db/migrations.ts
--- Siap untuk SaaS Multi-Pembeli + Jembatan Integrasi POS Next.js
+-- Siap untuk SaaS Multi-Pembeli + Media Persisten Lintas Perangkat + Jembatan Integrasi POS Next.js
 -- PostgreSQL 14+
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -157,9 +157,11 @@ CREATE TABLE IF NOT EXISTS media_assets (
   mime_type TEXT NOT NULL,
   size_bytes INTEGER NOT NULL,
   sha256 TEXT NOT NULL,
+  data_base64 TEXT,
   created_by TEXT,
   created_at BIGINT NOT NULL
 );
+ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS data_base64 TEXT;
 CREATE INDEX IF NOT EXISTS idx_media_filename ON media_assets (filename);
 
 CREATE TABLE IF NOT EXISTS ui_appearance_settings (

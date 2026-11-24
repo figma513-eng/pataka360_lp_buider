@@ -57,6 +57,7 @@ import {
   readResponseTextWithCap,
   safeFetch,
 } from '../server/ssrfGuard.ts';
+import { readMediaFileSafe } from '../server/mediaService.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1384,11 +1385,13 @@ export async function deleteProjectEntry(projectId: string): Promise<void> {
 // ============================================================
 export async function upsertMediaAssetMeta(
   meta: MediaAssetMeta,
-  createdBy?: string | null
+  createdBy?: string | null,
+  dataBase64?: string | null
 ): Promise<MediaAssetMeta> {
   await assertStorageReady();
   const state = await getDbState();
   if (state.db) {
+    const cleanB64 = typeof dataBase64 === 'string' && dataBase64.length > 0 ? dataBase64 : null;
     await state.db
       .insert(mediaAssetsTable)
       .values({
@@ -1397,6 +1400,7 @@ export async function upsertMediaAssetMeta(
         mimeType: meta.mimeType,
         sizeBytes: meta.sizeBytes,
         sha256: meta.sha256,
+        dataBase64: cleanB64,
         createdBy: createdBy ?? null,
         createdAt: meta.createdAt,
       })
@@ -1406,6 +1410,7 @@ export async function upsertMediaAssetMeta(
           mimeType: meta.mimeType,
           sizeBytes: meta.sizeBytes,
           sha256: meta.sha256,
+          ...(cleanB64 ? { dataBase64: cleanB64 } : {}),
         },
       });
     return meta;
@@ -1423,12 +1428,51 @@ export async function upsertMediaAssetMeta(
   });
 }
 
+export async function getMediaAssetDataByFilename(filename: string): Promise<{
+  id: string;
+  filename: string;
+  buffer: Buffer;
+  mimeType: string;
+} | null> {
+  await assertStorageReady();
+  const state = await getDbState();
+  if (!state.db) return null;
+
+  const [row] = await state.db
+    .select({
+      id: mediaAssetsTable.id,
+      filename: mediaAssetsTable.filename,
+      mimeType: mediaAssetsTable.mimeType,
+      dataBase64: mediaAssetsTable.dataBase64,
+    })
+    .from(mediaAssetsTable)
+    .where(eq(mediaAssetsTable.filename, filename))
+    .limit(1);
+
+  if (!row || !row.dataBase64) return null;
+  const buffer = Buffer.from(row.dataBase64, 'base64');
+  if (buffer.length === 0) return null;
+  return {
+    id: row.id,
+    filename: row.filename,
+    buffer,
+    mimeType: row.mimeType,
+  };
+}
+
 export async function listMediaAssetMetas(): Promise<MediaAssetMeta[]> {
   await assertStorageReady();
   const state = await getDbState();
   if (state.db) {
     const rows = await state.db
-      .select()
+      .select({
+        id: mediaAssetsTable.id,
+        filename: mediaAssetsTable.filename,
+        mimeType: mediaAssetsTable.mimeType,
+        sizeBytes: mediaAssetsTable.sizeBytes,
+        sha256: mediaAssetsTable.sha256,
+        createdAt: mediaAssetsTable.createdAt,
+      })
       .from(mediaAssetsTable)
       .orderBy(desc(mediaAssetsTable.createdAt));
     return rows.map((r) => ({
@@ -2670,7 +2714,10 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
         sizeBytes: Number(r.size_bytes),
         sha256: r.sha256,
         createdAt: Number(r.created_at),
-      }));
+        ...(typeof r.data_base64 === 'string' && r.data_base64.length > 0
+          ? { _dataBase64: r.data_base64 }
+          : {}),
+      })) as Array<MediaAssetMeta & { _dataBase64?: string }>;
 
       sessions = sRes.rows.map((r) => ({
         tokenHash: r.token_hash,
@@ -2757,7 +2804,7 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
 
   const lines: string[] = [
     `-- ============================================================`,
-    `-- Lynk Builder — Full PostgreSQL Snapshot Backup (Consistent MVCC v007)`,
+    `-- Lynk Builder — Full PostgreSQL Snapshot Backup (Consistent MVCC v008)`,
     `-- Diekspor: ${new Date(now).toISOString()}`,
     `-- Engine sumber: ${state.db ? 'PostgreSQL (REPEATABLE READ READ ONLY)' : 'JSON Store Lokal'}`,
     `-- ============================================================`,
@@ -2821,9 +2868,17 @@ export async function exportFullPostgresSqlDump(schemaSql: string): Promise<stri
   lines.push(``);
 
   lines.push(`-- 7. Media Assets (${mediaAssets.length} baris)`);
-  for (const m of mediaAssets) {
+  for (const m of mediaAssets as Array<MediaAssetMeta & { _dataBase64?: string }>) {
+    let dataB64: string | null =
+      typeof m._dataBase64 === 'string' && m._dataBase64.length > 0 ? m._dataBase64 : null;
+    if (!dataB64) {
+      const diskFile = await readMediaFileSafe(m.filename).catch(() => null);
+      if (diskFile) {
+        dataB64 = diskFile.buffer.toString('base64');
+      }
+    }
     lines.push(
-      `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, created_by, created_at) VALUES (${sqlText(m.id)}, ${sqlText(m.filename)}, ${sqlText(m.mimeType)}, ${sqlNum(m.sizeBytes)}, ${sqlText(m.sha256)}, NULL, ${sqlNum(m.createdAt)}) ON CONFLICT (id) DO NOTHING;`
+      `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, data_base64, created_by, created_at) VALUES (${sqlText(m.id)}, ${sqlText(m.filename)}, ${sqlText(m.mimeType)}, ${sqlNum(m.sizeBytes)}, ${sqlText(m.sha256)}, ${sqlText(dataB64)}, NULL, ${sqlNum(m.createdAt)}) ON CONFLICT (id) DO UPDATE SET data_base64 = COALESCE(EXCLUDED.data_base64, media_assets.data_base64);`
     );
   }
   lines.push(``);

@@ -182,6 +182,7 @@ export const mediaAssetsTable = pgTable(
     mimeType: text('mime_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
     sha256: text('sha256').notNull(),
+    dataBase64: text('data_base64'),
     createdBy: text('created_by'),
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },

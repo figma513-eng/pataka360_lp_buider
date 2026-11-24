@@ -509,6 +509,7 @@ export async function applyZipRestore(params: {
 
   // Step 2: Restore media binaries atomically
   const restoredMediaMetas: MediaAssetMeta[] = [];
+  const mediaBase64ByFilename = new Map<string, string>();
   for (const media of targetMedia) {
     const meta = await writeMediaBufferExact({
       id: media.id,
@@ -516,6 +517,7 @@ export async function applyZipRestore(params: {
       base64Data: media.base64,
     });
     restoredMediaMetas.push(meta);
+    mediaBase64ByFilename.set(meta.filename, media.base64);
   }
 
   let restoredUsersCount = 0;
@@ -656,10 +658,24 @@ export async function applyZipRestore(params: {
 
       for (const m of restoredMediaMetas) {
         await client.query(
-          `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, created_by, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)
-           ON CONFLICT (id) DO UPDATE SET filename = EXCLUDED.filename, mime_type = EXCLUDED.mime_type, size_bytes = EXCLUDED.size_bytes, sha256 = EXCLUDED.sha256`,
-          [m.id, m.filename, m.mimeType, m.sizeBytes, m.sha256, params.actorUserId, m.createdAt]
+          `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, data_base64, created_by, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           ON CONFLICT (id) DO UPDATE SET
+             filename = EXCLUDED.filename,
+             mime_type = EXCLUDED.mime_type,
+             size_bytes = EXCLUDED.size_bytes,
+             sha256 = EXCLUDED.sha256,
+             data_base64 = COALESCE(EXCLUDED.data_base64, media_assets.data_base64)`,
+          [
+            m.id,
+            m.filename,
+            m.mimeType,
+            m.sizeBytes,
+            m.sha256,
+            mediaBase64ByFilename.get(m.filename) ?? null,
+            params.actorUserId,
+            m.createdAt,
+          ]
         );
       }
 

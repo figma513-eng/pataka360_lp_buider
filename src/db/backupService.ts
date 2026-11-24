@@ -120,13 +120,14 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
   let uiAppearanceSettings: UiAppearanceSettingsConfig = { labels: {}, hiddenKeys: {}, updatedAt: 0 };
   let webTemplates: SavedWebTemplate[] = [];
   let formSubmissions: FormSubmissionRecord[] = [];
+  let pgMedia: CompleteBackupPayload['media'] = [];
   let userCount = 0;
 
   if (state.pool) {
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const [uRes, pRes, eRes, apRes, apiRes, uiRes, wtRes, fsRes] = await Promise.all([
+      const [uRes, pRes, eRes, apRes, apiRes, uiRes, wtRes, fsRes, mRes] = await Promise.all([
         client.query('SELECT id, name, email, role, is_active, unit_scope_json, permissions_json, created_at FROM users'),
         client.query('SELECT * FROM projects ORDER BY updated_at DESC'),
         client.query('SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 5000'),
@@ -135,6 +136,7 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         client.query(`SELECT * FROM ui_appearance_settings WHERE id = 'default' LIMIT 1`),
         client.query('SELECT * FROM web_templates ORDER BY updated_at DESC'),
         client.query('SELECT * FROM form_submissions ORDER BY created_at DESC LIMIT 2000'),
+        client.query('SELECT id, filename, mime_type, size_bytes, sha256, data_base64 FROM media_assets ORDER BY created_at DESC'),
       ]);
       await client.query('COMMIT');
 
@@ -258,6 +260,21 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
         isTest: Boolean(r.is_test),
         createdAt: Number(r.created_at || Date.now()),
       }));
+      pgMedia = mRes.rows
+        .filter(
+          (r) =>
+            isSafeMediaFilename(String(r.filename || '')) &&
+            typeof r.data_base64 === 'string' &&
+            r.data_base64.length > 0
+        )
+        .map((r) => ({
+          id: String(r.id),
+          filename: String(r.filename),
+          mimeType: String(r.mime_type || 'application/octet-stream'),
+          sizeBytes: Number(r.size_bytes || 0),
+          sha256: String(r.sha256 || ''),
+          base64: String(r.data_base64),
+        }));
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
@@ -288,7 +305,15 @@ export async function exportCompleteBackupBundle(): Promise<CompleteBackupBundle
       : fsubs;
   }
 
-  const media = await exportAllDiskMediaAssets();
+  const diskMedia = await exportAllDiskMediaAssets();
+  const mergedMediaByFilename = new Map<string, CompleteBackupPayload['media'][number]>();
+  for (const m of pgMedia) {
+    mergedMediaByFilename.set(m.filename, m);
+  }
+  for (const m of diskMedia) {
+    mergedMediaByFilename.set(m.filename, m);
+  }
+  const media = Array.from(mergedMediaByFilename.values());
 
   // Never include passwordHash, sessions, or .env secrets in portable backup bundle!
   const hasUiAppearance =
@@ -557,6 +582,7 @@ export async function applyBackupRestore(params: {
 
   // Step 2: Restore disk media assets first (atomic per-file write)
   const restoredMediaMetas: MediaAssetMeta[] = [];
+  const mediaBase64ByFilename = new Map<string, string>();
   for (const media of payload.media) {
     const meta = await writeMediaBufferExact({
       id: media.id,
@@ -564,6 +590,7 @@ export async function applyBackupRestore(params: {
       base64Data: media.base64,
     });
     restoredMediaMetas.push(meta);
+    mediaBase64ByFilename.set(meta.filename, media.base64);
   }
 
   // Step 3: Transactional restore into DB (PG transaction or single atomic JSON write)
@@ -645,9 +672,18 @@ export async function applyBackupRestore(params: {
       await client.query('DELETE FROM media_assets');
       for (const m of restoredMediaMetas) {
         await client.query(
-          `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, created_by, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [m.id, m.filename, m.mimeType, m.sizeBytes, m.sha256, params.actorUserId, m.createdAt]
+          `INSERT INTO media_assets (id, filename, mime_type, size_bytes, sha256, data_base64, created_by, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            m.id,
+            m.filename,
+            m.mimeType,
+            m.sizeBytes,
+            m.sha256,
+            mediaBase64ByFilename.get(m.filename) ?? null,
+            params.actorUserId,
+            m.createdAt,
+          ]
         );
       }
 

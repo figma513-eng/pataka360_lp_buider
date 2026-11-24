@@ -221,6 +221,13 @@ export const POSTGRES_MIGRATIONS: MigrationDefinition[] = [
       `CREATE INDEX IF NOT EXISTS idx_web_templates_category ON web_templates (category);`,
     ],
   },
+  {
+    version: '008',
+    name: 'media_assets_binary_storage',
+    statements: [
+      `ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS data_base64 TEXT;`,
+    ],
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION =

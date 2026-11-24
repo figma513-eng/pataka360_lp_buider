@@ -1,4 +1,4 @@
-import type { AccessRole } from '../types/builder';
+import type { AccessRole } from '../types/builder.ts';
 
 export interface DemoRoleProfile {
   role: AccessRole;
