@@ -354,6 +354,48 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         monogramColor: it.monogramColor
           ? sanitizeCssColor(it.monogramColor, '#C2410C')
           : it.monogramColor,
+        imageBgColor: it.imageBgColor
+          ? sanitizeCssColor(it.imageBgColor, '#F1F5F9')
+          : it.imageBgColor,
+        imageBorderColor: it.imageBorderColor
+          ? sanitizeCssColor(it.imageBorderColor, '#E2E8F0')
+          : it.imageBorderColor,
+        cardBgColor: it.cardBgColor ? sanitizeCssColor(it.cardBgColor, '#FFFFFF') : it.cardBgColor,
+        accentColor: it.accentColor ? sanitizeCssColor(it.accentColor, '#EA580C') : it.accentColor,
+        badgeBgColor: it.badgeBgColor
+          ? sanitizeCssColor(it.badgeBgColor, '#F1F5F9')
+          : it.badgeBgColor,
+        badgeTextColor: it.badgeTextColor
+          ? sanitizeCssColor(it.badgeTextColor, '#334155')
+          : it.badgeTextColor,
+        imageSize:
+          typeof it.imageSize === 'number' && Number.isFinite(it.imageSize)
+            ? Math.max(44, Math.min(160, Math.round(it.imageSize)))
+            : undefined,
+        imageZoom:
+          typeof it.imageZoom === 'number' && Number.isFinite(it.imageZoom)
+            ? Math.max(40, Math.min(260, Math.round(it.imageZoom)))
+            : undefined,
+        imageRadius:
+          typeof it.imageRadius === 'number' && Number.isFinite(it.imageRadius)
+            ? Math.max(0, Math.min(48, Math.round(it.imageRadius)))
+            : undefined,
+        imagePadding:
+          typeof it.imagePadding === 'number' && Number.isFinite(it.imagePadding)
+            ? Math.max(0, Math.min(24, Math.round(it.imagePadding)))
+            : undefined,
+        imagePositionX:
+          typeof it.imagePositionX === 'number' && Number.isFinite(it.imagePositionX)
+            ? Math.max(0, Math.min(100, Math.round(it.imagePositionX)))
+            : undefined,
+        imagePositionY:
+          typeof it.imagePositionY === 'number' && Number.isFinite(it.imagePositionY)
+            ? Math.max(0, Math.min(100, Math.round(it.imagePositionY)))
+            : undefined,
+        imageBorderWidth:
+          typeof it.imageBorderWidth === 'number' && Number.isFinite(it.imageBorderWidth)
+            ? Math.max(0, Math.min(4, Math.round(it.imageBorderWidth)))
+            : undefined,
       }))
     : c.fnbItems;
 

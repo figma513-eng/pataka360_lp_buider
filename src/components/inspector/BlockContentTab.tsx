@@ -42,6 +42,7 @@ import {
   CustomFieldInputType,
   FloatingCartPosition,
   FnbHeroSlideItem,
+  FnbImageShape,
   FnbMenuItem,
   MenuIconAction,
   MenuIconSheetPosition,
@@ -59,6 +60,7 @@ import {
   UniversalActionType,
   WhatsappCenterConfig,
 } from '../../types/builder';
+import { FNB_IMAGE_SHAPE_OPTIONS, resolveFnbItemImageGeometry } from '../../utils/fnbHelpers';
 import {
   WHATSAPP_TEMPLATE_TYPE_LABELS,
   resolveWhatsappCenter,
@@ -5114,6 +5116,118 @@ export function BlockContentTab({
                 }
                 onClear={item.image ? () => updateFnbItem(item.id, { image: '' }) : undefined}
               />
+              {(() => {
+                const geo = resolveFnbItemImageGeometry(
+                  item,
+                  c,
+                  c.fnbAccentColor ?? '#EA580C'
+                );
+                return (
+                  <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#17243D]">
+                        Pengaturan Gambar dalam Shape
+                      </span>
+                      <span className="text-[10px] font-mono text-[#51637D] tabular-nums">
+                        {geo.baseSize}px · {geo.zoom}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {FNB_IMAGE_SHAPE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() =>
+                            updateFnbItem(item.id, { imageShape: opt.id as FnbImageShape })
+                          }
+                          className={`py-1 px-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
+                            geo.shape === opt.id
+                              ? 'bg-[#ECFDF6] text-[#047857] border-[#00C98A]'
+                              : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#94A3B8]'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] mb-1">
+                        <span className="font-semibold text-[#17243D]">
+                          Besar Gambar dalam Shape
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {geo.zoom !== 100 && (
+                            <button
+                              type="button"
+                              onClick={() => updateFnbItem(item.id, { imageZoom: 100 })}
+                              className="text-[9.5px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                            >
+                              100%
+                            </button>
+                          )}
+                          <span className="font-mono font-semibold text-[#17243D] tabular-nums">
+                            {geo.zoom}%
+                          </span>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={40}
+                        max={260}
+                        step={5}
+                        value={geo.zoom}
+                        onChange={(e) =>
+                          updateFnbItem(item.id, { imageZoom: Number(e.target.value) })
+                        }
+                        className="w-full cursor-pointer"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(
+                        [
+                          { id: 'cover', label: 'Penuh (Cover)' },
+                          { id: 'contain', label: 'Utuh (Contain)' },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updateFnbItem(item.id, { imageFit: opt.id })}
+                          className={`py-1 px-2 rounded text-[10.5px] font-semibold border transition-colors cursor-pointer ${
+                            geo.fit === opt.id
+                              ? 'bg-[#ECFDF6] text-[#047857] border-[#00C98A]'
+                              : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] mb-1">
+                        <span className="font-semibold text-[#17243D]">Ukuran Frame Shape</span>
+                        <span className="font-mono font-semibold text-[#17243D] tabular-nums">
+                          {geo.baseSize}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={44}
+                        max={160}
+                        step={2}
+                        value={geo.baseSize}
+                        onChange={(e) =>
+                          updateFnbItem(item.id, { imageSize: Number(e.target.value) })
+                        }
+                        className="w-full cursor-pointer"
+                      />
+                    </div>
+                    <div className="text-[10px] text-[#51637D]">
+                      Pengaturan posisi X/Y, padding, bingkai & warna kartu tersedia di tab <strong>Desain</strong>.
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
@@ -5196,6 +5310,16 @@ export function BlockContentTab({
                   />
                 </div>
               )}
+              <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF]">
+                <span className="text-[11px] font-semibold text-[#17243D]">
+                  Sembunyikan Item Ini
+                </span>
+                <ToggleSwitch
+                  checked={Boolean(item.hidden)}
+                  onChange={(val) => updateFnbItem(item.id, { hidden: val })}
+                  label="Sembunyikan item ini"
+                />
+              </div>
             </div>
           ),
         };
@@ -9014,6 +9138,28 @@ export function BlockContentTab({
                 checked={Boolean(c.fnbShowCategories)}
                 onChange={(val) => updateContent({ fnbShowCategories: val })}
                 label="Tab Kategori Bawaan"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Teks Placeholder Pencarian
+              </label>
+              <input
+                type="text"
+                value={c.fnbSearchPlaceholder ?? 'Cari makanan dan minuman...'}
+                onChange={(e) => updateContent({ fnbSearchPlaceholder: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Teks Tombol Tambah Item
+              </label>
+              <input
+                type="text"
+                value={c.fnbButtonLabel ?? 'Tambah'}
+                onChange={(e) => updateContent({ fnbButtonLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
               />
             </div>
             <div className="flex items-center justify-between gap-2">

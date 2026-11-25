@@ -1,5 +1,11 @@
 import { BuilderBlock } from '../types/builder';
 import { SOCIAL_PLATFORMS } from './socialIcons';
+import {
+  FNB_IMAGE_SHAPE_LABELS,
+  findFnbItemBySubLayerKey,
+  parseFnbItemSubLayerId,
+  resolveFnbItemImageGeometry,
+} from './fnbHelpers';
 
 export type SubLayerIconKind =
   | 'image'
@@ -76,6 +82,10 @@ export interface ExtractedSubLayer {
   contentSections: ContentSectionKey[];
   /** Desain accordion sections relevant to this sub-layer */
   designSections: DesignSectionKey[];
+  /** Optional mini thumbnail URL for visual identification in Layer Tree */
+  thumbnailUrl?: string;
+  /** Optional nested sub-layers (e.g. Foto & Shape, Info, Harga & Tombol inside each F&B item) */
+  children?: ExtractedSubLayer[];
 }
 
 function snippet(text: string | undefined, maxLen = 28): string {
@@ -104,6 +114,17 @@ export function isSubLayerHidden(block: BuilderBlock | null | undefined, subId: 
   if (subId === 'card_footer' && c.cardHideDefaultFooter) return true;
   if (subId === 'menu_icon_label' && c.menuIconShowLabel === false) return true;
   if (subId === 'cart_product' && c.cartShowProductInfo === false) return true;
+  if (subId === 'fnb_categories' && !c.fnbShowCategories) return true;
+  if (subId === 'fnb_search' && c.fnbShowSearch === false) return true;
+  if (subId === 'fnb_section_heading' && c.fnbGroupByCategory === false) return true;
+  if (subId === 'fnb_floating_cart' && c.fnbFloatingCartEnabled === false) return true;
+  if (subId === 'fnb_customer_form' && c.catalogAskCustomerInfo === false) return true;
+  if (subId === 'fnb_shipping' && c.catalogShippingEnabled === false) return true;
+  const parsedFnb = parseFnbItemSubLayerId(subId);
+  if (parsedFnb?.kind === 'card' && Array.isArray(c.fnbItems)) {
+    const matched = findFnbItemBySubLayerKey(c.fnbItems, parsedFnb.itemKey);
+    if (matched?.hidden) return true;
+  }
   return false;
 }
 
@@ -146,6 +167,19 @@ export function toggleSubLayerVisibility(block: BuilderBlock, subId: string): Bu
   if (subId === 'card_footer') nextContent.cardHideDefaultFooter = nextHidden;
   if (subId === 'menu_icon_label') nextContent.menuIconShowLabel = !nextHidden;
   if (subId === 'cart_product') nextContent.cartShowProductInfo = !nextHidden;
+  if (subId === 'fnb_categories') nextContent.fnbShowCategories = !nextHidden;
+  if (subId === 'fnb_search') nextContent.fnbShowSearch = !nextHidden;
+  if (subId === 'fnb_section_heading') nextContent.fnbGroupByCategory = !nextHidden;
+  if (subId === 'fnb_floating_cart') nextContent.fnbFloatingCartEnabled = !nextHidden;
+  if (subId === 'fnb_customer_form') nextContent.catalogAskCustomerInfo = !nextHidden;
+  if (subId === 'fnb_shipping') nextContent.catalogShippingEnabled = !nextHidden;
+
+  const parsedFnb = parseFnbItemSubLayerId(subId);
+  if (parsedFnb?.kind === 'card' && Array.isArray(c.fnbItems)) {
+    nextContent.fnbItems = c.fnbItems.map((it, idx) =>
+      String(it.id || idx) === parsedFnb.itemKey ? { ...it, hidden: nextHidden } : it
+    );
+  }
 
   if (subId.startsWith('soc_') && Array.isArray(c.socialItems)) {
     const targetId = subId.slice(4);
@@ -215,6 +249,12 @@ export function restoreSubLayer(block: BuilderBlock, subId: string): BuilderBloc
   if (subId === 'cart_product') {
     nextContent.cartShowProductInfo = true;
   }
+  if (subId === 'fnb_categories') nextContent.fnbShowCategories = true;
+  if (subId === 'fnb_search') nextContent.fnbShowSearch = true;
+  if (subId === 'fnb_section_heading') nextContent.fnbGroupByCategory = true;
+  if (subId === 'fnb_floating_cart') nextContent.fnbFloatingCartEnabled = true;
+  if (subId === 'fnb_customer_form') nextContent.catalogAskCustomerInfo = true;
+  if (subId === 'fnb_shipping') nextContent.catalogShippingEnabled = true;
 
   return { ...block, content: nextContent };
 }
@@ -285,15 +325,28 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       },
     };
   }
-  if (subId.startsWith('fnb_') && Array.isArray(c.fnbItems)) {
-    const key = subId.slice(4);
-    return {
-      ...block,
-      content: {
-        ...c,
-        fnbItems: c.fnbItems.filter((it, idx) => String(it.id || idx) !== key),
-      },
-    };
+  const parsedFnbDel = parseFnbItemSubLayerId(subId);
+  if (parsedFnbDel && Array.isArray(c.fnbItems)) {
+    if (parsedFnbDel.kind === 'card') {
+      return {
+        ...block,
+        content: {
+          ...c,
+          fnbItems: c.fnbItems.filter((it, idx) => String(it.id || idx) !== parsedFnbDel.itemKey),
+        },
+      };
+    }
+    if (parsedFnbDel.kind === 'img') {
+      return {
+        ...block,
+        content: {
+          ...c,
+          fnbItems: c.fnbItems.map((it, idx) =>
+            String(it.id || idx) === parsedFnbDel.itemKey ? { ...it, image: '' } : it
+          ),
+        },
+      };
+    }
   }
   if (subId.startsWith('fhs_') && Array.isArray(c.fnbSliderItems)) {
     const key = subId.slice(4);
@@ -452,6 +505,24 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       break;
     case 'hero_avatar':
       nextContent.heroLogoImage = '';
+      break;
+    case 'fnb_categories':
+      nextContent.fnbShowCategories = false;
+      break;
+    case 'fnb_search':
+      nextContent.fnbShowSearch = false;
+      break;
+    case 'fnb_section_heading':
+      nextContent.fnbGroupByCategory = false;
+      break;
+    case 'fnb_floating_cart':
+      nextContent.fnbFloatingCartEnabled = false;
+      break;
+    case 'fnb_customer_form':
+      nextContent.catalogAskCustomerInfo = false;
+      break;
+    case 'fnb_shipping':
+      nextContent.catalogShippingEnabled = false;
       break;
     default:
       break;
@@ -879,21 +950,162 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'fnb_catalog': {
       const items = c.fnbItems ?? [];
+      const catNames: string[] = [];
+      for (const it of items) {
+        const cat = (it.category || 'Menu').trim();
+        if (cat && !catNames.includes(cat)) catNames.push(cat);
+      }
+
+      pushIfNotDeleted({
+        id: 'fnb_categories',
+        label: 'Tab Kategori',
+        typeLabel:
+          catNames.length > 0 ? `${catNames.length} Kategori · Bar Filter` : 'Bar Filter Kategori',
+        kind: 'part',
+        icon: 'sliders',
+        isHidden: isSubLayerHidden(block, 'fnb_categories'),
+        contentSections: ['actions'],
+        designSections: ['specific'],
+      });
+
+      pushIfNotDeleted({
+        id: 'fnb_search',
+        label: 'Kolom Pencarian',
+        typeLabel: snippet(c.fnbSearchPlaceholder || 'Cari makanan dan minuman...', 24),
+        kind: 'part',
+        icon: 'sliders',
+        isHidden: isSubLayerHidden(block, 'fnb_search'),
+        contentSections: ['actions'],
+        designSections: ['specific'],
+      });
+
+      pushIfNotDeleted({
+        id: 'fnb_section_heading',
+        label: 'Judul Grup Kategori',
+        typeLabel: c.fnbGroupByCategory !== false ? 'Dikelompokkan per Kategori' : 'Nonaktif',
+        kind: 'part',
+        icon: 'text',
+        isHidden: isSubLayerHidden(block, 'fnb_section_heading'),
+        contentSections: ['actions'],
+        designSections: ['specific', 'typo'],
+      });
+
+      pushIfNotDeleted({
+        id: 'fnb_floating_cart',
+        label: 'Keranjang Mengambang',
+        typeLabel: c.fnbFloatingCartLabel?.trim()
+          ? `Tombol "${snippet(c.fnbFloatingCartLabel, 14)}" · Checkout`
+          : 'Ringkasan Pesanan & WA',
+        kind: 'part',
+        icon: 'cart',
+        isHidden: isSubLayerHidden(block, 'fnb_floating_cart'),
+        contentSections: ['actions'],
+        designSections: ['specific'],
+      });
+
+      pushIfNotDeleted({
+        id: 'fnb_customer_form',
+        label: 'Form Data Pemesan',
+        typeLabel: c.catalogAskCustomerInfo !== false ? 'Aktif saat Checkout' : 'Nonaktif',
+        kind: 'part',
+        icon: 'form',
+        subListTab: 'customer',
+        canDelete: false,
+        isHidden: isSubLayerHidden(block, 'fnb_customer_form'),
+        contentSections: ['items', 'actions'],
+        designSections: ['specific'],
+      });
+
+      pushIfNotDeleted({
+        id: 'fnb_shipping',
+        label: 'Opsi Pengiriman',
+        typeLabel: c.catalogShippingEnabled !== false ? 'Layanan & Ongkir' : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        subListTab: 'shipping',
+        canDelete: false,
+        isHidden: isSubLayerHidden(block, 'fnb_shipping'),
+        contentSections: ['items', 'actions'],
+        designSections: ['specific'],
+      });
+
       items.forEach((item, idx) => {
+        const key = String(item.id || idx);
+        const itemId = `fnb_${key}`;
+        const imgSubId = `fnb_img_${key}`;
+        const infoSubId = `fnb_info_${key}`;
+        const actionSubId = `fnb_action_${key}`;
+        const geom = resolveFnbItemImageGeometry(item, c, c.fnbAccentColor || '#EA580C');
+        const shapeLabel = FNB_IMAGE_SHAPE_LABELS[geom.shape] || 'Membulat';
+
+        const itemChildren: ExtractedSubLayer[] = [
+          {
+            id: imgSubId,
+            label: 'Gambar & Shape',
+            typeLabel: `${geom.baseSize}px · ${geom.zoom}% · ${shapeLabel}`,
+            kind: 'item',
+            icon: 'image',
+            itemKey: `fnb:${item.id}`,
+            subListTab: 'menu',
+            canDelete: Boolean(item.image),
+            canToggleVisibility: true,
+            canLock: true,
+            isHidden: isSubLayerHidden(block, imgSubId),
+            isLocked: isSubLayerLocked(block, imgSubId),
+            contentSections: ['items'],
+            designSections: ['specific'],
+          },
+          {
+            id: infoSubId,
+            label: 'Badge, Judul & Deskripsi',
+            typeLabel: item.badge?.trim()
+              ? `Badge: ${snippet(item.badge, 18)}`
+              : snippet(item.description, 22) || 'Teks Menu',
+            kind: 'item',
+            icon: 'text',
+            itemKey: `fnb:${item.id}`,
+            subListTab: 'menu',
+            canDelete: false,
+            canToggleVisibility: false,
+            canLock: true,
+            isLocked: isSubLayerLocked(block, infoSubId),
+            contentSections: ['items'],
+            designSections: ['specific', 'typo'],
+          },
+          {
+            id: actionSubId,
+            label: 'Harga & Tombol Tambah',
+            typeLabel: item.price?.trim() || 'Rp 0',
+            kind: 'item',
+            icon: 'cart',
+            itemKey: `fnb:${item.id}`,
+            subListTab: 'menu',
+            canDelete: false,
+            canToggleVisibility: false,
+            canLock: true,
+            isLocked: isSubLayerLocked(block, actionSubId),
+            contentSections: ['items'],
+            designSections: ['specific'],
+          },
+        ];
+
         layers.push({
-          id: `fnb_${item.id || idx}`,
+          id: itemId,
           label: item.title?.trim() || `Menu ${idx + 1}`,
           typeLabel: [item.category, item.price].filter(Boolean).join(' · ') || 'Item Menu',
           kind: 'item',
           icon: 'list',
           itemKey: `fnb:${item.id}`,
           subListTab: 'menu',
+          thumbnailUrl: item.image?.trim() || undefined,
           canDelete: true,
-          canToggleVisibility: false,
+          canToggleVisibility: true,
           canLock: true,
-          isLocked: isSubLayerLocked(block, `fnb_${item.id || idx}`),
+          isHidden: Boolean(item.hidden) || isSubLayerHidden(block, itemId),
+          isLocked: isSubLayerLocked(block, itemId),
           contentSections: ['items'],
-          designSections: ['specific', 'visual', 'typo'],
+          designSections: ['specific'],
+          children: itemChildren,
         });
       });
       break;
@@ -1216,7 +1428,14 @@ export function findExtractedSubLayer(
 ): ExtractedSubLayer | null {
   if (!block || !subLayerId) return null;
   const layers = extractBlockSubLayers(block);
-  return layers.find((l) => l.id === subLayerId) ?? null;
+  for (const l of layers) {
+    if (l.id === subLayerId) return l;
+    if (Array.isArray(l.children)) {
+      const child = l.children.find((ch) => ch.id === subLayerId);
+      if (child) return child;
+    }
+  }
+  return null;
 }
 
 export function countTotalExtractedLayers(blocks: BuilderBlock[]): number {

@@ -11,6 +11,8 @@ import { formatRupiah, parsePriceToNumber } from '../utils/cartHelpers';
 import { resolveCssFontFamily } from '../utils/fontHelpers';
 import { resolveBackgroundInlineProps } from '../utils/gradientHelpers';
 import { shadowToCss } from '../utils/exporterBlocks';
+import { resolveFnbItemImageGeometry } from '../utils/fnbHelpers';
+import { isSubLayerHidden } from '../utils/layerStructure';
 
 export function HeroProfileCard({
   block,
@@ -515,27 +517,50 @@ export function FnbCatalogCard({
   const items = c.fnbItems ?? [];
   const [searchQuery, setSearchQuery] = useState('');
   const [localCat, setLocalCat] = useState<string>('Semua');
+  const [brokenImgMap, setBrokenImgMap] = useState<Record<string, boolean>>({});
 
   const accent = c.fnbAccentColor || theme.accentColor || '#EA580C';
-  const imgSize = Math.max(52, Math.min(130, c.fnbItemImageSize ?? 80));
   const titleSize = Math.max(12, Math.min(24, c.fnbItemTitleSize ?? s.fontSize ?? 15));
   const descSize = Math.max(10, Math.min(18, c.fnbItemDescSize ?? 12));
+  const headingSize = Math.max(12, Math.min(26, c.fnbHeadingSize ?? 16));
+  const headingColor = c.fnbHeadingColor || theme.textColor;
+  const cardBgDefault = c.fnbCardBg || theme.cardBg;
+  const cardBorderColor = c.fnbCardBorderColor || theme.borderColor;
+  const cardRadius = Math.max(0, Math.min(32, c.fnbCardRadius ?? 16));
+  const buttonLabel = (c.fnbButtonLabel || 'Tambah').trim() || 'Tambah';
   const fontStack = resolveCssFontFamily(s.fontFamily) || resolveCssFontFamily(theme.fontFamily);
+
+  const showCategories =
+    Boolean(c.fnbShowCategories) && !isSubLayerHidden(block, 'fnb_categories');
+  const showSearch =
+    c.fnbShowSearch !== false && !isSubLayerHidden(block, 'fnb_search');
+  const showSectionHeadings =
+    c.fnbGroupByCategory !== false && !isSubLayerHidden(block, 'fnb_section_heading');
+
+  const visibleItems = useMemo(
+    () =>
+      items.filter((it, idx) => {
+        if (it.hidden) return false;
+        const itemKey = String(it.id || idx);
+        return !isSubLayerHidden(block, `fnb_${itemKey}`);
+      }),
+    [items, block]
+  );
 
   const categories = useMemo(() => {
     const seen: string[] = [];
-    for (const it of items) {
+    for (const it of visibleItems) {
       const cat = (it.category || 'Menu').trim();
       if (cat && !seen.includes(cat)) seen.push(cat);
     }
     return seen;
-  }, [items]);
+  }, [visibleItems]);
 
   const effectiveCat = externalCategoryFilter || localCat;
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return items.filter((it) => {
+    return visibleItems.filter((it) => {
       const catMatch =
         !effectiveCat ||
         effectiveCat === 'Semua' ||
@@ -548,7 +573,7 @@ export function FnbCatalogCard({
         (it.category || '').toLowerCase().includes(q)
       );
     });
-  }, [items, effectiveCat, searchQuery]);
+  }, [visibleItems, effectiveCat, searchQuery]);
 
   const groupedSections = useMemo(() => {
     if (c.fnbGroupByCategory === false) {
@@ -567,10 +592,25 @@ export function FnbCatalogCard({
     return groups;
   }, [filteredItems, c.fnbGroupByCategory]);
 
+  const catActiveBg = c.fnbCategoryActiveBg || accent;
+  const catActiveText = c.fnbCategoryActiveText || '#FFFFFF';
+  const catInactiveBg = c.fnbCategoryInactiveBg || '#F1F5F9';
+  const catInactiveText = c.fnbCategoryInactiveText || '#334155';
+  const catRadius = Math.max(4, Math.min(999, c.fnbCategoryRadius ?? 999));
+  const catFontSize = Math.max(10, Math.min(16, c.fnbCategoryFontSize ?? 12));
+
+  const searchBg = c.fnbSearchBg || theme.cardBg;
+  const searchBorderColor = c.fnbSearchBorderColor || theme.borderColor;
+  const searchTextColor = c.fnbSearchTextColor || theme.textColor;
+  const searchRadius = Math.max(6, Math.min(32, c.fnbSearchRadius ?? 16));
+
   return (
     <div style={{ fontFamily: fontStack }} className="space-y-3.5 text-left">
-      {c.fnbShowCategories && categories.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {showCategories && categories.length > 0 && (
+        <div
+          data-canvas-sublayer="fnb_categories"
+          className="flex items-center gap-2 overflow-x-auto pb-1"
+        >
           {['Semua', ...categories].map((cat) => {
             const on = (effectiveCat || 'Semua').toLowerCase() === cat.toLowerCase();
             return (
@@ -582,10 +622,12 @@ export function FnbCatalogCard({
                   onClearExternalFilter?.();
                 }}
                 style={{
-                  backgroundColor: on ? accent : '#F1F5F9',
-                  color: on ? '#FFFFFF' : '#334155',
+                  backgroundColor: on ? catActiveBg : catInactiveBg,
+                  color: on ? catActiveText : catInactiveText,
+                  borderRadius: `${catRadius}px`,
+                  fontSize: `${catFontSize}px`,
                 }}
-                className="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 cursor-pointer border-0 transition-colors"
+                className="px-3.5 py-1.5 font-bold shrink-0 cursor-pointer border-0 transition-colors"
               >
                 {cat}
               </button>
@@ -594,13 +636,15 @@ export function FnbCatalogCard({
         </div>
       )}
 
-      {c.fnbShowSearch !== false && (
+      {showSearch && (
         <div
+          data-canvas-sublayer="fnb_search"
           style={{
-            backgroundColor: theme.cardBg,
-            borderColor: theme.borderColor,
+            backgroundColor: searchBg,
+            borderColor: searchBorderColor,
+            borderRadius: `${searchRadius}px`,
           }}
-          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border shadow-2xs"
+          className="flex items-center gap-2.5 px-3.5 py-2.5 border shadow-2xs"
         >
           <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input
@@ -608,7 +652,7 @@ export function FnbCatalogCard({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={c.fnbSearchPlaceholder || 'Cari makanan dan minuman...'}
-            style={{ color: theme.textColor }}
+            style={{ color: searchTextColor }}
             className="w-full bg-transparent text-xs outline-none placeholder:text-slate-400"
           />
         </div>
@@ -616,8 +660,12 @@ export function FnbCatalogCard({
 
       {filteredItems.length === 0 ? (
         <div
-          style={{ backgroundColor: theme.cardBg, borderColor: theme.borderColor }}
-          className="p-6 rounded-2xl border text-center text-xs opacity-70"
+          style={{
+            backgroundColor: cardBgDefault,
+            borderColor: cardBorderColor,
+            borderRadius: `${cardRadius}px`,
+          }}
+          className="p-6 border text-center text-xs opacity-70"
         >
           Menu yang dicari tidak ditemukan.
         </div>
@@ -625,11 +673,12 @@ export function FnbCatalogCard({
         <div className="space-y-4">
           {groupedSections.map((sec, sIdx) => (
             <div key={`${sec.category}_${sIdx}`} className="space-y-2.5">
-              {sec.category && (
+              {sec.category && showSectionHeadings && (
                 <h3
+                  data-canvas-sublayer="fnb_section_heading"
                   data-jump-title={sec.category.toLowerCase()}
-                  style={{ color: theme.textColor }}
-                  className="text-base font-extrabold tracking-tight m-0 pt-1"
+                  style={{ color: headingColor, fontSize: `${headingSize}px` }}
+                  className="font-extrabold tracking-tight m-0 pt-1"
                 >
                   {sec.category}
                 </h3>
@@ -638,138 +687,199 @@ export function FnbCatalogCard({
                 {sec.items.map((item) => {
                   const qty = cartQtyLookup[item.id] ?? 0;
                   const origIdx = items.indexOf(item);
+                  const itemKey = String(item.id || (origIdx >= 0 ? origIdx : 0));
                   const mono =
                     (item.monogram || item.title || 'MN').trim().slice(0, 2).toUpperCase() || 'MN';
+                  const itemAccent = item.accentColor || accent;
+                  const itemCardBg = item.cardBgColor || cardBgDefault;
+                  const itemBadgeBg = item.badgeBgColor || '#F1F5F9';
+                  const itemBadgeText = item.badgeTextColor || '#334155';
+                  const imgGeo = resolveFnbItemImageGeometry(item, c, itemAccent);
+                  const imgSrc = (item.image || '').trim();
+                  const showImage = Boolean(imgSrc) && !brokenImgMap[`${itemKey}::${imgSrc}`];
+                  const showImgLayer = !isSubLayerHidden(block, `fnb_img_${itemKey}`);
+                  const showInfoLayer = !isSubLayerHidden(block, `fnb_info_${itemKey}`);
+                  const showActionLayer = !isSubLayerHidden(block, `fnb_action_${itemKey}`);
+
                   return (
                     <div
-                      key={item.id}
-                      data-canvas-sublayer={`fnb_${item.id || (origIdx >= 0 ? origIdx : 0)}`}
+                      key={item.id || itemKey}
+                      data-canvas-sublayer={`fnb_${itemKey}`}
                       style={{
-                        backgroundColor: theme.cardBg,
-                        borderColor: theme.borderColor,
+                        backgroundColor: itemCardBg,
+                        borderColor: cardBorderColor,
+                        borderRadius: `${cardRadius}px`,
                         color: theme.textColor,
                       }}
-                      className="p-3 rounded-2xl border shadow-2xs flex items-stretch gap-3 transition-transform hover:-translate-y-0.5"
+                      className="p-3 border shadow-2xs flex items-stretch gap-3 transition-transform hover:-translate-y-0.5"
                     >
-                      <div
-                        style={{
-                          width: `${imgSize}px`,
-                          height: `${imgSize}px`,
-                          backgroundColor: item.image ? '#F1F5F9' : item.monogramBg || '#FFEDD5',
-                          color: item.monogramColor || accent,
-                        }}
-                        className="rounded-xl shrink-0 overflow-hidden flex items-center justify-center font-extrabold select-none self-center"
-                      >
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.title}
-                            referrerPolicy="no-referrer"
-                            style={
-                              typeof c.imageZoom === 'number' &&
-                              Number.isFinite(c.imageZoom) &&
-                              c.imageZoom !== 100
-                                ? {
-                                    transform: `scale(${Math.max(50, Math.min(250, c.imageZoom)) / 100})`,
-                                    transformOrigin: 'center center',
-                                    transition: 'transform 160ms ease',
-                                  }
-                                : undefined
-                            }
-                            className="w-full h-full object-cover block"
-                          />
-                        ) : (
-                          <span style={{ fontSize: `${Math.round(imgSize * 0.24)}px` }}>
-                            {mono}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1 flex flex-col justify-between gap-2">
-                        <div className="space-y-1">
-                          {(item.badge || '').trim() && (
-                            <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
-                              {item.badge}
+                      {showImgLayer && (
+                        <div
+                          data-canvas-sublayer={`fnb_img_${itemKey}`}
+                          style={{
+                            width: `${imgGeo.frameWidth}px`,
+                            height: `${imgGeo.frameHeight}px`,
+                            borderRadius: imgGeo.radiusCss,
+                            padding: imgGeo.padding > 0 ? `${imgGeo.padding}px` : undefined,
+                            backgroundColor: showImage
+                              ? imgGeo.bgColor
+                              : item.imageBgColor || item.monogramBg || '#FFEDD5',
+                            color: item.monogramColor || itemAccent,
+                            border:
+                              imgGeo.borderWidth > 0 && imgGeo.borderColor !== 'transparent'
+                                ? `${imgGeo.borderWidth}px solid ${imgGeo.borderColor}`
+                                : undefined,
+                          }}
+                          className="shrink-0 overflow-hidden flex items-center justify-center font-extrabold select-none self-center box-border"
+                        >
+                          {showImage ? (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: imgGeo.innerRadiusCss,
+                                overflow: 'hidden',
+                              }}
+                              className="flex items-center justify-center"
+                            >
+                              <img
+                                src={imgSrc}
+                                alt={item.title}
+                                referrerPolicy="no-referrer"
+                                onError={() =>
+                                  setBrokenImgMap((prev) => ({
+                                    ...prev,
+                                    [`${itemKey}::${imgSrc}`]: true,
+                                  }))
+                                }
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: imgGeo.fit,
+                                  objectPosition: `${imgGeo.posX}% ${imgGeo.posY}%`,
+                                  transform:
+                                    imgGeo.zoom !== 100
+                                      ? `scale(${imgGeo.zoom / 100})`
+                                      : undefined,
+                                  transformOrigin: `${imgGeo.posX}% ${imgGeo.posY}%`,
+                                  transition: 'transform 160ms ease',
+                                }}
+                                className="block"
+                              />
+                            </div>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: `${Math.max(12, Math.round(imgGeo.baseSize * 0.24))}px`,
+                              }}
+                            >
+                              {mono}
                             </span>
                           )}
-                          <div
-                            style={{ fontSize: `${titleSize}px`, lineHeight: 1.25 }}
-                            className="font-bold break-words"
-                          >
-                            {item.title}
-                          </div>
-                          {(item.description || '').trim() && (
-                            <p
-                              style={{ fontSize: `${descSize}px`, lineHeight: 1.4 }}
-                              className="m-0 opacity-70 line-clamp-2 break-words"
-                            >
-                              {item.description}
-                            </p>
-                          )}
                         </div>
+                      )}
 
-                        <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <div className="min-w-0 flex-1 flex flex-col justify-between gap-2">
+                        {showInfoLayer && (
                           <div
-                            style={{ color: accent }}
-                            className="text-sm font-extrabold tabular-nums truncate"
+                            data-canvas-sublayer={`fnb_info_${itemKey}`}
+                            className="space-y-1"
                           >
-                            {item.price || 'Rp 0'}
-                          </div>
-
-                          {qty <= 0 ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onAddItem(item);
-                              }}
-                              style={{
-                                backgroundColor: `${accent}14`,
-                                color: accent,
-                                borderColor: `${accent}38`,
-                              }}
-                              className="px-3.5 py-1.5 rounded-full border text-xs font-bold cursor-pointer hover:opacity-90 active:scale-95 transition-all shrink-0"
-                            >
-                              Tambah
-                            </button>
-                          ) : (
-                            <div
-                              style={{ backgroundColor: `${accent}16` }}
-                              className="inline-flex items-center gap-2 p-1 rounded-full shrink-0"
-                            >
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDecrementItem(item);
-                                }}
-                                aria-label="Kurangi"
-                                style={{ color: accent }}
-                                className="w-6 h-6 rounded-full bg-white shadow-2xs flex items-center justify-center cursor-pointer hover:opacity-90 border-0"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
+                            {(item.badge || '').trim() && (
                               <span
-                                style={{ color: theme.textColor }}
-                                className="min-w-[16px] text-center text-xs font-extrabold tabular-nums"
+                                style={{
+                                  backgroundColor: itemBadgeBg,
+                                  color: itemBadgeText,
+                                }}
+                                className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold"
                               >
-                                {qty}
+                                {item.badge}
                               </span>
+                            )}
+                            <div
+                              style={{ fontSize: `${titleSize}px`, lineHeight: 1.25 }}
+                              className="font-bold break-words"
+                            >
+                              {item.title}
+                            </div>
+                            {(item.description || '').trim() && (
+                              <p
+                                style={{ fontSize: `${descSize}px`, lineHeight: 1.4 }}
+                                className="m-0 opacity-70 line-clamp-2 break-words"
+                              >
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {showActionLayer && (
+                          <div
+                            data-canvas-sublayer={`fnb_action_${itemKey}`}
+                            className="flex items-center justify-between gap-2 pt-0.5"
+                          >
+                            <div
+                              style={{ color: itemAccent }}
+                              className="text-sm font-extrabold tabular-nums truncate"
+                            >
+                              {item.price || 'Rp 0'}
+                            </div>
+
+                            {qty <= 0 ? (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onIncrementItem(item);
+                                  onAddItem(item);
                                 }}
-                                aria-label="Tambah"
-                                style={{ backgroundColor: accent, color: '#FFFFFF' }}
-                                className="w-6 h-6 rounded-full flex items-center justify-center cursor-pointer hover:opacity-95 border-0"
+                                style={{
+                                  backgroundColor: `${itemAccent}14`,
+                                  color: itemAccent,
+                                  borderColor: `${itemAccent}38`,
+                                }}
+                                className="px-3.5 py-1.5 rounded-full border text-xs font-bold cursor-pointer hover:opacity-90 active:scale-95 transition-all shrink-0"
                               >
-                                <Plus className="w-3 h-3" />
+                                {buttonLabel}
                               </button>
-                            </div>
-                          )}
-                        </div>
+                            ) : (
+                              <div
+                                style={{ backgroundColor: `${itemAccent}16` }}
+                                className="inline-flex items-center gap-2 p-1 rounded-full shrink-0"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDecrementItem(item);
+                                  }}
+                                  aria-label="Kurangi"
+                                  style={{ color: itemAccent }}
+                                  className="w-6 h-6 rounded-full bg-white shadow-2xs flex items-center justify-center cursor-pointer hover:opacity-90 border-0"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span
+                                  style={{ color: theme.textColor }}
+                                  className="min-w-[16px] text-center text-xs font-extrabold tabular-nums"
+                                >
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onIncrementItem(item);
+                                  }}
+                                  aria-label="Tambah"
+                                  style={{ backgroundColor: itemAccent, color: '#FFFFFF' }}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center cursor-pointer hover:opacity-95 border-0"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

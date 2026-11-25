@@ -448,6 +448,15 @@ export function HomePageSettings({
   } | null>(null);
   const [renamingBlockId, setRenamingBlockId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [expandedSubGroups, setExpandedSubGroups] = useState<Record<string, boolean>>({});
+  const [layerItemSearch, setLayerItemSearch] = useState<Record<string, string>>({});
+
+  const toggleSubLayerGroup = (subGroupKey: string) => {
+    setExpandedSubGroups((prev) => ({
+      ...prev,
+      [subGroupKey]: !prev[subGroupKey],
+    }));
+  };
 
   const startRenameBlock = (blk: BuilderBlock) => {
     setRenamingBlockId(blk.id);
@@ -504,6 +513,35 @@ export function HomePageSettings({
     );
     nextExpanded[selectedId] = true;
     setExpandedLayerGroups(nextExpanded);
+
+    if (selectedSubLayerId) {
+      const findBlk = (list: BuilderBlock[]): BuilderBlock | null => {
+        for (const b of list) {
+          if (b.id === selectedId) return b;
+          const nested = [
+            ...(b.children ?? []),
+            ...(b.content?.cardFooterBlocks ?? []),
+            ...(b.content?.actionSheetBlocks ?? []),
+          ];
+          const hit = findBlk(nested);
+          if (hit) return hit;
+        }
+        return null;
+      };
+      const selectedBlk = findBlk(blocks);
+      if (selectedBlk) {
+        const subs = extractBlockSubLayers(selectedBlk);
+        for (const s of subs) {
+          if (s.children?.some((ch) => ch.id === selectedSubLayerId)) {
+            setExpandedSubGroups((prev) => ({
+              ...prev,
+              [`${selectedBlk.id}::${s.id}`]: true,
+            }));
+            break;
+          }
+        }
+      }
+    }
 
     const timer = window.setTimeout(() => {
       const root = scrollContainerRef.current;
@@ -681,153 +719,210 @@ export function HomePageSettings({
 
   const pageThemeOverrideCount = countLocalThemeOverrides(blocks);
 
-  const renderSubLayerRow = (blk: BuilderBlock, sub: ExtractedSubLayer) => {
+  const renderSubLayerRow = (
+    blk: BuilderBlock,
+    sub: ExtractedSubLayer,
+    isNestedChild = false
+  ): React.ReactNode => {
     const isSubSelected = blk.id === selectedId && selectedSubLayerId === sub.id;
-    return (
-      <div
-        key={`${blk.id}::${sub.id}`}
-        data-sublayer-id={`${blk.id}::${sub.id}`}
-        data-sublayer-kind={sub.kind}
-        data-sublayer-selected={isSubSelected ? 'true' : 'false'}
-        className={`group/sub w-full flex items-center gap-1 px-1.5 py-1.5 rounded-lg border text-left transition-all ${
-          isSubSelected
-            ? 'bg-[#ECFDF6] border-[#00C98A] border-l-[3px] text-[#17243D] shadow-2xs'
-            : sub.isHidden
-            ? 'bg-[#F8FAFC] border-dashed border-[#DCE5EF] text-[#8FA4BF] hover:border-[#8FA4BF] hover:bg-white'
-            : 'bg-white/90 border-[#E6EDF5] text-[#17243D] hover:border-[#00C98A]/60 hover:bg-[#F8FBFE]'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onSelectSubLayer) {
-              onSelectSubLayer(blk.id, sub.id);
-            } else {
-              onSelectBlock(blk.id);
-            }
-          }}
-          className="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer"
-        >
-          <span
-            className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
-              isSubSelected
-                ? 'bg-[#00C98A] text-white'
-                : sub.kind === 'item'
-                ? 'bg-[#F0F5FA] text-[#008F63]'
-                : 'bg-[#F0F5FA] text-[#5B708B]'
-            }`}
-          >
-            {renderSubLayerIcon(sub.icon, 'w-3 h-3')}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1 min-w-0">
-              {sub.layerBadge && (
-                <span
-                  className={`px-1 py-0 rounded text-[8.5px] font-bold uppercase tracking-wide shrink-0 ${
-                    isSubSelected
-                      ? 'bg-[#17243D] text-[#7AF0C7]'
-                      : 'bg-[#17243D]/10 text-[#17243D]'
-                  }`}
-                >
-                  {sub.layerBadge}
-                </span>
-              )}
-              <span
-                className={`truncate text-[10.5px] leading-tight ${
-                  isSubSelected
-                    ? 'font-bold text-[#17243D]'
-                    : sub.isHidden
-                    ? 'font-medium text-[#8FA4BF] line-through'
-                    : 'font-semibold text-[#17243D]'
-                }`}
-              >
-                {sub.label}
-              </span>
-              {sub.isLocked && (
-                <Lock className="w-2.5 h-2.5 text-amber-600 shrink-0" aria-label="Terkunci" />
-              )}
-            </div>
-            <div className="flex items-center gap-1 mt-0.5 min-w-0">
-              <span
-                className={`truncate text-[9px] leading-tight ${
-                  isSubSelected ? 'text-[#008F63] font-medium' : 'text-[#8FA4BF]'
-                }`}
-              >
-                {sub.typeLabel}
-              </span>
-              {sub.isHidden && (
-                <span className="inline-flex items-center gap-0.5 text-[8.5px] font-semibold text-[#8FA4BF] shrink-0">
-                  <EyeOff className="w-2.5 h-2.5" />
-                  <span>Tersembunyi</span>
-                </span>
-              )}
-            </div>
-          </div>
-        </button>
+    const subGroupKey = `${blk.id}::${sub.id}`;
+    const hasSubChildren = Array.isArray(sub.children) && sub.children.length > 0;
+    const isSubExpanded = Boolean(expandedSubGroups[subGroupKey]);
+    const hasActiveChild =
+      hasSubChildren &&
+      blk.id === selectedId &&
+      Boolean(sub.children?.some((ch) => ch.id === selectedSubLayerId));
 
-        {/* Independent Sub-Layer Actions (NEVER deletes parent block) */}
+    return (
+      <div key={subGroupKey} className="space-y-1">
         <div
-          className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
-            isSubSelected ? 'opacity-100' : 'opacity-0 group-hover/sub:opacity-100'
+          data-sublayer-id={subGroupKey}
+          data-sublayer-kind={sub.kind}
+          data-sublayer-selected={isSubSelected ? 'true' : 'false'}
+          className={`group/sub w-full flex items-center gap-1 px-1.5 py-1.5 rounded-lg border text-left transition-all ${
+            isSubSelected
+              ? 'bg-[#ECFDF6] border-[#00C98A] border-l-[3px] text-[#17243D] shadow-2xs'
+              : hasActiveChild
+              ? 'bg-[#F3FBF7] border-[#00C98A]/55 text-[#17243D]'
+              : sub.isHidden
+              ? 'bg-[#F8FAFC] border-dashed border-[#DCE5EF] text-[#8FA4BF] hover:border-[#8FA4BF] hover:bg-white'
+              : isNestedChild
+              ? 'bg-[#F8FBFE] border-[#E6EDF5] text-[#17243D] hover:border-[#00C98A]/60 hover:bg-white'
+              : 'bg-white/90 border-[#E6EDF5] text-[#17243D] hover:border-[#00C98A]/60 hover:bg-[#F8FBFE]'
           }`}
         >
-          {sub.canToggleVisibility && onToggleSubLayerVisibility && (
+          {hasSubChildren && (
             <button
               type="button"
+              aria-expanded={isSubExpanded}
+              aria-label={isSubExpanded ? 'Tutup detail lapisan item' : 'Buka detail lapisan item'}
+              title={isSubExpanded ? 'Tutup lapisan dalam item' : 'Lihat lapisan dalam item (Gambar, Info, Harga)'}
               onClick={(e) => {
                 e.stopPropagation();
-                onToggleSubLayerVisibility(blk.id, sub.id);
+                toggleSubLayerGroup(subGroupKey);
               }}
-              title={sub.isHidden ? 'Tampilkan Sub-Lapisan' : 'Sembunyikan Sub-Lapisan'}
-              aria-label={sub.isHidden ? 'Tampilkan Sub-Lapisan' : 'Sembunyikan Sub-Lapisan'}
-              className={`p-1 rounded cursor-pointer transition-colors ${
-                sub.isHidden
-                  ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
-                  : 'text-[#51637D] hover:bg-[#F0F5FA] hover:text-[#17243D]'
+              className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                isSubExpanded || hasActiveChild
+                  ? 'bg-[#00C98A]/15 text-[#059669] hover:bg-[#00C98A]/25'
+                  : 'bg-[#F0F5FA] text-[#64748B] hover:bg-[#DCE5EF]'
               }`}
             >
-              {sub.isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              <ChevronDown
+                className={`w-2.5 h-2.5 transition-transform duration-150 ${
+                  isSubExpanded ? 'rotate-0' : '-rotate-90'
+                }`}
+              />
             </button>
           )}
-          {sub.canLock && onToggleSubLayerLock && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSubLayerLock(blk.id, sub.id);
-              }}
-              title={sub.isLocked ? 'Buka Kunci Sub-Lapisan' : 'Kunci Sub-Lapisan'}
-              aria-label={sub.isLocked ? 'Buka Kunci Sub-Lapisan' : 'Kunci Sub-Lapisan'}
-              className={`p-1 rounded cursor-pointer transition-colors ${
-                sub.isLocked
-                  ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
-                  : 'text-[#8FA4BF] hover:bg-[#F0F5FA] hover:text-[#17243D]'
-              }`}
-            >
-              {sub.isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-            </button>
-          )}
-          {sub.canDelete && onDeleteSubLayer && (
-            <button
-              type="button"
-              disabled={Boolean(sub.isLocked)}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteSubLayer(blk.id, sub.id);
-              }}
-              title={
-                sub.isLocked
-                  ? 'Sub-lapisan terkunci'
-                  : `Hapus hanya ${sub.label} (induk tetap utuh)`
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onSelectSubLayer) {
+                onSelectSubLayer(blk.id, sub.id);
+              } else {
+                onSelectBlock(blk.id);
               }
-              aria-label={`Hapus sub-lapisan ${sub.label}`}
-              className="p-1 rounded text-[#8FA4BF] hover:bg-red-50 hover:text-red-600 disabled:opacity-35 disabled:pointer-events-none cursor-pointer transition-colors"
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          )}
+            }}
+            className="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer"
+          >
+            {sub.thumbnailUrl ? (
+              <span className="w-5 h-5 rounded-md overflow-hidden border border-[#DCE5EF] bg-[#F1F5F9] shrink-0 flex items-center justify-center">
+                <img
+                  src={sub.thumbnailUrl}
+                  alt={sub.label}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover block"
+                />
+              </span>
+            ) : (
+              <span
+                className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+                  isSubSelected
+                    ? 'bg-[#00C98A] text-white'
+                    : sub.kind === 'item'
+                    ? 'bg-[#F0F5FA] text-[#008F63]'
+                    : 'bg-[#F0F5FA] text-[#5B708B]'
+                }`}
+              >
+                {renderSubLayerIcon(sub.icon, 'w-3 h-3')}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1 min-w-0">
+                {sub.layerBadge && (
+                  <span
+                    className={`px-1 py-0 rounded text-[8.5px] font-bold uppercase tracking-wide shrink-0 ${
+                      isSubSelected
+                        ? 'bg-[#17243D] text-[#7AF0C7]'
+                        : 'bg-[#17243D]/10 text-[#17243D]'
+                    }`}
+                  >
+                    {sub.layerBadge}
+                  </span>
+                )}
+                <span
+                  className={`truncate text-[10.5px] leading-tight ${
+                    isSubSelected
+                      ? 'font-bold text-[#17243D]'
+                      : sub.isHidden
+                      ? 'font-medium text-[#8FA4BF] line-through'
+                      : 'font-semibold text-[#17243D]'
+                  }`}
+                >
+                  {sub.label}
+                </span>
+                {sub.isLocked && (
+                  <Lock className="w-2.5 h-2.5 text-amber-600 shrink-0" aria-label="Terkunci" />
+                )}
+              </div>
+              <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                <span
+                  className={`truncate text-[9px] leading-tight ${
+                    isSubSelected ? 'text-[#008F63] font-medium' : 'text-[#8FA4BF]'
+                  }`}
+                >
+                  {sub.typeLabel}
+                </span>
+                {sub.isHidden && (
+                  <span className="inline-flex items-center gap-0.5 text-[8.5px] font-semibold text-[#8FA4BF] shrink-0">
+                    <EyeOff className="w-2.5 h-2.5" />
+                    <span>Tersembunyi</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </button>
+
+          {/* Independent Sub-Layer Actions (NEVER deletes parent block) */}
+          <div
+            className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
+              isSubSelected ? 'opacity-100' : 'opacity-0 group-hover/sub:opacity-100'
+            }`}
+          >
+            {sub.canToggleVisibility && onToggleSubLayerVisibility && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSubLayerVisibility(blk.id, sub.id);
+                }}
+                title={sub.isHidden ? 'Tampilkan Sub-Lapisan' : 'Sembunyikan Sub-Lapisan'}
+                aria-label={sub.isHidden ? 'Tampilkan Sub-Lapisan' : 'Sembunyikan Sub-Lapisan'}
+                className={`p-1 rounded cursor-pointer transition-colors ${
+                  sub.isHidden
+                    ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+                    : 'text-[#51637D] hover:bg-[#F0F5FA] hover:text-[#17243D]'
+                }`}
+              >
+                {sub.isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              </button>
+            )}
+            {sub.canLock && onToggleSubLayerLock && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSubLayerLock(blk.id, sub.id);
+                }}
+                title={sub.isLocked ? 'Buka Kunci Sub-Lapisan' : 'Kunci Sub-Lapisan'}
+                aria-label={sub.isLocked ? 'Buka Kunci Sub-Lapisan' : 'Kunci Sub-Lapisan'}
+                className={`p-1 rounded cursor-pointer transition-colors ${
+                  sub.isLocked
+                    ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+                    : 'text-[#8FA4BF] hover:bg-[#F0F5FA] hover:text-[#17243D]'
+                }`}
+              >
+                {sub.isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+              </button>
+            )}
+            {sub.canDelete && onDeleteSubLayer && (
+              <button
+                type="button"
+                disabled={Boolean(sub.isLocked)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteSubLayer(blk.id, sub.id);
+                }}
+                title={
+                  sub.isLocked
+                    ? 'Sub-lapisan terkunci'
+                    : `Hapus hanya ${sub.label} (induk tetap utuh)`
+                }
+                aria-label={`Hapus sub-lapisan ${sub.label}`}
+                className="p-1 rounded text-[#8FA4BF] hover:bg-red-50 hover:text-red-600 disabled:opacity-35 disabled:pointer-events-none cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
+
+        {hasSubChildren && isSubExpanded && (
+          <div className="ml-3 pl-2 border-l border-[#DCE5EF] space-y-1">
+            {sub.children!.map((childSub) => renderSubLayerRow(blk, childSub, true))}
+          </div>
+        )}
       </div>
     );
   };
@@ -861,7 +956,11 @@ export function HomePageSettings({
     const parentBlockId = isSelected ? findParentBlockId(blocks, blk.id) : null;
     const activeSubInThisBlock =
       isSelected && selectedSubLayerId
-        ? subLayers.find((s) => s.id === selectedSubLayerId) ?? null
+        ? subLayers.find(
+            (s) =>
+              s.id === selectedSubLayerId ||
+              Boolean(s.children?.some((ch) => ch.id === selectedSubLayerId))
+          ) ?? null
         : null;
 
     const isHeroBanner = blk.type === 'hero_profile' && blk.content?.heroVariant === 'banner';
@@ -1363,6 +1462,11 @@ export function HomePageSettings({
                 {/* Bagian Struktural Komponen */}
                 {partSubLayers.length > 0 && (
                   <div className="space-y-1">
+                    {itemSubLayers.length > 0 && (
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
+                        Bagian Komponen ({partSubLayers.length})
+                      </div>
+                    )}
                     {partSubLayers.map((sub) => renderSubLayerRow(blk, sub))}
                   </div>
                 )}
@@ -1382,14 +1486,49 @@ export function HomePageSettings({
                 )}
 
                 {/* Daftar Item Data (Slide / Produk / Menu F&B / Program / Kategori / Sosmed / Kolom Form) */}
-                {itemSubLayers.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-[#008F63] px-1">
-                      Daftar Item ({itemSubLayers.length})
+                {itemSubLayers.length > 0 && (() => {
+                  const rawQuery = (layerItemSearch[blk.id] ?? '').trim().toLowerCase();
+                  const filteredItemSubs = rawQuery
+                    ? itemSubLayers.filter(
+                        (s) =>
+                          s.label.toLowerCase().includes(rawQuery) ||
+                          s.typeLabel.toLowerCase().includes(rawQuery)
+                      )
+                    : itemSubLayers;
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1 px-1 pt-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-[#008F63]">
+                          Daftar Item ({itemSubLayers.length})
+                        </span>
+                        {rawQuery && (
+                          <span className="text-[9px] text-[#64748B] tabular-nums">
+                            {filteredItemSubs.length} cocok
+                          </span>
+                        )}
+                      </div>
+                      {itemSubLayers.length > 8 && (
+                        <input
+                          type="search"
+                          value={layerItemSearch[blk.id] ?? ''}
+                          onChange={(e) =>
+                            setLayerItemSearch((prev) => ({ ...prev, [blk.id]: e.target.value }))
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          placeholder="Cari item di layer..."
+                          className="w-full px-2 py-1 text-[10.5px] rounded-md border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#94A3B8] outline-none focus:border-[#00C98A]"
+                        />
+                      )}
+                      {filteredItemSubs.length === 0 ? (
+                        <div className="px-2 py-2 text-[10px] text-[#8FA4BF] text-center">
+                          Item tidak ditemukan
+                        </div>
+                      ) : (
+                        filteredItemSubs.map((sub) => renderSubLayerRow(blk, sub))
+                      )}
                     </div>
-                    {itemSubLayers.map((sub) => renderSubLayerRow(blk, sub))}
-                  </div>
-                )}
+                  );
+                })()}
               </>
             )}
 

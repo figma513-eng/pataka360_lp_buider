@@ -24,6 +24,7 @@ import {
   normalizeFacebookVideoUrl,
 } from './videoHelpers.ts';
 import { sanitizeExternalUrl } from './urlHelpers.ts';
+import { resolveFnbItemImageGeometry } from './fnbHelpers.ts';
 import {
   GOSEND_DEFAULT_CHECKLISTS,
   buildTrainingWhatsappUrl,
@@ -2970,15 +2971,37 @@ ${indent}</div>`;
 
     case 'fnb_catalog': {
       const c = block.content;
-      const items = c.fnbItems ?? [];
+      const hiddenSubSet = new Set(Array.isArray(c.hiddenSubLayers) ? c.hiddenSubLayers : []);
+      const allItems = c.fnbItems ?? [];
+      const items = allItems.filter((it, idx) => {
+        if (it.hidden) return false;
+        const key = String(it.id || idx);
+        if (hiddenSubSet.has(`fnb_${key}`)) return false;
+        return true;
+      });
       const accent = c.fnbAccentColor || theme.accentColor || '#EA580C';
-      const imgSize = Math.max(52, Math.min(130, c.fnbItemImageSize ?? 80));
       const titleSize = Math.max(12, Math.min(24, c.fnbItemTitleSize ?? block.style.fontSize ?? 15));
       const descSize = Math.max(10, Math.min(18, c.fnbItemDescSize ?? 12));
-      const showCats = Boolean(c.fnbShowCategories);
-      const showSearch = c.fnbShowSearch !== false;
-      const groupByCat = c.fnbGroupByCategory !== false;
+      const showCats = Boolean(c.fnbShowCategories) && !hiddenSubSet.has('fnb_categories');
+      const showSearch = c.fnbShowSearch !== false && !hiddenSubSet.has('fnb_search');
+      const groupByCat = c.fnbGroupByCategory !== false && !hiddenSubSet.has('fnb_section_heading');
       const searchPh = c.fnbSearchPlaceholder || 'Cari makanan dan minuman...';
+      const catActiveBg = c.fnbCategoryActiveBg || accent;
+      const catActiveText = c.fnbCategoryActiveText || '#FFFFFF';
+      const catInactiveBg = c.fnbCategoryInactiveBg || '#F1F5F9';
+      const catInactiveText = c.fnbCategoryInactiveText || '#334155';
+      const catRadius = Math.max(4, Math.min(999, c.fnbCategoryRadius ?? 999));
+      const catFontSize = Math.max(10, Math.min(16, c.fnbCategoryFontSize ?? 12));
+      const searchBg = c.fnbSearchBg || theme.cardBg;
+      const searchBorder = c.fnbSearchBorderColor || theme.borderColor;
+      const searchTextColor = c.fnbSearchTextColor || theme.textColor;
+      const searchRadius = Math.max(4, Math.min(32, c.fnbSearchRadius ?? 16));
+      const headingSize = Math.max(12, Math.min(26, c.fnbHeadingSize ?? 16));
+      const headingColor = c.fnbHeadingColor || theme.textColor;
+      const cardBgDefault = c.fnbCardBg || theme.cardBg;
+      const cardBorderDefault = c.fnbCardBorderColor || theme.borderColor;
+      const cardRadius = Math.max(0, Math.min(32, c.fnbCardRadius ?? 16));
+      const addButtonLabel = (c.fnbButtonLabel || 'Tambah').trim() || 'Tambah';
 
       const cats: string[] = [];
       for (const it of items) {
@@ -2993,17 +3016,17 @@ ${indent}</div>`;
                 const on = idx === 0;
                 return `<button type="button" data-fnb-cat="${escapeHtml(
                   cat.toLowerCase()
-                )}" style="padding:6px 14px; border-radius:9999px; border:0; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0; font-family:inherit; background:${
-                  on ? accent : '#F1F5F9'
-                }; color:${on ? '#FFFFFF' : '#334155'};">${escapeHtml(cat)}</button>`;
+                )}" style="padding:6px 14px; border-radius:${catRadius}px; border:0; font-size:${catFontSize}px; font-weight:700; cursor:pointer; flex-shrink:0; font-family:inherit; background:${
+                  on ? catActiveBg : catInactiveBg
+                }; color:${on ? catActiveText : catInactiveText};">${escapeHtml(cat)}</button>`;
               })
               .join('')}</div>`
           : '';
 
       const searchHtml = showSearch
-        ? `<div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:16px; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; box-shadow:0 1px 2px rgba(15,23,42,0.04);"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="search" data-fnb-search placeholder="${escapeHtml(
+        ? `<div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:${searchRadius}px; border:1px solid ${searchBorder}; background:${searchBg}; box-shadow:0 1px 2px rgba(15,23,42,0.04);"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="search" data-fnb-search placeholder="${escapeHtml(
             searchPh
-          )}" style="width:100%; border:0; outline:none; background:transparent; color:${theme.textColor}; font-size:12px; font-family:inherit;" /></div>`
+          )}" style="width:100%; border:0; outline:none; background:transparent; color:${searchTextColor}; font-size:12px; font-family:inherit;" /></div>`
         : '';
 
       const groups: { category: string; items: typeof items }[] = [];
@@ -3026,33 +3049,45 @@ ${indent}</div>`;
           const headingHtml = sec.category
             ? `<h3 data-jump-title="${escapeHtml(
                 sec.category.toLowerCase()
-              )}" style="margin:0; padding-top:4px; font-size:16px; font-weight:800; letter-spacing:-0.01em; color:${
-                theme.textColor
+              )}" style="margin:0; padding-top:4px; font-size:${headingSize}px; font-weight:800; letter-spacing:-0.01em; color:${
+                headingColor
               };">${escapeHtml(sec.category)}</h3>`
             : '';
 
           const cardsHtml = sec.items
             .map((item) => {
+              const origIdx = allItems.indexOf(item);
+              const itemKey = String(item.id || (origIdx >= 0 ? origIdx : 0));
+              const itemAccent = item.accentColor || accent;
+              const itemCardBg = item.cardBgColor || cardBgDefault;
+              const geom = resolveFnbItemImageGeometry(item, c, itemAccent);
+              const hideItemImg = hiddenSubSet.has(`fnb_img_${itemKey}`);
               const mono =
                 (item.monogram || item.title || 'MN').trim().slice(0, 2).toUpperCase() || 'MN';
-              const fnbZoom =
-                typeof block.content.imageZoom === 'number' &&
-                Number.isFinite(block.content.imageZoom)
-                  ? Math.max(50, Math.min(250, block.content.imageZoom))
-                  : 100;
               const fnbZoomCss =
-                fnbZoom !== 100
-                  ? ` transform: scale(${(fnbZoom / 100).toFixed(2)}); transform-origin: center center;`
+                geom.zoom !== 100
+                  ? ` transform: scale(${(geom.zoom / 100).toFixed(2)}); transform-origin: ${geom.posX}% ${geom.posY}%;`
                   : '';
-              const mediaHtml = item.image
+              const borderCss =
+                geom.borderWidth > 0 && geom.borderColor !== 'transparent'
+                  ? ` border:${geom.borderWidth}px solid ${geom.borderColor};`
+                  : '';
+              const mediaInnerHtml = item.image
                 ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(
                     item.title
-                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;${fnbZoomCss}" />`
-                : `<span style="font-size:${Math.round(imgSize * 0.24)}px; font-weight:800;">${escapeHtml(
+                  )}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:${geom.fit}; object-position:${geom.posX}% ${geom.posY}%; display:block;${fnbZoomCss}" />`
+                : `<span style="font-size:${Math.round(geom.baseSize * 0.24)}px; font-weight:800;">${escapeHtml(
                     mono
                   )}</span>`;
+              const mediaContainerHtml = hideItemImg
+                ? ''
+                : `\n${indent}        <div style="width:${geom.frameWidth}px; height:${geom.frameHeight}px; border-radius:${geom.radiusCss}; padding:${geom.padding}px; box-sizing:border-box; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; align-self:center; background:${
+                    geom.bgColor
+                  }; color:${item.monogramColor || itemAccent};${borderCss}"><div style="width:100%; height:100%; border-radius:${geom.innerRadiusCss}; overflow:hidden; display:flex; align-items:center; justify-content:center;">${mediaInnerHtml}</div></div>`;
+              const badgeBg = item.badgeBgColor || '#F1F5F9';
+              const badgeColor = item.badgeTextColor || '#334155';
               const badgeHtml = (item.badge || '').trim()
-                ? `<span style="display:inline-block; padding:2px 8px; border-radius:9999px; background:#F1F5F9; color:#334155; font-size:10px; font-weight:700; width:fit-content;">${escapeHtml(
+                ? `<span style="display:inline-block; padding:2px 8px; border-radius:9999px; background:${badgeBg}; color:${badgeColor}; font-size:10px; font-weight:700; width:fit-content;">${escapeHtml(
                     (item.badge || '').trim()
                   )}</span>`
                 : '';
@@ -3071,14 +3106,11 @@ ${indent}</div>`;
                 (item.category || 'Menu').trim().toLowerCase()
               )}" data-fnb-haystack="${escapeHtml(
                 searchHaystack
-              )}" style="padding:12px; border-radius:16px; border:1px solid ${
-                theme.borderColor
-              }; background:${theme.cardBg}; color:${
+              )}" style="padding:12px; border-radius:${cardRadius}px; border:1px solid ${
+                cardBorderDefault
+              }; background:${itemCardBg}; color:${
                 theme.textColor
-              }; box-shadow:0 1px 2px rgba(15,23,42,0.04); display:flex; align-items:stretch; gap:12px;">
-${indent}        <div style="width:${imgSize}px; height:${imgSize}px; border-radius:12px; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; align-self:center; background:${
-                item.image ? '#F1F5F9' : item.monogramBg || '#FFEDD5'
-              }; color:${item.monogramColor || accent};">${mediaHtml}</div>
+              }; box-shadow:0 1px 2px rgba(15,23,42,0.04); display:flex; align-items:stretch; gap:12px;">${mediaContainerHtml}
 ${indent}        <div style="min-width:0; flex:1; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
 ${indent}          <div style="display:flex; flex-direction:column; gap:4px;">
 ${indent}            ${badgeHtml}
@@ -3088,21 +3120,23 @@ ${indent}            <div style="font-size:${titleSize}px; line-height:1.25; fon
 ${indent}            ${descHtml}
 ${indent}          </div>
 ${indent}          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:2px;">
-${indent}            <div style="font-size:14px; font-weight:800; color:${accent}; font-variant-numeric:tabular-nums;">${escapeHtml(
+${indent}            <div style="font-size:14px; font-weight:800; color:${itemAccent}; font-variant-numeric:tabular-nums;">${escapeHtml(
                 item.price || 'Rp 0'
               )}</div>
 ${indent}            <div style="flex-shrink:0;">
 ${indent}              <button type="button" data-fnb-add="${escapeHtml(block.id)}::${escapeHtml(
                 item.id
-              )}" style="padding:6px 14px; border-radius:9999px; border:1px solid ${accent}38; background:${accent}14; color:${accent}; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;">Tambah</button>
+              )}" style="padding:6px 14px; border-radius:9999px; border:1px solid ${itemAccent}38; background:${itemAccent}14; color:${itemAccent}; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;">${escapeHtml(
+                addButtonLabel
+              )}</button>
 ${indent}              <div data-fnb-stepper="${escapeHtml(block.id)}::${escapeHtml(
                 item.id
-              )}" style="display:none; align-items:center; gap:8px; padding:4px; border-radius:9999px; background:${accent}16;">
+              )}" style="display:none; align-items:center; gap:8px; padding:4px; border-radius:9999px; background:${itemAccent}16;">
 ${indent}                <button type="button" data-fnb-dec="${escapeHtml(
                 block.id
               )}::${escapeHtml(
                 item.id
-              )}" aria-label="Kurangi" style="width:24px; height:24px; border-radius:9999px; border:0; background:#FFFFFF; color:${accent}; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,0.08);">-</button>
+              )}" aria-label="Kurangi" style="width:24px; height:24px; border-radius:9999px; border:0; background:#FFFFFF; color:${itemAccent}; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,0.08);">-</button>
 ${indent}                <span data-fnb-qty="${escapeHtml(block.id)}::${escapeHtml(
                 item.id
               )}" style="min-width:16px; text-align:center; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums;">0</span>
@@ -3110,7 +3144,7 @@ ${indent}                <button type="button" data-fnb-inc="${escapeHtml(
                 block.id
               )}::${escapeHtml(
                 item.id
-              )}" aria-label="Tambah" style="width:24px; height:24px; border-radius:9999px; border:0; background:${accent}; color:#FFFFFF; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">+</button>
+              )}" aria-label="Tambah" style="width:24px; height:24px; border-radius:9999px; border:0; background:${itemAccent}; color:#FFFFFF; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">+</button>
 ${indent}              </div>
 ${indent}            </div>
 ${indent}          </div>
@@ -3128,14 +3162,14 @@ ${indent}    </div>`;
       return `${indent}<div data-fnb-catalog="${escapeHtml(
         block.id
       )}" data-fnb-accent="${escapeHtml(
-        accent
+        catActiveBg
       )}" style="${css}; display:flex; flex-direction:column; gap:14px; text-align:left;">
 ${catBarHtml ? `${indent}  ${catBarHtml}\n` : ''}${
         searchHtml ? `${indent}  ${searchHtml}\n` : ''
       }${indent}  <div data-fnb-sections style="display:flex; flex-direction:column; gap:16px;">
 ${sectionsHtml}
 ${indent}  </div>
-${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:16px; border:1px solid ${theme.borderColor}; background:${theme.cardBg}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
+${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:${cardRadius}px; border:1px solid ${cardBorderDefault}; background:${cardBgDefault}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
 ${indent}</div>`;
     }
 

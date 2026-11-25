@@ -29,12 +29,20 @@ import {
   CatalogCartButtonSize,
   CategoryScrollMode,
   FloatingCartPosition,
+  FnbImageShape,
+  FnbMenuItem,
   HeroProfileVariant,
   PageTheme,
   ResponsiveStyleOverride,
   ViewportBreakpoint,
 } from '../../types/builder';
 import { FONT_OPTIONS } from '../../utils/fontHelpers';
+import {
+  FNB_IMAGE_SHAPE_OPTIONS,
+  findFnbItemBySubLayerKey,
+  parseFnbItemSubLayerId,
+  resolveFnbItemImageGeometry,
+} from '../../utils/fnbHelpers';
 import {
   GRADIENT_PRESETS,
   buildLinearGradientCss,
@@ -96,18 +104,22 @@ function PhotoScaleControl({
   value,
   onChange,
   hint,
+  min = 50,
+  max = 250,
 }: {
   label: string;
   value?: number;
   onChange: (nextScale: number) => void;
   hint?: string;
+  min?: number;
+  max?: number;
 }) {
   const safeVal =
     typeof value === 'number' && Number.isFinite(value)
-      ? Math.max(50, Math.min(250, Math.round(value)))
+      ? Math.max(min, Math.min(max, Math.round(value)))
       : 100;
   const stepBy = (delta: number) => {
-    const next = Math.max(50, Math.min(250, safeVal + delta));
+    const next = Math.max(min, Math.min(max, safeVal + delta));
     onChange(next);
   };
   return (
@@ -134,7 +146,7 @@ function PhotoScaleControl({
         <button
           type="button"
           onClick={() => stepBy(-5)}
-          disabled={safeVal <= 50}
+          disabled={safeVal <= min}
           title="Perkecil foto (-5%)"
           className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F8FAFC] disabled:opacity-40 flex items-center justify-center shrink-0 cursor-pointer"
         >
@@ -142,18 +154,18 @@ function PhotoScaleControl({
         </button>
         <input
           type="range"
-          min={50}
-          max={250}
+          min={min}
+          max={max}
           step={5}
           value={safeVal}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={rangeProgressStyle(safeVal, 50, 250)}
+          style={rangeProgressStyle(safeVal, min, max)}
           className="w-full cursor-pointer"
         />
         <button
           type="button"
           onClick={() => stepBy(5)}
-          disabled={safeVal >= 250}
+          disabled={safeVal >= max}
           title="Perbesar foto (+5%)"
           className="w-6 h-6 rounded-md border border-[#DCE5EF] bg-white text-[#17243D] hover:bg-[#F8FAFC] disabled:opacity-40 flex items-center justify-center shrink-0 cursor-pointer"
         >
@@ -1295,152 +1307,1100 @@ export function BlockDesignTab({
         );
       }
 
-      case 'fnb_catalog':
-        return (
-          <div className="space-y-3">
-            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-[#17243D]">
-                  Kotak Item Dipilih (Mengambang)
-                </span>
-                <ToggleSwitch
-                  checked={c.fnbFloatingCartEnabled !== false}
-                  onChange={(val) => updateContent({ fnbFloatingCartEnabled: val })}
-                  label="Aktifkan kotak item mengambang"
-                />
-              </div>
-              {c.fnbFloatingCartEnabled !== false && (
-                <>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                      Posisi Kotak Mengambang
-                    </label>
-                    <select
-                      value={c.fnbFloatingCartPosition ?? 'bottom-floating'}
-                      onChange={(e) =>
-                        updateContent({
-                          fnbFloatingCartPosition: e.target.value as FloatingCartPosition,
-                        })
-                      }
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
-                    >
-                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
-                      <option value="bottom-docked">Menempel Tepi Bawah</option>
-                      <option value="bottom-left">Melayang Kiri Bawah</option>
-                      <option value="bottom-right">Melayang Kanan Bawah</option>
-                      <option value="top-floating">Melayang Atas Penuh</option>
-                      <option value="top-left">Melayang Kiri Atas</option>
-                      <option value="top-right">Melayang Kanan Atas</option>
-                    </select>
-                  </div>
-                  {(() => {
-                    const globalCart = resolveProjectFloatingCartConfig(
-                      allBlocks,
-                      bottomNavbar?.items,
-                      pages
-                    );
-                    if (!globalCart || globalCart.totalSources <= 1) return null;
-                    const isPrimary = globalCart.sourceBlockId === selectedBlock.id;
-                    return (
-                      <div
-                        className={`p-2 rounded-lg border text-[10px] leading-relaxed ${
-                          isPrimary
-                            ? 'bg-[#ECFDF6] border-[#00C98A]/40 text-[#0F5132]'
-                            : 'bg-amber-50 border-amber-200 text-amber-900'
-                        }`}
-                      >
-                        {isPrimary ? (
-                          <span>
-                            Pengendali aktif Floating Cart global ({globalCart.totalSources} komponen keranjang terdeteksi).
-                          </span>
-                        ) : (
-                          <div className="space-y-1">
-                            <div>
-                              Floating Cart global saat ini dikendalikan oleh <strong>{globalCart.sourceBlockLabel}</strong>.
-                            </div>
-                            {onSelectBlock && (
-                              <button
-                                type="button"
-                                onClick={() => onSelectBlock(globalCart.sourceBlockId)}
-                                className="underline font-bold cursor-pointer"
-                              >
-                                Buka komponen pengendali
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <SliderRow
-                    label="Jarak Tepi (Offset)"
-                    value={`${c.fnbFloatingCartOffsetY ?? 16}px`}
-                    min={0}
-                    max={100}
-                    current={c.fnbFloatingCartOffsetY ?? 16}
-                    onChange={(val) => updateContent({ fnbFloatingCartOffsetY: val })}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
-                        Warna Kotak Keranjang
-                      </label>
-                      <input
-                        type="color"
-                        value={c.fnbFloatingCartBg ?? c.fnbAccentColor ?? '#EA580C'}
-                        onChange={(e) =>
-                          updateAccentContent({ fnbFloatingCartBg: e.target.value })
-                        }
-                        className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
-                        Warna Aksen Harga
-                      </label>
-                      <input
-                        type="color"
-                        value={c.fnbAccentColor ?? '#EA580C'}
-                        onChange={(e) => updateAccentContent({ fnbAccentColor: e.target.value })}
-                        className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+      case 'fnb_catalog': {
+        const subId = selectedSubLayer?.id ?? null;
+        const parsedItemSub = parseFnbItemSubLayerId(subId);
+        const fnbItems = c.fnbItems ?? [];
+        const activeAccent = c.fnbAccentColor ?? theme.accentColor ?? '#EA580C';
 
-            <SliderRow
-              label="Ukuran Foto Menu"
-              value={`${c.fnbItemImageSize ?? 80}px`}
-              min={52}
-              max={120}
-              current={c.fnbItemImageSize ?? 80}
-              onChange={(val) => updateContent({ fnbItemImageSize: val })}
-            />
-            <PhotoScaleControl
-              label="Scale Foto Menu (Kartu)"
-              value={c.imageZoom ?? 100}
-              onChange={(val) => updateContent({ imageZoom: val })}
-            />
-            <SliderRow
-              label="Ukuran Judul Menu"
-              value={`${c.fnbItemTitleSize ?? 15}px`}
-              min={12}
-              max={24}
-              current={c.fnbItemTitleSize ?? 15}
-              onChange={(val) => updateContent({ fnbItemTitleSize: val })}
-            />
-            <SliderRow
-              label="Ukuran Deskripsi"
-              value={`${c.fnbItemDescSize ?? 12}px`}
-              min={10}
-              max={18}
-              current={c.fnbItemDescSize ?? 12}
-              onChange={(val) => updateContent({ fnbItemDescSize: val })}
-            />
+        const updateFnbItemByKey = (itemKey: string, patch: Partial<FnbMenuItem>) => {
+          updateContent({
+            fnbItems: fnbItems.map((it, idx) =>
+              String(it.id || idx) === itemKey ? { ...it, ...patch } : it
+            ),
+          });
+        };
+
+        const renderFloatingCartControls = () => (
+          <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-[#17243D]">
+                Kotak Item Dipilih (Mengambang)
+              </span>
+              <ToggleSwitch
+                checked={c.fnbFloatingCartEnabled !== false}
+                onChange={(val) => updateContent({ fnbFloatingCartEnabled: val })}
+                label="Aktifkan kotak item mengambang"
+              />
+            </div>
+            {c.fnbFloatingCartEnabled !== false && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Posisi Kotak Mengambang
+                  </label>
+                  <select
+                    value={c.fnbFloatingCartPosition ?? 'bottom-floating'}
+                    onChange={(e) =>
+                      updateContent({
+                        fnbFloatingCartPosition: e.target.value as FloatingCartPosition,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  >
+                    <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                    <option value="bottom-docked">Menempel Tepi Bawah</option>
+                    <option value="bottom-left">Melayang Kiri Bawah</option>
+                    <option value="bottom-right">Melayang Kanan Bawah</option>
+                    <option value="top-floating">Melayang Atas Penuh</option>
+                    <option value="top-left">Melayang Kiri Atas</option>
+                    <option value="top-right">Melayang Kanan Atas</option>
+                  </select>
+                </div>
+                {(() => {
+                  const globalCart = resolveProjectFloatingCartConfig(
+                    allBlocks,
+                    bottomNavbar?.items,
+                    pages
+                  );
+                  if (!globalCart || globalCart.totalSources <= 1) return null;
+                  const isPrimary = globalCart.sourceBlockId === selectedBlock.id;
+                  return (
+                    <div
+                      className={`p-2 rounded-lg border text-[10px] leading-relaxed ${
+                        isPrimary
+                          ? 'bg-[#ECFDF6] border-[#00C98A]/40 text-[#0F5132]'
+                          : 'bg-amber-50 border-amber-200 text-amber-900'
+                      }`}
+                    >
+                      {isPrimary ? (
+                        <span>
+                          Pengendali aktif Floating Cart global ({globalCart.totalSources} komponen keranjang terdeteksi).
+                        </span>
+                      ) : (
+                        <div className="space-y-1">
+                          <div>
+                            Floating Cart global saat ini dikendalikan oleh <strong>{globalCart.sourceBlockLabel}</strong>.
+                          </div>
+                          {onSelectBlock && (
+                            <button
+                              type="button"
+                              onClick={() => onSelectBlock(globalCart.sourceBlockId)}
+                              className="underline font-bold cursor-pointer"
+                            >
+                              Buka komponen pengendali
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                <SliderRow
+                  label="Jarak Tepi (Offset)"
+                  value={`${c.fnbFloatingCartOffsetY ?? 16}px`}
+                  min={0}
+                  max={100}
+                  current={c.fnbFloatingCartOffsetY ?? 16}
+                  onChange={(val) => updateContent({ fnbFloatingCartOffsetY: val })}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                      Warna Kotak Keranjang
+                    </label>
+                    <input
+                      type="color"
+                      value={c.fnbFloatingCartBg ?? c.fnbAccentColor ?? '#EA580C'}
+                      onChange={(e) =>
+                        updateAccentContent({ fnbFloatingCartBg: e.target.value })
+                      }
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                      Warna Aksen Harga
+                    </label>
+                    <input
+                      type="color"
+                      value={c.fnbAccentColor ?? '#EA580C'}
+                      onChange={(e) => updateAccentContent({ fnbAccentColor: e.target.value })}
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         );
+
+        // 1) PER-ITEM OR INNER ITEM SUB-LAYER (fnb_<key>, fnb_img_<key>, fnb_info_<key>, fnb_action_<key>)
+        if (parsedItemSub) {
+          const activeItem = findFnbItemBySubLayerKey(fnbItems, parsedItemSub.itemKey);
+          if (activeItem) {
+            const itemKey = parsedItemSub.itemKey;
+            const geo = resolveFnbItemImageGeometry(activeItem, c, activeAccent);
+            const focusKind = parsedItemSub.kind;
+
+            const resetItemVisuals = () => {
+              updateFnbItemByKey(itemKey, {
+                imageShape: undefined,
+                imageRadius: undefined,
+                imageSize: undefined,
+                imageZoom: undefined,
+                imageFit: undefined,
+                imagePadding: undefined,
+                imagePositionX: undefined,
+                imagePositionY: undefined,
+                imageBgColor: undefined,
+                imageBorderColor: undefined,
+                imageBorderWidth: undefined,
+                cardBgColor: undefined,
+                accentColor: undefined,
+                badgeBgColor: undefined,
+                badgeTextColor: undefined,
+              });
+            };
+
+            const applyPhotoStyleToAll = () => {
+              updateContent({
+                fnbItemImageShape: geo.shape,
+                fnbItemImageRadius:
+                  typeof activeItem.imageRadius === 'number'
+                    ? activeItem.imageRadius
+                    : c.fnbItemImageRadius ?? 12,
+                fnbItemImageSize: geo.baseSize,
+                imageZoom: geo.zoom,
+                fnbItemImageFit: geo.fit,
+                fnbItemImagePadding: geo.padding,
+                fnbItemImageBg: activeItem.imageBgColor || c.fnbItemImageBg,
+                fnbItems: fnbItems.map((it) => ({
+                  ...it,
+                  imageShape: geo.shape,
+                  imageRadius:
+                    typeof activeItem.imageRadius === 'number'
+                      ? activeItem.imageRadius
+                      : c.fnbItemImageRadius ?? 12,
+                  imageSize: geo.baseSize,
+                  imageZoom: geo.zoom,
+                  imageFit: geo.fit,
+                  imagePadding: geo.padding,
+                  imagePositionX: geo.posX,
+                  imagePositionY: geo.posY,
+                  imageBgColor: activeItem.imageBgColor,
+                  imageBorderColor: activeItem.imageBorderColor,
+                  imageBorderWidth: activeItem.imageBorderWidth,
+                })),
+              });
+            };
+
+            const showPhotoSection = focusKind === 'card' || focusKind === 'img';
+            const showCardInfoSection = focusKind === 'card' || focusKind === 'info';
+            const showActionSection = focusKind === 'card' || focusKind === 'action';
+
+            return (
+              <div className="space-y-3">
+                {/* Item Header & Quick Sub-Layer Part Switcher */}
+                <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-[#00A872]">
+                        {focusKind === 'img'
+                          ? 'Layer Gambar & Shape'
+                          : focusKind === 'info'
+                          ? 'Layer Badge, Judul & Deskripsi'
+                          : focusKind === 'action'
+                          ? 'Layer Harga & Tombol'
+                          : 'Pengaturan Item Khusus'}
+                      </div>
+                      <div className="text-xs font-bold text-[#17243D] truncate">
+                        {activeItem.title || 'Menu F&B'}
+                      </div>
+                    </div>
+                    {geo.hasPerItemOverride && (
+                      <button
+                        type="button"
+                        onClick={resetItemVisuals}
+                        title="Reset gaya item ke default katalog"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#DCE5EF] bg-white text-[10px] font-semibold text-[#51637D] hover:text-[#17243D] cursor-pointer shrink-0"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  {onSelectSubLayer && (
+                    <div className="grid grid-cols-4 gap-1">
+                      {[
+                        { id: `fnb_${itemKey}`, label: 'Kartu' },
+                        { id: `fnb_img_${itemKey}`, label: 'Gambar' },
+                        { id: `fnb_info_${itemKey}`, label: 'Info' },
+                        { id: `fnb_action_${itemKey}`, label: 'Harga' },
+                      ].map((tab) => {
+                        const active = subId === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => onSelectSubLayer(selectedBlock.id, tab.id)}
+                            className={`py-1 rounded-md text-[10.5px] font-semibold border transition-colors cursor-pointer ${
+                              active
+                                ? 'bg-[#17243D] text-white border-[#17243D]'
+                                : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Per-Item Photo & Shape Controls */}
+                {showPhotoSection && (
+                  <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[#17243D]">
+                        Gambar Produk & Shape
+                      </span>
+                      <span className="text-[10px] font-mono text-[#51637D] tabular-nums">
+                        {geo.frameWidth}×{geo.frameHeight}px · {geo.zoom}%
+                      </span>
+                    </div>
+
+                    {/* Bentuk Shape */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                        Bentuk Shape Foto
+                      </label>
+                      <div className="grid grid-cols-5 gap-1">
+                        {FNB_IMAGE_SHAPE_OPTIONS.map((opt) => {
+                          const active = geo.shape === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() =>
+                                updateFnbItemByKey(itemKey, { imageShape: opt.id })
+                              }
+                              className={`py-1.5 px-1 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                                active
+                                  ? 'bg-[#ECFDF6] text-[#047857] border-[#00C98A]'
+                                  : 'bg-[#F8FAFC] text-[#51637D] border-[#DCE5EF] hover:border-[#94A3B8]'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {geo.shape === 'rounded' && (
+                      <SliderRow
+                        label="Radius Sudut Shape"
+                        value={`${activeItem.imageRadius ?? c.fnbItemImageRadius ?? 12}px`}
+                        min={0}
+                        max={40}
+                        current={activeItem.imageRadius ?? c.fnbItemImageRadius ?? 12}
+                        onChange={(val) =>
+                          updateFnbItemByKey(itemKey, { imageRadius: val })
+                        }
+                      />
+                    )}
+
+                    {/* Ukuran Frame Shape */}
+                    <SliderRow
+                      label="Ukuran Frame Shape"
+                      value={`${geo.baseSize}px`}
+                      min={44}
+                      max={160}
+                      current={geo.baseSize}
+                      onChange={(val) => updateFnbItemByKey(itemKey, { imageSize: val })}
+                    />
+
+                    {/* Besar Gambar dalam Shape (Zoom/Scale) */}
+                    <PhotoScaleControl
+                      label="Besar Gambar dalam Shape"
+                      value={geo.zoom}
+                      min={40}
+                      max={260}
+                      onChange={(val) => updateFnbItemByKey(itemKey, { imageZoom: val })}
+                      hint="Perbesar atau perkecil foto di dalam bingkai shape tanpa mengubah ukuran kartu."
+                    />
+
+                    {/* Mode Pas Gambar */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                        Mode Pas Gambar
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {(
+                          [
+                            { id: 'cover', label: 'Penuh (Cover)' },
+                            { id: 'contain', label: 'Utuh (Contain)' },
+                          ] as const
+                        ).map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => updateFnbItemByKey(itemKey, { imageFit: opt.id })}
+                            className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border transition-colors cursor-pointer ${
+                              geo.fit === opt.id
+                                ? 'bg-[#ECFDF6] text-[#047857] border-[#00C98A]'
+                                : 'bg-[#F8FAFC] text-[#51637D] border-[#DCE5EF] hover:border-[#94A3B8]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Padding dalam Shape */}
+                    <SliderRow
+                      label="Jarak Dalam Shape (Padding)"
+                      value={`${geo.padding}px`}
+                      min={0}
+                      max={24}
+                      current={geo.padding}
+                      onChange={(val) =>
+                        updateFnbItemByKey(itemKey, { imagePadding: val })
+                      }
+                    />
+
+                    {/* Posisi Fokus Foto X & Y */}
+                    <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF] space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-[#17243D]">
+                          Posisi Fokus Gambar
+                        </span>
+                        {(geo.posX !== 50 || geo.posY !== 50) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateFnbItemByKey(itemKey, {
+                                imagePositionX: 50,
+                                imagePositionY: 50,
+                              })
+                            }
+                            className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                          >
+                            Tengah (50%)
+                          </button>
+                        )}
+                      </div>
+                      <SliderRow
+                        label="Geser Horizontal (X)"
+                        value={`${geo.posX}%`}
+                        min={0}
+                        max={100}
+                        current={geo.posX}
+                        onChange={(val) =>
+                          updateFnbItemByKey(itemKey, { imagePositionX: val })
+                        }
+                      />
+                      <SliderRow
+                        label="Geser Vertikal (Y)"
+                        value={`${geo.posY}%`}
+                        min={0}
+                        max={100}
+                        current={geo.posY}
+                        onChange={(val) =>
+                          updateFnbItemByKey(itemKey, { imagePositionY: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Warna Latar & Bingkai Shape */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10.5px] font-medium text-[#51637D]">
+                            Latar Shape
+                          </label>
+                          {activeItem.imageBgColor && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateFnbItemByKey(itemKey, { imageBgColor: undefined })
+                              }
+                              className="text-[9.5px] text-[#00A872] hover:underline cursor-pointer"
+                            >
+                              Auto
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="color"
+                          value={
+                            activeItem.imageBgColor ||
+                            c.fnbItemImageBg ||
+                            '#F1F5F9'
+                          }
+                          onChange={(e) =>
+                            updateFnbItemByKey(itemKey, {
+                              imageBgColor: e.target.value,
+                            })
+                          }
+                          className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10.5px] font-medium text-[#51637D]">
+                            Bingkai Shape
+                          </label>
+                          {activeItem.imageBorderColor && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateFnbItemByKey(itemKey, {
+                                  imageBorderColor: undefined,
+                                  imageBorderWidth: 0,
+                                })
+                              }
+                              className="text-[9.5px] text-[#00A872] hover:underline cursor-pointer"
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="color"
+                          value={activeItem.imageBorderColor || '#CBD5E1'}
+                          onChange={(e) =>
+                            updateFnbItemByKey(itemKey, {
+                              imageBorderColor: e.target.value,
+                              imageBorderWidth:
+                                activeItem.imageBorderWidth && activeItem.imageBorderWidth > 0
+                                  ? activeItem.imageBorderWidth
+                                  : 1,
+                            })
+                          }
+                          className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <SliderRow
+                      label="Tebal Bingkai Shape"
+                      value={`${geo.borderWidth}px`}
+                      min={0}
+                      max={4}
+                      current={geo.borderWidth}
+                      onChange={(val) =>
+                        updateFnbItemByKey(itemKey, {
+                          imageBorderWidth: val,
+                          imageBorderColor:
+                            val > 0 ? activeItem.imageBorderColor || '#CBD5E1' : undefined,
+                        })
+                      }
+                    />
+
+                    <button
+                      type="button"
+                      onClick={applyPhotoStyleToAll}
+                      className="w-full py-1.5 px-2.5 rounded-lg border border-[#00C98A]/50 bg-[#ECFDF6] text-[#047857] text-[11px] font-bold hover:bg-[#D1FAE5] transition-colors cursor-pointer"
+                    >
+                      Terapkan Gaya Foto ini ke Semua Menu ({fnbItems.length})
+                    </button>
+                  </div>
+                )}
+
+                {/* Per-Item Badge, Card BG & Typography Info */}
+                {showCardInfoSection && (
+                  <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-2.5">
+                    <div className="text-xs font-bold text-[#17243D]">
+                      Gaya Kartu & Badge Item
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-medium text-[#51637D]">
+                            Kartu
+                          </label>
+                          {activeItem.cardBgColor && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateFnbItemByKey(itemKey, { cardBgColor: undefined })
+                              }
+                              className="text-[9px] text-[#00A872] cursor-pointer"
+                            >
+                              Auto
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="color"
+                          value={activeItem.cardBgColor || c.fnbCardBg || theme.cardBg || '#FFFFFF'}
+                          onChange={(e) =>
+                            updateFnbItemByKey(itemKey, { cardBgColor: e.target.value })
+                          }
+                          className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-medium text-[#51637D]">
+                            Latar Badge
+                          </label>
+                          {activeItem.badgeBgColor && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateFnbItemByKey(itemKey, { badgeBgColor: undefined })
+                              }
+                              className="text-[9px] text-[#00A872] cursor-pointer"
+                            >
+                              Auto
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="color"
+                          value={activeItem.badgeBgColor || '#F1F5F9'}
+                          onChange={(e) =>
+                            updateFnbItemByKey(itemKey, { badgeBgColor: e.target.value })
+                          }
+                          className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-medium text-[#51637D]">
+                            Teks Badge
+                          </label>
+                          {activeItem.badgeTextColor && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateFnbItemByKey(itemKey, { badgeTextColor: undefined })
+                              }
+                              className="text-[9px] text-[#00A872] cursor-pointer"
+                            >
+                              Auto
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="color"
+                          value={activeItem.badgeTextColor || '#334155'}
+                          onChange={(e) =>
+                            updateFnbItemByKey(itemKey, { badgeTextColor: e.target.value })
+                          }
+                          className="w-full h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                        />
+                      </div>
+                    </div>
+                    {focusKind === 'info' && (
+                      <>
+                        <SliderRow
+                          label="Ukuran Judul Menu (Global)"
+                          value={`${c.fnbItemTitleSize ?? 15}px`}
+                          min={12}
+                          max={24}
+                          current={c.fnbItemTitleSize ?? 15}
+                          onChange={(val) => updateContent({ fnbItemTitleSize: val })}
+                        />
+                        <SliderRow
+                          label="Ukuran Deskripsi (Global)"
+                          value={`${c.fnbItemDescSize ?? 12}px`}
+                          min={10}
+                          max={18}
+                          current={c.fnbItemDescSize ?? 12}
+                          onChange={(val) => updateContent({ fnbItemDescSize: val })}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Per-Item Price & Action Accent */}
+                {showActionSection && (
+                  <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#17243D]">
+                        Warna Harga & Tombol Item
+                      </span>
+                      {activeItem.accentColor && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateFnbItemByKey(itemKey, { accentColor: undefined })
+                          }
+                          className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                        >
+                          Ikut Katalog
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="color"
+                      value={activeItem.accentColor || activeAccent}
+                      onChange={(e) =>
+                        updateFnbItemByKey(itemKey, { accentColor: e.target.value })
+                      }
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                    {focusKind === 'action' && (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                          Teks Tombol Tambah (Semua Item)
+                        </label>
+                        <input
+                          type="text"
+                          value={c.fnbButtonLabel ?? 'Tambah'}
+                          onChange={(e) => updateContent({ fnbButtonLabel: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Visibility Toggle */}
+                <div className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF]">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Sembunyikan Item dari Katalog
+                  </span>
+                  <ToggleSwitch
+                    checked={Boolean(activeItem.hidden)}
+                    onChange={(val) => updateFnbItemByKey(itemKey, { hidden: val })}
+                    label="Sembunyikan item dari katalog"
+                  />
+                </div>
+              </div>
+            );
+          }
+        }
+
+        // 2) STRUCTURAL SUB-LAYERS
+        if (subId === 'fnb_categories') {
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <span className="text-xs font-bold text-[#17243D]">Tampilkan Tab Kategori</span>
+                <ToggleSwitch
+                  checked={Boolean(c.fnbShowCategories)}
+                  onChange={(val) => updateContent({ fnbShowCategories: val })}
+                  label="Tampilkan tab kategori"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Latar Tab Aktif
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbCategoryActiveBg ?? activeAccent}
+                    onChange={(e) => updateContent({ fnbCategoryActiveBg: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Teks Tab Aktif
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbCategoryActiveText ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ fnbCategoryActiveText: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Latar Tab Normal
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbCategoryInactiveBg ?? '#F1F5F9'}
+                    onChange={(e) => updateContent({ fnbCategoryInactiveBg: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Teks Tab Normal
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbCategoryInactiveText ?? '#334155'}
+                    onChange={(e) => updateContent({ fnbCategoryInactiveText: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+              <SliderRow
+                label="Radius Sudut Tab"
+                value={`${Math.min(32, c.fnbCategoryRadius ?? 32)}px`}
+                min={4}
+                max={32}
+                current={Math.min(32, c.fnbCategoryRadius ?? 32)}
+                onChange={(val) =>
+                  updateContent({ fnbCategoryRadius: val >= 32 ? 999 : val })
+                }
+              />
+              <SliderRow
+                label="Ukuran Teks Tab"
+                value={`${c.fnbCategoryFontSize ?? 12}px`}
+                min={10}
+                max={16}
+                current={c.fnbCategoryFontSize ?? 12}
+                onChange={(val) => updateContent({ fnbCategoryFontSize: val })}
+              />
+            </div>
+          );
+        }
+
+        if (subId === 'fnb_search') {
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <span className="text-xs font-bold text-[#17243D]">Tampilkan Kolom Pencarian</span>
+                <ToggleSwitch
+                  checked={c.fnbShowSearch !== false}
+                  onChange={(val) => updateContent({ fnbShowSearch: val })}
+                  label="Tampilkan kolom pencarian"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-[#51637D] mb-1">
+                    Latar
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbSearchBg ?? theme.cardBg ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ fnbSearchBg: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-[#51637D] mb-1">
+                    Garis Tepi
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbSearchBorderColor ?? theme.borderColor ?? '#E2E8F0'}
+                    onChange={(e) => updateContent({ fnbSearchBorderColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-[#51637D] mb-1">
+                    Teks
+                  </label>
+                  <input
+                    type="color"
+                    value={c.fnbSearchTextColor ?? theme.textColor ?? '#0F172A'}
+                    onChange={(e) => updateContent({ fnbSearchTextColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+              <SliderRow
+                label="Radius Sudut Kolom"
+                value={`${c.fnbSearchRadius ?? 16}px`}
+                min={6}
+                max={32}
+                current={c.fnbSearchRadius ?? 16}
+                onChange={(val) => updateContent({ fnbSearchRadius: val })}
+              />
+            </div>
+          );
+        }
+
+        if (subId === 'fnb_section_heading') {
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Kelompokkan Menu per Kategori
+                </span>
+                <ToggleSwitch
+                  checked={c.fnbGroupByCategory !== false}
+                  onChange={(val) => updateContent({ fnbGroupByCategory: val })}
+                  label="Kelompokkan menu per kategori"
+                />
+              </div>
+              <SliderRow
+                label="Ukuran Judul Grup"
+                value={`${c.fnbHeadingSize ?? 16}px`}
+                min={12}
+                max={26}
+                current={c.fnbHeadingSize ?? 16}
+                onChange={(val) => updateContent({ fnbHeadingSize: val })}
+              />
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-[#17243D]">
+                    Warna Judul Grup
+                  </label>
+                  {c.fnbHeadingColor && (
+                    <button
+                      type="button"
+                      onClick={() => updateContent({ fnbHeadingColor: undefined })}
+                      className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                    >
+                      Ikut Tema
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="color"
+                  value={c.fnbHeadingColor ?? theme.textColor ?? '#0F172A'}
+                  onChange={(e) => updateContent({ fnbHeadingColor: e.target.value })}
+                  className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+            </div>
+          );
+        }
+
+        if (subId === 'fnb_floating_cart') {
+          return <div className="space-y-3">{renderFloatingCartControls()}</div>;
+        }
+
+        if (subId === 'fnb_customer_form' || subId === 'fnb_shipping') {
+          const isForm = subId === 'fnb_customer_form';
+          return (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+                <span className="text-xs font-bold text-[#17243D]">
+                  {isForm ? 'Aktifkan Form Data Pemesan' : 'Aktifkan Opsi Pengiriman'}
+                </span>
+                <ToggleSwitch
+                  checked={
+                    isForm
+                      ? c.catalogAskCustomerInfo !== false
+                      : c.catalogShippingEnabled !== false
+                  }
+                  onChange={(val) =>
+                    updateContent(
+                      isForm
+                        ? { catalogAskCustomerInfo: val }
+                        : { catalogShippingEnabled: val }
+                    )
+                  }
+                  label={isForm ? 'Aktifkan Form Data Pemesan' : 'Aktifkan Opsi Pengiriman'}
+                />
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF] text-[11px] text-[#51637D] leading-relaxed">
+                {isForm
+                  ? 'Atur daftar field (Nama, No WA, Alamat, Catatan) dan wajib isi di tab Konten.'
+                  : 'Atur metode pengiriman (Makan di Tempat, Ambil Sendiri, Antar Kurir) beserta ongkir di tab Konten.'}
+              </div>
+            </div>
+          );
+        }
+
+        // 3) PARENT CATALOG GLOBAL DEFAULTS
+        return (
+          <div className="space-y-3">
+            {renderFloatingCartControls()}
+
+            {/* Default Foto & Shape Semua Menu */}
+            <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-2.5">
+              <div className="text-xs font-bold text-[#17243D]">
+                Default Foto & Shape Semua Menu
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Bentuk Shape Default
+                </label>
+                <div className="grid grid-cols-5 gap-1">
+                  {FNB_IMAGE_SHAPE_OPTIONS.map((opt) => {
+                    const active = (c.fnbItemImageShape ?? 'rounded') === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ fnbItemImageShape: opt.id })}
+                        className={`py-1.5 px-1 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-[#ECFDF6] text-[#047857] border-[#00C98A]'
+                            : 'bg-[#F8FAFC] text-[#51637D] border-[#DCE5EF] hover:border-[#94A3B8]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {(c.fnbItemImageShape ?? 'rounded') === 'rounded' && (
+                <SliderRow
+                  label="Radius Sudut Foto Default"
+                  value={`${c.fnbItemImageRadius ?? 12}px`}
+                  min={0}
+                  max={40}
+                  current={c.fnbItemImageRadius ?? 12}
+                  onChange={(val) => updateContent({ fnbItemImageRadius: val })}
+                />
+              )}
+              <SliderRow
+                label="Ukuran Frame Foto Default"
+                value={`${c.fnbItemImageSize ?? 80}px`}
+                min={44}
+                max={160}
+                current={c.fnbItemImageSize ?? 80}
+                onChange={(val) => updateContent({ fnbItemImageSize: val })}
+              />
+              <PhotoScaleControl
+                label="Besar Gambar dalam Shape (Default)"
+                value={c.imageZoom ?? 100}
+                min={40}
+                max={260}
+                onChange={(val) => updateContent({ imageZoom: val })}
+                hint="Bisa ditimpa khusus per item dengan memilih item di Layer atau klik foto di kanvas."
+              />
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'cover', label: 'Penuh (Cover)' },
+                    { id: 'contain', label: 'Utuh (Contain)' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ fnbItemImageFit: opt.id })}
+                    className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border transition-colors cursor-pointer ${
+                      (c.fnbItemImageFit ?? 'cover') === opt.id
+                        ? 'bg-[#ECFDF6] text-[#047857] border-[#00C98A]'
+                        : 'bg-[#F8FAFC] text-[#51637D] border-[#DCE5EF] hover:border-[#94A3B8]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <SliderRow
+                label="Padding Dalam Shape Default"
+                value={`${c.fnbItemImagePadding ?? 0}px`}
+                min={0}
+                max={24}
+                current={c.fnbItemImagePadding ?? 0}
+                onChange={(val) => updateContent({ fnbItemImagePadding: val })}
+              />
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10.5px] font-medium text-[#51637D]">
+                    Latar Shape Default
+                  </label>
+                  {c.fnbItemImageBg && (
+                    <button
+                      type="button"
+                      onClick={() => updateContent({ fnbItemImageBg: undefined })}
+                      className="text-[9.5px] text-[#00A872] hover:underline cursor-pointer"
+                    >
+                      Auto
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="color"
+                  value={c.fnbItemImageBg ?? '#F1F5F9'}
+                  onChange={(e) => updateContent({ fnbItemImageBg: e.target.value })}
+                  className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Gaya Kartu & Tipografi Menu */}
+            <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-2.5">
+              <div className="text-xs font-bold text-[#17243D]">
+                Gaya Kartu & Teks Menu
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10.5px] font-medium text-[#51637D]">
+                      Latar Kartu
+                    </label>
+                    {c.fnbCardBg && (
+                      <button
+                        type="button"
+                        onClick={() => updateContent({ fnbCardBg: undefined })}
+                        className="text-[9.5px] text-[#00A872] cursor-pointer"
+                      >
+                        Auto
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="color"
+                    value={c.fnbCardBg ?? theme.cardBg ?? '#FFFFFF'}
+                    onChange={(e) => updateContent({ fnbCardBg: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10.5px] font-medium text-[#51637D]">
+                      Garis Kartu
+                    </label>
+                    {c.fnbCardBorderColor && (
+                      <button
+                        type="button"
+                        onClick={() => updateContent({ fnbCardBorderColor: undefined })}
+                        className="text-[9.5px] text-[#00A872] cursor-pointer"
+                      >
+                        Auto
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="color"
+                    value={c.fnbCardBorderColor ?? theme.borderColor ?? '#E2E8F0'}
+                    onChange={(e) => updateContent({ fnbCardBorderColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+              <SliderRow
+                label="Radius Sudut Kartu"
+                value={`${c.fnbCardRadius ?? 16}px`}
+                min={0}
+                max={32}
+                current={c.fnbCardRadius ?? 16}
+                onChange={(val) => updateContent({ fnbCardRadius: val })}
+              />
+              <SliderRow
+                label="Ukuran Judul Menu"
+                value={`${c.fnbItemTitleSize ?? 15}px`}
+                min={12}
+                max={24}
+                current={c.fnbItemTitleSize ?? 15}
+                onChange={(val) => updateContent({ fnbItemTitleSize: val })}
+              />
+              <SliderRow
+                label="Ukuran Deskripsi"
+                value={`${c.fnbItemDescSize ?? 12}px`}
+                min={10}
+                max={18}
+                current={c.fnbItemDescSize ?? 12}
+                onChange={(val) => updateContent({ fnbItemDescSize: val })}
+              />
+              <SliderRow
+                label="Ukuran Judul Kategori"
+                value={`${c.fnbHeadingSize ?? 16}px`}
+                min={12}
+                max={26}
+                current={c.fnbHeadingSize ?? 16}
+                onChange={(val) => updateContent({ fnbHeadingSize: val })}
+              />
+            </div>
+          </div>
+        );
+      }
 
       case 'catalog':
         return (

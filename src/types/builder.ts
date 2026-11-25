@@ -72,6 +72,8 @@ export type FloatingCartPosition =
   | 'top-right';
 export type CategoryScrollMode = 'vertical' | 'horizontal' | 'wrap';
 
+export type FnbImageShape = 'rounded' | 'square' | 'circle' | 'squircle' | 'pill';
+
 export interface FnbMenuItem {
   id: string;
   title: string;
@@ -83,6 +85,38 @@ export interface FnbMenuItem {
   monogram?: string;
   monogramBg?: string;
   monogramColor?: string;
+  /** Sembunyikan item menu ini secara independen dari tampilan katalog */
+  hidden?: boolean;
+  /** Bentuk wadah/shape foto produk per-item */
+  imageShape?: FnbImageShape;
+  /** Radius sudut kustom (px) saat shape = rounded */
+  imageRadius?: number;
+  /** Ukuran frame/shape foto produk per-item dalam px (44 - 160) */
+  imageSize?: number;
+  /** Besar gambar di dalam shape (zoom/scale %, 40 - 260) */
+  imageZoom?: number;
+  /** Mode isi gambar dalam shape: cover (penuh) atau contain (utuh) */
+  imageFit?: 'cover' | 'contain';
+  /** Jarak dalam (padding) foto di dalam shape (0 - 24 px) */
+  imagePadding?: number;
+  /** Fokus horizontal foto dalam shape (0 - 100%, default 50) */
+  imagePositionX?: number;
+  /** Fokus vertikal foto dalam shape (0 - 100%, default 50) */
+  imagePositionY?: number;
+  /** Warna latar belakang di dalam shape foto */
+  imageBgColor?: string;
+  /** Warna bingkai / border shape foto */
+  imageBorderColor?: string;
+  /** Ketebalan border shape foto (0 - 4 px) */
+  imageBorderWidth?: number;
+  /** Override warna latar kartu item */
+  cardBgColor?: string;
+  /** Override warna aksen harga & tombol item */
+  accentColor?: string;
+  /** Override warna latar badge item */
+  badgeBgColor?: string;
+  /** Override warna teks badge item */
+  badgeTextColor?: string;
 }
 
 export interface FnbHeroSlideItem {
@@ -850,8 +884,29 @@ export interface BlockContent {
   fnbGroupByCategory?: boolean;
   fnbAccentColor?: string;
   fnbItemImageSize?: number;
+  fnbItemImageShape?: FnbImageShape;
+  fnbItemImageRadius?: number;
+  fnbItemImageFit?: 'cover' | 'contain';
+  fnbItemImagePadding?: number;
+  fnbItemImageBg?: string;
   fnbItemTitleSize?: number;
   fnbItemDescSize?: number;
+  fnbCategoryActiveBg?: string;
+  fnbCategoryActiveText?: string;
+  fnbCategoryInactiveBg?: string;
+  fnbCategoryInactiveText?: string;
+  fnbCategoryRadius?: number;
+  fnbCategoryFontSize?: number;
+  fnbSearchBg?: string;
+  fnbSearchBorderColor?: string;
+  fnbSearchTextColor?: string;
+  fnbSearchRadius?: number;
+  fnbHeadingSize?: number;
+  fnbHeadingColor?: string;
+  fnbCardBg?: string;
+  fnbCardBorderColor?: string;
+  fnbCardRadius?: number;
+  fnbButtonLabel?: string;
   fnbFloatingCartEnabled?: boolean;
   fnbFloatingCartPosition?: FloatingCartPosition;
   fnbFloatingCartOffsetY?: number;
