@@ -316,6 +316,7 @@ ${enabledNavItems
         offsetY: Math.max(0, Math.min(120, resolvedProjectFloat.offsetY ?? 16)),
         bgColor: resolvedProjectFloat.bg || project.theme.accentColor || '#059669',
         actionLabel: resolvedProjectFloat.label || 'Lihat Keranjang',
+        alwaysShowWhenEmpty: Boolean(resolvedProjectFloat.alwaysShowWhenEmpty),
       }
     : null;
   const googleFontsHref = buildGoogleFontsHref(collectProjectFontIds(project));
@@ -2136,7 +2137,7 @@ ${bodyBlocks}
 
             var sheetOpen = Boolean(document.querySelector('[data-bottom-sheet].is-open'));
             var floatCfg = storeData.fnbFloatConfig;
-            var useFnbCapsule = Boolean(fnbFloatBar && floatCfg && totals.count > 0 && activeRoute.type !== 'cart');
+            var useFnbCapsule = Boolean(fnbFloatBar && floatCfg && (totals.count > 0 || floatCfg.alwaysShowWhenEmpty) && activeRoute.type !== 'cart');
             if (fnbFloatBar) {
               if (!useFnbCapsule) {
                 fnbFloatBar.style.display = 'none';
@@ -2166,7 +2167,7 @@ ${bodyBlocks}
                   fnbFloatBtn.style.maxWidth = isDocked ? '100%' : isLeft || isRight ? '300px' : '400px';
                 }
                 if (fnbFloatCount) fnbFloatCount.textContent = totals.count + ' item';
-                if (fnbFloatTotal) fnbFloatTotal.textContent = totals.sum > 0 ? formatRp(totals.sum) : 'Siap pesan';
+                if (fnbFloatTotal) fnbFloatTotal.textContent = totals.sum > 0 ? formatRp(totals.sum) : (totals.count === 0 ? 'Rp 0' : 'Siap pesan');
                 if (fnbFloatLabel) fnbFloatLabel.textContent = floatCfg.actionLabel || 'Lanjut';
               }
             }
@@ -2221,6 +2222,7 @@ ${bodyBlocks}
             syncCartBar();
             showToast('"' + item.title + '" masuk ke keranjang');
           }
+          window.__lynkAddCartItem = addCartItem;
           function findItem(blockId, itemId) {
             var cfg = catalogs[blockId];
             if (!cfg || !cfg.items) return null;
@@ -3062,6 +3064,7 @@ ${bodyBlocks}
           if (fnbFloatBtn) fnbFloatBtn.addEventListener('click', openCart);
           window.addEventListener('hashchange', syncFromHash);
           if (location.hash) syncFromHash();
+          syncCartBar();
         }
       }
 
@@ -6106,6 +6109,10 @@ ${bodyBlocks}
           var blockId = root.getAttribute('data-product-box-reveal') || '';
           var rawItems = root.getAttribute('data-pbr-items') || '[]';
           var defaultColor = root.getAttribute('data-pbr-color') || '#5C3626';
+          var defaultBoxShape = root.getAttribute('data-pbr-box-shape') || 'square';
+          var cornerRadiusPx = Math.max(0, Math.min(90, Number(root.getAttribute('data-pbr-corner-radius') || 24)));
+          var borderThickPx = Math.max(1, Math.min(36, Number(root.getAttribute('data-pbr-border-thick') || 18)));
+          var lidOpenStyle = root.getAttribute('data-pbr-lid-style') || 'hinge_top';
           var zoomOn = root.getAttribute('data-pbr-zoom-on') !== '0';
           var zoomStart = Math.max(50, Math.min(180, Number(root.getAttribute('data-pbr-zoom-start') || 118))) / 100;
           var zoomEnd = Math.max(40, Math.min(160, Number(root.getAttribute('data-pbr-zoom-end') || 100))) / 100;
@@ -6123,11 +6130,15 @@ ${bodyBlocks}
           if (!items.length) return;
 
           var boxWrap = root.querySelector('[data-pbr-box-wrap]');
+          var shadowEl = root.querySelector('[data-pbr-shadow-el]');
           var lid = root.querySelector('[data-pbr-lid]');
+          var lidGrooveEl = root.querySelector('[data-pbr-lid-groove]');
+          var hingeLineEl = root.querySelector('[data-pbr-hinge-line]');
           var lidLogoWrap = root.querySelector('[data-pbr-lid-logo-wrap]');
           var lidLogoEl = root.querySelector('[data-pbr-lid-logo]');
           var frame = root.querySelector('[data-pbr-frame]');
           var cavity = root.querySelector('[data-pbr-cavity]');
+          var cushionEl = root.querySelector('[data-pbr-cushion]');
           var prodWrap = root.querySelector('[data-pbr-product]');
           var imgEl = root.querySelector('[data-pbr-img]');
           var emptyEl = root.querySelector('[data-pbr-empty]');
@@ -6166,12 +6177,51 @@ ${bodyBlocks}
             if (raf2) { cancelAnimationFrame(raf2); raf2 = null; }
           }
 
+          function getLidMotion(style) {
+            if (style === 'hinge_left') {
+              return { origin: '0% 50%', closed: 'rotateY(0deg) translateX(0px)', open: 'rotateY(-108deg) translateX(-10px)' };
+            }
+            if (style === 'hinge_right') {
+              return { origin: '100% 50%', closed: 'rotateY(0deg) translateX(0px)', open: 'rotateY(108deg) translateX(10px)' };
+            }
+            if (style === 'lift') {
+              return { origin: '50% 50%', closed: 'translateY(0px) scale(1)', open: 'translateY(-46px) scale(1.06)' };
+            }
+            if (style === 'spin_lift') {
+              return { origin: '50% 50%', closed: 'translateY(0px) rotate(0deg) scale(1)', open: 'translateY(-44px) rotate(58deg) scale(1.05)' };
+            }
+            return { origin: '50% 0%', closed: 'rotateX(0deg) translateY(0px)', open: 'rotateX(108deg) translateY(-10px)' };
+          }
+          var lidMotion = getLidMotion(lidOpenStyle);
+
+          function applyBoxShape(shape) {
+            var eff = (shape === 'circle' || shape === 'rounded' || shape === 'square') ? shape : defaultBoxShape;
+            var isCircle = eff === 'circle';
+            var outerR = isCircle ? '50%' : (eff === 'rounded' ? cornerRadiusPx + 'px' : '7px');
+            var cavityR = isCircle
+              ? '50%'
+              : (eff === 'rounded'
+                  ? Math.max(2, cornerRadiusPx - Math.round(borderThickPx * 0.65)) + 'px'
+                  : (borderThickPx <= 4 ? '5px' : '3px'));
+            var grooveR = isCircle ? '50%' : (eff === 'rounded' ? Math.max(2, cornerRadiusPx - 6) + 'px' : '4px');
+            if (shadowEl) shadowEl.style.borderRadius = outerR;
+            if (frame) frame.style.borderRadius = outerR;
+            if (cavity) cavity.style.borderRadius = cavityR;
+            if (cushionEl) cushionEl.style.borderRadius = isCircle ? '50%' : cavityR;
+            if (lid) lid.style.borderRadius = outerR;
+            if (lidGrooveEl) lidGrooveEl.style.borderRadius = grooveR;
+            if (lidLogoWrap) lidLogoWrap.style.borderRadius = outerR;
+            if (hingeLineEl) hingeLineEl.style.display = (!isCircle && lidOpenStyle === 'hinge_top') ? 'block' : 'none';
+            return { isCircle: isCircle, outerR: outerR };
+          }
+
           function setOpenState(open, instant) {
             root.setAttribute('data-pbr-state', open ? 'open' : 'closed');
             var pScale = zoomOn ? (open ? zoomEnd : zoomStart) : zoomEnd;
             if (lid) {
+              lid.style.transformOrigin = lidMotion.origin;
               lid.style.transition = instant ? 'none' : 'transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease 520ms';
-              lid.style.transform = open ? 'rotateX(108deg) translateY(-10px)' : 'rotateX(0deg) translateY(0px)';
+              lid.style.transform = open ? lidMotion.open : lidMotion.closed;
               lid.style.opacity = open ? '0' : '1';
               lid.style.pointerEvents = open ? 'none' : 'auto';
             }
@@ -6262,6 +6312,7 @@ ${bodyBlocks}
             var it = items[activeIdx];
             if (!it) return;
             var col = it.boxColor || defaultColor;
+            var shapeInfo = applyBoxShape(it.boxShape || defaultBoxShape);
             var rgb = pbrRgb(col);
             if (lid) lid.style.background = grain + ', linear-gradient(155deg, ' + pbrShade(rgb, 26) + ' 0%, ' + pbrShade(rgb, 0) + ' 48%, ' + pbrShade(rgb, -34) + ' 100%)';
             if (frame) frame.style.background = grain + ', linear-gradient(145deg, ' + pbrShade(rgb, 26) + ' 0%, ' + pbrShade(rgb, -14) + ' 55%, ' + pbrShade(rgb, -56) + ' 100%)';
@@ -6281,7 +6332,7 @@ ${bodyBlocks}
                 lidLogoEl.style.width = effSize + '%';
                 lidLogoEl.style.height = effSize + '%';
                 lidLogoEl.style.objectFit = effFit;
-                lidLogoEl.style.borderRadius = (effPad === 0 && effSize >= 98) ? '7px' : '2px';
+                lidLogoEl.style.borderRadius = shapeInfo.isCircle ? '50%' : ((effPad === 0 && effSize >= 98) ? shapeInfo.outerR : '2px');
                 lidLogoEl.style.filter = (effPad === 0 && effFit === 'cover') ? 'none' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.38))';
               } else {
                 lidLogoEl.setAttribute('src', '');
@@ -6444,6 +6495,381 @@ ${bodyBlocks}
             triggerClosedThenOpen(false, 1);
             restartAutoSlide();
           }
+        });
+      })();
+
+      // --- MIX RASA CONFIGURATOR INTERACTIVE RUNTIME ---
+      (function initMixRasaConfigurators() {
+        var roots = document.querySelectorAll('[data-mix-rasa]');
+        if (!roots.length) return;
+
+        function mrParsePrice(raw) {
+          if (typeof raw === 'number' && isFinite(raw)) return Math.max(0, Math.round(raw));
+          var digits = String(raw || '').replace(/[^\\d]/g, '');
+          var parsed = Number(digits);
+          return isFinite(parsed) ? parsed : 0;
+        }
+        function mrFormatRp(amount) {
+          var safe = Math.max(0, Math.round(isFinite(amount) ? amount : 0));
+          return 'Rp' + String(safe).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');
+        }
+        function mrEsc(s) {
+          return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+        function mrBuildProductLabel(title, size) {
+          var cleanTitle = String(title || 'Pizza Mix Rasa').trim() || 'Pizza Mix Rasa';
+          var cleanSize = String(size || '').trim();
+          if (!cleanSize) return cleanTitle;
+          if (cleanTitle.toLowerCase().indexOf(cleanSize.toLowerCase()) !== -1) return cleanTitle;
+          var titleFirst = (cleanTitle.split(/\\s+/)[0] || '').toLowerCase();
+          var sizeParts = cleanSize.split(/\\s+/);
+          if (titleFirst && sizeParts.length > 1 && sizeParts[0].toLowerCase() === titleFirst) {
+            return (cleanTitle + ' ' + sizeParts.slice(1).join(' ')).trim();
+          }
+          return (cleanTitle + ' ' + cleanSize).trim();
+        }
+        function mrSlotLabel(sc, idx) {
+          if (sc === 2) return idx === 0 ? 'Bagian Kiri' : 'Bagian Kanan';
+          return 'Bagian ' + (idx + 1);
+        }
+        function mrClipPath(sc, idx) {
+          if (sc === 2) return idx === 0 ? 'inset(0 50% 0 0)' : 'inset(0 0 0 50%)';
+          if (sc === 3) {
+            if (idx === 0) return 'polygon(50% 50%, 50% -150%, 223.2% -150%, 223.2% 150%)';
+            if (idx === 1) return 'polygon(50% 50%, 223.2% 150%, 50% 250%, -123.2% 150%)';
+            return 'polygon(50% 50%, -123.2% 150%, -123.2% -150%, 50% -150%)';
+          }
+          if (idx === 0) return 'inset(0 50% 50% 0)';
+          if (idx === 1) return 'inset(0 0 50% 50%)';
+          if (idx === 2) return 'inset(50% 50% 0 0)';
+          return 'inset(50% 0 0 50%)';
+        }
+        function mrSeamsSvg(sc, strokeW) {
+          if (sc === 2) {
+            return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="' + strokeW + '"/></svg>';
+          }
+          if (sc === 3) {
+            return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="100" x2="100" y2="0" stroke="#FFFFFF" stroke-width="' + strokeW + '"/><line x1="100" y1="100" x2="186.6" y2="150" stroke="#FFFFFF" stroke-width="' + strokeW + '"/><line x1="100" y1="100" x2="13.4" y2="150" stroke="#FFFFFF" stroke-width="' + strokeW + '"/></svg>';
+          }
+          return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="' + strokeW + '"/><line x1="0" y1="100" x2="200" y2="100" stroke="#FFFFFF" stroke-width="' + strokeW + '"/></svg>';
+        }
+        function mrImgScaleCss(flv) {
+          var s = Number(flv && flv.imageScale);
+          if (!isFinite(s) || s === 100) return '';
+          var clamped = Math.max(50, Math.min(200, Math.round(s))) / 100;
+          return ' transform:scale(' + clamped + '); transform-origin:center center;';
+        }
+
+        roots.forEach(function (root) {
+          var cfgEl = root.querySelector('[data-mr-config]');
+          if (!cfgEl) return;
+          var cfg = null;
+          try { cfg = JSON.parse(cfgEl.textContent || '{}'); } catch (e) { cfg = null; }
+          if (!cfg || !Array.isArray(cfg.flavors) || !cfg.flavors.length) return;
+
+          var flavors = cfg.flavors;
+          var sliceCount = (cfg.sliceCount === 3 || cfg.sliceCount === 4) ? cfg.sliceCount : 2;
+          var accentColor = cfg.accentColor || '#EA6314';
+          var effectiveSize = cfg.showProductSize === false ? '' : String(cfg.productSize || '');
+          var selectedIds = [];
+          function ensureSelectedIds() {
+            var next = [];
+            for (var i = 0; i < sliceCount; i++) {
+              var cid = selectedIds[i] || (Array.isArray(cfg.selectedIds) ? cfg.selectedIds[i] : '');
+              var matched = null;
+              for (var j = 0; j < flavors.length; j++) {
+                if (flavors[j].id === cid) { matched = flavors[j]; break; }
+              }
+              next.push(matched ? matched.id : flavors[i % flavors.length].id);
+            }
+            selectedIds = next;
+          }
+          ensureSelectedIds();
+
+          var pickerSlot = null;
+          var addedTimer = null;
+
+          var mainPreviewEl = root.querySelector('[data-mr-main-preview]');
+          var miniPreviewEl = root.querySelector('[data-mr-mini-preview]');
+          var slotsGridEl = root.querySelector('[data-mr-slots]');
+          var sizeSubtitleEl = root.querySelector('[data-mr-size-subtitle]');
+          var pickerBox = root.querySelector('[data-mr-picker]');
+          var pickerTitle = root.querySelector('[data-mr-picker-title]');
+          var pickerGrid = root.querySelector('[data-mr-picker-grid]');
+          var pickerClose = root.querySelector('[data-mr-picker-close]');
+          var combinedEl = root.querySelector('[data-mr-combined]');
+          var totalEl = root.querySelector('[data-mr-total]');
+          var addCartBtn = root.querySelector('[data-mr-add-cart]');
+          var addCartLabelEl = root.querySelector('[data-mr-add-cart-label]');
+          var waLinkEl = root.querySelector('[data-mr-wa-link]');
+          var backBtn = root.querySelector('[data-mr-back]');
+
+          function getSelectedFlavors() {
+            var out = [];
+            for (var k = 0; k < sliceCount; k++) {
+              var id = selectedIds[k];
+              var found = null;
+              for (var m = 0; m < flavors.length; m++) {
+                if (flavors[m].id === id) { found = flavors[m]; break; }
+              }
+              out.push(found || flavors[k % flavors.length]);
+            }
+            return out;
+          }
+
+          function buildSliceInner(flv) {
+            if (flv.image) {
+              return '<img src="' + mrEsc(flv.image) + '" alt="' + mrEsc(flv.name) + '" referrerpolicy="no-referrer" draggable="false" style="width:100%; height:100%; object-fit:cover; display:block; user-select:none;' + mrImgScaleCss(flv) + '" />';
+            }
+            return '<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#FFFFFF; font-size:12px; font-weight:700; background:' + mrEsc(flv.accentColor || accentColor) + ';">' + mrEsc(String(flv.name || '').slice(0, 2).toUpperCase()) + '</div>';
+          }
+
+          function rebuildStructure() {
+            ensureSelectedIds();
+            var chosen = getSelectedFlavors();
+
+            if (mainPreviewEl) {
+              var mainHtml = '';
+              for (var i = 0; i < chosen.length; i++) {
+                var clip = mrClipPath(sliceCount, i);
+                mainHtml += '<div data-mr-slice="' + i + '" role="button" style="position:absolute; inset:0; clip-path:' + clip + '; -webkit-clip-path:' + clip + '; cursor:pointer;">' + buildSliceInner(chosen[i]) + '</div>';
+              }
+              mainPreviewEl.innerHTML = mainHtml + mrSeamsSvg(sliceCount, 3.5);
+              mainPreviewEl.querySelectorAll('[data-mr-slice]').forEach(function (el) {
+                el.addEventListener('click', function () {
+                  var idx = Number(el.getAttribute('data-mr-slice'));
+                  pickerSlot = (pickerSlot === idx) ? null : idx;
+                  syncUi();
+                });
+              });
+            }
+
+            if (miniPreviewEl) {
+              var miniHtml = '';
+              for (var j = 0; j < chosen.length; j++) {
+                var mclip = mrClipPath(sliceCount, j);
+                miniHtml += '<div data-mr-mini-slice="' + j + '" style="position:absolute; inset:0; clip-path:' + mclip + '; -webkit-clip-path:' + mclip + ';">' + buildSliceInner(chosen[j]) + '</div>';
+              }
+              miniPreviewEl.innerHTML = miniHtml + mrSeamsSvg(sliceCount, 2);
+            }
+
+            if (slotsGridEl) {
+              slotsGridEl.style.gridTemplateColumns = 'repeat(' + (sliceCount === 3 ? 3 : 2) + ', minmax(0, 1fr))';
+              slotsGridEl.innerHTML = chosen.map(function (flv, idx) {
+                return (
+                  '<button type="button" data-mr-slot="' + idx + '" style="text-align:left; border-radius:16px; padding:10px 12px; border:1px solid #E2E8F0; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.04); display:flex; align-items:center; justify-content:space-between; gap:6px; cursor:pointer; font-family:inherit; min-width:0; transition:border-color 0.16s, box-shadow 0.16s;">' +
+                    '<div style="min-width:0; flex:1;">' +
+                      '<div data-mr-slot-name="' + idx + '" style="font-size:12px; font-weight:700; color:#0F172A; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + mrEsc(flv.name) + '</div>' +
+                      '<div data-mr-slot-price="' + idx + '" style="font-size:11.5px; font-weight:800; color:#1E293B; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + mrEsc(mrFormatRp(mrParsePrice(flv.price))) + '</div>' +
+                    '</div>' +
+                    '<svg data-mr-slot-chev="' + idx + '" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; transition:transform 0.16s;"><path d="m9 18 6-6-6-6"/></svg>' +
+                  '</button>'
+                );
+              }).join('');
+              slotsGridEl.querySelectorAll('[data-mr-slot]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                  var idx = Number(btn.getAttribute('data-mr-slot'));
+                  pickerSlot = (pickerSlot === idx) ? null : idx;
+                  syncUi();
+                });
+              });
+            }
+
+            if (sizeSubtitleEl && effectiveSize) {
+              sizeSubtitleEl.textContent = effectiveSize + ' (' + sliceCount + ' Rasa)';
+            }
+
+            root.querySelectorAll('[data-mr-slice-btn]').forEach(function (btn) {
+              var cnt = Number(btn.getAttribute('data-mr-slice-btn'));
+              var on = cnt === sliceCount;
+              btn.style.background = on ? accentColor : 'transparent';
+              btn.style.color = on ? '#FFFFFF' : '#475569';
+              btn.style.boxShadow = on ? ('0 4px 10px -4px ' + accentColor + '99') : 'none';
+            });
+          }
+
+          function syncUi() {
+            var chosen = getSelectedFlavors();
+            var total = 0;
+            var names = [];
+            for (var idx = 0; idx < chosen.length; idx++) {
+              var flv = chosen[idx];
+              var p = mrParsePrice(flv.price);
+              total += p;
+              names.push(flv.name || ('Rasa ' + (idx + 1)));
+
+              var mainSlice = root.querySelector('[data-mr-slice="' + idx + '"]');
+              var miniSlice = root.querySelector('[data-mr-mini-slice="' + idx + '"]');
+              if (mainSlice) {
+                mainSlice.innerHTML = buildSliceInner(flv);
+                mainSlice.style.filter = (pickerSlot === idx) ? 'brightness(1.06)' : '';
+              }
+              if (miniSlice) {
+                miniSlice.innerHTML = buildSliceInner(flv);
+              }
+
+              var slotBtn = root.querySelector('[data-mr-slot="' + idx + '"]');
+              var slotName = root.querySelector('[data-mr-slot-name="' + idx + '"]');
+              var slotPrice = root.querySelector('[data-mr-slot-price="' + idx + '"]');
+              var slotChev = root.querySelector('[data-mr-slot-chev="' + idx + '"]');
+              if (slotName) slotName.textContent = flv.name || '';
+              if (slotPrice) slotPrice.textContent = mrFormatRp(p);
+              if (slotBtn) {
+                var active = pickerSlot === idx;
+                slotBtn.style.borderColor = active ? accentColor : '#E2E8F0';
+                slotBtn.style.boxShadow = active ? ('0 0 0 2px ' + accentColor + '26') : '0 2px 8px rgba(15,23,42,0.04)';
+              }
+              if (slotChev) {
+                slotChev.style.transform = pickerSlot === idx ? 'rotate(90deg)' : '';
+                slotChev.setAttribute('stroke', pickerSlot === idx ? accentColor : '#94A3B8');
+              }
+            }
+
+            if (combinedEl) combinedEl.textContent = names.join(' + ');
+            if (totalEl) totalEl.textContent = mrFormatRp(total);
+
+            if (waLinkEl && cfg.waEnabled) {
+              var intro = String(cfg.waIntro || 'Halo, saya ingin memesan:').trim() || 'Halo, saya ingin memesan:';
+              var waMsg = intro;
+              if (cfg.waIncludeDetails !== false) {
+                var prodLabel = mrBuildProductLabel(cfg.title, effectiveSize);
+                var lines = [];
+                for (var n = 0; n < chosen.length; n++) {
+                  lines.push((n + 1) + '. ' + (chosen[n].name || ('Rasa ' + (n + 1))));
+                }
+                waMsg = [
+                  intro,
+                  '',
+                  'Produk: ' + prodLabel,
+                  '',
+                  'Kombinasi Rasa:',
+                  lines.join('\\n'),
+                  '',
+                  'Jumlah: 1',
+                  'Total: ' + mrFormatRp(total),
+                  '',
+                  'Mohon informasi pemesanannya. Terima kasih.'
+                ].join('\\n');
+              }
+              var cleanPhone = String(cfg.waNumber || '6281234567890').replace(/[^\\d]/g, '') || '6281234567890';
+              if (cleanPhone.charAt(0) === '0') cleanPhone = '62' + cleanPhone.slice(1);
+              waLinkEl.setAttribute('href', 'https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(waMsg));
+            }
+
+            if (pickerBox && pickerGrid) {
+              if (pickerSlot === null) {
+                pickerBox.style.display = 'none';
+              } else {
+                pickerBox.style.display = 'block';
+                if (pickerTitle) pickerTitle.textContent = 'Pilih Rasa — ' + mrSlotLabel(sliceCount, pickerSlot);
+                var curId = selectedIds[pickerSlot];
+                pickerGrid.innerHTML = flavors.map(function (f) {
+                  var isSel = f.id === curId;
+                  var thumb = f.image
+                    ? '<img src="' + mrEsc(f.image) + '" alt="' + mrEsc(f.name) + '" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover; display:block;' + mrImgScaleCss(f) + '" />'
+                    : '<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#FFFFFF; font-size:10px; font-weight:700; background:' + mrEsc(f.accentColor || accentColor) + ';">' + mrEsc(String(f.name || '').slice(0, 2).toUpperCase()) + '</div>';
+                  var checkOverlay = isSel
+                    ? '<span style="position:absolute; inset:0; background:rgba(15,23,42,0.35); color:#FFFFFF; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800;">&#10003;</span>'
+                    : '';
+                  return (
+                    '<button type="button" data-mr-pick="' + mrEsc(f.id) + '" style="display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 6px; border-radius:12px; border:1px solid ' + (isSel ? mrEsc(accentColor) : '#E2E8F0') + '; background:#FFFFFF; cursor:pointer; font-family:inherit; text-align:center;' + (isSel ? (' box-shadow:0 0 0 1.5px ' + mrEsc(accentColor) + ';') : '') + '">' +
+                      '<div style="position:relative; width:44px; height:44px; border-radius:9999px; overflow:hidden; background:#F1F5F9; flex-shrink:0;">' + thumb + checkOverlay + '</div>' +
+                      '<span style="font-size:10.5px; font-weight:700; color:#1E293B; line-height:1.2; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + mrEsc(f.name) + '</span>' +
+                      '<span style="font-size:9.5px; font-weight:600; color:#64748B; font-variant-numeric:tabular-nums;">' + mrEsc(mrFormatRp(mrParsePrice(f.price))) + '</span>' +
+                    '</button>'
+                  );
+                }).join('');
+                pickerGrid.querySelectorAll('[data-mr-pick]').forEach(function (btn) {
+                  btn.addEventListener('click', function () {
+                    var fid = btn.getAttribute('data-mr-pick');
+                    if (fid && pickerSlot !== null) {
+                      selectedIds[pickerSlot] = fid;
+                      pickerSlot = null;
+                      syncUi();
+                    }
+                  });
+                });
+              }
+            }
+          }
+
+          root.querySelectorAll('[data-mr-slice-btn]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              var nextCount = Number(btn.getAttribute('data-mr-slice-btn'));
+              if (nextCount !== 2 && nextCount !== 3 && nextCount !== 4) return;
+              if (nextCount === sliceCount) return;
+              sliceCount = nextCount;
+              pickerSlot = null;
+              rebuildStructure();
+              syncUi();
+            });
+          });
+
+          if (pickerClose) {
+            pickerClose.addEventListener('click', function () {
+              pickerSlot = null;
+              syncUi();
+            });
+          }
+
+          if (addCartBtn && cfg.floatingCartEnabled) {
+            addCartBtn.addEventListener('click', function () {
+              var chosen = getSelectedFlavors();
+              var total = 0;
+              var idParts = [];
+              var numbered = [];
+              for (var k = 0; k < chosen.length; k++) {
+                total += mrParsePrice(chosen[k].price);
+                idParts.push(chosen[k].id);
+                numbered.push((k + 1) + '. ' + (chosen[k].name || ('Rasa ' + (k + 1))));
+              }
+              var prodLabel = mrBuildProductLabel(cfg.title, effectiveSize);
+              var sizePart = effectiveSize.trim();
+              var variantText = sizePart
+                ? (numbered.join(', ') + ' · ' + sliceCount + ' Bagian · ' + sizePart)
+                : (numbered.join(', ') + ' · ' + sliceCount + ' Bagian');
+              var dynamicItem = {
+                id: 'mix_' + sliceCount + '_' + idParts.join('_'),
+                title: prodLabel,
+                price: mrFormatRp(total),
+                image: (chosen[0] && chosen[0].image) || '',
+                productType: 'physical'
+              };
+              if (typeof window.__lynkAddCartItem === 'function') {
+                window.__lynkAddCartItem(cfg.blockId, dynamicItem, variantText, 1);
+              }
+              addCartBtn.style.background = '#059669';
+              if (addCartLabelEl) addCartLabelEl.textContent = 'Masuk Keranjang!';
+              if (addedTimer) clearTimeout(addedTimer);
+              addedTimer = setTimeout(function () {
+                addCartBtn.style.background = cfg.cartButtonBg || accentColor;
+                if (addCartLabelEl) addCartLabelEl.textContent = cfg.cartButtonLabel || 'Gabungkan Rasa';
+              }, 1400);
+            });
+          }
+
+          if (backBtn) {
+            backBtn.addEventListener('click', function () {
+              var actionType = cfg.backActionType || 'back';
+              if (actionType === 'page' && cfg.backTargetPageId && typeof window.__lynkOpenPage === 'function') {
+                window.__lynkOpenPage(cfg.backTargetPageId);
+              } else if (actionType === 'url' && cfg.backUrl) {
+                window.location.href = cfg.backUrl;
+              } else if (typeof window.__lynkBackPage === 'function') {
+                window.__lynkBackPage();
+              } else if (window.history && window.history.length > 1) {
+                window.history.back();
+              }
+            });
+          }
+
+          rebuildStructure();
+          syncUi();
         });
       })();
 

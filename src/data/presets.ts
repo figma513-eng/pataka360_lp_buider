@@ -13,6 +13,7 @@ import type {
   FnbHeroSlideItem,
   FnbMenuItem,
   InteractiveBoxItem,
+  MixRasaFlavorItem,
   PageTheme,
   PrebuiltSectionCategory,
   ProductBoxRevealItem,
@@ -1226,6 +1227,261 @@ export const DEFAULT_PRODUCT_BOX_REVEAL_ITEMS: ProductBoxRevealItem[] = [
   },
 ];
 
+// --- MIX RASA: Circular Pizza Flavor Illustrations (matches reference infographic) ---
+export const MIX_RASA_HAWAIIAN_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <defs>
+        <radialGradient id="mh_crust" cx="50%" cy="50%" r="50%">
+          <stop offset="82%" stop-color="#E79C4A"/>
+          <stop offset="94%" stop-color="#D47E2C"/>
+          <stop offset="100%" stop-color="#B8621E"/>
+        </radialGradient>
+        <radialGradient id="mh_cheese" cx="46%" cy="42%" r="54%">
+          <stop offset="0%" stop-color="#FFE89E"/>
+          <stop offset="70%" stop-color="#F6C85F"/>
+          <stop offset="100%" stop-color="#DE9E36"/>
+        </radialGradient>
+      </defs>
+      <circle cx="120" cy="120" r="118" fill="url(#mh_crust)"/>
+      <circle cx="120" cy="120" r="102" fill="#C94124"/>
+      <circle cx="120" cy="120" r="97" fill="url(#mh_cheese)"/>
+      <g fill="#E99184" stroke="#C96558" stroke-width="1.5">
+        <rect x="64" y="54" width="22" height="16" rx="5" transform="rotate(-18 75 62)"/>
+        <rect x="148" y="62" width="24" height="16" rx="5" transform="rotate(22 160 70)"/>
+        <rect x="48" y="124" width="24" height="16" rx="5" transform="rotate(14 60 132)"/>
+        <rect x="158" y="130" width="22" height="16" rx="5" transform="rotate(-24 169 138)"/>
+        <rect x="104" y="168" width="24" height="16" rx="5" transform="rotate(8 116 176)"/>
+        <rect x="106" y="88" width="22" height="16" rx="5" transform="rotate(-10 117 96)"/>
+      </g>
+      <g fill="#FFE14C" stroke="#D99B16" stroke-width="1.4">
+        <polygon points="94,48 110,44 106,62 90,60"/>
+        <polygon points="134,94 152,98 144,114 128,108"/>
+        <polygon points="74,98 92,94 88,112 72,110"/>
+        <polygon points="146,158 164,154 160,172 142,168"/>
+        <polygon points="72,158 90,152 86,170 68,168"/>
+        <polygon points="108,132 126,128 122,146 104,142"/>
+        <polygon points="172,96 188,92 184,110 168,106"/>
+        <polygon points="52,90 66,86 64,102 48,100"/>
+      </g>
+      <g fill="#4E9B3B" opacity="0.88">
+        <circle cx="96" cy="80" r="3.5"/><circle cx="144" cy="128" r="3.5"/>
+        <circle cx="84" cy="140" r="3.5"/><circle cx="132" cy="64" r="3"/>
+      </g>
+    </svg>`
+  );
+
+export const MIX_RASA_HAM_MUSHROOM_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <defs>
+        <radialGradient id="mm_crust" cx="50%" cy="50%" r="50%">
+          <stop offset="82%" stop-color="#E49644"/>
+          <stop offset="94%" stop-color="#CF7A28"/>
+          <stop offset="100%" stop-color="#B05D1B"/>
+        </radialGradient>
+        <radialGradient id="mm_base" cx="50%" cy="46%" r="52%">
+          <stop offset="0%" stop-color="#FBE9C8"/>
+          <stop offset="72%" stop-color="#EBCBA0"/>
+          <stop offset="100%" stop-color="#D4A673"/>
+        </radialGradient>
+      </defs>
+      <circle cx="120" cy="120" r="118" fill="url(#mm_crust)"/>
+      <circle cx="120" cy="120" r="102" fill="#C4452B"/>
+      <circle cx="120" cy="120" r="97" fill="url(#mm_base)"/>
+      <g fill="#E4887F" stroke="#BF6259" stroke-width="1.5">
+        <path d="M58 68 Q74 52 90 66 Q82 86 62 82 Z"/>
+        <path d="M142 56 Q162 52 172 72 Q156 86 140 74 Z"/>
+        <path d="M46 130 Q62 114 78 130 Q70 150 50 144 Z"/>
+        <path d="M158 122 Q178 116 186 138 Q168 152 154 138 Z"/>
+        <path d="M98 164 Q118 154 134 172 Q122 190 100 182 Z"/>
+        <path d="M104 96 Q124 88 136 106 Q122 122 104 114 Z"/>
+      </g>
+      <g fill="#B78F72" stroke="#6F513B" stroke-width="1.6">
+        <path d="M94 54 C94 42 116 42 116 54 C116 60 110 60 109 68 L101 68 C100 60 94 60 94 54 Z"/>
+        <path d="M150 96 C150 84 172 84 172 96 C172 102 166 102 165 110 L157 110 C156 102 150 102 150 96 Z"/>
+        <path d="M68 102 C68 90 90 90 90 102 C90 108 84 108 83 116 L75 116 C74 108 68 108 68 102 Z"/>
+        <path d="M132 146 C132 134 154 134 154 146 C154 152 148 152 147 160 L139 160 C138 152 132 152 132 146 Z"/>
+        <path d="M74 162 C74 150 96 150 96 162 C96 168 90 168 89 176 L81 176 C80 168 74 168 74 162 Z"/>
+        <path d="M108 128 C108 118 126 118 126 128 C126 133 121 133 120 140 L114 140 C113 133 108 133 108 128 Z"/>
+      </g>
+      <g fill="#5C7A43" opacity="0.82">
+        <circle cx="132" cy="78" r="3"/><circle cx="88" cy="136" r="3"/>
+        <circle cx="152" cy="126" r="3"/><circle cx="110" cy="84" r="2.8"/>
+      </g>
+    </svg>`
+  );
+
+export const MIX_RASA_PEPPERONI_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <defs>
+        <radialGradient id="mp_crust" cx="50%" cy="50%" r="50%">
+          <stop offset="82%" stop-color="#E59542"/>
+          <stop offset="94%" stop-color="#CD7422"/>
+          <stop offset="100%" stop-color="#AC5816"/>
+        </radialGradient>
+        <radialGradient id="mp_sauce" cx="48%" cy="46%" r="54%">
+          <stop offset="0%" stop-color="#E55829"/>
+          <stop offset="68%" stop-color="#C93818"/>
+          <stop offset="100%" stop-color="#9F240D"/>
+        </radialGradient>
+      </defs>
+      <circle cx="120" cy="120" r="118" fill="url(#mp_crust)"/>
+      <circle cx="120" cy="120" r="102" fill="url(#mp_sauce)"/>
+      <circle cx="120" cy="120" r="95" fill="#F4C75C" opacity="0.58"/>
+      <g fill="#B32018" stroke="#7A120D" stroke-width="2">
+        <circle cx="84" cy="64" r="16"/>
+        <circle cx="138" cy="58" r="16"/>
+        <circle cx="172" cy="96" r="16"/>
+        <circle cx="62" cy="112" r="16"/>
+        <circle cx="116" cy="108" r="17"/>
+        <circle cx="164" cy="148" r="16"/>
+        <circle cx="76" cy="162" r="16"/>
+        <circle cx="122" cy="168" r="16"/>
+      </g>
+      <g fill="#F0988C" opacity="0.65">
+        <circle cx="80" cy="60" r="2.2"/><circle cx="89" cy="68" r="1.8"/>
+        <circle cx="134" cy="54" r="2.2"/><circle cx="143" cy="62" r="1.8"/>
+        <circle cx="112" cy="104" r="2.2"/><circle cx="121" cy="112" r="2"/>
+        <circle cx="160" cy="144" r="2.2"/><circle cx="72" cy="158" r="2"/>
+      </g>
+      <g fill="#2F8B3C">
+        <ellipse cx="104" cy="82" rx="7" ry="4" transform="rotate(-30 104 82)"/>
+        <ellipse cx="148" cy="118" rx="7" ry="4" transform="rotate(28 148 118)"/>
+        <ellipse cx="96" cy="138" rx="7" ry="4" transform="rotate(-18 96 138)"/>
+        <ellipse cx="144" cy="172" rx="6" ry="3.5" transform="rotate(40 144 172)"/>
+      </g>
+    </svg>`
+  );
+
+export const MIX_RASA_BACON_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <defs>
+        <radialGradient id="mb_crust" cx="50%" cy="50%" r="50%">
+          <stop offset="82%" stop-color="#DF903E"/>
+          <stop offset="94%" stop-color="#C6701E"/>
+          <stop offset="100%" stop-color="#A65514"/>
+        </radialGradient>
+        <radialGradient id="mb_cheese" cx="50%" cy="46%" r="52%">
+          <stop offset="0%" stop-color="#FFE08C"/>
+          <stop offset="70%" stop-color="#F0B84A"/>
+          <stop offset="100%" stop-color="#D48D2B"/>
+        </radialGradient>
+      </defs>
+      <circle cx="120" cy="120" r="118" fill="url(#mb_crust)"/>
+      <circle cx="120" cy="120" r="102" fill="#B83B1D"/>
+      <circle cx="120" cy="120" r="97" fill="url(#mb_cheese)"/>
+      <g fill="#7A2418" stroke="#4F140C" stroke-width="1.6">
+        <path d="M62 66 Q80 56 96 70 L90 82 Q74 70 58 78 Z"/>
+        <path d="M134 56 Q154 52 170 68 L162 80 Q148 66 130 70 Z"/>
+        <path d="M48 122 Q68 112 86 126 L80 138 Q64 126 44 134 Z"/>
+        <path d="M148 118 Q168 110 186 126 L178 138 Q162 124 144 132 Z"/>
+        <path d="M92 94 Q112 86 130 100 L124 112 Q108 100 88 108 Z"/>
+        <path d="M74 162 Q94 152 112 168 L106 180 Q90 166 70 174 Z"/>
+        <path d="M130 156 Q150 148 168 164 L160 176 Q144 162 126 170 Z"/>
+      </g>
+      <g fill="#E4A88B" opacity="0.65">
+        <rect x="72" y="68" width="12" height="3" rx="1.5" transform="rotate(14 78 69)"/>
+        <rect x="146" y="62" width="12" height="3" rx="1.5" transform="rotate(16 152 63)"/>
+        <rect x="104" y="98" width="12" height="3" rx="1.5" transform="rotate(14 110 99)"/>
+        <rect x="158" y="122" width="12" height="3" rx="1.5" transform="rotate(14 164 123)"/>
+      </g>
+    </svg>`
+  );
+
+export const MIX_RASA_BEEF_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <circle cx="120" cy="120" r="118" fill="#D88837"/>
+      <circle cx="120" cy="120" r="102" fill="#B5371A"/>
+      <circle cx="120" cy="120" r="97" fill="#F2BE57"/>
+      <g fill="#61331E" stroke="#3F1E10" stroke-width="1.4">
+        <circle cx="80" cy="68" r="12"/><circle cx="126" cy="60" r="11"/>
+        <circle cx="164" cy="92" r="12"/><circle cx="66" cy="116" r="11"/>
+        <circle cx="116" cy="114" r="13"/><circle cx="164" cy="144" r="12"/>
+        <circle cx="84" cy="162" r="12"/><circle cx="130" cy="168" r="11"/>
+        <circle cx="102" cy="86" r="9"/><circle cx="144" cy="124" r="10"/>
+      </g>
+      <g fill="#4E963D">
+        <circle cx="98" cy="136" r="4"/><circle cx="142" cy="86" r="4"/>
+        <circle cx="72" cy="92" r="3.5"/><circle cx="152" cy="166" r="3.5"/>
+      </g>
+    </svg>`
+  );
+
+export const MIX_RASA_CHEESE_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <defs>
+        <radialGradient id="mc_cheese" cx="46%" cy="42%" r="54%">
+          <stop offset="0%" stop-color="#FFF5C2"/>
+          <stop offset="65%" stop-color="#FBD66B"/>
+          <stop offset="100%" stop-color="#E5A832"/>
+        </radialGradient>
+      </defs>
+      <circle cx="120" cy="120" r="118" fill="#E39946"/>
+      <circle cx="120" cy="120" r="101" fill="url(#mc_cheese)"/>
+      <g fill="#E29A2B" opacity="0.45">
+        <circle cx="82" cy="72" r="14"/><circle cx="148" cy="78" r="16"/>
+        <circle cx="162" cy="142" r="15"/><circle cx="76" cy="148" r="17"/>
+        <circle cx="120" cy="116" r="18"/><circle cx="118" cy="172" r="12"/>
+      </g>
+      <g fill="#FFFDF0" opacity="0.72">
+        <circle cx="96" cy="92" r="9"/><circle cx="146" cy="118" r="10"/>
+        <circle cx="98" cy="152" r="8"/><circle cx="132" cy="64" r="7"/>
+      </g>
+      <g fill="#5C8D3E" opacity="0.7">
+        <circle cx="114" cy="112" r="2.8"/><circle cx="134" cy="140" r="2.6"/><circle cx="86" cy="120" r="2.6"/>
+      </g>
+    </svg>`
+  );
+
+export const MIX_RASA_VEGGIE_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <circle cx="120" cy="120" r="118" fill="#DF9240"/>
+      <circle cx="120" cy="120" r="102" fill="#C94122"/>
+      <circle cx="120" cy="120" r="96" fill="#F8D26E"/>
+      <g fill="none" stroke="#368E3C" stroke-width="5" stroke-linecap="round">
+        <path d="M68 68 Q82 56 96 72"/><path d="M148 70 Q164 62 174 80"/>
+        <path d="M58 134 Q72 122 86 138"/><path d="M148 148 Q166 138 176 156"/>
+        <path d="M104 106 Q120 94 134 110"/>
+      </g>
+      <g fill="#D93226">
+        <circle cx="116" cy="64" r="10"/><circle cx="164" cy="116" r="10"/>
+        <circle cx="84" cy="162" r="10"/><circle cx="124" cy="156" r="9"/>
+        <circle cx="78" cy="98" r="9"/>
+      </g>
+      <g fill="#2B2421">
+        <circle cx="96" cy="82" r="5.5"/><circle cx="144" cy="98" r="5.5"/>
+        <circle cx="102" cy="134" r="5.5"/><circle cx="144" cy="172" r="5.5"/>
+      </g>
+      <g fill="#F8D26E">
+        <circle cx="96" cy="82" r="2"/><circle cx="144" cy="98" r="2"/>
+        <circle cx="102" cy="134" r="2"/><circle cx="144" cy="172" r="2"/>
+      </g>
+    </svg>`
+  );
+
+export const DEFAULT_MIX_RASA_FLAVORS: MixRasaFlavorItem[] = [
+  { id: 'mr_hawaiian', name: 'Hawaiian', price: 'Rp390.000', image: MIX_RASA_HAWAIIAN_SVG, accentColor: '#F59E0B' },
+  { id: 'mr_ham_jamur', name: 'Ham & Jamur', price: 'Rp340.000', image: MIX_RASA_HAM_MUSHROOM_SVG, accentColor: '#D97757' },
+  { id: 'mr_pepperoni', name: 'Pepperoni', price: 'Rp410.000', image: MIX_RASA_PEPPERONI_SVG, accentColor: '#DC2626' },
+  { id: 'mr_don_bacon', name: 'Don Bacon', price: 'Rp410.000', image: MIX_RASA_BACON_SVG, accentColor: '#9A3412' },
+  { id: 'mr_daging_sapi', name: 'Daging Sapi', price: 'Rp430.000', image: MIX_RASA_BEEF_SVG, accentColor: '#7C2D12' },
+  { id: 'mr_keju', name: 'Keju', price: 'Rp320.000', image: MIX_RASA_CHEESE_SVG, accentColor: '#EAB308' },
+  { id: 'mr_vegetarian', name: 'Vegetarian', price: 'Rp310.000', image: MIX_RASA_VEGGIE_SVG, accentColor: '#16A34A' },
+];
+
 export const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
   {
     id: 'cat_1',
@@ -1508,6 +1764,8 @@ export const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   floating_product_studio: 'Studio Produk Melayang',
   interactive_box_showcase: 'Interactive Box Showcase',
   product_box_reveal: 'Animated Product Box Reveal',
+  mix_rasa: 'Mix Rasa',
+  slide_mix_rasa: 'Slide Mix Rasa',
   category_tabs: 'Tombol Kategori',
   menu_icon: 'Menu Icon',
   cart_button: 'Tombol Keranjang',
@@ -2463,6 +2721,12 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
           boxRevealProductZoomEnd: 100,
           boxRevealBoxSize: 220,
           boxRevealBorderThickness: 18,
+          boxRevealBoxShape: 'square',
+          boxRevealBoxCornerRadius: 24,
+          boxRevealLidOpenStyle: 'hinge_top',
+          boxRevealInnerRimAccent: false,
+          boxRevealInnerRimColor: '#D4AF37',
+          boxRevealShadowIntensity: 100,
           boxRevealLidLogoImage: '',
           boxRevealLidLogoSize: 44,
           boxRevealLidLogoPadding: 12,
@@ -2493,6 +2757,159 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
           catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
         },
       };
+
+    case 'mix_rasa': {
+      const clonedFlavors = DEFAULT_MIX_RASA_FLAVORS.map((f) => ({
+        ...f,
+        id: createId('mr_flv'),
+      }));
+      return {
+        id: createId('mixr'),
+        type: 'mix_rasa',
+        label: 'Mix Rasa',
+        style: {
+          ...baseStyle,
+          minHeight: 460,
+          padding: 0,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 24,
+          borderWidth: 1,
+          borderColor: '#E2E8F0',
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          mixRasaTitle: 'Pizza Mix Rasa',
+          mixRasaProductSize: 'Pizza 35 cm',
+          mixRasaShowProductSize: true,
+          mixRasaShowDescription: false,
+          mixRasaDescription: 'Pilih kombinasi rasa favorit dalam satu produk segar.',
+          mixRasaSliceCount: 2,
+          mixRasaAllowSliceSwitch: true,
+          mixRasaPreviewSize: 232,
+          mixRasaShowBackButton: true,
+          mixRasaCenterHeader: false,
+          mixRasaBackActionType: 'back',
+          mixRasaBackTargetPageId: '',
+          mixRasaBackUrl: '',
+          mixRasaFlavors: clonedFlavors,
+          mixRasaDefaultSelectionIds: clonedFlavors.slice(0, 4).map((f) => f.id),
+          mixRasaBgColor: '#FFFFFF',
+          mixRasaAccentColor: '#EA6314',
+          mixRasaFloatingCartEnabled: true,
+          mixRasaFloatingCartPosition: 'bottom-floating',
+          mixRasaFloatingCartLabel: 'Lihat Keranjang',
+          mixRasaFloatingCartBg: '#EA6314',
+          mixRasaCartButtonLabel: 'Gabungkan Rasa',
+          mixRasaStoreName: 'Pizza Mix Studio',
+          mixRasaWaEnabled: true,
+          mixRasaWaNumber: '6281234567890',
+          mixRasaWaLabel: 'Pesan via WhatsApp',
+          mixRasaWaIntro: 'Halo, saya ingin memesan:',
+          mixRasaWaIncludeDetails: true,
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Pizza Mix Studio',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+    }
+
+    case 'slide_mix_rasa': {
+      const subtitles = [
+        'Resep asli',
+        'Favorit keluarga',
+        'Best seller',
+        'Smoky spesial',
+        'Daging pilihan',
+        'Lumer & gurih',
+        'Segar alami',
+      ];
+      const clonedFlavors = DEFAULT_MIX_RASA_FLAVORS.map((f, idx) => ({
+        ...f,
+        id: createId('smr_flv'),
+        subtitle: subtitles[idx % subtitles.length],
+        imageScale: 100,
+      }));
+      return {
+        id: createId('smix'),
+        type: 'slide_mix_rasa',
+        label: 'Slide Mix Rasa',
+        style: {
+          ...baseStyle,
+          minHeight: 540,
+          padding: 0,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 24,
+          borderWidth: 1,
+          borderColor: '#E2E8F0',
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          slideMixTitle: 'Pizza Mix Rasa',
+          slideMixProductSize: '35 cm',
+          slideMixShowProductSize: true,
+          slideMixShowDescription: false,
+          slideMixDescription: 'Geser naik/turun sisi kiri & kanan untuk memadukan 2 rasa favorit.',
+          slideMixShowBackButton: true,
+          slideMixBackLabel: 'Menu',
+          slideMixCenterHeader: true,
+          slideMixBackActionType: 'back',
+          slideMixBackTargetPageId: '',
+          slideMixBackUrl: '',
+          slideMixFlavors: clonedFlavors,
+          slideMixDefaultLeftId: clonedFlavors[0]?.id || '',
+          slideMixDefaultRightId: clonedFlavors[1]?.id || clonedFlavors[0]?.id || '',
+          slideMixShowDiceButton: true,
+          slideMixLoop: true,
+          slideMixAutoSlide: false,
+          slideMixAutoSlideMs: 3200,
+          slideMixPreviewSize: 244,
+          slideMixPeekSize: 96,
+          slideMixPeekOpacity: 42,
+          slideMixDividerWidth: 4,
+          slideMixDividerColor: '#FFFFFF',
+          slideMixBgColor: '#FFFFFF',
+          slideMixAccentColor: '#EA6314',
+          slideMixPricePrefix: 'Harga',
+          slideMixFloatingCartEnabled: true,
+          slideMixFloatingCartPosition: 'bottom-floating',
+          slideMixFloatingCartLabel: 'Lihat Keranjang',
+          slideMixFloatingCartBg: '#EA6314',
+          slideMixCartButtonLabel: 'Gabungkan Rasa',
+          slideMixStoreName: 'Pizza Mix Studio',
+          slideMixWaEnabled: true,
+          slideMixWaNumber: '6281234567890',
+          slideMixWaLabel: 'Pesan via WhatsApp',
+          slideMixWaIntro: 'Halo, saya ingin memesan:',
+          slideMixWaIncludeDetails: true,
+          adminCtaEnabled: false,
+          adminCtaLabel: 'Tanya Admin',
+          adminCtaActionType: 'whatsapp',
+          adminCtaWhatsappNumber: '6281234567890',
+          adminCtaWhatsappMessage: 'Halo admin, saya ingin tanya mengenai Pizza Mix Rasa.',
+          adminCtaTargetPageId: '',
+          adminCtaBgColor: '#1E293B',
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Pizza Mix Studio',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+    }
 
     case 'category_tabs':
       return {
@@ -3898,6 +4315,22 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
     description:
       'Kotak kayu eksklusif tertutup yang membuka mulus memperlihatkan produk di dalamnya lalu berhenti rapi — cukup ganti foto, warna kotak & jumlah kotak',
     createBlocks: (theme) => [createBlock('product_box_reveal', theme)],
+  },
+  {
+    id: 'mix-rasa',
+    category: 'katalog_store',
+    title: 'Mix Rasa (Konfigurator Kombinasi Rasa)',
+    description:
+      'Konfigurator kombinasi 2–4 rasa dalam satu produk bundar dengan preview langsung, hitung harga otomatis, Keranjang Melayang & Link WhatsApp',
+    createBlocks: (theme) => [createBlock('mix_rasa', theme)],
+  },
+  {
+    id: 'slide-mix-rasa',
+    category: 'katalog_store',
+    title: 'Slide Mix Rasa (Geser Kiri & Kanan)',
+    description:
+      'Konfigurator slide vertikal 2 belahan kiri-kanan independen dengan preview intip atas/bawah, tombol acak dadu, hitung harga otomatis, Keranjang Melayang, WA & Tanya Admin',
+    createBlocks: (theme) => [createBlock('slide_mix_rasa', theme)],
   },
   {
     id: 'katalog-fnb',

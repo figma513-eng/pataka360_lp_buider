@@ -26,6 +26,8 @@ export type BlockType =
   | 'floating_product_studio'
   | 'interactive_box_showcase'
   | 'product_box_reveal'
+  | 'mix_rasa'
+  | 'slide_mix_rasa'
   | 'category_tabs'
   | 'menu_icon'
   | 'cart_button'
@@ -54,8 +56,19 @@ export interface ProductBoxRevealItem {
   lidLogoSize?: number;
   lidLogoPadding?: number;
   lidLogoFit?: 'contain' | 'cover';
+  boxShapeOverride?: 'square' | 'rounded' | 'circle';
   boxColorOverride?: string;
   variants?: string;
+}
+
+export interface MixRasaFlavorItem {
+  id: string;
+  name: string;
+  subtitle?: string;
+  price: string;
+  image?: string;
+  imageScale?: number;
+  accentColor?: string;
 }
 
 export type ShowcaseCardVariant =
@@ -1183,6 +1196,12 @@ export interface BlockContent {
   boxRevealProductZoomEnd?: number;
   boxRevealBoxSize?: number;
   boxRevealBorderThickness?: number;
+  boxRevealBoxShape?: 'square' | 'rounded' | 'circle';
+  boxRevealBoxCornerRadius?: number;
+  boxRevealLidOpenStyle?: 'hinge_top' | 'hinge_left' | 'hinge_right' | 'lift' | 'spin_lift';
+  boxRevealInnerRimAccent?: boolean;
+  boxRevealInnerRimColor?: string;
+  boxRevealShadowIntensity?: number;
   boxRevealLidLogoImage?: string;
   boxRevealLidLogoSize?: number;
   boxRevealLidLogoPadding?: number;
@@ -1195,7 +1214,74 @@ export interface BlockContent {
   boxRevealFloatingCartLabel?: string;
   boxRevealFloatingCartBg?: string;
   boxRevealFloatingCartPosition?: FloatingCartPosition;
-  // Opsi Tombol Tanya Admin (Interactive Box Showcase, Animated Product Box Reveal, Slide Produk F&B, Slide Kuliner Putar)
+  // Mix Rasa (Konfigurator Kombinasi Rasa Produk Bundar + Keranjang Melayang + Link WhatsApp)
+  mixRasaTitle?: string;
+  mixRasaProductSize?: string;
+  mixRasaShowProductSize?: boolean;
+  mixRasaShowDescription?: boolean;
+  mixRasaDescription?: string;
+  mixRasaSliceCount?: 2 | 3 | 4;
+  mixRasaAllowSliceSwitch?: boolean;
+  mixRasaPreviewSize?: number;
+  mixRasaShowBackButton?: boolean;
+  mixRasaCenterHeader?: boolean;
+  mixRasaBackActionType?: 'back' | 'page' | 'url';
+  mixRasaBackTargetPageId?: string;
+  mixRasaBackUrl?: string;
+  mixRasaFlavors?: MixRasaFlavorItem[];
+  mixRasaDefaultSelectionIds?: string[];
+  mixRasaBgColor?: string;
+  mixRasaAccentColor?: string;
+  mixRasaFloatingCartEnabled?: boolean;
+  mixRasaFloatingCartPosition?: FloatingCartPosition;
+  mixRasaFloatingCartLabel?: string;
+  mixRasaFloatingCartBg?: string;
+  mixRasaCartButtonLabel?: string;
+  mixRasaStoreName?: string;
+  mixRasaWaEnabled?: boolean;
+  mixRasaWaNumber?: string;
+  mixRasaWaLabel?: string;
+  mixRasaWaIntro?: string;
+  mixRasaWaIncludeDetails?: boolean;
+  // Slide Mix Rasa (Dual Vertical Half-Split Wheel Configurator + Fitur Lynk Builder)
+  slideMixTitle?: string;
+  slideMixProductSize?: string;
+  slideMixShowProductSize?: boolean;
+  slideMixShowDescription?: boolean;
+  slideMixDescription?: string;
+  slideMixShowBackButton?: boolean;
+  slideMixBackLabel?: string;
+  slideMixCenterHeader?: boolean;
+  slideMixBackActionType?: 'back' | 'page' | 'url';
+  slideMixBackTargetPageId?: string;
+  slideMixBackUrl?: string;
+  slideMixFlavors?: MixRasaFlavorItem[];
+  slideMixDefaultLeftId?: string;
+  slideMixDefaultRightId?: string;
+  slideMixShowDiceButton?: boolean;
+  slideMixLoop?: boolean;
+  slideMixAutoSlide?: boolean;
+  slideMixAutoSlideMs?: number;
+  slideMixPreviewSize?: number;
+  slideMixPeekSize?: number;
+  slideMixPeekOpacity?: number;
+  slideMixDividerWidth?: number;
+  slideMixDividerColor?: string;
+  slideMixBgColor?: string;
+  slideMixAccentColor?: string;
+  slideMixPricePrefix?: string;
+  slideMixFloatingCartEnabled?: boolean;
+  slideMixFloatingCartPosition?: FloatingCartPosition;
+  slideMixFloatingCartLabel?: string;
+  slideMixFloatingCartBg?: string;
+  slideMixCartButtonLabel?: string;
+  slideMixStoreName?: string;
+  slideMixWaEnabled?: boolean;
+  slideMixWaNumber?: string;
+  slideMixWaLabel?: string;
+  slideMixWaIntro?: string;
+  slideMixWaIncludeDetails?: boolean;
+  // Opsi Tombol Tanya Admin (Interactive Box Showcase, Animated Product Box Reveal, Slide Produk F&B, Slide Kuliner Putar, Slide Mix Rasa)
   adminCtaEnabled?: boolean;
   adminCtaLabel?: string;
   adminCtaActionType?: 'whatsapp' | 'page' | 'sheet';

@@ -176,6 +176,18 @@ export function findFallbackShareImageFromBlocks(blocks: BuilderBlock[]): string
         if (img) return img;
       }
     }
+    if (blk.type === 'mix_rasa' && Array.isArray(c.mixRasaFlavors)) {
+      for (const item of c.mixRasaFlavors) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'slide_mix_rasa' && Array.isArray(c.slideMixFlavors)) {
+      for (const item of c.slideMixFlavors) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
     if (blk.type === 'menu_icon') {
       const img = isShareableImageCandidate(c.menuIconImage);
       if (img) return img;
@@ -192,6 +204,12 @@ export function findDefaultWaPhoneFromBlocks(blocks: BuilderBlock[]): string {
   for (const blk of blocks) {
     if (blk.type === 'catalog' && blk.content.catalogWhatsappNumber?.trim()) {
       return normalizeWhatsappNumber(blk.content.catalogWhatsappNumber);
+    }
+    if (blk.type === 'mix_rasa' && blk.content.mixRasaWaNumber?.trim()) {
+      return normalizeWhatsappNumber(blk.content.mixRasaWaNumber);
+    }
+    if (blk.type === 'slide_mix_rasa' && blk.content.slideMixWaNumber?.trim()) {
+      return normalizeWhatsappNumber(blk.content.slideMixWaNumber);
     }
     if (blk.type === 'button' && blk.content.url) {
       const m = blk.content.url.match(/wa\.me\/(\d+)|phone=(\d+)/i);

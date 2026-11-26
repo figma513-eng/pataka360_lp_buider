@@ -91,6 +91,7 @@ import { CulinarySpinSlider } from '../CulinarySpinSlider';
 import { FloatingProductStudio } from '../FloatingProductStudio';
 import { InteractiveBoxShowcase } from '../InteractiveBoxShowcase';
 import { ProductBoxReveal } from '../ProductBoxReveal';
+import { MixRasaConfigurator, MixRasaCartPayload } from '../MixRasaConfigurator';
 import { FnbHeroSlider } from '../FnbHeroSlider';
 import { MapsPlaceCard } from '../MapsPlaceCard';
 import { PhotoCarousel } from '../PhotoCarousel';
@@ -170,6 +171,7 @@ function findFirstCatalogBlock(
       (blk.type === 'product_box_reveal' &&
         blk.content.boxRevealShowCartButton !== false &&
         blk.content.boxRevealFloatingCartEnabled !== false) ||
+      (blk.type === 'mix_rasa' && blk.content.mixRasaFloatingCartEnabled !== false) ||
       blk.type === 'cart_button' ||
       (blk.type === 'showcase_card' &&
         (blk.content.cardVariant === 'store_card' ||
@@ -561,6 +563,7 @@ export function PreviewModal({
       offsetY: resolved.offsetY,
       bgColor: resolved.bg || project.theme.accentColor || '#059669',
       actionLabel: resolved.label,
+      alwaysShowWhenEmpty: Boolean(resolved.alwaysShowWhenEmpty),
     };
   }, [project.blocks, bottomNavbar.items, projectPages, project.theme.accentColor]);
   const hasCartFeature = Boolean(
@@ -2975,6 +2978,51 @@ export function PreviewModal({
       );
     }
 
+    if (block.type === 'mix_rasa') {
+      return (
+        <div key={block.id} style={style}>
+          <MixRasaConfigurator
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            onAddMixToCart={(payload: MixRasaCartPayload) => {
+              const catalogLikeItem: CatalogItem = {
+                id: payload.itemId,
+                title: payload.title,
+                subtitle: `${payload.sliceCount} Bagian · ${payload.productSize}`,
+                description: `Kombinasi Rasa: ${payload.flavors.join(' + ')}`,
+                price: payload.price,
+                ctaLabel: block.content.mixRasaCartButtonLabel || 'Gabungkan Rasa',
+                url: '',
+                image: payload.image,
+                unitSold: 0,
+                variants: payload.variant,
+              };
+              addToCart(block.id, catalogLikeItem, payload.variant, 1);
+            }}
+            onBackClick={() => {
+              const backType = block.content.mixRasaBackActionType || 'back';
+              if (backType === 'page' && block.content.mixRasaBackTargetPageId) {
+                openCustomPage(block.content.mixRasaBackTargetPageId);
+              } else if (backType === 'url' && block.content.mixRasaBackUrl) {
+                const safe = sanitizeExternalUrl(block.content.mixRasaBackUrl, '');
+                if (safe) {
+                  const a = document.createElement('a');
+                  a.href = safe;
+                  a.target = '_blank';
+                  a.rel = 'noopener noreferrer';
+                  a.click();
+                }
+              } else {
+                goBackPage();
+              }
+            }}
+          />
+        </div>
+      );
+    }
+
     if (block.type === 'cart_button') {
       const itemId = `cb_${block.id}`;
       const qty = fnbCartQtyMap[itemId] ?? 0;
@@ -3532,7 +3580,7 @@ export function PreviewModal({
           {subPage.type === 'home' &&
             floatingCartConfig &&
             isTopFloatingCartPosition(floatingCartConfig.position) &&
-            totalCartCount > 0 && (
+            (totalCartCount > 0 || floatingCartConfig.alwaysShowWhenEmpty) && (
               <FnbFloatingCartCapsule
                 count={totalCartCount}
                 totalAmount={totalCartAmount}
@@ -3540,6 +3588,7 @@ export function PreviewModal({
                 offsetY={floatingCartConfig.offsetY}
                 bgColor={floatingCartConfig.bgColor}
                 actionLabel={floatingCartConfig.actionLabel}
+                alwaysShowWhenEmpty={floatingCartConfig.alwaysShowWhenEmpty}
                 onClick={() => openCartPage()}
               />
             )}
@@ -3583,7 +3632,7 @@ export function PreviewModal({
           {subPage.type === 'home' &&
             floatingCartConfig &&
             !isTopFloatingCartPosition(floatingCartConfig.position) &&
-            totalCartCount > 0 && (
+            (totalCartCount > 0 || floatingCartConfig.alwaysShowWhenEmpty) && (
               <FnbFloatingCartCapsule
                 count={totalCartCount}
                 totalAmount={totalCartAmount}
@@ -3591,6 +3640,7 @@ export function PreviewModal({
                 offsetY={floatingCartConfig.offsetY}
                 bgColor={floatingCartConfig.bgColor}
                 actionLabel={floatingCartConfig.actionLabel}
+                alwaysShowWhenEmpty={floatingCartConfig.alwaysShowWhenEmpty}
                 onClick={() => openCartPage()}
               />
             )}

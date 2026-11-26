@@ -184,7 +184,7 @@ export function getBlockDesignCapabilities(
     }
   }
 
-  if (type === 'product_box_reveal') {
+  if (type === 'product_box_reveal' || type === 'mix_rasa' || type === 'slide_mix_rasa') {
     return {
       showVisualAccordion: false,
       showShapePresets: false,

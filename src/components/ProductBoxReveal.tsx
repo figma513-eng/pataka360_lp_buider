@@ -144,9 +144,71 @@ export function ProductBoxReveal({
   const activeBoxColor = currentItem?.boxColorOverride || defaultBoxColor;
   const wood = useMemo(() => buildWoodSurfacePalette(activeBoxColor), [activeBoxColor]);
 
-  // Configurable box sizing & inner outline thickness (down to 1px)
+  // Configurable box sizing, shape (square / rounded / circle) & inner outline thickness (down to 1px)
   const boxSizePx = clampNum(content.boxRevealBoxSize ?? 220, 140, 300);
   const borderThicknessPx = clampNum(content.boxRevealBorderThickness ?? 18, 1, 36);
+  const activeBoxShape: 'square' | 'rounded' | 'circle' =
+    currentItem?.boxShapeOverride || content.boxRevealBoxShape || 'square';
+  const boxCornerRadiusPx = clampNum(content.boxRevealBoxCornerRadius ?? 24, 0, 90);
+  const lidOpenStyle = content.boxRevealLidOpenStyle || 'hinge_top';
+  const innerRimAccent = Boolean(content.boxRevealInnerRimAccent);
+  const innerRimColor = content.boxRevealInnerRimColor || '#D4AF37';
+  const shadowFactor = clampNum(content.boxRevealShadowIntensity ?? 100, 0, 100) / 100;
+
+  const isCircleBox = activeBoxShape === 'circle';
+  const outerRadiusCss = isCircleBox
+    ? '50%'
+    : activeBoxShape === 'rounded'
+    ? `${boxCornerRadiusPx}px`
+    : '7px';
+  const cavityRadiusCss = isCircleBox
+    ? '50%'
+    : activeBoxShape === 'rounded'
+    ? `${Math.max(2, boxCornerRadiusPx - Math.round(borderThicknessPx * 0.65))}px`
+    : borderThicknessPx <= 4
+    ? '5px'
+    : '3px';
+  const grooveRadiusCss = isCircleBox
+    ? '50%'
+    : activeBoxShape === 'rounded'
+    ? `${Math.max(2, boxCornerRadiusPx - 6)}px`
+    : '4px';
+
+  const lidMotion = useMemo(() => {
+    switch (lidOpenStyle) {
+      case 'hinge_left':
+        return {
+          origin: '0% 50%',
+          closed: 'rotateY(0deg) translateX(0px)',
+          open: 'rotateY(-108deg) translateX(-10px)',
+        };
+      case 'hinge_right':
+        return {
+          origin: '100% 50%',
+          closed: 'rotateY(0deg) translateX(0px)',
+          open: 'rotateY(108deg) translateX(10px)',
+        };
+      case 'lift':
+        return {
+          origin: '50% 50%',
+          closed: 'translateY(0px) scale(1)',
+          open: 'translateY(-46px) scale(1.06)',
+        };
+      case 'spin_lift':
+        return {
+          origin: '50% 50%',
+          closed: 'translateY(0px) rotate(0deg) scale(1)',
+          open: 'translateY(-44px) rotate(58deg) scale(1.05)',
+        };
+      case 'hinge_top':
+      default:
+        return {
+          origin: '50% 0%',
+          closed: 'rotateX(0deg) translateY(0px)',
+          open: 'rotateX(108deg) translateY(-10px)',
+        };
+    }
+  }, [lidOpenStyle]);
 
   // Lid logo image (per-box override falls back to global lid logo, inset down to 0px)
   const lidLogoUrl = (currentItem?.lidLogoImage || content.boxRevealLidLogoImage || '').trim();
@@ -637,27 +699,28 @@ export function ProductBoxReveal({
             className="relative w-full h-full flex items-center justify-center"
             style={getBoxTransitionStyle()}
           >
-            {/* Directional studio floor shadow matching reference */}
+            {/* Directional studio floor shadow matching box shape */}
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0"
               style={{
-                borderRadius: '8px',
+                borderRadius: isCircleBox ? '50%' : outerRadiusCss,
                 transform: 'translate(10px, 18px) scale(0.96)',
-                background: 'rgba(24, 16, 12, 0.28)',
+                background: `rgba(24, 16, 12, ${(0.28 * shadowFactor).toFixed(3)})`,
                 filter: 'blur(20px)',
               }}
             />
 
-            {/* Open Wooden Box Outer Frame (Configurable inner outline wall thickness) */}
+            {/* Open Wooden Box Outer Frame (Configurable shape & inner outline wall thickness) */}
             <div
               className="relative w-full h-full"
               style={{
-                borderRadius: '7px',
+                borderRadius: outerRadiusCss,
                 padding: `${borderThicknessPx}px`,
                 background: wood.frameBackground,
-                boxShadow:
-                  'inset 0 2px 2px rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.45), 0 14px 28px -8px rgba(20,14,10,0.34)',
+                boxShadow: `inset 0 2px 2px rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.45), 0 14px 28px -8px rgba(20,14,10,${(
+                  0.34 * shadowFactor
+                ).toFixed(3)})`,
                 boxSizing: 'border-box',
               }}
             >
@@ -665,8 +728,9 @@ export function ProductBoxReveal({
               <div
                 className="relative w-full h-full overflow-hidden flex items-center justify-center"
                 style={{
-                  borderRadius: borderThicknessPx <= 4 ? '5px' : '3px',
+                  borderRadius: cavityRadiusCss,
                   background: wood.cavityBackground,
+                  border: innerRimAccent ? `1.5px solid ${innerRimColor}` : 'none',
                   boxShadow:
                     'inset 0 10px 22px rgba(0,0,0,0.78), inset 0 2px 6px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.14)',
                 }}
@@ -674,8 +738,9 @@ export function ProductBoxReveal({
                 {/* Soft padded velvet cushion contour */}
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-2 rounded-sm"
+                  className="pointer-events-none absolute inset-2"
                   style={{
+                    borderRadius: isCircleBox ? '50%' : cavityRadiusCss,
                     border: '1px solid rgba(255,255,255,0.04)',
                     background:
                       'radial-gradient(circle at 50% 48%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.35) 100%)',
@@ -726,7 +791,7 @@ export function ProductBoxReveal({
               </div>
             </div>
 
-            {/* Hinged Wooden Box Lid (Starts CLOSED -> Opens smoothly upward -> Stops open & clear) */}
+            {/* Hinged / Liftable Wooden Box Lid (Starts CLOSED -> Opens smoothly -> Stops open & clear) */}
             <div
               data-canvas-sublayer="pbr_lid_logo"
               aria-hidden="true"
@@ -735,42 +800,46 @@ export function ProductBoxReveal({
               }}
               className="absolute inset-0 z-20 flex items-center justify-center"
               style={{
-                borderRadius: '7px',
+                borderRadius: outerRadiusCss,
                 background: wood.lidBackground,
-                transformOrigin: '50% 0%',
-                transform: isOpen
-                  ? 'rotateX(108deg) translateY(-10px)'
-                  : 'rotateX(0deg) translateY(0px)',
+                transformOrigin: lidMotion.origin,
+                transform: isOpen ? lidMotion.open : lidMotion.closed,
                 opacity: isOpen ? 0 : 1,
                 pointerEvents: isOpen ? 'none' : 'auto',
                 cursor: isOpen ? 'default' : 'pointer',
-                boxShadow:
-                  'inset 0 2px 3px rgba(255,255,255,0.22), inset 0 -4px 8px rgba(0,0,0,0.44), 0 12px 24px -6px rgba(20,14,10,0.34)',
+                boxShadow: `inset 0 2px 3px rgba(255,255,255,0.22), inset 0 -4px 8px rgba(0,0,0,0.44), 0 12px 24px -6px rgba(20,14,10,${(
+                  0.34 * shadowFactor
+                ).toFixed(3)})`,
                 transition: suppressLidAnim
                   ? 'none'
                   : 'transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease 520ms',
                 willChange: 'transform, opacity',
               }}
             >
-              {/* Subtle chamfered border groove on closed wooden lid */}
+              {/* Subtle chamfered border groove / accent ring on closed wooden lid */}
               <div
-                className="pointer-events-none absolute inset-2.5 rounded-[4px]"
+                className="pointer-events-none absolute inset-2.5"
                 style={{
-                  border: '1px solid rgba(255,255,255,0.09)',
+                  borderRadius: grooveRadiusCss,
+                  border: innerRimAccent
+                    ? `1.5px solid ${innerRimColor}`
+                    : '1px solid rgba(255,255,255,0.09)',
                   boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.22)',
                 }}
               />
-              {/* Top hinge shadow line */}
-              <div
-                className="pointer-events-none absolute top-0 left-3 right-3 h-[2px]"
-                style={{ background: 'rgba(0,0,0,0.28)' }}
-              />
+              {/* Top hinge shadow line (only for top-hinged rectangular/rounded boxes) */}
+              {!isCircleBox && lidOpenStyle === 'hinge_top' && (
+                <div
+                  className="pointer-events-none absolute top-0 left-3 right-3 h-[2px]"
+                  style={{ background: 'rgba(0,0,0,0.28)' }}
+                />
+              )}
               {/* Custom Lid Logo / Image (uploadable per-box or globally, adjustable down to 0px inset) */}
               {showLidLogo && (
                 <div
                   className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden"
                   style={{
-                    borderRadius: '7px',
+                    borderRadius: outerRadiusCss,
                     padding: `${lidLogoPaddingPx}px`,
                     boxSizing: 'border-box',
                   }}
@@ -784,7 +853,11 @@ export function ProductBoxReveal({
                       width: `${lidLogoSizePct}%`,
                       height: `${lidLogoSizePct}%`,
                       objectFit: lidLogoFit,
-                      borderRadius: lidLogoPaddingPx === 0 && lidLogoSizePct >= 98 ? '7px' : '2px',
+                      borderRadius: isCircleBox
+                        ? '50%'
+                        : lidLogoPaddingPx === 0 && lidLogoSizePct >= 98
+                        ? outerRadiusCss
+                        : '2px',
                       filter:
                         lidLogoPaddingPx === 0 && lidLogoFit === 'cover'
                           ? 'none'

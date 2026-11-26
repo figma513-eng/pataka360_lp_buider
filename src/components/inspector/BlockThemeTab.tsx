@@ -86,6 +86,18 @@ function getBlockAccentField(block: BuilderBlock): {
         label: 'Warna Kotak',
         value: c.boxRevealColor || '',
       };
+    case 'mix_rasa':
+      return {
+        key: 'mixRasaAccentColor',
+        label: 'Warna Aksen Mix Rasa',
+        value: c.mixRasaAccentColor || '',
+      };
+    case 'slide_mix_rasa':
+      return {
+        key: 'slideMixAccentColor',
+        label: 'Warna Aksen Slide Mix Rasa',
+        value: c.slideMixAccentColor || '',
+      };
     case 'category_tabs':
       return { key: 'categoryActiveBg', label: 'Warna Tab Aktif', value: c.categoryActiveBg || '' };
     case 'catalog':

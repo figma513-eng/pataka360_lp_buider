@@ -1499,6 +1499,8 @@ export default function App() {
       'floating_product_studio',
       'interactive_box_showcase',
       'product_box_reveal',
+      'mix_rasa',
+      'slide_mix_rasa',
       'carousel',
       'social_feed',
       'social_follower',

@@ -81,6 +81,7 @@ import { CulinarySpinSlider } from './CulinarySpinSlider';
 import { FloatingProductStudio } from './FloatingProductStudio';
 import { InteractiveBoxShowcase } from './InteractiveBoxShowcase';
 import { ProductBoxReveal } from './ProductBoxReveal';
+import { MixRasaConfigurator, parseMixRasaPrice } from './MixRasaConfigurator';
 import { FnbHeroSlider } from './FnbHeroSlider';
 import { MapsPlaceCard } from './MapsPlaceCard';
 import { PhotoCarousel } from './PhotoCarousel';
@@ -728,7 +729,8 @@ export function MobileCanvas({
             block.type !== 'culinary_spin_slider' &&
             block.type !== 'floating_product_studio' &&
             block.type !== 'interactive_box_showcase' &&
-            block.type !== 'product_box_reveal'
+            block.type !== 'product_box_reveal' &&
+            block.type !== 'mix_rasa'
           }
           onDragStart={(e) => {
             if (
@@ -738,7 +740,8 @@ export function MobileCanvas({
               block.type === 'culinary_spin_slider' ||
               block.type === 'floating_product_studio' ||
               block.type === 'interactive_box_showcase' ||
-              block.type === 'product_box_reveal'
+              block.type === 'product_box_reveal' ||
+              block.type === 'mix_rasa'
             ) {
               e.preventDefault();
               return;
@@ -2857,6 +2860,23 @@ export function MobileCanvas({
           />
         )}
 
+        {block.type === 'mix_rasa' && (
+          <MixRasaConfigurator
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            onAddMixToCart={(payload) => {
+              setFnbPreviewQtys((prev) => ({
+                ...prev,
+                [`mr_${block.id}`]: (prev[`mr_${block.id}`] ?? 0) + 1,
+                [`mr_amt_${block.id}`]: (prev[`mr_amt_${block.id}`] ?? 0) + payload.unitPrice,
+              }));
+            }}
+          />
+        )}
+
         {block.type === 'cart_button' && (() => {
           const itemKey = `cb_${block.id}`;
           const qty = fnbPreviewQtys[itemKey] ?? 0;
@@ -3806,6 +3826,10 @@ export function MobileCanvas({
                   b.content.boxRevealShowCartButton !== false &&
                   b.content.boxRevealFloatingCartEnabled !== false
               );
+              const mixRasaBlocks = allFlatCanvasBlocks.filter(
+                (b) =>
+                  b.type === 'mix_rasa' && b.content.mixRasaFloatingCartEnabled !== false
+              );
               const cartBtnBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'cart_button');
               const showcaseCartBlocks = allFlatCanvasBlocks.filter(
                 (b) =>
@@ -3858,6 +3882,14 @@ export function MobileCanvas({
                 (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
                 0
               );
+              const mixRasaCount = mixRasaBlocks.reduce(
+                (sum, mb) => sum + (fnbPreviewQtys[`mr_${mb.id}`] ?? 0),
+                0
+              );
+              const mixRasaAmount = mixRasaBlocks.reduce(
+                (sum, mb) => sum + (fnbPreviewQtys[`mr_amt_${mb.id}`] ?? 0),
+                0
+              );
               const cbCount = cartBtnBlocks.reduce(
                 (sum, cb) => sum + (fnbPreviewQtys[`cb_${cb.id}`] ?? 0),
                 0
@@ -3877,6 +3909,7 @@ export function MobileCanvas({
                 studioCount +
                 boxShowcaseCount +
                 boxRevealCount +
+                mixRasaCount +
                 cbCount +
                 scCount +
                 ucCount;
@@ -3915,7 +3948,7 @@ export function MobileCanvas({
                   qty: fnbPreviewQtys[`uc_${ub.id}`] ?? 0,
                 })),
               ];
-              const activeAmount = fnbPriceSum(pricedEntries);
+              const activeAmount = fnbPriceSum(pricedEntries) + mixRasaAmount;
 
               const sourceBlk = allFlatCanvasBlocks.find(
                 (b) => b.id === canvasFloatingCart.sourceBlockId
@@ -3931,6 +3964,7 @@ export function MobileCanvas({
                       studioSliderBlocks.some((b) => b.id === selectedId) ||
                       boxShowcaseBlocks.some((b) => b.id === selectedId) ||
                       boxRevealBlocks.some((b) => b.id === selectedId) ||
+                      mixRasaBlocks.some((b) => b.id === selectedId) ||
                       cartBtnBlocks.some((b) => b.id === selectedId) ||
                       showcaseCartBlocks.some((b) => b.id === selectedId) ||
                       universalCartBlocks.some((b) => b.id === selectedId))
@@ -3950,6 +3984,12 @@ export function MobileCanvas({
                   ? sourceBlk.content.boxShowcaseItems?.[0]?.price || '0'
                   : sourceBlk?.type === 'product_box_reveal'
                   ? sourceBlk.content.boxRevealItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'mix_rasa'
+                  ? String(
+                      (sourceBlk.content.mixRasaFlavors ?? [])
+                        .slice(0, sourceBlk.content.mixRasaSliceCount ?? 2)
+                        .reduce((s, f) => s + parseMixRasaPrice(f.price), 0)
+                    )
                   : sourceBlk?.type === 'cart_button'
                   ? sourceBlk.content.cartProductPrice || '0'
                   : sourceBlk?.type === 'showcase_card'

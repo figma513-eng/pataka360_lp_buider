@@ -48,6 +48,7 @@ export interface ResolvedProjectFloatingCart {
   sourceBlockLabel: string;
   sourceType: 'fnb_catalog' | 'cart_button' | 'universal_cart';
   totalSources: number;
+  alwaysShowWhenEmpty?: boolean;
 }
 
 export function isTopFloatingCartPosition(pos?: FloatingCartPosition): boolean {
@@ -62,6 +63,8 @@ export const UNIVERSAL_CART_EXCLUDED_TYPES = new Set([
   'floating_product_studio',
   'interactive_box_showcase',
   'product_box_reveal',
+  'mix_rasa',
+  'slide_mix_rasa',
   'cart_button',
   'divider',
   'back_button',
@@ -241,7 +244,9 @@ export function resolveProjectFloatingCartConfig(
           b.content.boxShowcaseFloatingCartEnabled !== false) ||
         (b.type === 'product_box_reveal' &&
           b.content.boxRevealShowCartButton !== false &&
-          b.content.boxRevealFloatingCartEnabled !== false)
+          b.content.boxRevealFloatingCartEnabled !== false) ||
+        (b.type === 'mix_rasa' && b.content.mixRasaFloatingCartEnabled !== false) ||
+        (b.type === 'slide_mix_rasa' && b.content.slideMixFloatingCartEnabled !== false)
       ) {
         totalSources += 1;
         if (!fnbMatch) fnbMatch = b;
@@ -284,6 +289,8 @@ export function resolveProjectFloatingCartConfig(
     const isStudio = blk.type === 'floating_product_studio';
     const isBoxShowcase = blk.type === 'interactive_box_showcase';
     const isBoxReveal = blk.type === 'product_box_reveal';
+    const isMixRasa = blk.type === 'mix_rasa';
+    const isSlideMixRasa = blk.type === 'slide_mix_rasa';
     return {
       label: isHeroSlider
         ? c.fnbSliderFloatingCartLabel || 'Lihat Keranjang'
@@ -295,6 +302,10 @@ export function resolveProjectFloatingCartConfig(
         ? c.boxShowcaseFloatingCartLabel || 'Lihat Keranjang'
         : isBoxReveal
         ? c.boxRevealFloatingCartLabel || 'Lihat Keranjang'
+        : isMixRasa
+        ? c.mixRasaFloatingCartLabel || 'Lihat Keranjang'
+        : isSlideMixRasa
+        ? c.slideMixFloatingCartLabel || 'Lihat Keranjang'
         : c.fnbFloatingCartLabel || 'Lanjut',
       bg: isHeroSlider
         ? c.fnbSliderFloatingCartBg || c.fnbSliderItems?.[0]?.gradientFrom || '#EA580C'
@@ -306,6 +317,10 @@ export function resolveProjectFloatingCartConfig(
         ? c.boxShowcaseFloatingCartBg || c.boxShowcaseColor || '#25272D'
         : isBoxReveal
         ? c.boxRevealFloatingCartBg || c.boxRevealColor || '#5C3626'
+        : isMixRasa
+        ? c.mixRasaFloatingCartBg || c.mixRasaAccentColor || '#EA6314'
+        : isSlideMixRasa
+        ? c.slideMixFloatingCartBg || c.slideMixAccentColor || '#EA6314'
         : c.fnbFloatingCartBg || c.fnbAccentColor || '#EA580C',
       position: isHeroSlider
         ? c.fnbSliderFloatingCartPosition || 'bottom-floating'
@@ -317,6 +332,10 @@ export function resolveProjectFloatingCartConfig(
         ? c.boxShowcaseFloatingCartPosition || 'bottom-floating'
         : isBoxReveal
         ? c.boxRevealFloatingCartPosition || 'bottom-floating'
+        : isMixRasa
+        ? c.mixRasaFloatingCartPosition || 'bottom-floating'
+        : isSlideMixRasa
+        ? c.slideMixFloatingCartPosition || 'bottom-floating'
         : c.fnbFloatingCartPosition || 'bottom-floating',
       offsetY: typeof c.fnbFloatingCartOffsetY === 'number' ? c.fnbFloatingCartOffsetY : 16,
       sourceBlockId: blk.id,
@@ -332,9 +351,14 @@ export function resolveProjectFloatingCartConfig(
           ? 'Interactive Box Showcase'
           : isBoxReveal
           ? 'Animated Product Box Reveal'
+          : isMixRasa
+          ? 'Mix Rasa'
+          : isSlideMixRasa
+          ? 'Slide Mix Rasa'
           : 'Katalog FnB'),
       sourceType: 'fnb_catalog',
       totalSources,
+      alwaysShowWhenEmpty: isMixRasa || isSlideMixRasa,
     };
   }
   if (cartBtnMatch) {

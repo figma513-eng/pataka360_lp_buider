@@ -5,6 +5,7 @@ import {
   AlignRight,
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
   Copy,
   Eye,
   EyeOff,
@@ -48,6 +49,7 @@ import {
   InteractiveBoxItem,
   MenuIconAction,
   MenuIconSheetPosition,
+  MixRasaFlavorItem,
   PageTheme,
   ProductBoxRevealItem,
   ShippingMethodId,
@@ -81,12 +83,17 @@ import {
   DEFAULT_STYLE,
   FNB_CUP_CARAMEL_SVG,
   MAPS_LOCATION_SVG,
+  MIX_RASA_PEPPERONI_SVG,
   PREBUILT_SECTIONS,
   PRODUCT_CARD_SVG,
   STUDIO_JACKET_GREY_SVG,
   createBlock,
   createId,
 } from '../../data/presets';
+import {
+  buildMixRasaWaMessage,
+  parseMixRasaPrice,
+} from '../MixRasaConfigurator';
 import { TOOL_ITEMS, getSectionIcon } from '../LeftSidebar';
 import {
   cloneDefaultCatalogShippingOptions,
@@ -1695,11 +1702,85 @@ export function BlockContentTab({
         const lidLogoSize = c.boxRevealLidLogoSize ?? 44;
         const lidLogoPadding = c.boxRevealLidLogoPadding ?? 12;
         const lidLogoFit = c.boxRevealLidLogoFit ?? 'contain';
+        const boxShape = c.boxRevealBoxShape || 'square';
+        const cornerRadius = c.boxRevealBoxCornerRadius ?? 24;
+        const lidOpenStyle = c.boxRevealLidOpenStyle || 'hinge_top';
         const isCartActive =
           c.boxRevealShowCartButton !== false && c.boxRevealFloatingCartEnabled !== false;
         const boxColor = c.boxRevealColor || '#5C3626';
         return (
           <div className="space-y-2.5">
+            {/* Bentuk Box (Kotak / Melengkung / Bulat) */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-xs font-bold text-[#17243D]">Bentuk Box & Gaya Tutup</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { id: 'square', label: 'Kotak' },
+                    { id: 'rounded', label: 'Melengkung' },
+                    { id: 'circle', label: 'Bulat' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ boxRevealBoxShape: opt.id })}
+                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                      boxShape === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {boxShape === 'rounded' && (
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-[#51637D] mb-1">
+                    <span>Kelengkungan Sudut</span>
+                    <span className="tabular-nums">{cornerRadius}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={4}
+                    max={90}
+                    step={2}
+                    value={cornerRadius}
+                    onChange={(e) =>
+                      updateContent({ boxRevealBoxCornerRadius: Number(e.target.value) })
+                    }
+                    className="w-full accent-[#00C98A]"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                  Gaya / Arah Buka Tutup
+                </label>
+                <select
+                  value={lidOpenStyle}
+                  onChange={(e) =>
+                    updateContent({
+                      boxRevealLidOpenStyle: e.target.value as
+                        | 'hinge_top'
+                        | 'hinge_left'
+                        | 'hinge_right'
+                        | 'lift'
+                        | 'spin_lift',
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                >
+                  <option value="hinge_top">Engsel Atas (Buka ke Atas)</option>
+                  <option value="hinge_left">Engsel Kiri (Buka ke Kiri)</option>
+                  <option value="hinge_right">Engsel Kanan (Buka ke Kanan)</option>
+                  <option value="lift">Angkat / Lepas Tutup (Cocok Box Bulat)</option>
+                  <option value="spin_lift">Putar & Angkat (Tutup Bulat Elegan)</option>
+                </select>
+              </div>
+            </div>
+
             {/* Logo / Gambar Tutup Kotak (Global) */}
             <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -2087,6 +2168,342 @@ export function BlockContentTab({
               )}
             </div>
             {renderAdminCtaControls(c.boxRevealWhatsappNumber)}
+          </div>
+        );
+      }
+
+      case 'mix_rasa': {
+        const flavors: MixRasaFlavorItem[] = c.mixRasaFlavors ?? [];
+        const sliceCount: 2 | 3 | 4 =
+          c.mixRasaSliceCount === 3 || c.mixRasaSliceCount === 4 ? c.mixRasaSliceCount : 2;
+        const allowSliceSwitch = c.mixRasaAllowSliceSwitch !== false;
+        const showProductSize = c.mixRasaShowProductSize !== false;
+        const showDescription = Boolean(c.mixRasaShowDescription);
+        const previewSize = Math.max(150, Math.min(320, Number(c.mixRasaPreviewSize ?? 232)));
+        const showBack = c.mixRasaShowBackButton !== false;
+        const centerHeader = Boolean(c.mixRasaCenterHeader);
+        const backActionType = c.mixRasaBackActionType || 'back';
+        const defaultIds = Array.isArray(c.mixRasaDefaultSelectionIds)
+          ? c.mixRasaDefaultSelectionIds
+          : [];
+        const sizePresets = ['Pizza 25 cm', 'Pizza 30 cm', 'Pizza 35 cm', 'Pizza 40 cm', 'Loyang 20 cm'];
+
+        return (
+          <div className="space-y-3">
+            {/* Jumlah Bagian (2 / 3 / 4 Rasa) */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <label className="block text-[11px] font-bold text-[#17243D]">
+                Jumlah Bagian Awal (2 / 3 / 4 Rasa)
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([2, 3, 4] as const).map((cnt) => (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => updateContent({ mixRasaSliceCount: cnt })}
+                    className={`py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      sliceCount === cnt
+                        ? 'bg-[#EA6314] text-white border-[#EA6314] shadow-xs'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#EA6314]/50'
+                    }`}
+                  >
+                    {cnt} Rasa
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[#DCE5EF]/80">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-[#17243D]">
+                    Pilihan 2 / 3 / 4 Rasa di Halaman
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Pengunjung dapat langsung memilih 2, 3, atau 4 rasa
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={allowSliceSwitch}
+                  onChange={(val) => updateContent({ mixRasaAllowSliceSwitch: val })}
+                  label="Pilihan 2 / 3 / 4 Rasa di Halaman"
+                />
+              </div>
+            </div>
+
+            {/* Ukuran Foto Produk Bundar (Perbesar / Perkecil) */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#17243D]">
+                  Ukuran Foto Produk (Bundar)
+                </span>
+                <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                  {previewSize}px
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateContent({ mixRasaPreviewSize: Math.max(150, previewSize - 14) })
+                  }
+                  className="px-2.5 py-1 rounded-md bg-white border border-[#DCE5EF] text-xs font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                  title="Perkecil foto bundar"
+                >
+                  − Perkecil
+                </button>
+                <input
+                  type="range"
+                  min={150}
+                  max={320}
+                  step={2}
+                  value={previewSize}
+                  onChange={(e) =>
+                    updateContent({ mixRasaPreviewSize: Number(e.target.value) })
+                  }
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateContent({ mixRasaPreviewSize: Math.min(320, previewSize + 14) })
+                  }
+                  className="px-2.5 py-1 rounded-md bg-white border border-[#DCE5EF] text-xs font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                  title="Perbesar foto bundar"
+                >
+                  + Perbesar
+                </button>
+              </div>
+            </div>
+
+            {/* Judul, Ukuran Produk (Toggle), & Keterangan Produk (Toggle) */}
+            <div className="grid grid-cols-1 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Judul Produk
+                </label>
+                <input
+                  type="text"
+                  value={c.mixRasaTitle ?? 'Pizza Mix Rasa'}
+                  onChange={(e) => updateContent({ mixRasaTitle: e.target.value })}
+                  placeholder="Pizza Mix Rasa"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+
+              {/* Pilih / Ukuran Produk dengan Toggle Aktif/Nonaktif */}
+              <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-[#17243D]">
+                      Pilih / Ukuran Produk
+                    </div>
+                    <div className="text-[10px] text-[#51637D]">
+                      {showProductSize
+                        ? 'Ditampilkan di bawah judul & detail pesanan'
+                        : 'Disembunyikan dari tampilan & detail pesanan'}
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={showProductSize}
+                    onChange={(val) => updateContent({ mixRasaShowProductSize: val })}
+                    label="Aktifkan Pilih / Ukuran Produk"
+                  />
+                </div>
+                {showProductSize && (
+                  <>
+                    <input
+                      type="text"
+                      value={c.mixRasaProductSize ?? 'Pizza 35 cm'}
+                      onChange={(e) => updateContent({ mixRasaProductSize: e.target.value })}
+                      placeholder="Pizza 35 cm"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    />
+                    <div className="flex flex-wrap gap-1">
+                      {sizePresets.map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => updateContent({ mixRasaProductSize: sz })}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border cursor-pointer ${
+                            (c.mixRasaProductSize ?? 'Pizza 35 cm') === sz
+                              ? 'bg-[#FFF3EC] border-[#EA6314] text-[#C2410C]'
+                              : 'bg-white border-[#DCE5EF] text-[#51637D]'
+                          }`}
+                        >
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Keterangan Produk dengan Toggle Aktif/Nonaktif */}
+              <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-[#17243D]">
+                      Keterangan Produk
+                    </div>
+                    <div className="text-[10px] text-[#51637D]">
+                      {showDescription
+                        ? 'Menampilkan deskripsi singkat di bawah header'
+                        : 'Aktifkan untuk menampilkan keterangan produk'}
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={showDescription}
+                    onChange={(val) =>
+                      updateContent({
+                        mixRasaShowDescription: val,
+                        ...(val && !c.mixRasaDescription
+                          ? {
+                              mixRasaDescription:
+                                'Pilih kombinasi rasa favorit dalam satu produk segar.',
+                            }
+                          : {}),
+                      })
+                    }
+                    label="Tampilkan Keterangan Produk"
+                  />
+                </div>
+                {showDescription && (
+                  <textarea
+                    rows={2}
+                    value={c.mixRasaDescription ?? ''}
+                    onChange={(e) => updateContent({ mixRasaDescription: e.target.value })}
+                    placeholder="Contoh: Pizza panggang segar dengan pilihan topping favorit."
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] resize-y"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Opsi Header: Hilangkan Tombol Back & Judul Produk di Tengah */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Tampilan Header Produk
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Tampilkan Tombol Back
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Matikan untuk menghilangkan tombol panah kembali di kiri atas
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={showBack}
+                  onChange={(val) => updateContent({ mixRasaShowBackButton: val })}
+                  label="Tampilkan Tombol Back"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Judul Produk di Tengah
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Letakkan teks judul dan ukuran produk tepat di tengah header
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={centerHeader}
+                  onChange={(val) => updateContent({ mixRasaCenterHeader: val })}
+                  label="Judul Produk di Tengah"
+                />
+              </div>
+              {showBack && (
+                <div className="pt-2 border-t border-[#DCE5EF]/80 space-y-2">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                      Aksi Tombol Back
+                    </label>
+                    <select
+                      value={backActionType}
+                      onChange={(e) =>
+                        updateContent({
+                          mixRasaBackActionType: e.target.value as 'back' | 'page' | 'url',
+                        })
+                      }
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="back">Kembali ke Halaman Sebelumnya</option>
+                      <option value="page">Menuju Halaman Lain</option>
+                      <option value="url">Buka Tautan URL</option>
+                    </select>
+                  </div>
+                  {backActionType === 'page' && (
+                    <select
+                      value={c.mixRasaBackTargetPageId ?? ''}
+                      onChange={(e) => updateContent({ mixRasaBackTargetPageId: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="">Beranda (Home)</option>
+                      {pages.map((pg) => (
+                        <option key={pg.id} value={pg.id}>
+                          {pg.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {backActionType === 'url' && (
+                    <input
+                      type="url"
+                      value={c.mixRasaBackUrl ?? ''}
+                      onChange={(e) => updateContent({ mixRasaBackUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Pilihan Rasa Awal per Bagian */}
+            {flavors.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  Kombinasi Rasa Awal (Default)
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {Array.from({ length: sliceCount }).map((_, slotIdx) => {
+                    const currentId =
+                      defaultIds[slotIdx] && flavors.some((f) => f.id === defaultIds[slotIdx])
+                        ? defaultIds[slotIdx]
+                        : flavors[slotIdx % flavors.length]?.id || '';
+                    return (
+                      <div key={slotIdx}>
+                        <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                          {sliceCount === 2
+                            ? slotIdx === 0
+                              ? 'Bagian Kiri'
+                              : 'Bagian Kanan'
+                            : `Bagian ${slotIdx + 1}`}
+                        </label>
+                        <select
+                          value={currentId}
+                          onChange={(e) => {
+                            const next = Array.from({ length: sliceCount }).map(
+                              (__, i) =>
+                                defaultIds[i] || flavors[i % flavors.length]?.id || ''
+                            );
+                            next[slotIdx] = e.target.value;
+                            updateContent({ mixRasaDefaultSelectionIds: next });
+                          }}
+                          className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                        >
+                          {flavors.map((flv) => (
+                            <option key={flv.id} value={flv.id}>
+                              {flv.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       }
@@ -6453,6 +6870,48 @@ export function BlockContentTab({
               </div>
               <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
                 <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Bentuk Box (Opsional per Kotak)
+                  </span>
+                  {item.boxShapeOverride && (
+                    <button
+                      type="button"
+                      onClick={() => updateRevealItem(item.id, { boxShapeOverride: undefined })}
+                      className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                    >
+                      Ikuti Global
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'square', label: 'Kotak' },
+                      { id: 'rounded', label: 'Melengkung' },
+                      { id: 'circle', label: 'Bulat' },
+                    ] as const
+                  ).map((opt) => {
+                    const effectiveShape =
+                      item.boxShapeOverride || c.boxRevealBoxShape || 'square';
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateRevealItem(item.id, { boxShapeOverride: opt.id })}
+                        className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                          effectiveShape === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+                <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-[#17243D]">Warna Kotak</span>
                   {item.boxColorOverride && (
                     <button
@@ -6600,6 +7059,298 @@ export function BlockContentTab({
                 </div>
               </div>
             ))}
+          </div>
+        ),
+      };
+    }
+
+    // --- MIX RASA: DAFTAR RASA ---
+    if (selectedBlock.type === 'mix_rasa') {
+      const flavors: MixRasaFlavorItem[] = c.mixRasaFlavors ?? [];
+      const updateFlavor = (id: string, patch: Partial<MixRasaFlavorItem>) => {
+        updateContent({
+          mixRasaFlavors: flavors.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+        });
+      };
+
+      const editingId = editingItemKey?.startsWith('mixr:')
+        ? editingItemKey.slice('mixr:'.length)
+        : null;
+      const editingFlavor = editingId ? flavors.find((f) => f.id === editingId) : null;
+
+      if (editingFlavor) {
+        return {
+          badge: 'Edit Rasa',
+          body: (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#DCE5EF]">
+                <button
+                  type="button"
+                  onClick={() => setEditingItemKey(null)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#17243D] hover:text-[#EA6314] cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Kembali ke Daftar Rasa</span>
+                </button>
+              </div>
+              <MediaSourceInput
+                label="Foto / Gambar Rasa (Bundar)"
+                value={editingFlavor.image ?? ''}
+                placeholder="Upload foto atau tempel URL gambar..."
+                onChangeUrl={(url) => updateFlavor(editingFlavor.id, { image: url })}
+                onUploadFile={(file) =>
+                  handleCompressAndSet(file, { maxDimension: 720, quality: 0.86 }, (blk, url) => ({
+                    ...blk,
+                    content: {
+                      ...blk.content,
+                      mixRasaFlavors: (blk.content.mixRasaFlavors ?? []).map((f) =>
+                        f.id === editingFlavor.id ? { ...f, image: url } : f
+                      ),
+                    },
+                  }))
+                }
+                onClear={
+                  editingFlavor.image
+                    ? () => updateFlavor(editingFlavor.id, { image: '' })
+                    : undefined
+                }
+              />
+              {/* Perbesar / Perkecil Foto Gambar Rasa (Bundar) */}
+              {(() => {
+                const flvScale = Math.max(
+                  50,
+                  Math.min(200, Number(editingFlavor.imageScale ?? 100))
+                );
+                return (
+                  <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#17243D]">
+                        Skala Foto Rasa (Perbesar / Perkecil)
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                          {flvScale}%
+                        </span>
+                        {flvScale !== 100 && (
+                          <button
+                            type="button"
+                            onClick={() => updateFlavor(editingFlavor.id, { imageScale: 100 })}
+                            className="text-[10px] font-semibold text-[#51637D] hover:text-[#17243D] underline cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-11 h-11 rounded-full overflow-hidden bg-white border border-[#DCE5EF] shrink-0">
+                        {editingFlavor.image ? (
+                          <img
+                            src={editingFlavor.image}
+                            alt={editingFlavor.name}
+                            className="w-full h-full object-cover"
+                            style={{
+                              transform: `scale(${flvScale / 100})`,
+                              transformOrigin: 'center center',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className="w-full h-full"
+                            style={{ backgroundColor: editingFlavor.accentColor || '#EA6314' }}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateFlavor(editingFlavor.id, {
+                                imageScale: Math.max(50, flvScale - 10),
+                              })
+                            }
+                            className="px-2 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                            title="Perkecil foto rasa"
+                          >
+                            − Perkecil
+                          </button>
+                          <input
+                            type="range"
+                            min={50}
+                            max={200}
+                            step={5}
+                            value={flvScale}
+                            onChange={(e) =>
+                              updateFlavor(editingFlavor.id, {
+                                imageScale: Number(e.target.value),
+                              })
+                            }
+                            className="w-full accent-[#EA6314] cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateFlavor(editingFlavor.id, {
+                                imageScale: Math.min(200, flvScale + 10),
+                              })
+                            }
+                            className="px-2 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                            title="Perbesar foto rasa"
+                          >
+                            + Perbesar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Nama Rasa
+                </label>
+                <input
+                  type="text"
+                  value={editingFlavor.name}
+                  onChange={(e) => updateFlavor(editingFlavor.id, { name: e.target.value })}
+                  placeholder="Contoh: Pepperoni"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga Rasa
+                  </label>
+                  <input
+                    type="text"
+                    value={editingFlavor.price}
+                    onChange={(e) => updateFlavor(editingFlavor.id, { price: e.target.value })}
+                    placeholder="Rp410.000"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Warna Cadangan
+                  </label>
+                  <input
+                    type="color"
+                    value={editingFlavor.accentColor || '#EA6314'}
+                    onChange={(e) =>
+                      updateFlavor(editingFlavor.id, { accentColor: e.target.value })
+                    }
+                    className="w-full h-[30px] rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: `${flavors.length} Rasa`,
+        body: (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const nextFlavor: MixRasaFlavorItem = {
+                  id: createId('mr_flv'),
+                  name: `Rasa Baru ${flavors.length + 1}`,
+                  price: 'Rp350.000',
+                  image: MIX_RASA_PEPPERONI_SVG,
+                  accentColor: '#EA6314',
+                };
+                updateContent({ mixRasaFlavors: [...flavors, nextFlavor] });
+                setEditingItemKey(`mixr:${nextFlavor.id}`);
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-[#EA6314] hover:bg-[#D4550E] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Pilihan Rasa</span>
+            </button>
+            <div className="space-y-1.5">
+              {flavors.map((flv, idx) => (
+                <div
+                  key={flv.id}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-white border border-[#DCE5EF]"
+                >
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                    {flv.image ? (
+                      <img
+                        src={flv.image}
+                        alt={flv.name}
+                        className="w-full h-full object-cover"
+                        style={
+                          (flv.imageScale ?? 100) !== 100
+                            ? {
+                                transform: `scale(${
+                                  Math.max(50, Math.min(200, Number(flv.imageScale ?? 100))) / 100
+                                })`,
+                                transformOrigin: 'center center',
+                              }
+                            : undefined
+                        }
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full"
+                        style={{ backgroundColor: flv.accentColor || '#EA6314' }}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-[#17243D] truncate">{flv.name}</div>
+                    <div className="text-[10.5px] font-semibold text-[#51637D] tabular-nums">
+                      {flv.price}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingItemKey(`mixr:${flv.id}`)}
+                    className="px-2 py-1 rounded-md bg-[#F0F5FA] text-[10.5px] font-semibold text-[#17243D] hover:bg-[#E2ECF5] cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    title="Duplikat Rasa"
+                    aria-label="Duplikat Rasa"
+                    onClick={() => {
+                      const clone: MixRasaFlavorItem = {
+                        ...flv,
+                        id: createId('mr_flv'),
+                        name: `${flv.name} (Salinan)`,
+                      };
+                      const next = [...flavors];
+                      next.splice(idx + 1, 0, clone);
+                      updateContent({ mixRasaFlavors: next });
+                    }}
+                    className="p-1.5 rounded-md text-[#00996B] hover:bg-[#ECFDF6] cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  {flavors.length > 1 && (
+                    <button
+                      type="button"
+                      title="Hapus Rasa"
+                      aria-label="Hapus Rasa"
+                      onClick={() => {
+                        updateContent({
+                          mixRasaFlavors: removeSelectedItemByIdOrIndex(flavors, flv.id, idx),
+                        });
+                      }}
+                      className="p-1.5 rounded-md text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         ),
       };
@@ -10496,6 +11247,237 @@ export function BlockContentTab({
         );
       }
 
+      case 'mix_rasa': {
+        const floatingCartEnabled = c.mixRasaFloatingCartEnabled !== false;
+        const waEnabled = Boolean(c.mixRasaWaEnabled);
+        const waIncludeDetails = c.mixRasaWaIncludeDetails !== false;
+        const accent = c.mixRasaAccentColor || '#EA6314';
+        const flavors: MixRasaFlavorItem[] = c.mixRasaFlavors ?? [];
+        const sliceCount: 2 | 3 | 4 =
+          c.mixRasaSliceCount === 3 || c.mixRasaSliceCount === 4 ? c.mixRasaSliceCount : 2;
+        const defaultIds = Array.isArray(c.mixRasaDefaultSelectionIds)
+          ? c.mixRasaDefaultSelectionIds
+          : [];
+        const previewSelected = Array.from({ length: sliceCount })
+          .map((_, i) => flavors.find((f) => f.id === defaultIds[i]) || flavors[i % flavors.length])
+          .filter(Boolean) as MixRasaFlavorItem[];
+        const previewTotal = previewSelected.reduce((sum, f) => sum + parseMixRasaPrice(f.price), 0);
+        const previewWaText = buildMixRasaWaMessage({
+          title: c.mixRasaTitle || 'Pizza Mix Rasa',
+          productSize: c.mixRasaProductSize || 'Pizza 35 cm',
+          selectedFlavors: previewSelected,
+          totalAmount: previewTotal,
+          qty: 1,
+          intro: c.mixRasaWaIntro ?? 'Halo, saya ingin memesan:',
+          includeDetails: waIncludeDetails,
+        });
+
+        return (
+          <div className="space-y-3">
+            {/* 1. KERANJANG MELAYANG */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#17243D]">
+                    1. Keranjang Melayang
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Tampilkan tombol Gabungkan Rasa & keranjang melayang berisi kombinasi rasa
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={floatingCartEnabled}
+                  onChange={(val) =>
+                    updateContent({
+                      mixRasaFloatingCartEnabled: val,
+                      catalogCartEnabled: val,
+                    })
+                  }
+                  label="Keranjang Melayang"
+                />
+              </div>
+
+              {floatingCartEnabled && (
+                <div className="space-y-2 pt-2 border-t border-[#DCE5EF]/80">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                      Posisi Keranjang Melayang
+                    </label>
+                    <select
+                      value={c.mixRasaFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          mixRasaFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Label Tombol Utama
+                      </label>
+                      <input
+                        type="text"
+                        value={c.mixRasaCartButtonLabel ?? 'Gabungkan Rasa'}
+                        onChange={(e) =>
+                          updateContent({ mixRasaCartButtonLabel: e.target.value })
+                        }
+                        placeholder="Gabungkan Rasa"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Label Keranjang Melayang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.mixRasaFloatingCartLabel ?? 'Lihat Keranjang'}
+                        onChange={(e) =>
+                          updateContent({ mixRasaFloatingCartLabel: e.target.value })
+                        }
+                        placeholder="Lihat Keranjang"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        No. WA Checkout Keranjang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.catalogWhatsappNumber ?? c.mixRasaWaNumber ?? '6281234567890'}
+                        onChange={(e) =>
+                          updateContent({ catalogWhatsappNumber: e.target.value })
+                        }
+                        placeholder="6281234567890"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Warna Keranjang
+                      </label>
+                      <input
+                        type="color"
+                        value={c.mixRasaFloatingCartBg ?? accent}
+                        onChange={(e) =>
+                          updateContent({ mixRasaFloatingCartBg: e.target.value })
+                        }
+                        className="w-full h-[30px] rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. LINK WHATSAPP */}
+            <div className="p-2.5 rounded-lg bg-[#ECFDF5] border border-[#BBF7D0] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#14532D]">
+                    2. Link WhatsApp
+                  </div>
+                  <div className="text-[10px] text-[#166534]">
+                    Buka WhatsApp langsung dengan nomor tujuan & kombinasi rasa terpilih
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={waEnabled}
+                  onChange={(val) => updateContent({ mixRasaWaEnabled: val })}
+                  label="Link WhatsApp"
+                />
+              </div>
+
+              {waEnabled && (
+                <div className="space-y-2 pt-2 border-t border-[#BBF7D0]">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#166534] mb-1">
+                        Nomor WhatsApp Tujuan
+                      </label>
+                      <input
+                        type="text"
+                        value={c.mixRasaWaNumber ?? '6281234567890'}
+                        onChange={(e) => updateContent({ mixRasaWaNumber: e.target.value })}
+                        placeholder="6281234567890"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#86EFAC] bg-white tabular-nums outline-none focus:border-[#16A34A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#166534] mb-1">
+                        Label Tombol
+                      </label>
+                      <input
+                        type="text"
+                        value={c.mixRasaWaLabel ?? 'Pesan via WhatsApp'}
+                        onChange={(e) => updateContent({ mixRasaWaLabel: e.target.value })}
+                        placeholder="Pesan via WhatsApp"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#86EFAC] bg-white outline-none focus:border-[#16A34A]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#166534] mb-1">
+                      Pesan Awal WhatsApp
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={c.mixRasaWaIntro ?? 'Halo, saya ingin memesan:'}
+                      onChange={(e) => updateContent({ mixRasaWaIntro: e.target.value })}
+                      placeholder="Halo, saya ingin memesan:"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#86EFAC] bg-white outline-none focus:border-[#16A34A]"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-[#14532D]">
+                        Sertakan Detail Kombinasi Rasa Otomatis
+                      </div>
+                      <div className="text-[9.5px] text-[#166534]">
+                        Otomatis mengisi nama produk, daftar rasa, jumlah & total harga
+                      </div>
+                    </div>
+                    <ToggleSwitch
+                      checked={waIncludeDetails}
+                      onChange={(val) => updateContent({ mixRasaWaIncludeDetails: val })}
+                      label="Sertakan Detail Kombinasi Rasa"
+                    />
+                  </div>
+                  <div className="rounded-lg bg-white/90 border border-[#BBF7D0] p-2">
+                    <div className="text-[9.5px] font-bold uppercase tracking-wider text-[#15803D] mb-1">
+                      Pratinjau Pesan WhatsApp
+                    </div>
+                    <pre className="text-[10px] leading-relaxed text-slate-700 whitespace-pre-wrap font-sans m-0">
+                      {previewWaText}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!floatingCartEnabled && !waEnabled && (
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[10.5px] text-amber-800 font-medium">
+                Kedua aksi nonaktif — tidak ada tombol pemesanan tambahan yang ditampilkan pada halaman publik.
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case 'fnb_hero_slider':
         return (
           <div className="space-y-2.5">
@@ -11837,6 +12819,7 @@ export function BlockContentTab({
 
   const resolvedWaCenter = resolveWhatsappCenter({ whatsappCenter });
   const isProductBoxReveal = selectedBlock.type === 'product_box_reveal';
+  const isMixRasa = selectedBlock.type === 'mix_rasa';
   const supportsWaCenterIntegration =
     selectedBlock.type === 'button' ||
     selectedBlock.type === 'catalog' ||
@@ -11846,6 +12829,7 @@ export function BlockContentTab({
     selectedBlock.type === 'floating_product_studio' ||
     selectedBlock.type === 'interactive_box_showcase' ||
     selectedBlock.type === 'product_box_reveal' ||
+    selectedBlock.type === 'mix_rasa' ||
     selectedBlock.type === 'cart_button' ||
     selectedBlock.type === 'training_catalog' ||
     selectedBlock.type === 'form' ||
@@ -11860,6 +12844,8 @@ export function BlockContentTab({
           title={
             isProductBoxReveal
               ? 'Kotak & Foto Produk'
+              : isMixRasa
+              ? 'Daftar Rasa'
               : label('konten.sec.items', 'Data & Daftar Item')
           }
           icon={<ListOrdered className="w-3.5 h-3.5" />}
@@ -11875,7 +12861,13 @@ export function BlockContentTab({
       {mainContent && isVisible('konten.sec.main') && isContentSectionAllowed('main') && (
         <AccordionSection
           id="main"
-          title={isProductBoxReveal ? 'Aksi Produk' : label('konten.sec.main', 'Konten Utama')}
+          title={
+            isProductBoxReveal
+              ? 'Aksi Produk'
+              : isMixRasa
+              ? 'Pengaturan Mix Rasa'
+              : label('konten.sec.main', 'Konten Utama')
+          }
           icon={<FileText className="w-3.5 h-3.5" />}
           isOpen={openSections.main}
           onToggle={() => toggleSection('main')}
@@ -11884,8 +12876,22 @@ export function BlockContentTab({
         </AccordionSection>
       )}
 
+      {/* 2b. AKSI PEMESANAN KHUSUS MIX RASA (tampil menonjol tepat di bawah Pengaturan Mix Rasa) */}
+      {isMixRasa && actionsContent && (
+        <AccordionSection
+          id="actions"
+          title="Aksi Pemesanan"
+          icon={<MousePointerClick className="w-3.5 h-3.5" />}
+          isOpen={openSections.actions}
+          onToggle={() => toggleSection('actions')}
+        >
+          {actionsContent}
+        </AccordionSection>
+      )}
+
       {/* 3. TAUTAN & NAVIGASI */}
       {!isProductBoxReveal &&
+        !isMixRasa &&
         navContent &&
         isVisible('konten.sec.nav') &&
         isContentSectionAllowed('nav') && (
@@ -11901,7 +12907,7 @@ export function BlockContentTab({
         )}
 
       {/* 4. PENGATURAN UMUM */}
-      {!isProductBoxReveal && isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
+      {!isProductBoxReveal && !isMixRasa && isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
         <AccordionSection
           id="general"
           title={label('konten.sec.general', 'Pengaturan Umum')}
@@ -12032,6 +13038,7 @@ export function BlockContentTab({
 
       {/* 5. AKSI & INTERAKSI */}
       {!isProductBoxReveal &&
+        !isMixRasa &&
         actionsContent &&
         isVisible('konten.sec.actions') &&
         isContentSectionAllowed('actions') && (
@@ -12047,6 +13054,7 @@ export function BlockContentTab({
         )}
 
       {!isProductBoxReveal &&
+        !isMixRasa &&
         extraContent &&
         isVisible('konten.sec.extra') &&
         isContentSectionAllowed('extra') && (

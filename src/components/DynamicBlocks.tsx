@@ -900,6 +900,7 @@ export function FnbFloatingCartCapsule({
   offsetY = 16,
   bgColor = '#EA580C',
   actionLabel = 'Lanjut',
+  alwaysShowWhenEmpty = false,
   onClick,
 }: {
   count: number;
@@ -908,9 +909,10 @@ export function FnbFloatingCartCapsule({
   offsetY?: number;
   bgColor?: string;
   actionLabel?: string;
+  alwaysShowWhenEmpty?: boolean;
   onClick: () => void;
 }) {
-  if (count <= 0) return null;
+  if (count <= 0 && !alwaysShowWhenEmpty) return null;
 
   const isTop =
     position === 'top-floating' || position === 'top-left' || position === 'top-right';
@@ -957,7 +959,7 @@ export function FnbFloatingCartCapsule({
               {count} item
             </div>
             <div className="text-sm font-extrabold leading-tight tabular-nums truncate">
-              {totalAmount > 0 ? formatRupiah(totalAmount) : 'Siap pesan'}
+              {totalAmount > 0 ? formatRupiah(totalAmount) : count === 0 ? 'Rp 0' : 'Siap pesan'}
             </div>
           </div>
         </div>

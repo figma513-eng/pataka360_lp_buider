@@ -1976,6 +1976,129 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
       break;
     }
 
+    case 'mix_rasa': {
+      const flavors = c.mixRasaFlavors ?? [];
+      const sliceCount = c.mixRasaSliceCount ?? 2;
+      pushIfNotDeleted({
+        id: 'mr_header',
+        label: 'Header & Judul Produk',
+        typeLabel: `${c.mixRasaTitle || 'Pizza Mix Rasa'} · ${
+          c.mixRasaCenterHeader ? 'Tengah' : 'Kiri'
+        }${c.mixRasaShowBackButton === false ? ' · Tanpa Back' : ''}`,
+        kind: 'part',
+        icon: 'text',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'mr_preview',
+        label: 'Preview Kombinasi Bundar',
+        typeLabel: `${sliceCount} Rasa · ${c.mixRasaProductSize || 'Pizza 35 cm'}`,
+        kind: 'part',
+        icon: 'image',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'mr_actions',
+        label: 'Aksi Pemesanan',
+        typeLabel: [
+          c.mixRasaFloatingCartEnabled !== false ? 'Keranjang Melayang' : '',
+          c.mixRasaWaEnabled ? 'Link WhatsApp' : '',
+        ]
+          .filter(Boolean)
+          .join(' + ') || 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      flavors.forEach((flv, idx) => {
+        layers.push({
+          id: `mr_flv_${flv.id || idx}`,
+          label: flv.name?.trim() || `Rasa #${idx + 1}`,
+          typeLabel: flv.price?.trim() || 'Rp0',
+          kind: 'item',
+          icon: 'card',
+          itemKey: `mixr:${flv.id}`,
+          thumbnailUrl: flv.image?.trim() || undefined,
+          canDelete: flavors.length > 1,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `mr_flv_${flv.id || idx}`),
+          contentSections: ['items'],
+          designSections: ['specific'],
+        });
+      });
+      break;
+    }
+
+    case 'slide_mix_rasa': {
+      const flavors = c.slideMixFlavors ?? [];
+      pushIfNotDeleted({
+        id: 'smr_header',
+        label: 'Header & Judul Produk',
+        typeLabel: `${c.slideMixTitle || 'Pizza Mix Rasa'}${
+          c.slideMixShowProductSize !== false && c.slideMixProductSize
+            ? `, ${c.slideMixProductSize}`
+            : ''
+        }`,
+        kind: 'part',
+        icon: 'text',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'smr_stage',
+        label: 'Slide Belahan Kiri & Kanan',
+        typeLabel: `${flavors.length} Rasa · Geser Vertikal`,
+        kind: 'part',
+        icon: 'image',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'smr_actions',
+        label: 'Aksi Pemesanan',
+        typeLabel:
+          [
+            c.slideMixFloatingCartEnabled !== false ? 'Keranjang Melayang' : '',
+            c.slideMixWaEnabled ? 'Link WhatsApp' : '',
+            c.adminCtaEnabled ? c.adminCtaLabel || 'Tanya Admin' : '',
+          ]
+            .filter(Boolean)
+            .join(' + ') || 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      flavors.forEach((flv, idx) => {
+        layers.push({
+          id: `smr_flv_${flv.id || idx}`,
+          label: flv.name?.trim() || `Rasa #${idx + 1}`,
+          typeLabel: flv.price?.trim() || 'Rp0',
+          kind: 'item',
+          icon: 'card',
+          itemKey: `smr:${flv.id}`,
+          thumbnailUrl: flv.image?.trim() || undefined,
+          canDelete: flavors.length > 1,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `smr_flv_${flv.id || idx}`),
+          contentSections: ['items'],
+          designSections: ['specific'],
+        });
+      });
+      break;
+    }
+
     case 'training_catalog': {
       pushIfNotDeleted({
         id: 'training_header',

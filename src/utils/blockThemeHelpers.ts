@@ -30,6 +30,8 @@ export function getDefaultBlockBgForTheme(block: BuilderBlock, theme: PageTheme)
     block.type === 'floating_product_studio' ||
     block.type === 'interactive_box_showcase' ||
     block.type === 'product_box_reveal' ||
+    block.type === 'mix_rasa' ||
+    block.type === 'slide_mix_rasa' ||
     block.type === 'training_catalog' ||
     block.type === 'hero_profile'
   ) {

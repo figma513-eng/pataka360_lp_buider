@@ -3691,6 +3691,22 @@ ${actionsRowHtml}${adminCtaHtml}${indent}</div>`;
       const zoomEnd = Math.max(40, Math.min(160, Math.round(c.boxRevealProductZoomEnd ?? 100)));
       const boxSize = Math.max(140, Math.min(300, Math.round(c.boxRevealBoxSize ?? 220)));
       const borderThick = Math.max(1, Math.min(36, Math.round(c.boxRevealBorderThickness ?? 18)));
+      const defaultBoxShape: 'square' | 'rounded' | 'circle' =
+        c.boxRevealBoxShape === 'circle' || c.boxRevealBoxShape === 'rounded'
+          ? c.boxRevealBoxShape
+          : 'square';
+      const boxCornerRadius = Math.max(0, Math.min(90, Math.round(c.boxRevealBoxCornerRadius ?? 24)));
+      const lidOpenStyle: 'hinge_top' | 'hinge_left' | 'hinge_right' | 'lift' | 'spin_lift' =
+        c.boxRevealLidOpenStyle === 'hinge_left' ||
+        c.boxRevealLidOpenStyle === 'hinge_right' ||
+        c.boxRevealLidOpenStyle === 'lift' ||
+        c.boxRevealLidOpenStyle === 'spin_lift'
+          ? c.boxRevealLidOpenStyle
+          : 'hinge_top';
+      const innerRimAccent = Boolean(c.boxRevealInnerRimAccent);
+      const innerRimColor = sanitizeCssColor(c.boxRevealInnerRimColor, '#D4AF37');
+      const shadowIntensity = Math.max(0, Math.min(100, Math.round(c.boxRevealShadowIntensity ?? 100)));
+      const shadowFactor = shadowIntensity / 100;
       const globalLidLogo = (c.boxRevealLidLogoImage || '').trim();
       const globalLidSize = Math.max(10, Math.min(100, Math.round(c.boxRevealLidLogoSize ?? 44)));
       const globalLidPad = Math.max(0, Math.min(48, Math.round(c.boxRevealLidLogoPadding ?? 12)));
@@ -3700,6 +3716,46 @@ ${actionsRowHtml}${adminCtaHtml}${indent}</div>`;
       const transMs = Math.max(220, Math.min(1400, Math.round(c.boxRevealTransitionDurationMs ?? 520)));
       const first = items[0];
       const firstBoxColor = sanitizeCssColor(first.boxColorOverride, defaultBoxColor);
+      const firstBoxShape: 'square' | 'rounded' | 'circle' =
+        first.boxShapeOverride === 'square' ||
+        first.boxShapeOverride === 'rounded' ||
+        first.boxShapeOverride === 'circle'
+          ? first.boxShapeOverride
+          : defaultBoxShape;
+      const isFirstCircle = firstBoxShape === 'circle';
+      const outerRadiusCss = isFirstCircle
+        ? '50%'
+        : firstBoxShape === 'rounded'
+        ? `${boxCornerRadius}px`
+        : '7px';
+      const cavityRadiusCss = isFirstCircle
+        ? '50%'
+        : firstBoxShape === 'rounded'
+        ? `${Math.max(2, boxCornerRadius - Math.round(borderThick * 0.65))}px`
+        : borderThick <= 4
+        ? '5px'
+        : '3px';
+      const grooveRadiusCss = isFirstCircle
+        ? '50%'
+        : firstBoxShape === 'rounded'
+        ? `${Math.max(2, boxCornerRadius - 6)}px`
+        : '4px';
+      const lidOriginCss =
+        lidOpenStyle === 'hinge_left'
+          ? '0% 50%'
+          : lidOpenStyle === 'hinge_right'
+          ? '100% 50%'
+          : lidOpenStyle === 'lift' || lidOpenStyle === 'spin_lift'
+          ? '50% 50%'
+          : '50% 0%';
+      const lidClosedTransformCss =
+        lidOpenStyle === 'hinge_left' || lidOpenStyle === 'hinge_right'
+          ? 'rotateY(0deg) translateX(0px)'
+          : lidOpenStyle === 'lift'
+          ? 'translateY(0px) scale(1)'
+          : lidOpenStyle === 'spin_lift'
+          ? 'translateY(0px) rotate(0deg) scale(1)'
+          : 'rotateX(0deg) translateY(0px)';
       const firstLidLogo = (first.lidLogoImage || globalLidLogo).trim();
       const firstLidSize = Math.max(
         10,
@@ -3768,6 +3824,12 @@ ${actionsRowHtml}${adminCtaHtml}${indent}</div>`;
         lidLogoPadding: typeof it.lidLogoPadding === 'number' ? Math.max(0, Math.min(48, Math.round(it.lidLogoPadding))) : undefined,
         lidLogoFit: it.lidLogoFit === 'cover' || it.lidLogoFit === 'contain' ? it.lidLogoFit : undefined,
         boxColor: sanitizeCssColor(it.boxColorOverride, defaultBoxColor),
+        boxShape:
+          it.boxShapeOverride === 'square' ||
+          it.boxShapeOverride === 'rounded' ||
+          it.boxShapeOverride === 'circle'
+            ? it.boxShapeOverride
+            : '',
       }));
       const safeItemsJson = escapeHtml(JSON.stringify(serializedItems));
       const firstKey = `${escapeHtml(block.id)}::${escapeHtml(first.id)}`;
@@ -3903,12 +3965,16 @@ ${cartBtnHtml ? `${indent}      ${cartBtnHtml}\n` : ''}${adminCtaInline}${indent
 
       const lidLogoHtml = `<div data-pbr-lid-logo-wrap style="pointer-events:none; position:absolute; inset:0; display:${
         firstLidLogo ? 'flex' : 'none'
-      }; align-items:center; justify-content:center; overflow:hidden; border-radius:7px; padding:${firstLidPad}px; box-sizing:border-box;"><img data-pbr-lid-logo src="${escapeHtml(
+      }; align-items:center; justify-content:center; overflow:hidden; border-radius:${outerRadiusCss}; padding:${firstLidPad}px; box-sizing:border-box;"><img data-pbr-lid-logo src="${escapeHtml(
         firstLidLogo
       )}" alt="Logo Tutup Kotak" referrerpolicy="no-referrer" draggable="false" style="display:${
         firstLidLogo ? 'block' : 'none'
       }; width:${firstLidSize}%; height:${firstLidSize}%; object-fit:${firstLidFit}; border-radius:${
-        firstLidPad === 0 && firstLidSize >= 98 ? '7px' : '2px'
+        isFirstCircle
+          ? '50%'
+          : firstLidPad === 0 && firstLidSize >= 98
+          ? outerRadiusCss
+          : '2px'
       }; filter:${
         firstLidPad === 0 && firstLidFit === 'cover'
           ? 'none'
@@ -3931,7 +3997,11 @@ ${cartBtnHtml ? `${indent}      ${cartBtnHtml}\n` : ''}${adminCtaInline}${indent
         block.id
       )}" data-pbr-items="${safeItemsJson}" data-pbr-color="${escapeHtml(
         defaultBoxColor
-      )}" data-pbr-zoom-on="${zoomEnabled ? '1' : '0'}" data-pbr-zoom-start="${zoomStart}" data-pbr-zoom-end="${zoomEnd}" data-pbr-trans="${escapeHtml(
+      )}" data-pbr-box-shape="${defaultBoxShape}" data-pbr-corner-radius="${boxCornerRadius}" data-pbr-border-thick="${borderThick}" data-pbr-lid-style="${lidOpenStyle}" data-pbr-rim-on="${
+        innerRimAccent ? '1' : '0'
+      }" data-pbr-rim-color="${escapeHtml(innerRimColor)}" data-pbr-shadow="${shadowIntensity}" data-pbr-zoom-on="${
+        zoomEnabled ? '1' : '0'
+      }" data-pbr-zoom-start="${zoomStart}" data-pbr-zoom-end="${zoomEnd}" data-pbr-trans="${escapeHtml(
         transEffect
       )}" data-pbr-trans-ms="${transMs}" data-pbr-vswipe="${
         verticalSwipe ? '1' : '0'
@@ -3945,19 +4015,33 @@ ${indent}  <button type="button" data-pbr-replay title="Putar ulang animasi buka
 ${isVertDots ? buildDotsStripHtml(dotsPos) : ''}${indent}  <div style="position:relative; z-index:10; display:flex; flex-direction:column; align-items:center; padding:${stagePadCss};">
 ${dotsPos === 'top' ? buildDotsStripHtml('top') : ''}${indent}    <div style="position:relative; width:min(${boxSize}px, 74vw); aspect-ratio:1/1; perspective:960px; display:flex; align-items:center; justify-content:center;">
 ${indent}      <div data-pbr-box-wrap style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; will-change:transform, opacity;">
-${indent}        <div aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; border-radius:8px; transform:translate(10px, 18px) scale(0.96); background:rgba(24,16,12,0.28); filter:blur(20px);"></div>
-${indent}        <div data-pbr-frame style="position:relative; width:100%; height:100%; border-radius:7px; padding:${borderThick}px; box-sizing:border-box; background:${frameBg}; box-shadow:inset 0 2px 2px rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.45), 0 14px 28px -8px rgba(20,14,10,0.34);">
-${indent}          <div data-pbr-cavity style="position:relative; width:100%; height:100%; overflow:hidden; border-radius:${borderThick <= 4 ? 5 : 3}px; background:${cavityBg}; box-shadow:inset 0 10px 22px rgba(0,0,0,0.78), inset 0 2px 6px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center;">
-${indent}            <div aria-hidden="true" style="pointer-events:none; position:absolute; inset:8px; border-radius:2px; border:1px solid rgba(255,255,255,0.04); background:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.35) 100%);"></div>
+${indent}        <div data-pbr-shadow-el aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; border-radius:${outerRadiusCss}; transform:translate(10px, 18px) scale(0.96); background:rgba(24,16,12,${(
+        0.28 * shadowFactor
+      ).toFixed(3)}); filter:blur(20px);"></div>
+${indent}        <div data-pbr-frame style="position:relative; width:100%; height:100%; border-radius:${outerRadiusCss}; padding:${borderThick}px; box-sizing:border-box; background:${frameBg}; box-shadow:inset 0 2px 2px rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.45), 0 14px 28px -8px rgba(20,14,10,${(
+        0.34 * shadowFactor
+      ).toFixed(3)});">
+${indent}          <div data-pbr-cavity style="position:relative; width:100%; height:100%; overflow:hidden; border-radius:${cavityRadiusCss}; background:${cavityBg}; border:${
+        innerRimAccent ? `1.5px solid ${innerRimColor}` : 'none'
+      }; box-shadow:inset 0 10px 22px rgba(0,0,0,0.78), inset 0 2px 6px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center;">
+${indent}            <div data-pbr-cushion aria-hidden="true" style="pointer-events:none; position:absolute; inset:8px; border-radius:${
+        isFirstCircle ? '50%' : cavityRadiusCss
+      }; border:1px solid rgba(255,255,255,0.04); background:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.35) 100%);"></div>
 ${indent}            <div data-pbr-product style="position:relative; z-index:10; width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:10px; opacity:0; transform:scale(${initialProdScale}); transition:opacity 540ms cubic-bezier(0.16, 1, 0.3, 1) 240ms, transform 720ms cubic-bezier(0.16, 1, 0.3, 1) 200ms; will-change:transform, opacity;">
 ${indent}              ${imgHtml}
 ${indent}              ${emptyFallbackHtml}
 ${indent}            </div>
 ${indent}          </div>
 ${indent}        </div>
-${indent}        <div data-pbr-lid style="position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; border-radius:7px; background:${lidBg}; transform-origin:50% 0%; transform:rotateX(0deg) translateY(0px); opacity:1; cursor:pointer; box-shadow:inset 0 2px 3px rgba(255,255,255,0.22), inset 0 -4px 8px rgba(0,0,0,0.44), 0 12px 24px -6px rgba(20,14,10,0.34); transition:transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease 520ms; will-change:transform, opacity;">
-${indent}          <div style="pointer-events:none; position:absolute; inset:10px; border-radius:4px; border:1px solid rgba(255,255,255,0.09); box-shadow:inset 0 1px 4px rgba(0,0,0,0.22);"></div>
-${indent}          <div style="pointer-events:none; position:absolute; top:0; left:12px; right:12px; height:2px; background:rgba(0,0,0,0.28);"></div>
+${indent}        <div data-pbr-lid style="position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; border-radius:${outerRadiusCss}; background:${lidBg}; transform-origin:${lidOriginCss}; transform:${lidClosedTransformCss}; opacity:1; cursor:pointer; box-shadow:inset 0 2px 3px rgba(255,255,255,0.22), inset 0 -4px 8px rgba(0,0,0,0.44), 0 12px 24px -6px rgba(20,14,10,${(
+        0.34 * shadowFactor
+      ).toFixed(3)}); transition:transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease 520ms; will-change:transform, opacity;">
+${indent}          <div data-pbr-lid-groove style="pointer-events:none; position:absolute; inset:10px; border-radius:${grooveRadiusCss}; border:${
+        innerRimAccent ? `1.5px solid ${innerRimColor}` : '1px solid rgba(255,255,255,0.09)'
+      }; box-shadow:inset 0 1px 4px rgba(0,0,0,0.22);"></div>
+${indent}          <div data-pbr-hinge-line style="display:${
+        !isFirstCircle && lidOpenStyle === 'hinge_top' ? 'block' : 'none'
+      }; pointer-events:none; position:absolute; top:0; left:12px; right:12px; height:2px; background:rgba(0,0,0,0.28);"></div>
 ${indent}          ${lidLogoHtml}
 ${indent}        </div>
 ${indent}      </div>
@@ -3974,6 +4058,297 @@ ${indent}      <div data-pbr-desc style="margin-top:8px; font-size:11.5px; line-
       };">${escapeHtml(first.description || '')}</div>
 ${indent}    </div>
 ${variantsHtml}${swatchesHtml}${dotsPos === 'bottom' ? buildDotsStripHtml('bottom') : ''}${actionsBarHtml}${indent}  </div>
+${indent}</div>`;
+    }
+
+    case 'mix_rasa': {
+      const c = block.content;
+      const flavors = Array.isArray(c.mixRasaFlavors) ? c.mixRasaFlavors : [];
+      const sliceCount: 2 | 3 | 4 =
+        c.mixRasaSliceCount === 3 || c.mixRasaSliceCount === 4 ? c.mixRasaSliceCount : 2;
+      const allowSliceSwitch = c.mixRasaAllowSliceSwitch !== false;
+      const title = (c.mixRasaTitle || 'Pizza Mix Rasa').trim() || 'Pizza Mix Rasa';
+      const showProductSize = c.mixRasaShowProductSize !== false;
+      const productSize = (c.mixRasaProductSize || 'Pizza 35 cm').trim() || 'Pizza 35 cm';
+      const effectiveProductSize = showProductSize ? productSize : '';
+      const showDescription = Boolean(c.mixRasaShowDescription);
+      const descriptionText = (c.mixRasaDescription || '').trim();
+      const previewSize = Math.max(150, Math.min(320, Number(c.mixRasaPreviewSize ?? 232)));
+      const showBackButton = c.mixRasaShowBackButton !== false;
+      const centerHeader = Boolean(c.mixRasaCenterHeader);
+      const cardBg = sanitizeCssColor(c.mixRasaBgColor, '#FFFFFF');
+      const accentColor = sanitizeCssColor(c.mixRasaAccentColor, '#EA6314');
+      const radius = Math.max(0, Math.min(36, Number(block.style?.borderRadius ?? 24)));
+
+      const floatingCartEnabled = c.mixRasaFloatingCartEnabled !== false;
+      const cartButtonLabel =
+        (c.mixRasaCartButtonLabel || 'Gabungkan Rasa').trim() || 'Gabungkan Rasa';
+      const cartButtonBg = sanitizeCssColor(c.mixRasaFloatingCartBg, accentColor);
+
+      const waEnabled = Boolean(c.mixRasaWaEnabled);
+      const waLabel =
+        (c.mixRasaWaLabel || 'Pesan via WhatsApp').trim() || 'Pesan via WhatsApp';
+      const waNumber = normalizeWhatsappNumber(
+        c.mixRasaWaNumber || c.catalogWhatsappNumber || '6281234567890'
+      );
+      const waIntro =
+        (c.mixRasaWaIntro ?? 'Halo, saya ingin memesan:').trim() || 'Halo, saya ingin memesan:';
+      const waIncludeDetails = c.mixRasaWaIncludeDetails !== false;
+
+      const parseMrPrice = (raw?: string | number): number => {
+        if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.round(raw));
+        const digits = String(raw || '').replace(/[^\d]/g, '');
+        const parsed = Number(digits);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const formatMrRp = (amount: number): string => {
+        const safe = Math.max(0, Math.round(Number.isFinite(amount) ? amount : 0));
+        return 'Rp' + safe.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      };
+      const buildMrProductLabel = (t: string, sz: string): string => {
+        const cleanTitle = t.trim() || 'Pizza Mix Rasa';
+        const cleanSize = sz.trim();
+        if (!cleanSize) return cleanTitle;
+        if (cleanTitle.toLowerCase().includes(cleanSize.toLowerCase())) return cleanTitle;
+        const firstWord = cleanTitle.split(/\s+/)[0]?.toLowerCase() || '';
+        const sizeParts = cleanSize.split(/\s+/);
+        if (firstWord && sizeParts.length > 1 && sizeParts[0].toLowerCase() === firstWord) {
+          return `${cleanTitle} ${sizeParts.slice(1).join(' ')}`.trim();
+        }
+        return `${cleanTitle} ${cleanSize}`.trim();
+      };
+      const getClipPath = (sc: 2 | 3 | 4, idx: number): string => {
+        if (sc === 2) return idx === 0 ? 'inset(0 50% 0 0)' : 'inset(0 0 0 50%)';
+        if (sc === 3) {
+          if (idx === 0) return 'polygon(50% 50%, 50% -150%, 223.2% -150%, 223.2% 150%)';
+          if (idx === 1) return 'polygon(50% 50%, 223.2% 150%, 50% 250%, -123.2% 150%)';
+          return 'polygon(50% 50%, -123.2% 150%, -123.2% -150%, 50% -150%)';
+        }
+        if (idx === 0) return 'inset(0 50% 50% 0)';
+        if (idx === 1) return 'inset(0 0 50% 50%)';
+        if (idx === 2) return 'inset(50% 50% 0 0)';
+        return 'inset(50% 0 0 50%)';
+      };
+
+      if (flavors.length === 0) {
+        return `${indent}<div style="${css}; background:${cardBg}; border-radius:${radius}px; padding:24px; text-align:center; border:1px dashed #CBD5E1; color:#334155;">
+${indent}  <div style="font-size:14px; font-weight:700;">Mix Rasa</div>
+${indent}  <div style="font-size:12px; color:#64748B; margin-top:4px;">Belum ada pilihan rasa yang ditambahkan.</div>
+${indent}</div>`;
+      }
+
+      const rawDefaults = Array.isArray(c.mixRasaDefaultSelectionIds)
+        ? c.mixRasaDefaultSelectionIds
+        : [];
+      const selectedFlavors: typeof flavors = [];
+      for (let i = 0; i < sliceCount; i++) {
+        const cand = rawDefaults[i];
+        const found = flavors.find((f) => f.id === cand) || flavors[i % flavors.length];
+        selectedFlavors.push(found);
+      }
+
+      const totalAmount = selectedFlavors.reduce((sum, f) => sum + parseMrPrice(f.price), 0);
+      const combinedNames = selectedFlavors.map((f) => f.name).join(' + ');
+      const productLabel = buildMrProductLabel(title, effectiveProductSize);
+
+      const initialWaMessage = waIncludeDetails
+        ? [
+            waIntro,
+            '',
+            `Produk: ${productLabel}`,
+            '',
+            'Kombinasi Rasa:',
+            selectedFlavors.map((f, i) => `${i + 1}. ${f.name || `Rasa ${i + 1}`}`).join('\n'),
+            '',
+            'Jumlah: 1',
+            `Total: ${formatMrRp(totalAmount)}`,
+            '',
+            'Mohon informasi pemesanannya. Terima kasih.',
+          ].join('\n')
+        : waIntro;
+      const initialWaUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(initialWaMessage)}`;
+
+      const buildSeamsSvg = (strokeW: number): string => {
+        if (sliceCount === 2) {
+          return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="${strokeW}"/></svg>`;
+        }
+        if (sliceCount === 3) {
+          return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="100" x2="100" y2="0" stroke="#FFFFFF" stroke-width="${strokeW}"/><line x1="100" y1="100" x2="186.6" y2="150" stroke="#FFFFFF" stroke-width="${strokeW}"/><line x1="100" y1="100" x2="13.4" y2="150" stroke="#FFFFFF" stroke-width="${strokeW}"/></svg>`;
+        }
+        return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="${strokeW}"/><line x1="0" y1="100" x2="200" y2="100" stroke="#FFFFFF" stroke-width="${strokeW}"/></svg>`;
+      };
+
+      const renderSplitSlices = (isMain: boolean): string =>
+        selectedFlavors
+          .map((flv, idx) => {
+            const clip = getClipPath(sliceCount, idx);
+            const scaleNum = Math.max(50, Math.min(200, Number(flv.imageScale ?? 100))) / 100;
+            const scaleCss =
+              scaleNum !== 1 ? ` transform:scale(${scaleNum}); transform-origin:center center;` : '';
+            const inner = flv.image
+              ? `<img src="${escapeHtml(flv.image)}" alt="${escapeHtml(flv.name)}" referrerpolicy="no-referrer" draggable="false" style="width:100%; height:100%; object-fit:cover; display:block; user-select:none;${scaleCss}" />`
+              : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#FFFFFF; font-size:12px; font-weight:700; background:${sanitizeCssColor(
+                  flv.accentColor,
+                  accentColor
+                )};">${escapeHtml(flv.name.slice(0, 2).toUpperCase())}</div>`;
+            return `<div ${isMain ? `data-mr-slice="${idx}" role="button"` : `data-mr-mini-slice="${idx}"`} style="position:absolute; inset:0; clip-path:${clip}; -webkit-clip-path:${clip}; ${
+              isMain ? 'cursor:pointer;' : ''
+            }">${inner}</div>`;
+          })
+          .join('');
+
+      const slotCardsHtml = selectedFlavors
+        .map(
+          (flv, idx) => `${indent}      <button type="button" data-mr-slot="${idx}" style="text-align:left; border-radius:16px; padding:10px 12px; border:1px solid #E2E8F0; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,0.04); display:flex; align-items:center; justify-content:space-between; gap:6px; cursor:pointer; font-family:inherit; min-width:0; transition:border-color 0.16s, box-shadow 0.16s;">
+${indent}        <div style="min-width:0; flex:1;">
+${indent}          <div data-mr-slot-name="${idx}" style="font-size:12px; font-weight:700; color:#0F172A; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+            flv.name
+          )}</div>
+${indent}          <div data-mr-slot-price="${idx}" style="font-size:11.5px; font-weight:800; color:#1E293B; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+            formatMrRp(parseMrPrice(flv.price))
+          )}</div>
+${indent}        </div>
+${indent}        <svg data-mr-slot-chev="${idx}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; transition:transform 0.16s;"><path d="m9 18 6-6-6-6"/></svg>
+${indent}      </button>`
+        )
+        .join('\n');
+
+      const backBtnHtml = showBackButton
+        ? `${indent}      <button type="button" data-mr-back aria-label="Kembali" style="${
+            centerHeader ? 'position:absolute; left:0; top:50%; transform:translateY(-50%); ' : ''
+          }width:32px; height:32px; border-radius:9999px; border:0; background:transparent; color:#1E293B; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;">
+${indent}        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+${indent}      </button>\n`
+        : '';
+
+      const sizeSubtitleHtml = showProductSize
+        ? `${indent}        <p data-mr-size-subtitle style="margin:2px 0 0; font-size:11.5px; font-weight:500; color:#64748B; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+            productSize
+          )} (${sliceCount} Rasa)</p>\n`
+        : '';
+
+      const descriptionHtml =
+        showDescription && descriptionText
+          ? `${indent}    <p data-mr-description style="margin:-6px 0 0; font-size:12px; line-height:1.55; color:#475569; white-space:pre-line; text-align:${
+              centerHeader ? 'center' : 'left'
+            };">${escapeHtml(descriptionText)}</p>\n`
+          : '';
+
+      const sliceSwitchHtml = allowSliceSwitch
+        ? `${indent}    <div data-mr-slice-switch style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; padding:4px; border-radius:12px; background:#F1F5F9; border:1px solid #E2E8F0;">\n` +
+          ([2, 3, 4] as const)
+            .map((cnt) => {
+              const isAct = sliceCount === cnt;
+              return `${indent}      <button type="button" data-mr-slice-btn="${cnt}" style="padding:6px 4px; border:0; border-radius:8px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 0.16s; background:${
+                isAct ? accentColor : 'transparent'
+              }; color:${isAct ? '#FFFFFF' : '#475569'};${
+                isAct ? ` box-shadow:0 4px 10px -4px ${accentColor}99;` : ''
+              }">${cnt} Rasa</button>`;
+            })
+            .join('\n') +
+          `\n${indent}    </div>\n`
+        : '';
+
+      const actionsHtml =
+        floatingCartEnabled || waEnabled
+          ? `${indent}    <div style="display:flex; flex-direction:column; gap:10px; padding-top:4px;">\n` +
+            (floatingCartEnabled
+              ? `${indent}      <button type="button" data-mr-add-cart style="width:100%; padding:12px 16px; border:0; border-radius:14px; background:${cartButtonBg}; color:#FFFFFF; font-size:13.5px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; font-family:inherit; box-shadow:0 8px 18px -6px ${cartButtonBg}88; transition:background-color 0.2s, transform 0.12s;">
+${indent}        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+${indent}        <span data-mr-add-cart-label>${escapeHtml(cartButtonLabel)}</span>
+${indent}      </button>\n`
+              : '') +
+            (waEnabled
+              ? `${indent}      <a data-mr-wa-link href="${escapeHtml(
+                  initialWaUrl
+                )}" target="_blank" rel="noopener noreferrer" style="width:100%; padding:11px 16px; border-radius:14px; background:#16A34A; color:#FFFFFF; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; box-sizing:border-box; box-shadow:0 6px 16px -6px rgba(22,163,74,0.55);">
+${indent}        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+${indent}        <span>${escapeHtml(waLabel)}</span>
+${indent}      </a>\n`
+              : '') +
+            `${indent}    </div>\n`
+          : '';
+
+      const mrPayload = JSON.stringify({
+        blockId: block.id,
+        title,
+        productSize,
+        showProductSize,
+        sliceCount,
+        allowSliceSwitch,
+        accentColor,
+        cartButtonLabel,
+        cartButtonBg,
+        floatingCartEnabled,
+        waEnabled,
+        waNumber,
+        waIntro,
+        waIncludeDetails,
+        backActionType: c.mixRasaBackActionType || 'back',
+        backTargetPageId: c.mixRasaBackTargetPageId || '',
+        backUrl: sanitizeExternalUrl(c.mixRasaBackUrl) || '',
+        selectedIds: selectedFlavors.map((f) => f.id),
+        flavors: flavors.map((f) => ({
+          id: f.id,
+          name: f.name,
+          price: f.price,
+          image: f.image || '',
+          imageScale: Math.max(50, Math.min(200, Number(f.imageScale ?? 100))),
+          accentColor: f.accentColor || accentColor,
+        })),
+      }).replace(/<\//g, '<\\/');
+
+      return `${indent}<div data-mix-rasa="${escapeHtml(
+        block.id
+      )}" style="${css}; position:relative; overflow:hidden; background:${cardBg}; border-radius:${radius}px; color:#0F172A; user-select:none;">
+${indent}  <script type="application/json" data-mr-config>${mrPayload}</script>
+${indent}  <div style="padding:16px 16px 20px; display:flex; flex-direction:column; gap:16px;">
+${indent}    <div style="position:relative; display:flex; align-items:center; min-height:40px; ${
+        centerHeader ? 'justify-content:center;' : 'justify-content:flex-start; gap:10px;'
+      }">
+${backBtnHtml}${indent}      <div style="min-width:0; ${
+        centerHeader
+          ? `text-align:center; width:100%; padding:0 ${showBackButton ? '40px' : '8px'}; box-sizing:border-box;`
+          : 'text-align:left; flex:1;'
+      }">
+${indent}        <h3 style="margin:0; font-size:16px; font-weight:800; line-height:1.25; letter-spacing:-0.01em; color:#0F172A; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+        title
+      )}</h3>
+${sizeSubtitleHtml}${indent}      </div>
+${indent}    </div>
+${descriptionHtml}${sliceSwitchHtml}${indent}    <div style="width:100%; display:flex; align-items:center; justify-content:center; padding:4px 0;">
+${indent}      <div data-mr-main-preview style="position:relative; width:min(${previewSize}px, 72vw); height:min(${previewSize}px, 72vw); border-radius:9999px; overflow:hidden; background:#F8FAFC; box-shadow:0 14px 32px -10px rgba(15,23,42,0.24), 0 4px 12px rgba(15,23,42,0.08); flex-shrink:0;">${renderSplitSlices(
+        true
+      )}${buildSeamsSvg(3.5)}</div>
+${indent}    </div>
+${indent}    <div data-mr-slots style="display:grid; grid-template-columns:repeat(${
+        sliceCount === 3 ? 3 : 2
+      }, minmax(0, 1fr)); gap:10px;">
+${slotCardsHtml}
+${indent}    </div>
+${indent}    <div data-mr-picker style="display:none; border-radius:16px; border:1px solid #E2E8F0; background:#F8FAFC; padding:12px;">
+${indent}      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+${indent}        <span data-mr-picker-title style="font-size:11px; font-weight:700; color:#334155;">Pilih Rasa</span>
+${indent}        <button type="button" data-mr-picker-close aria-label="Tutup pilihan rasa" style="width:24px; height:24px; border-radius:9999px; border:1px solid #E2E8F0; background:#FFFFFF; color:#64748B; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; font-weight:700;">✕</button>
+${indent}      </div>
+${indent}      <div data-mr-picker-grid style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px;"></div>
+${indent}    </div>
+${indent}    <div style="display:flex; align-items:center; gap:14px; padding:2px 4px 0;">
+${indent}      <div data-mr-mini-preview style="position:relative; width:54px; height:54px; border-radius:9999px; overflow:hidden; background:#F8FAFC; box-shadow:0 4px 10px -2px rgba(15,23,42,0.16); flex-shrink:0;">${renderSplitSlices(
+        false
+      )}${buildSeamsSvg(2)}</div>
+${indent}      <div style="min-width:0; flex:1; text-align:left;">
+${indent}        <div style="font-size:11px; font-weight:600; color:#64748B; line-height:1.25;">Kombinasi Pilihan</div>
+${indent}        <div data-mr-combined style="font-size:12px; font-weight:700; color:#1E293B; line-height:1.35; margin-top:2px;">${escapeHtml(
+        combinedNames
+      )}</div>
+${indent}        <div style="font-size:10.5px; font-weight:500; color:#64748B; margin-top:4px;">Total Harga</div>
+${indent}        <div data-mr-total style="font-size:18px; font-weight:900; color:#0F172A; line-height:1.2; font-variant-numeric:tabular-nums; letter-spacing:-0.01em;">${escapeHtml(
+        formatMrRp(totalAmount)
+      )}</div>
+${indent}      </div>
+${indent}    </div>
+${actionsHtml}${indent}  </div>
 ${indent}</div>`;
     }
 
@@ -4782,6 +5157,46 @@ export function collectCatalogData(
           ctaLabel: 'Keranjang',
           description: it.description || '',
           variants: it.variants || '',
+          productType: 'physical' as CatalogProductType,
+        })),
+      };
+    } else if (
+      blk.type === 'mix_rasa' &&
+      blk.content.mixRasaFloatingCartEnabled !== false
+    ) {
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber:
+          blk.content.mixRasaWaNumber ??
+          blk.content.catalogWhatsappNumber ??
+          '6281234567890',
+        storeName: blk.content.catalogStoreName ?? '',
+        whatsappIntro:
+          blk.content.mixRasaWaIntro ??
+          blk.content.catalogWhatsappIntro ??
+          'Halo, saya ingin memesan:',
+        askCustomerInfo: blk.content.catalogAskCustomerInfo ?? true,
+        customerFields: resolveCatalogCustomerFields({
+          catalogProductType: 'physical',
+          catalogCustomerFields: blk.content.catalogCustomerFields,
+        }),
+        shippingEnabled: blk.content.catalogShippingEnabled ?? true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya produk tidak termasuk ongkos kirim (kurir).',
+        items: (blk.content.mixRasaFlavors ?? []).map((it) => ({
+          id: it.id,
+          title: it.name,
+          subtitle: blk.content.mixRasaProductSize || 'Pizza 35 cm',
+          price: it.price,
+          unitSold: 0,
+          image: it.image || '',
+          url: '#',
+          ctaLabel: blk.content.mixRasaCartButtonLabel || 'Gabungkan Rasa',
+          description: '',
+          variants: '',
           productType: 'physical' as CatalogProductType,
         })),
       };

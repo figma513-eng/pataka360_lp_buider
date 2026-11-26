@@ -1544,6 +1544,12 @@ export function BlockDesignTab({
         const stageBg = c.boxRevealBgColor || '#EFEFEF';
         const boxSize = c.boxRevealBoxSize ?? 220;
         const borderThick = c.boxRevealBorderThickness ?? 18;
+        const boxShape = c.boxRevealBoxShape || 'square';
+        const cornerRadius = c.boxRevealBoxCornerRadius ?? 24;
+        const lidOpenStyle = c.boxRevealLidOpenStyle || 'hinge_top';
+        const innerRimAccent = Boolean(c.boxRevealInnerRimAccent);
+        const innerRimColor = c.boxRevealInnerRimColor || '#D4AF37';
+        const shadowIntensity = c.boxRevealShadowIntensity ?? 100;
         const lidLogoSize = c.boxRevealLidLogoSize ?? 44;
         const lidLogoPadding = c.boxRevealLidLogoPadding ?? 12;
         const zoomEnabled = c.boxRevealZoomEffectEnabled !== false;
@@ -1569,6 +1575,106 @@ export function BlockDesignTab({
         };
         return (
           <div className="space-y-3">
+            {/* Bentuk Box (Kotak / Melengkung / Bulat) & Gaya Buka Tutup */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-xs font-bold text-[#17243D]">Bentuk Box & Gaya Tutup</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { id: 'square', label: 'Kotak' },
+                    { id: 'rounded', label: 'Melengkung' },
+                    { id: 'circle', label: 'Bulat' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ boxRevealBoxShape: opt.id })}
+                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                      boxShape === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {boxShape === 'rounded' && (
+                <SliderRow
+                  label="Kelengkungan Sudut Box"
+                  value={`${cornerRadius}px`}
+                  min={4}
+                  max={90}
+                  step={2}
+                  current={cornerRadius}
+                  onChange={(val) => updateContent({ boxRevealBoxCornerRadius: val })}
+                />
+              )}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                  Gaya / Arah Buka Tutup
+                </label>
+                <select
+                  value={lidOpenStyle}
+                  onChange={(e) =>
+                    updateContent({
+                      boxRevealLidOpenStyle: e.target.value as
+                        | 'hinge_top'
+                        | 'hinge_left'
+                        | 'hinge_right'
+                        | 'lift'
+                        | 'spin_lift',
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                >
+                  <option value="hinge_top">Engsel Atas (Buka ke Atas)</option>
+                  <option value="hinge_left">Engsel Kiri (Buka ke Kiri)</option>
+                  <option value="hinge_right">Engsel Kanan (Buka ke Kanan)</option>
+                  <option value="lift">Angkat / Lepas Tutup (Cocok Box Bulat)</option>
+                  <option value="spin_lift">Putar & Angkat (Tutup Bulat Elegan)</option>
+                </select>
+              </div>
+              <div className="pt-1 border-t border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Ring Aksen Tepi Dalam & Tutup
+                  </span>
+                  <ToggleSwitch
+                    checked={innerRimAccent}
+                    onChange={(val) => updateContent({ boxRevealInnerRimAccent: val })}
+                    label="Ring Aksen Tepi"
+                  />
+                </div>
+                {innerRimAccent && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={innerRimColor}
+                      onChange={(e) => updateContent({ boxRevealInnerRimColor: e.target.value })}
+                      className="w-9 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={innerRimColor}
+                      onChange={(e) => updateContent({ boxRevealInnerRimColor: e.target.value })}
+                      className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white font-mono"
+                    />
+                  </div>
+                )}
+              </div>
+              <SliderRow
+                label="Intensitas Bayangan Box"
+                value={`${shadowIntensity}%`}
+                min={0}
+                max={100}
+                step={5}
+                current={shadowIntensity}
+                onChange={(val) => updateContent({ boxRevealShadowIntensity: val })}
+              />
+            </div>
+
             {/* Warna Kotak */}
             <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
               <div className="text-xs font-bold text-[#17243D]">Warna Kotak</div>
@@ -1608,7 +1714,9 @@ export function BlockDesignTab({
             <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#17243D]">
-                  Ukuran & Ketebalan Kotak
+                  {boxShape === 'circle'
+                    ? 'Diameter & Ketebalan Box Bulat'
+                    : 'Ukuran & Ketebalan Kotak'}
                 </span>
                 {(boxSize !== 220 || borderThick !== 18) && (
                   <button
@@ -1626,7 +1734,7 @@ export function BlockDesignTab({
                 )}
               </div>
               <SliderRow
-                label="Ukuran Kotak"
+                label={boxShape === 'circle' ? 'Diameter Box Bulat' : 'Ukuran Kotak'}
                 value={`${boxSize}px`}
                 min={140}
                 max={300}
@@ -1769,6 +1877,125 @@ export function BlockDesignTab({
                     onChange={(e) =>
                       updateContent({ boxRevealFloatingCartBg: e.target.value })
                     }
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      case 'mix_rasa': {
+        const cardBg = c.mixRasaBgColor || '#FFFFFF';
+        const accentColor = c.mixRasaAccentColor || '#EA6314';
+        const showBack = c.mixRasaShowBackButton !== false;
+        const centerHeader = Boolean(c.mixRasaCenterHeader);
+        const floatingCartEnabled = c.mixRasaFloatingCartEnabled !== false;
+        return (
+          <div className="space-y-3">
+            {/* Tata Letak Header */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-xs font-bold text-[#17243D]">Tata Letak Header</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Tampilkan Tombol Back</span>
+                <ToggleSwitch
+                  checked={showBack}
+                  onChange={(val) => updateContent({ mixRasaShowBackButton: val })}
+                  label="Tampilkan Tombol Back"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Judul Produk di Tengah</span>
+                <ToggleSwitch
+                  checked={centerHeader}
+                  onChange={(val) => updateContent({ mixRasaCenterHeader: val })}
+                  label="Judul Produk di Tengah"
+                />
+              </div>
+            </div>
+
+            {/* Warna Kartu & Aksen */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-xs font-bold text-[#17243D]">Warna & Sudut Kartu</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Latar Kartu
+                  </label>
+                  <input
+                    type="color"
+                    value={cardBg}
+                    onChange={(e) => updateContent({ mixRasaBgColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Warna Aksen Utama
+                  </label>
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={(e) => updateContent({ mixRasaAccentColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+              <SliderRow
+                label="Ukuran Foto Produk (Bundar)"
+                value={`${Math.max(150, Math.min(320, Number(c.mixRasaPreviewSize ?? 232)))}px`}
+                min={150}
+                max={320}
+                step={2}
+                current={Math.max(150, Math.min(320, Number(c.mixRasaPreviewSize ?? 232)))}
+                onChange={(val) => updateContent({ mixRasaPreviewSize: val })}
+              />
+              <SliderRow
+                label="Kelengkungan Sudut Kartu"
+                value={`${s.borderRadius ?? 24}px`}
+                min={0}
+                max={36}
+                step={2}
+                current={s.borderRadius ?? 24}
+                onChange={(val) => updateStyle({ borderRadius: val })}
+              />
+            </div>
+
+            {/* Gaya Keranjang Melayang */}
+            {floatingCartEnabled && (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-xs font-bold text-[#17243D]">Gaya Keranjang Melayang</div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                    Posisi Keranjang Melayang
+                  </label>
+                  <select
+                    value={c.mixRasaFloatingCartPosition ?? 'bottom-floating'}
+                    onChange={(e) =>
+                      updateContent({
+                        mixRasaFloatingCartPosition: e.target.value as FloatingCartPosition,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  >
+                    <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                    <option value="bottom-docked">Menempel Tepi Bawah</option>
+                    <option value="bottom-left">Melayang Kiri Bawah</option>
+                    <option value="bottom-right">Melayang Kanan Bawah</option>
+                    <option value="top-floating">Melayang Atas Penuh</option>
+                    <option value="top-left">Melayang Kiri Atas</option>
+                    <option value="top-right">Melayang Kanan Atas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Warna Tombol & Keranjang Melayang
+                  </label>
+                  <input
+                    type="color"
+                    value={c.mixRasaFloatingCartBg ?? accentColor}
+                    onChange={(e) => updateContent({ mixRasaFloatingCartBg: e.target.value })}
                     className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
                   />
                 </div>

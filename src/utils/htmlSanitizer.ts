@@ -440,11 +440,61 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
             ? Math.max(0, Math.min(48, Math.round(it.lidLogoPadding)))
             : undefined,
         lidLogoFit: it.lidLogoFit === 'cover' || it.lidLogoFit === 'contain' ? it.lidLogoFit : undefined,
+        boxShapeOverride:
+          it.boxShapeOverride === 'square' ||
+          it.boxShapeOverride === 'rounded' ||
+          it.boxShapeOverride === 'circle'
+            ? it.boxShapeOverride
+            : undefined,
         boxColorOverride: it.boxColorOverride
           ? sanitizeOptionalCssColor(it.boxColorOverride) ?? undefined
           : undefined,
       }))
     : c.boxRevealItems;
+
+  const sanitizedMixRasaFlavors = Array.isArray(c.mixRasaFlavors)
+    ? c.mixRasaFlavors.map((flv) => ({
+        ...flv,
+        id: String(flv.id || 'mr_flv').slice(0, 60),
+        name: String(flv.name || 'Rasa Pilihan').slice(0, 80),
+        subtitle:
+          typeof flv.subtitle === 'string' ? flv.subtitle.slice(0, 80) : flv.subtitle,
+        price: String(flv.price || 'Rp0').slice(0, 40),
+        image:
+          flv.image && /^(data:image\/|https?:\/\/|\/)/i.test(String(flv.image).trim())
+            ? String(flv.image).trim()
+            : '',
+        imageScale:
+          typeof flv.imageScale === 'number' && Number.isFinite(flv.imageScale)
+            ? Math.max(50, Math.min(200, Math.round(flv.imageScale)))
+            : undefined,
+        accentColor: flv.accentColor
+          ? sanitizeOptionalCssColor(flv.accentColor) ?? undefined
+          : undefined,
+      }))
+    : c.mixRasaFlavors;
+
+  const sanitizedSlideMixFlavors = Array.isArray(c.slideMixFlavors)
+    ? c.slideMixFlavors.map((flv) => ({
+        ...flv,
+        id: String(flv.id || 'smr_flv').slice(0, 60),
+        name: String(flv.name || 'Rasa Pilihan').slice(0, 80),
+        subtitle:
+          typeof flv.subtitle === 'string' ? flv.subtitle.slice(0, 80) : flv.subtitle,
+        price: String(flv.price || 'Rp0').slice(0, 40),
+        image:
+          flv.image && /^(data:image\/|https?:\/\/|\/)/i.test(String(flv.image).trim())
+            ? String(flv.image).trim()
+            : '',
+        imageScale:
+          typeof flv.imageScale === 'number' && Number.isFinite(flv.imageScale)
+            ? Math.max(50, Math.min(200, Math.round(flv.imageScale)))
+            : undefined,
+        accentColor: flv.accentColor
+          ? sanitizeOptionalCssColor(flv.accentColor) ?? undefined
+          : undefined,
+      }))
+    : c.slideMixFlavors;
 
   const sanitizedCategoryButtons = Array.isArray(c.categoryButtons)
     ? c.categoryButtons.map((btn) => ({
@@ -840,6 +890,37 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         Number.isFinite(c.boxRevealBorderThickness)
           ? Math.max(1, Math.min(36, Math.round(c.boxRevealBorderThickness)))
           : c.boxRevealBorderThickness,
+      boxRevealBoxShape:
+        c.boxRevealBoxShape === 'square' ||
+        c.boxRevealBoxShape === 'rounded' ||
+        c.boxRevealBoxShape === 'circle'
+          ? c.boxRevealBoxShape
+          : c.boxRevealBoxShape,
+      boxRevealBoxCornerRadius:
+        typeof c.boxRevealBoxCornerRadius === 'number' &&
+        Number.isFinite(c.boxRevealBoxCornerRadius)
+          ? Math.max(0, Math.min(90, Math.round(c.boxRevealBoxCornerRadius)))
+          : c.boxRevealBoxCornerRadius,
+      boxRevealLidOpenStyle:
+        c.boxRevealLidOpenStyle === 'hinge_top' ||
+        c.boxRevealLidOpenStyle === 'hinge_left' ||
+        c.boxRevealLidOpenStyle === 'hinge_right' ||
+        c.boxRevealLidOpenStyle === 'lift' ||
+        c.boxRevealLidOpenStyle === 'spin_lift'
+          ? c.boxRevealLidOpenStyle
+          : c.boxRevealLidOpenStyle,
+      boxRevealInnerRimAccent:
+        typeof c.boxRevealInnerRimAccent === 'boolean'
+          ? c.boxRevealInnerRimAccent
+          : c.boxRevealInnerRimAccent,
+      boxRevealInnerRimColor: c.boxRevealInnerRimColor
+        ? sanitizeOptionalCssColor(c.boxRevealInnerRimColor) ?? '#D4AF37'
+        : c.boxRevealInnerRimColor,
+      boxRevealShadowIntensity:
+        typeof c.boxRevealShadowIntensity === 'number' &&
+        Number.isFinite(c.boxRevealShadowIntensity)
+          ? Math.max(0, Math.min(100, Math.round(c.boxRevealShadowIntensity)))
+          : c.boxRevealShadowIntensity,
       boxRevealLidLogoImage:
         typeof c.boxRevealLidLogoImage === 'string' &&
         /^(data:image\/|https?:\/\/|\/)/i.test(c.boxRevealLidLogoImage.trim())
@@ -869,6 +950,238 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         Number.isFinite(c.boxRevealTransitionDurationMs)
           ? Math.max(220, Math.min(1400, Math.round(c.boxRevealTransitionDurationMs)))
           : c.boxRevealTransitionDurationMs,
+      mixRasaTitle:
+        typeof c.mixRasaTitle === 'string' ? c.mixRasaTitle.slice(0, 120) : c.mixRasaTitle,
+      mixRasaProductSize:
+        typeof c.mixRasaProductSize === 'string'
+          ? c.mixRasaProductSize.slice(0, 80)
+          : c.mixRasaProductSize,
+      mixRasaShowProductSize:
+        typeof c.mixRasaShowProductSize === 'boolean'
+          ? c.mixRasaShowProductSize
+          : c.mixRasaShowProductSize,
+      mixRasaShowDescription:
+        typeof c.mixRasaShowDescription === 'boolean'
+          ? c.mixRasaShowDescription
+          : c.mixRasaShowDescription,
+      mixRasaDescription:
+        typeof c.mixRasaDescription === 'string'
+          ? c.mixRasaDescription.slice(0, 320)
+          : c.mixRasaDescription,
+      mixRasaSliceCount:
+        c.mixRasaSliceCount === 2 || c.mixRasaSliceCount === 3 || c.mixRasaSliceCount === 4
+          ? c.mixRasaSliceCount
+          : c.mixRasaSliceCount,
+      mixRasaAllowSliceSwitch:
+        typeof c.mixRasaAllowSliceSwitch === 'boolean'
+          ? c.mixRasaAllowSliceSwitch
+          : c.mixRasaAllowSliceSwitch,
+      mixRasaPreviewSize:
+        typeof c.mixRasaPreviewSize === 'number' && Number.isFinite(c.mixRasaPreviewSize)
+          ? Math.max(150, Math.min(320, Math.round(c.mixRasaPreviewSize)))
+          : c.mixRasaPreviewSize,
+      mixRasaShowBackButton:
+        typeof c.mixRasaShowBackButton === 'boolean'
+          ? c.mixRasaShowBackButton
+          : c.mixRasaShowBackButton,
+      mixRasaCenterHeader:
+        typeof c.mixRasaCenterHeader === 'boolean'
+          ? c.mixRasaCenterHeader
+          : c.mixRasaCenterHeader,
+      mixRasaBackActionType:
+        c.mixRasaBackActionType === 'back' ||
+        c.mixRasaBackActionType === 'page' ||
+        c.mixRasaBackActionType === 'url'
+          ? c.mixRasaBackActionType
+          : c.mixRasaBackActionType,
+      mixRasaBackTargetPageId:
+        typeof c.mixRasaBackTargetPageId === 'string'
+          ? c.mixRasaBackTargetPageId.slice(0, 80)
+          : c.mixRasaBackTargetPageId,
+      mixRasaBackUrl: c.mixRasaBackUrl
+        ? sanitizeExternalUrl(c.mixRasaBackUrl, '')
+        : c.mixRasaBackUrl,
+      mixRasaFlavors: sanitizedMixRasaFlavors,
+      mixRasaDefaultSelectionIds: Array.isArray(c.mixRasaDefaultSelectionIds)
+        ? c.mixRasaDefaultSelectionIds.slice(0, 4).map((id) => String(id).slice(0, 60))
+        : c.mixRasaDefaultSelectionIds,
+      mixRasaBgColor: c.mixRasaBgColor
+        ? sanitizeOptionalCssColor(c.mixRasaBgColor) ?? '#FFFFFF'
+        : c.mixRasaBgColor,
+      mixRasaAccentColor: c.mixRasaAccentColor
+        ? sanitizeOptionalCssColor(c.mixRasaAccentColor) ?? '#EA6314'
+        : c.mixRasaAccentColor,
+      mixRasaFloatingCartEnabled:
+        typeof c.mixRasaFloatingCartEnabled === 'boolean'
+          ? c.mixRasaFloatingCartEnabled
+          : c.mixRasaFloatingCartEnabled,
+      mixRasaFloatingCartLabel:
+        typeof c.mixRasaFloatingCartLabel === 'string'
+          ? c.mixRasaFloatingCartLabel.slice(0, 60)
+          : c.mixRasaFloatingCartLabel,
+      mixRasaFloatingCartBg: c.mixRasaFloatingCartBg
+        ? sanitizeOptionalCssColor(c.mixRasaFloatingCartBg) ?? '#EA6314'
+        : c.mixRasaFloatingCartBg,
+      mixRasaCartButtonLabel:
+        typeof c.mixRasaCartButtonLabel === 'string'
+          ? c.mixRasaCartButtonLabel.slice(0, 60)
+          : c.mixRasaCartButtonLabel,
+      mixRasaStoreName:
+        typeof c.mixRasaStoreName === 'string'
+          ? c.mixRasaStoreName.slice(0, 120)
+          : c.mixRasaStoreName,
+      mixRasaWaEnabled:
+        typeof c.mixRasaWaEnabled === 'boolean' ? c.mixRasaWaEnabled : c.mixRasaWaEnabled,
+      mixRasaWaNumber:
+        typeof c.mixRasaWaNumber === 'string'
+          ? c.mixRasaWaNumber.replace(/[^\d+]/g, '').slice(0, 24)
+          : c.mixRasaWaNumber,
+      mixRasaWaLabel:
+        typeof c.mixRasaWaLabel === 'string'
+          ? c.mixRasaWaLabel.slice(0, 60)
+          : c.mixRasaWaLabel,
+      mixRasaWaIntro:
+        typeof c.mixRasaWaIntro === 'string'
+          ? c.mixRasaWaIntro.slice(0, 400)
+          : c.mixRasaWaIntro,
+      mixRasaWaIncludeDetails:
+        typeof c.mixRasaWaIncludeDetails === 'boolean'
+          ? c.mixRasaWaIncludeDetails
+          : c.mixRasaWaIncludeDetails,
+      slideMixTitle:
+        typeof c.slideMixTitle === 'string' ? c.slideMixTitle.slice(0, 120) : c.slideMixTitle,
+      slideMixProductSize:
+        typeof c.slideMixProductSize === 'string'
+          ? c.slideMixProductSize.slice(0, 80)
+          : c.slideMixProductSize,
+      slideMixShowProductSize:
+        typeof c.slideMixShowProductSize === 'boolean'
+          ? c.slideMixShowProductSize
+          : c.slideMixShowProductSize,
+      slideMixShowDescription:
+        typeof c.slideMixShowDescription === 'boolean'
+          ? c.slideMixShowDescription
+          : c.slideMixShowDescription,
+      slideMixDescription:
+        typeof c.slideMixDescription === 'string'
+          ? c.slideMixDescription.slice(0, 320)
+          : c.slideMixDescription,
+      slideMixShowBackButton:
+        typeof c.slideMixShowBackButton === 'boolean'
+          ? c.slideMixShowBackButton
+          : c.slideMixShowBackButton,
+      slideMixBackLabel:
+        typeof c.slideMixBackLabel === 'string'
+          ? c.slideMixBackLabel.slice(0, 40)
+          : c.slideMixBackLabel,
+      slideMixCenterHeader:
+        typeof c.slideMixCenterHeader === 'boolean'
+          ? c.slideMixCenterHeader
+          : c.slideMixCenterHeader,
+      slideMixBackActionType:
+        c.slideMixBackActionType === 'back' ||
+        c.slideMixBackActionType === 'page' ||
+        c.slideMixBackActionType === 'url'
+          ? c.slideMixBackActionType
+          : c.slideMixBackActionType,
+      slideMixBackTargetPageId:
+        typeof c.slideMixBackTargetPageId === 'string'
+          ? c.slideMixBackTargetPageId.slice(0, 80)
+          : c.slideMixBackTargetPageId,
+      slideMixBackUrl: c.slideMixBackUrl
+        ? sanitizeExternalUrl(c.slideMixBackUrl, '')
+        : c.slideMixBackUrl,
+      slideMixFlavors: sanitizedSlideMixFlavors,
+      slideMixDefaultLeftId:
+        typeof c.slideMixDefaultLeftId === 'string'
+          ? c.slideMixDefaultLeftId.slice(0, 60)
+          : c.slideMixDefaultLeftId,
+      slideMixDefaultRightId:
+        typeof c.slideMixDefaultRightId === 'string'
+          ? c.slideMixDefaultRightId.slice(0, 60)
+          : c.slideMixDefaultRightId,
+      slideMixShowDiceButton:
+        typeof c.slideMixShowDiceButton === 'boolean'
+          ? c.slideMixShowDiceButton
+          : c.slideMixShowDiceButton,
+      slideMixLoop:
+        typeof c.slideMixLoop === 'boolean' ? c.slideMixLoop : c.slideMixLoop,
+      slideMixAutoSlide:
+        typeof c.slideMixAutoSlide === 'boolean'
+          ? c.slideMixAutoSlide
+          : c.slideMixAutoSlide,
+      slideMixAutoSlideMs:
+        typeof c.slideMixAutoSlideMs === 'number' && Number.isFinite(c.slideMixAutoSlideMs)
+          ? Math.max(1500, Math.min(10000, Math.round(c.slideMixAutoSlideMs)))
+          : c.slideMixAutoSlideMs,
+      slideMixPreviewSize:
+        typeof c.slideMixPreviewSize === 'number' && Number.isFinite(c.slideMixPreviewSize)
+          ? Math.max(170, Math.min(300, Math.round(c.slideMixPreviewSize)))
+          : c.slideMixPreviewSize,
+      slideMixPeekSize:
+        typeof c.slideMixPeekSize === 'number' && Number.isFinite(c.slideMixPeekSize)
+          ? Math.max(60, Math.min(130, Math.round(c.slideMixPeekSize)))
+          : c.slideMixPeekSize,
+      slideMixPeekOpacity:
+        typeof c.slideMixPeekOpacity === 'number' && Number.isFinite(c.slideMixPeekOpacity)
+          ? Math.max(0, Math.min(90, Math.round(c.slideMixPeekOpacity)))
+          : c.slideMixPeekOpacity,
+      slideMixDividerWidth:
+        typeof c.slideMixDividerWidth === 'number' && Number.isFinite(c.slideMixDividerWidth)
+          ? Math.max(0, Math.min(10, Math.round(c.slideMixDividerWidth)))
+          : c.slideMixDividerWidth,
+      slideMixDividerColor: c.slideMixDividerColor
+        ? sanitizeOptionalCssColor(c.slideMixDividerColor) ?? '#FFFFFF'
+        : c.slideMixDividerColor,
+      slideMixBgColor: c.slideMixBgColor
+        ? sanitizeOptionalCssColor(c.slideMixBgColor) ?? '#FFFFFF'
+        : c.slideMixBgColor,
+      slideMixAccentColor: c.slideMixAccentColor
+        ? sanitizeOptionalCssColor(c.slideMixAccentColor) ?? '#EA6314'
+        : c.slideMixAccentColor,
+      slideMixPricePrefix:
+        typeof c.slideMixPricePrefix === 'string'
+          ? c.slideMixPricePrefix.slice(0, 40)
+          : c.slideMixPricePrefix,
+      slideMixFloatingCartEnabled:
+        typeof c.slideMixFloatingCartEnabled === 'boolean'
+          ? c.slideMixFloatingCartEnabled
+          : c.slideMixFloatingCartEnabled,
+      slideMixFloatingCartLabel:
+        typeof c.slideMixFloatingCartLabel === 'string'
+          ? c.slideMixFloatingCartLabel.slice(0, 60)
+          : c.slideMixFloatingCartLabel,
+      slideMixFloatingCartBg: c.slideMixFloatingCartBg
+        ? sanitizeOptionalCssColor(c.slideMixFloatingCartBg) ?? '#EA6314'
+        : c.slideMixFloatingCartBg,
+      slideMixCartButtonLabel:
+        typeof c.slideMixCartButtonLabel === 'string'
+          ? c.slideMixCartButtonLabel.slice(0, 60)
+          : c.slideMixCartButtonLabel,
+      slideMixStoreName:
+        typeof c.slideMixStoreName === 'string'
+          ? c.slideMixStoreName.slice(0, 120)
+          : c.slideMixStoreName,
+      slideMixWaEnabled:
+        typeof c.slideMixWaEnabled === 'boolean'
+          ? c.slideMixWaEnabled
+          : c.slideMixWaEnabled,
+      slideMixWaNumber:
+        typeof c.slideMixWaNumber === 'string'
+          ? c.slideMixWaNumber.replace(/[^\d+]/g, '').slice(0, 24)
+          : c.slideMixWaNumber,
+      slideMixWaLabel:
+        typeof c.slideMixWaLabel === 'string'
+          ? c.slideMixWaLabel.slice(0, 60)
+          : c.slideMixWaLabel,
+      slideMixWaIntro:
+        typeof c.slideMixWaIntro === 'string'
+          ? c.slideMixWaIntro.slice(0, 400)
+          : c.slideMixWaIntro,
+      slideMixWaIncludeDetails:
+        typeof c.slideMixWaIncludeDetails === 'boolean'
+          ? c.slideMixWaIncludeDetails
+          : c.slideMixWaIncludeDetails,
       adminCtaEnabled:
         typeof c.adminCtaEnabled === 'boolean' ? c.adminCtaEnabled : c.adminCtaEnabled,
       adminCtaLabel:

@@ -335,6 +335,9 @@ export const SECTION_ICONS: Record<string, React.ReactNode> = {
   'slide-kuliner-putar': <Disc3 className="w-4 h-4" strokeWidth={1.85} />,
   'studio-produk-melayang': <Shirt className="w-4 h-4" strokeWidth={1.85} />,
   'interactive-box-showcase': <Package className="w-4 h-4" strokeWidth={1.85} />,
+  'animated-product-box-reveal': <Package className="w-4 h-4" strokeWidth={1.85} />,
+  'mix-rasa': <Disc3 className="w-4 h-4" strokeWidth={1.85} />,
+  'slide-mix-rasa': <Disc3 className="w-4 h-4" strokeWidth={1.85} />,
   'katalog-fnb': <UtensilsCrossed className="w-4 h-4" strokeWidth={1.85} />,
   'kotak-outlet-dinamis': <Store className="w-4 h-4" strokeWidth={1.85} />,
   'kotak-promo-gradasi': <Sparkles className="w-4 h-4" strokeWidth={1.85} />,
@@ -375,6 +378,9 @@ export function getBlockTypePaletteIcon(type: BlockType): React.ReactNode {
     case 'interactive_box_showcase':
     case 'product_box_reveal':
       return <Package className="w-4 h-4" strokeWidth={1.85} />;
+    case 'mix_rasa':
+    case 'slide_mix_rasa':
+      return <Disc3 className="w-4 h-4" strokeWidth={1.85} />;
     case 'carousel':
       return <Images className="w-4 h-4" strokeWidth={1.85} />;
     case 'social_feed':
