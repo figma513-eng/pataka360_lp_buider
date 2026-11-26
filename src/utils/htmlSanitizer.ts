@@ -399,6 +399,53 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       }))
     : c.fnbItems;
 
+  const sanitizedBoxShowcaseItems = Array.isArray(c.boxShowcaseItems)
+    ? c.boxShowcaseItems.map((it) => ({
+        ...it,
+        title: String(it.title || 'Produk').slice(0, 120),
+        category: it.category ? String(it.category).slice(0, 60) : undefined,
+        price: String(it.price || '').slice(0, 40),
+        rating: it.rating ? String(it.rating).slice(0, 12) : undefined,
+        image:
+          it.image && /^(data:image\/|https?:\/\/|\/)/i.test(String(it.image).trim())
+            ? String(it.image).trim()
+            : '',
+        boxColorOverride: it.boxColorOverride
+          ? sanitizeOptionalCssColor(it.boxColorOverride) ?? undefined
+          : undefined,
+      }))
+    : c.boxShowcaseItems;
+
+  const sanitizedBoxRevealItems = Array.isArray(c.boxRevealItems)
+    ? c.boxRevealItems.map((it) => ({
+        ...it,
+        title: String(it.title || 'Produk').slice(0, 120),
+        price: String(it.price || '').slice(0, 40),
+        description: it.description ? String(it.description).slice(0, 400) : undefined,
+        variants: it.variants ? String(it.variants).slice(0, 180) : undefined,
+        image:
+          it.image && /^(data:image\/|https?:\/\/|\/)/i.test(String(it.image).trim())
+            ? String(it.image).trim()
+            : '',
+        lidLogoImage:
+          it.lidLogoImage && /^(data:image\/|https?:\/\/|\/)/i.test(String(it.lidLogoImage).trim())
+            ? String(it.lidLogoImage).trim()
+            : undefined,
+        lidLogoSize:
+          typeof it.lidLogoSize === 'number' && Number.isFinite(it.lidLogoSize)
+            ? Math.max(10, Math.min(100, Math.round(it.lidLogoSize)))
+            : undefined,
+        lidLogoPadding:
+          typeof it.lidLogoPadding === 'number' && Number.isFinite(it.lidLogoPadding)
+            ? Math.max(0, Math.min(48, Math.round(it.lidLogoPadding)))
+            : undefined,
+        lidLogoFit: it.lidLogoFit === 'cover' || it.lidLogoFit === 'contain' ? it.lidLogoFit : undefined,
+        boxColorOverride: it.boxColorOverride
+          ? sanitizeOptionalCssColor(it.boxColorOverride) ?? undefined
+          : undefined,
+      }))
+    : c.boxRevealItems;
+
   const sanitizedCategoryButtons = Array.isArray(c.categoryButtons)
     ? c.categoryButtons.map((btn) => ({
         ...btn,
@@ -704,6 +751,152 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       socialFollowerAccounts: sanitizedSocialFollowers,
       socialFeedPosts: sanitizedSocialPosts,
       fnbItems: sanitizedFnbItems,
+      boxShowcaseItems: sanitizedBoxShowcaseItems,
+      boxShowcaseColor: c.boxShowcaseColor
+        ? sanitizeOptionalCssColor(c.boxShowcaseColor) ?? '#F46A1F'
+        : c.boxShowcaseColor,
+      boxShowcaseBgColor: c.boxShowcaseBgColor
+        ? sanitizeOptionalCssColor(c.boxShowcaseBgColor) ?? '#F4F4F6'
+        : c.boxShowcaseBgColor,
+      boxShowcaseFloatingCartBg: c.boxShowcaseFloatingCartBg
+        ? sanitizeOptionalCssColor(c.boxShowcaseFloatingCartBg) ?? '#25272D'
+        : c.boxShowcaseFloatingCartBg,
+      boxShowcaseSlideMode:
+        c.boxShowcaseSlideMode === 'auto' || c.boxShowcaseSlideMode === 'manual'
+          ? c.boxShowcaseSlideMode
+          : c.boxShowcaseSlideMode,
+      boxShowcaseAutoIntervalSec:
+        typeof c.boxShowcaseAutoIntervalSec === 'number' &&
+        Number.isFinite(c.boxShowcaseAutoIntervalSec)
+          ? Math.max(1.4, Math.min(8, c.boxShowcaseAutoIntervalSec))
+          : c.boxShowcaseAutoIntervalSec,
+      boxShowcaseBoxWidth:
+        typeof c.boxShowcaseBoxWidth === 'number' && Number.isFinite(c.boxShowcaseBoxWidth)
+          ? Math.max(100, Math.min(260, Math.round(c.boxShowcaseBoxWidth)))
+          : undefined,
+      boxShowcaseBoxHeight:
+        typeof c.boxShowcaseBoxHeight === 'number' && Number.isFinite(c.boxShowcaseBoxHeight)
+          ? Math.max(70, Math.min(240, Math.round(c.boxShowcaseBoxHeight)))
+          : undefined,
+      boxShowcaseImageScale:
+        typeof c.boxShowcaseImageScale === 'number' && Number.isFinite(c.boxShowcaseImageScale)
+          ? Math.max(40, Math.min(180, Math.round(c.boxShowcaseImageScale)))
+          : c.boxShowcaseImageScale,
+      boxRevealItems: sanitizedBoxRevealItems,
+      boxRevealColor: c.boxRevealColor
+        ? sanitizeOptionalCssColor(c.boxRevealColor) ?? '#5C3626'
+        : c.boxRevealColor,
+      boxRevealBgColor: c.boxRevealBgColor
+        ? sanitizeOptionalCssColor(c.boxRevealBgColor) ?? '#EFEFEF'
+        : c.boxRevealBgColor,
+      boxRevealFloatingCartBg: c.boxRevealFloatingCartBg
+        ? sanitizeOptionalCssColor(c.boxRevealFloatingCartBg) ?? '#5C3626'
+        : c.boxRevealFloatingCartBg,
+      boxRevealShowCartButton:
+        typeof c.boxRevealShowCartButton === 'boolean'
+          ? c.boxRevealShowCartButton
+          : c.boxRevealShowCartButton,
+      boxRevealShowDots:
+        typeof c.boxRevealShowDots === 'boolean' ? c.boxRevealShowDots : c.boxRevealShowDots,
+      boxRevealDotsPosition:
+        c.boxRevealDotsPosition === 'right' ||
+        c.boxRevealDotsPosition === 'left' ||
+        c.boxRevealDotsPosition === 'bottom' ||
+        c.boxRevealDotsPosition === 'top'
+          ? c.boxRevealDotsPosition
+          : c.boxRevealDotsPosition,
+      boxRevealVerticalSwipeEnabled:
+        typeof c.boxRevealVerticalSwipeEnabled === 'boolean'
+          ? c.boxRevealVerticalSwipeEnabled
+          : c.boxRevealVerticalSwipeEnabled,
+      boxRevealSlideMode:
+        c.boxRevealSlideMode === 'auto' || c.boxRevealSlideMode === 'manual'
+          ? c.boxRevealSlideMode
+          : c.boxRevealSlideMode,
+      boxRevealAutoIntervalSec:
+        typeof c.boxRevealAutoIntervalSec === 'number' &&
+        Number.isFinite(c.boxRevealAutoIntervalSec)
+          ? Math.max(2, Math.min(10, Math.round(c.boxRevealAutoIntervalSec * 10) / 10))
+          : c.boxRevealAutoIntervalSec,
+      boxRevealZoomEffectEnabled:
+        typeof c.boxRevealZoomEffectEnabled === 'boolean'
+          ? c.boxRevealZoomEffectEnabled
+          : c.boxRevealZoomEffectEnabled,
+      boxRevealProductZoomStart:
+        typeof c.boxRevealProductZoomStart === 'number' &&
+        Number.isFinite(c.boxRevealProductZoomStart)
+          ? Math.max(50, Math.min(180, Math.round(c.boxRevealProductZoomStart)))
+          : c.boxRevealProductZoomStart,
+      boxRevealProductZoomEnd:
+        typeof c.boxRevealProductZoomEnd === 'number' && Number.isFinite(c.boxRevealProductZoomEnd)
+          ? Math.max(40, Math.min(160, Math.round(c.boxRevealProductZoomEnd)))
+          : c.boxRevealProductZoomEnd,
+      boxRevealBoxSize:
+        typeof c.boxRevealBoxSize === 'number' && Number.isFinite(c.boxRevealBoxSize)
+          ? Math.max(140, Math.min(300, Math.round(c.boxRevealBoxSize)))
+          : c.boxRevealBoxSize,
+      boxRevealBorderThickness:
+        typeof c.boxRevealBorderThickness === 'number' &&
+        Number.isFinite(c.boxRevealBorderThickness)
+          ? Math.max(1, Math.min(36, Math.round(c.boxRevealBorderThickness)))
+          : c.boxRevealBorderThickness,
+      boxRevealLidLogoImage:
+        typeof c.boxRevealLidLogoImage === 'string' &&
+        /^(data:image\/|https?:\/\/|\/)/i.test(c.boxRevealLidLogoImage.trim())
+          ? c.boxRevealLidLogoImage.trim()
+          : '',
+      boxRevealLidLogoSize:
+        typeof c.boxRevealLidLogoSize === 'number' && Number.isFinite(c.boxRevealLidLogoSize)
+          ? Math.max(10, Math.min(100, Math.round(c.boxRevealLidLogoSize)))
+          : c.boxRevealLidLogoSize,
+      boxRevealLidLogoPadding:
+        typeof c.boxRevealLidLogoPadding === 'number' && Number.isFinite(c.boxRevealLidLogoPadding)
+          ? Math.max(0, Math.min(48, Math.round(c.boxRevealLidLogoPadding)))
+          : c.boxRevealLidLogoPadding,
+      boxRevealLidLogoFit:
+        c.boxRevealLidLogoFit === 'cover' || c.boxRevealLidLogoFit === 'contain'
+          ? c.boxRevealLidLogoFit
+          : c.boxRevealLidLogoFit,
+      boxRevealTransitionEffect:
+        c.boxRevealTransitionEffect === 'slide_vertical' ||
+        c.boxRevealTransitionEffect === 'fade' ||
+        c.boxRevealTransitionEffect === 'zoom_out' ||
+        c.boxRevealTransitionEffect === 'flip'
+          ? c.boxRevealTransitionEffect
+          : c.boxRevealTransitionEffect,
+      boxRevealTransitionDurationMs:
+        typeof c.boxRevealTransitionDurationMs === 'number' &&
+        Number.isFinite(c.boxRevealTransitionDurationMs)
+          ? Math.max(220, Math.min(1400, Math.round(c.boxRevealTransitionDurationMs)))
+          : c.boxRevealTransitionDurationMs,
+      adminCtaEnabled:
+        typeof c.adminCtaEnabled === 'boolean' ? c.adminCtaEnabled : c.adminCtaEnabled,
+      adminCtaLabel:
+        typeof c.adminCtaLabel === 'string' ? c.adminCtaLabel.slice(0, 80) : c.adminCtaLabel,
+      adminCtaActionType:
+        c.adminCtaActionType === 'whatsapp' ||
+        c.adminCtaActionType === 'page' ||
+        c.adminCtaActionType === 'sheet'
+          ? c.adminCtaActionType
+          : c.adminCtaActionType,
+      adminCtaWhatsappNumber:
+        typeof c.adminCtaWhatsappNumber === 'string'
+          ? c.adminCtaWhatsappNumber.slice(0, 32)
+          : c.adminCtaWhatsappNumber,
+      adminCtaWhatsappMessage:
+        typeof c.adminCtaWhatsappMessage === 'string'
+          ? c.adminCtaWhatsappMessage.slice(0, 400)
+          : c.adminCtaWhatsappMessage,
+      adminCtaTargetPageId:
+        typeof c.adminCtaTargetPageId === 'string'
+          ? c.adminCtaTargetPageId.slice(0, 100)
+          : c.adminCtaTargetPageId,
+      adminCtaBgColor: c.adminCtaBgColor
+        ? sanitizeOptionalCssColor(c.adminCtaBgColor) ?? '#16A34A'
+        : c.adminCtaBgColor,
+      adminCtaTextColor: c.adminCtaTextColor
+        ? sanitizeOptionalCssColor(c.adminCtaTextColor) ?? '#FFFFFF'
+        : c.adminCtaTextColor,
       categoryButtons: sanitizedCategoryButtons,
       categoryScrollMode:
         c.categoryScrollMode === 'horizontal' ||

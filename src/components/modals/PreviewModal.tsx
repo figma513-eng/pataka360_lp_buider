@@ -27,7 +27,9 @@ import {
   CategoryJumpItem,
   FnbHeroSlideItem,
   FnbMenuItem,
+  InteractiveBoxItem,
   MenuIconSheetPosition,
+  ProductBoxRevealItem,
 } from '../../types/builder';
 import { resolveBottomNavbar, resolveNavbarMetrics } from '../../data/presets';
 import { generateProjectHtml, resolveBlockTextColor, shadowToCss } from '../../utils/htmlExporter';
@@ -87,6 +89,8 @@ import {
 } from '../DynamicBlocks';
 import { CulinarySpinSlider } from '../CulinarySpinSlider';
 import { FloatingProductStudio } from '../FloatingProductStudio';
+import { InteractiveBoxShowcase } from '../InteractiveBoxShowcase';
+import { ProductBoxReveal } from '../ProductBoxReveal';
 import { FnbHeroSlider } from '../FnbHeroSlider';
 import { MapsPlaceCard } from '../MapsPlaceCard';
 import { PhotoCarousel } from '../PhotoCarousel';
@@ -96,6 +100,7 @@ import { SocialGlyph } from '../SocialIcon';
 import { ShowcaseCardView } from '../ShowcaseCardView';
 import { TrainingCatalogCard } from '../TrainingCatalogCard';
 import {
+  buildAdminCtaWhatsappUrl,
   buildLineClampStyle,
   isTopFloatingCartPosition,
   resolveBlockAction,
@@ -103,6 +108,7 @@ import {
   resolveUniversalCartMeta,
   supportsUniversalCart,
 } from '../../utils/universalLayerHelpers';
+import { resolveWhatsappCenter } from '../../utils/whatsappBuilder';
 import { isSubLayerDeleted, isSubLayerHidden } from '../../utils/layerStructure';
 import { blockHasPopoutVisual, resolveImagePopoutMetrics } from '../../utils/popoutHelpers';
 import type { BuilderSubPage } from '../../types/builder';
@@ -160,6 +166,10 @@ function findFirstCatalogBlock(
       (blk.type === 'fnb_hero_slider' && blk.content.fnbSliderEnableCart !== false) ||
       (blk.type === 'culinary_spin_slider' && blk.content.culinaryShowCartButton !== false) ||
       (blk.type === 'floating_product_studio' && blk.content.studioShowCartButton !== false) ||
+      (blk.type === 'interactive_box_showcase' && blk.content.boxShowcaseShowCartButton !== false) ||
+      (blk.type === 'product_box_reveal' &&
+        blk.content.boxRevealShowCartButton !== false &&
+        blk.content.boxRevealFloatingCartEnabled !== false) ||
       blk.type === 'cart_button' ||
       (blk.type === 'showcase_card' &&
         (blk.content.cardVariant === 'store_card' ||
@@ -608,6 +618,44 @@ export function PreviewModal({
     } else if (action.type === 'back') {
       goBackPage(action.targetPageId);
     }
+  };
+
+  const handleAdminCtaClick = (
+    block: BuilderBlock,
+    productTitle?: string,
+    productPrice?: string
+  ) => {
+    const c = block.content;
+    const actionType = c.adminCtaActionType ?? 'whatsapp';
+    if (actionType === 'sheet') {
+      openBottomSheet(block.id);
+      return;
+    }
+    if (actionType === 'page') {
+      const target = (c.adminCtaTargetPageId ?? '').trim();
+      if (target) openCustomPage(target);
+      return;
+    }
+    const waCenter = resolveWhatsappCenter(project);
+    const fallbackWa =
+      c.adminCtaWhatsappNumber?.trim() ||
+      waCenter.mainPhone?.trim() ||
+      c.boxShowcaseWhatsappNumber?.trim() ||
+      c.boxRevealWhatsappNumber?.trim() ||
+      c.fnbSliderWhatsappNumber?.trim() ||
+      c.culinaryWhatsappNumber?.trim() ||
+      '6281234567890';
+    const waUrl = buildAdminCtaWhatsappUrl(
+      fallbackWa,
+      c.adminCtaWhatsappMessage,
+      productTitle,
+      productPrice
+    );
+    const a = document.createElement('a');
+    a.href = waUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.click();
   };
 
   const renderPreviewBlock = (
@@ -2734,6 +2782,7 @@ export function PreviewModal({
               updateCartQty(targetKey, -1);
             }}
             onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+            onAdminCtaClick={(item) => handleAdminCtaClick(block, item.title, item.price)}
           />
         </div>
       );
@@ -2780,6 +2829,7 @@ export function PreviewModal({
               updateCartQty(targetKey, -1);
             }}
             onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+            onAdminCtaClick={(item) => handleAdminCtaClick(block, item.title, item.price)}
           />
         </div>
       );
@@ -2826,6 +2876,100 @@ export function PreviewModal({
               updateCartQty(targetKey, -1);
             }}
             onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === 'interactive_box_showcase') {
+      const toBoxCatalogItem = (it: InteractiveBoxItem): CatalogItem => ({
+        id: it.id,
+        title: it.title,
+        subtitle: it.category || '',
+        description: it.description || it.category || '',
+        price: it.price || 'Rp 0',
+        ctaLabel: 'Tambah',
+        url: '',
+        image: it.image || '',
+        unitSold: 0,
+      });
+      const boxQtyMap: Record<string, number> = {};
+      for (const entry of cart) {
+        if (entry.blockId === block.id) {
+          boxQtyMap[entry.itemId] = (boxQtyMap[entry.itemId] ?? 0) + entry.qty;
+        }
+      }
+      return (
+        <div key={block.id} style={style}>
+          <InteractiveBoxShowcase
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            cartQtyMap={boxQtyMap}
+            onAddCart={(item) => {
+              addToCart(block.id, toBoxCatalogItem(item), '', 1);
+            }}
+            onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+            onAdminCtaClick={(item) => handleAdminCtaClick(block, item.title, item.price)}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === 'product_box_reveal') {
+      const toRevealCatalogItem = (it: ProductBoxRevealItem): CatalogItem => ({
+        id: it.id,
+        title: it.title,
+        subtitle: '',
+        description: it.description || '',
+        price: it.price || 'Rp 0',
+        ctaLabel: 'Keranjang',
+        url: '',
+        image: it.image || '',
+        unitSold: 0,
+        variants: it.variants || '',
+      });
+      const revealQtyMap: Record<string, number> = {};
+      for (const entry of cart) {
+        if (entry.blockId === block.id) {
+          revealQtyMap[entry.itemId] = (revealQtyMap[entry.itemId] ?? 0) + entry.qty;
+        }
+      }
+      return (
+        <div key={block.id} style={style}>
+          <ProductBoxReveal
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            cartQtyMap={revealQtyMap}
+            onAddCart={(item, selectedVariant) => {
+              addToCart(block.id, toRevealCatalogItem(item), selectedVariant || '', 1);
+            }}
+            onIncCart={(item, selectedVariant) => {
+              const variantStr = selectedVariant || '';
+              const entryKey = createCartEntry(block.id, toRevealCatalogItem(item), variantStr, 1, 'physical').key;
+              const exists = cart.some((e) => e.key === entryKey);
+              if (exists) {
+                updateCartQty(entryKey, 1);
+              } else {
+                addToCart(block.id, toRevealCatalogItem(item), variantStr, 1);
+              }
+            }}
+            onDecCart={(item, selectedVariant) => {
+              const variantStr = selectedVariant || '';
+              const exactKey = createCartEntry(block.id, toRevealCatalogItem(item), variantStr, 1, 'physical').key;
+              const match =
+                cart.find((e) => e.key === exactKey) ??
+                cart.find((e) => e.blockId === block.id && e.itemId === item.id);
+              if (match) updateCartQty(match.key, -1);
+            }}
+            onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+            onAdminCtaClick={(item, selectedVariant) => {
+              const labelTitle = selectedVariant ? `${item.title} (${selectedVariant})` : item.title;
+              handleAdminCtaClick(block, labelTitle, item.price);
+            }}
           />
         </div>
       );

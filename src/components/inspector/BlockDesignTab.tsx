@@ -1307,6 +1307,477 @@ export function BlockDesignTab({
         );
       }
 
+      case 'interactive_box_showcase': {
+        const boxColor = c.boxShowcaseColor || '#F46A1F';
+        const slideMode = c.boxShowcaseSlideMode === 'auto' ? 'auto' : 'manual';
+        const intervalSec = c.boxShowcaseAutoIntervalSec ?? 2.5;
+        const stageBg = c.boxShowcaseBgColor || '#F4F4F6';
+        const BOX_PRESETS = [
+          { hex: '#F46A1F', label: 'Oranye Klasik' },
+          { hex: '#DC2626', label: 'Merah' },
+          { hex: '#2563EB', label: 'Biru' },
+          { hex: '#059669', label: 'Hijau' },
+          { hex: '#1F2937', label: 'Hitam' },
+          { hex: '#D97706', label: 'Amber' },
+        ];
+        return (
+          <div className="space-y-3">
+            {/* Warna Box Utama */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-xs font-bold text-[#17243D]">Warna Box Sepatu</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={boxColor}
+                  onChange={(e) => updateAccentContent({ boxShowcaseColor: e.target.value })}
+                  className="w-10 h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+                <input
+                  type="text"
+                  value={boxColor}
+                  onChange={(e) => updateAccentContent({ boxShowcaseColor: e.target.value })}
+                  className="flex-1 px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-6 gap-1.5">
+                {BOX_PRESETS.map((p) => (
+                  <button
+                    key={p.hex}
+                    type="button"
+                    title={p.label}
+                    onClick={() => updateAccentContent({ boxShowcaseColor: p.hex })}
+                    style={{ backgroundColor: p.hex }}
+                    className={`h-6 rounded-md border-2 cursor-pointer transition-transform hover:scale-105 ${
+                      boxColor.toLowerCase() === p.hex.toLowerCase()
+                        ? 'border-[#17243D] scale-105'
+                        : 'border-white shadow-2xs'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Mode Slide */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-xs font-bold text-[#17243D]">Mode Slide Animasi</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'manual', label: 'Manual Slide' },
+                    { id: 'auto', label: 'Auto Slide' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ boxShowcaseSlideMode: opt.id })}
+                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                      slideMode === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {slideMode === 'auto' && (
+                <SliderRow
+                  label="Jeda Auto Slide"
+                  value={`${intervalSec.toFixed(1)} dtk`}
+                  min={1.5}
+                  max={6}
+                  step={0.5}
+                  current={intervalSec}
+                  onChange={(val) => updateContent({ boxShowcaseAutoIntervalSec: val })}
+                />
+              )}
+            </div>
+
+            {/* Ukuran Box (Lebar & Tinggi) + Ukuran Gambar dalam Box */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Ukuran Box & Gambar Produk
+                </span>
+                {(c.boxShowcaseBoxWidth != null ||
+                  c.boxShowcaseBoxHeight != null ||
+                  (c.boxShowcaseImageScale != null && c.boxShowcaseImageScale !== 100)) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        boxShowcaseBoxWidth: undefined,
+                        boxShowcaseBoxHeight: undefined,
+                        boxShowcaseImageScale: 100,
+                      })
+                    }
+                    className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                  >
+                    Reset Auto
+                  </button>
+                )}
+              </div>
+              <SliderRow
+                label="Lebar Box"
+                value={
+                  c.boxShowcaseBoxWidth != null ? `${c.boxShowcaseBoxWidth}px` : 'Otomatis'
+                }
+                min={100}
+                max={250}
+                step={2}
+                current={c.boxShowcaseBoxWidth ?? 168}
+                onChange={(val) => updateContent({ boxShowcaseBoxWidth: val })}
+              />
+              <SliderRow
+                label="Tinggi Box"
+                value={
+                  c.boxShowcaseBoxHeight != null ? `${c.boxShowcaseBoxHeight}px` : 'Otomatis'
+                }
+                min={70}
+                max={220}
+                step={2}
+                current={c.boxShowcaseBoxHeight ?? 108}
+                onChange={(val) => updateContent({ boxShowcaseBoxHeight: val })}
+              />
+              <SliderRow
+                label="Ukuran Gambar dalam Box"
+                value={`${c.boxShowcaseImageScale ?? 100}%`}
+                min={40}
+                max={180}
+                step={5}
+                current={c.boxShowcaseImageScale ?? 100}
+                onChange={(val) => updateContent({ boxShowcaseImageScale: val })}
+              />
+            </div>
+
+            {/* Latar Panggung */}
+            <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-[#17243D]">
+                  Warna Latar Panggung
+                </label>
+                {c.boxShowcaseBgColor && c.boxShowcaseBgColor !== '#F4F4F6' && (
+                  <button
+                    type="button"
+                    onClick={() => updateContent({ boxShowcaseBgColor: '#F4F4F6' })}
+                    className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={stageBg}
+                  onChange={(e) => updateContent({ boxShowcaseBgColor: e.target.value })}
+                  className="w-10 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+                <input
+                  type="text"
+                  value={stageBg}
+                  onChange={(e) => updateContent({ boxShowcaseBgColor: e.target.value })}
+                  className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Keranjang Mengambang */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={c.boxShowcaseFloatingCartEnabled !== false}
+                  onChange={(val) => updateContent({ boxShowcaseFloatingCartEnabled: val })}
+                  label="Keranjang Mengambang"
+                />
+              </div>
+              {c.boxShowcaseFloatingCartEnabled !== false && (
+                <>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                      Posisi Kotak Mengambang
+                    </label>
+                    <select
+                      value={c.boxShowcaseFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          boxShowcaseFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                      Warna Tombol Keranjang
+                    </label>
+                    <input
+                      type="color"
+                      value={c.boxShowcaseFloatingCartBg ?? '#25272D'}
+                      onChange={(e) =>
+                        updateContent({ boxShowcaseFloatingCartBg: e.target.value })
+                      }
+                      className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      case 'product_box_reveal': {
+        const boxColor = c.boxRevealColor || '#5C3626';
+        const stageBg = c.boxRevealBgColor || '#EFEFEF';
+        const boxSize = c.boxRevealBoxSize ?? 220;
+        const borderThick = c.boxRevealBorderThickness ?? 18;
+        const lidLogoSize = c.boxRevealLidLogoSize ?? 44;
+        const lidLogoPadding = c.boxRevealLidLogoPadding ?? 12;
+        const zoomEnabled = c.boxRevealZoomEffectEnabled !== false;
+        const zoomStart = c.boxRevealProductZoomStart ?? 118;
+        const zoomEnd = c.boxRevealProductZoomEnd ?? 100;
+        const isCartActive =
+          c.boxRevealShowCartButton !== false && c.boxRevealFloatingCartEnabled !== false;
+        const WOOD_PRESETS = [
+          { hex: '#5C3626', label: 'Walnut' },
+          { hex: '#4A3F36', label: 'Espresso' },
+          { hex: '#A9866A', label: 'Teak' },
+          { hex: '#2D2927', label: 'Ebony' },
+          { hex: '#6E2C22', label: 'Mahogany' },
+          { hex: '#C2A88D', label: 'Natural Oak' },
+        ];
+        const applyColorToAllBoxes = (hex: string) => {
+          const items = c.boxRevealItems ?? [];
+          updateAccentContent({
+            boxRevealColor: hex,
+            boxRevealFloatingCartBg: hex,
+            boxRevealItems: items.map((it) => ({ ...it, boxColorOverride: hex })),
+          });
+        };
+        return (
+          <div className="space-y-3">
+            {/* Warna Kotak */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-xs font-bold text-[#17243D]">Warna Kotak</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={boxColor}
+                  onChange={(e) => applyColorToAllBoxes(e.target.value)}
+                  className="w-10 h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+                <input
+                  type="text"
+                  value={boxColor}
+                  onChange={(e) => applyColorToAllBoxes(e.target.value)}
+                  className="flex-1 px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-6 gap-1.5">
+                {WOOD_PRESETS.map((p) => (
+                  <button
+                    key={p.hex}
+                    type="button"
+                    title={p.label}
+                    onClick={() => applyColorToAllBoxes(p.hex)}
+                    style={{ backgroundColor: p.hex }}
+                    className={`h-6 rounded-md border-2 cursor-pointer transition-transform hover:scale-105 ${
+                      boxColor.toLowerCase() === p.hex.toLowerCase()
+                        ? 'border-[#17243D] scale-105'
+                        : 'border-white shadow-2xs'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Ukuran Box & Ketebalan Outline Box Dalam */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Ukuran & Ketebalan Kotak
+                </span>
+                {(boxSize !== 220 || borderThick !== 18) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        boxRevealBoxSize: 220,
+                        boxRevealBorderThickness: 18,
+                      })
+                    }
+                    className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <SliderRow
+                label="Ukuran Kotak"
+                value={`${boxSize}px`}
+                min={140}
+                max={300}
+                step={4}
+                current={boxSize}
+                onChange={(val) => updateContent({ boxRevealBoxSize: val })}
+              />
+              <SliderRow
+                label="Ketebalan Outline Box Dalam"
+                value={`${borderThick}px`}
+                min={1}
+                max={36}
+                step={1}
+                current={borderThick}
+                onChange={(val) => updateContent({ boxRevealBorderThickness: val })}
+              />
+              <SliderRow
+                label="Jarak Tepi Gambar Tutup (0px = Penuh)"
+                value={`${lidLogoPadding}px`}
+                min={0}
+                max={48}
+                step={1}
+                current={lidLogoPadding}
+                onChange={(val) => updateContent({ boxRevealLidLogoPadding: val })}
+              />
+              <SliderRow
+                label="Ukuran Gambar Tutup Kotak"
+                value={`${lidLogoSize}%`}
+                min={10}
+                max={100}
+                step={2}
+                current={lidLogoSize}
+                onChange={(val) => updateContent({ boxRevealLidLogoSize: val })}
+              />
+            </div>
+
+            {/* Efek Zoom Out Produk dalam Box */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Zoom Out Produk dalam Box
+                </span>
+                <ToggleSwitch
+                  checked={zoomEnabled}
+                  onChange={(val) => updateContent({ boxRevealZoomEffectEnabled: val })}
+                  label="Zoom Out Produk"
+                />
+              </div>
+              {zoomEnabled && (
+                <>
+                  <SliderRow
+                    label="Skala Awal (Saat Membuka)"
+                    value={`${zoomStart}%`}
+                    min={60}
+                    max={170}
+                    step={2}
+                    current={zoomStart}
+                    onChange={(val) => updateContent({ boxRevealProductZoomStart: val })}
+                  />
+                  <SliderRow
+                    label="Skala Akhir (Posisi Diam)"
+                    value={`${zoomEnd}%`}
+                    min={50}
+                    max={150}
+                    step={2}
+                    current={zoomEnd}
+                    onChange={(val) => updateContent({ boxRevealProductZoomEnd: val })}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Warna Latar Panggung */}
+            <div className="p-2.5 rounded-lg bg-white border border-[#DCE5EF] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-[#17243D]">
+                  Warna Latar Panggung
+                </label>
+                {c.boxRevealBgColor && c.boxRevealBgColor !== '#EFEFEF' && (
+                  <button
+                    type="button"
+                    onClick={() => updateContent({ boxRevealBgColor: '#EFEFEF' })}
+                    className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={stageBg}
+                  onChange={(e) => updateContent({ boxRevealBgColor: e.target.value })}
+                  className="w-10 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+                <input
+                  type="text"
+                  value={stageBg}
+                  onChange={(e) => updateContent({ boxRevealBgColor: e.target.value })}
+                  className="flex-1 px-2 py-1 text-[11px] rounded border border-[#DCE5EF] bg-white font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Gaya Keranjang (tersinkron otomatis dengan toggle Keranjang di Konten) */}
+            {isCartActive && (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-xs font-bold text-[#17243D]">
+                  Gaya Keranjang & Keranjang Mengambang
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#64748B] mb-1">
+                    Posisi Kotak Mengambang
+                  </label>
+                  <select
+                    value={c.boxRevealFloatingCartPosition ?? 'bottom-floating'}
+                    onChange={(e) =>
+                      updateContent({
+                        boxRevealFloatingCartPosition: e.target.value as FloatingCartPosition,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  >
+                    <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                    <option value="bottom-docked">Menempel Tepi Bawah</option>
+                    <option value="bottom-left">Melayang Kiri Bawah</option>
+                    <option value="bottom-right">Melayang Kanan Bawah</option>
+                    <option value="top-floating">Melayang Atas Penuh</option>
+                    <option value="top-left">Melayang Kiri Atas</option>
+                    <option value="top-right">Melayang Kanan Atas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#8FA4BF] mb-1">
+                    Warna Tombol & Keranjang Mengambang
+                  </label>
+                  <input
+                    type="color"
+                    value={c.boxRevealFloatingCartBg ?? boxColor}
+                    onChange={(e) =>
+                      updateContent({ boxRevealFloatingCartBg: e.target.value })
+                    }
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case 'fnb_catalog': {
         const subId = selectedSubLayer?.id ?? null;
         const parsedItemSub = parseFnbItemSubLayerId(subId);

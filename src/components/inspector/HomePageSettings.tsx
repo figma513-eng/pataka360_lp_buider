@@ -356,6 +356,9 @@ function renderBlockLayerIcon(blk: BuilderBlock, className = 'w-3.5 h-3.5'): Rea
       return <Disc3 className={className} strokeWidth={1.85} />;
     case 'floating_product_studio':
       return <Shirt className={className} strokeWidth={1.85} />;
+    case 'interactive_box_showcase':
+    case 'product_box_reveal':
+      return <Package className={className} strokeWidth={1.85} />;
     case 'catalog':
       return blk.content?.catalogProductType === 'digital' || lbl.includes('digital') ? (
         <ShoppingBag className={className} strokeWidth={1.85} />

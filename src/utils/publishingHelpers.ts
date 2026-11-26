@@ -164,6 +164,18 @@ export function findFallbackShareImageFromBlocks(blocks: BuilderBlock[]): string
         if (img) return img;
       }
     }
+    if (blk.type === 'interactive_box_showcase' && Array.isArray(c.boxShowcaseItems)) {
+      for (const item of c.boxShowcaseItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
+    if (blk.type === 'product_box_reveal' && Array.isArray(c.boxRevealItems)) {
+      for (const item of c.boxRevealItems) {
+        const img = isShareableImageCandidate(item?.image);
+        if (img) return img;
+      }
+    }
     if (blk.type === 'menu_icon') {
       const img = isShareableImageCandidate(c.menuIconImage);
       if (img) return img;

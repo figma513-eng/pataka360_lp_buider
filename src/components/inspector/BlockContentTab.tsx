@@ -5,6 +5,7 @@ import {
   AlignRight,
   ArrowLeft,
   CheckCircle2,
+  Copy,
   Eye,
   EyeOff,
   FileText,
@@ -44,9 +45,11 @@ import {
   FnbHeroSlideItem,
   FnbImageShape,
   FnbMenuItem,
+  InteractiveBoxItem,
   MenuIconAction,
   MenuIconSheetPosition,
   PageTheme,
+  ProductBoxRevealItem,
   ShippingMethodId,
   ShowcaseCardVariant,
   ShowcaseFeeItem,
@@ -69,6 +72,8 @@ import { DynamicFormBuilderEditor } from './DynamicFormBuilderEditor';
 import { ContainerSliderControls } from './ContainerSliderControls';
 import {
   BLOCK_TYPE_NAMES,
+  BOX_REVEAL_WATCH_ROSE_SVG,
+  BOX_SHOE_PRESTO_SVG,
   CAROUSEL_SAMPLE_1_SVG,
   CAROUSEL_SAMPLE_2_SVG,
   CAROUSEL_SAMPLE_3_SVG,
@@ -240,6 +245,8 @@ export function BlockContentTab({
       selectedBlock.type === 'fnb_hero_slider' ||
       selectedBlock.type === 'culinary_spin_slider' ||
       selectedBlock.type === 'floating_product_studio' ||
+      selectedBlock.type === 'interactive_box_showcase' ||
+      selectedBlock.type === 'product_box_reveal' ||
       selectedBlock.type === 'training_catalog' ||
       selectedBlock.type === 'category_tabs' ||
       selectedBlock.type === 'social' ||
@@ -420,6 +427,309 @@ export function BlockContentTab({
     const [moved] = copy.splice(idx, 1);
     copy.splice(target, 0, moved);
     return copy;
+  };
+
+  const renderAdminCtaControls = (defaultWaFallback?: string) => {
+    const enabled = Boolean(c.adminCtaEnabled);
+    const actionType = c.adminCtaActionType ?? 'whatsapp';
+    const sheetPos: MenuIconSheetPosition = c.actionSheetPosition ?? 'bottom';
+    const sheetBlocks = c.actionSheetBlocks ?? [];
+    const sheetQuickTypes: { type: BlockType; label: string }[] = [
+      { type: 'text', label: '+ Teks' },
+      { type: 'image', label: '+ Gambar' },
+      { type: 'button', label: '+ Tombol' },
+      { type: 'showcase_card', label: '+ Kartu' },
+      { type: 'cart_button', label: '+ Keranjang' },
+      { type: 'form', label: '+ Formulir' },
+      { type: 'maps_place', label: '+ Maps' },
+      { type: 'back_button', label: '+ Back' },
+    ];
+    return (
+      <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-bold text-[#17243D]">
+            Tombol Tanya Admin (Opsional)
+          </span>
+          <ToggleSwitch
+            checked={enabled}
+            onChange={(val) =>
+              updateContent({
+                adminCtaEnabled: val,
+                ...(val && !c.adminCtaLabel ? { adminCtaLabel: 'Tanya Admin' } : {}),
+                ...(val && !c.adminCtaActionType ? { adminCtaActionType: 'whatsapp' } : {}),
+              })
+            }
+            label="Aktifkan Tombol Tanya Admin"
+          />
+        </div>
+
+        {enabled && (
+          <div className="space-y-2.5 pt-2 border-t border-[#DCE5EF]">
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Teks Tombol (Bisa Diubah)
+              </label>
+              <input
+                type="text"
+                value={c.adminCtaLabel ?? 'Tanya Admin'}
+                placeholder="Tanya Admin"
+                onChange={(e) => updateContent({ adminCtaLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                Tujuan Tombol
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    { id: 'whatsapp', label: 'Link WA' },
+                    { id: 'page', label: 'Page Lain' },
+                    { id: 'sheet', label: 'Bottom Sheet' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        adminCtaActionType: opt.id,
+                        ...(opt.id === 'sheet' && !c.actionSheetPosition
+                          ? { actionSheetPosition: 'bottom' }
+                          : {}),
+                        ...(opt.id === 'sheet' && !c.actionSheetTitle
+                          ? { actionSheetTitle: c.adminCtaLabel?.trim() || 'Tanya Admin' }
+                          : {}),
+                      })
+                    }
+                    className={`py-1.5 px-1.5 rounded-lg text-[10.5px] font-bold border transition-colors cursor-pointer ${
+                      actionType === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {actionType === 'whatsapp' && (
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                    Nomor WhatsApp Admin (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={c.adminCtaWhatsappNumber ?? ''}
+                    placeholder={defaultWaFallback || '6281234567890 (kosong = ikut WA utama)'}
+                    onChange={(e) => updateContent({ adminCtaWhatsappNumber: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                    Pesan WhatsApp Otomatis
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={
+                      c.adminCtaWhatsappMessage ??
+                      'Halo Admin, saya ingin bertanya tentang {produk}.'
+                    }
+                    onChange={(e) => updateContent({ adminCtaWhatsappMessage: e.target.value })}
+                    placeholder="Gunakan {produk} untuk menyisipkan nama produk aktif"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {actionType === 'page' && (
+              <div className="space-y-2">
+                <label className="block text-[10.5px] font-semibold text-[#17243D]">
+                  Pilih Halaman Tujuan
+                </label>
+                <select
+                  value={c.adminCtaTargetPageId ?? ''}
+                  onChange={(e) => updateContent({ adminCtaTargetPageId: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white text-[#17243D]"
+                >
+                  <option value="">-- Pilih Halaman --</option>
+                  <option value="home">Beranda (Halaman Utama)</option>
+                  {pages.map((pg) => (
+                    <option key={pg.id} value={pg.id}>
+                      {pg.title} {activeSubPageId === pg.id ? '(Sedang Dibuka)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-1.5">
+                  {onAddSubPage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const createdId = onAddSubPage();
+                        if (createdId) updateContent({ adminCtaTargetPageId: createdId });
+                      }}
+                      className="flex-1 py-1.5 px-2 rounded-lg border border-dashed border-[#00C98A] bg-[#ECFDF6] text-[10.5px] font-bold text-[#0F766E] cursor-pointer"
+                    >
+                      + Buat Halaman Baru
+                    </button>
+                  )}
+                  {c.adminCtaTargetPageId &&
+                    c.adminCtaTargetPageId !== 'home' &&
+                    onSelectSubPage && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectSubPage(c.adminCtaTargetPageId || null)}
+                        className="py-1.5 px-2 rounded-lg border border-[#DCE5EF] bg-white text-[10.5px] font-semibold text-[#17243D] cursor-pointer"
+                      >
+                        Edit Halaman
+                      </button>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {actionType === 'sheet' && (
+              <div className="p-2 rounded-lg bg-white border border-[#DCE5EF] space-y-2">
+                <div>
+                  <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                    Arah Muncul Sheet
+                  </label>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(
+                      [
+                        { id: 'bottom' as const, label: 'Bawah' },
+                        { id: 'right' as const, label: 'Kanan' },
+                        { id: 'left' as const, label: 'Kiri' },
+                        { id: 'top' as const, label: 'Atas' },
+                      ] as const
+                    ).map((pos) => (
+                      <button
+                        key={pos.id}
+                        type="button"
+                        onClick={() => updateContent({ actionSheetPosition: pos.id })}
+                        className={`py-1 rounded text-[10px] font-semibold border cursor-pointer ${
+                          sheetPos === pos.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-[#F8FAFC] text-[#17243D] border-[#DCE5EF]'
+                        }`}
+                      >
+                        {pos.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-semibold text-[#17243D] mb-1">
+                    Judul Panel Sheet
+                  </label>
+                  <input
+                    type="text"
+                    value={c.actionSheetTitle ?? ''}
+                    placeholder="Tanya Admin"
+                    onChange={(e) => updateContent({ actionSheetTitle: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded border border-[#DCE5EF] bg-white"
+                  />
+                </div>
+                <div className="space-y-1.5 pt-1 border-t border-[#DCE5EF]">
+                  <span className="block text-[10.5px] font-bold text-[#17243D]">
+                    Isi Komponen Sheet ({sheetBlocks.length})
+                  </span>
+                  {sheetBlocks.length === 0 ? (
+                    <p className="text-[10px] text-[#8FA4BF]">
+                      Belum ada isi di panel sheet. Tambahkan elemen di bawah ini:
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {sheetBlocks.map((child) => (
+                        <div
+                          key={child.id}
+                          className="flex items-center justify-between gap-1.5 px-2 py-1 rounded bg-[#F8FAFC] border border-[#DCE5EF]"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onSelectBlock?.(child.id)}
+                            className="flex-1 text-left truncate text-[11px] font-semibold text-[#17243D] hover:text-[#00A873] cursor-pointer"
+                          >
+                            {child.label || BLOCK_TYPE_NAMES[child.type]}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateContent({
+                                actionSheetBlocks: sheetBlocks.filter((b) => b.id !== child.id),
+                              })
+                            }
+                            className="p-0.5 text-[#8FA4BF] hover:text-red-600 cursor-pointer"
+                            title="Hapus elemen sheet"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {onAddChildToActionSheet && (
+                    <div className="grid grid-cols-2 gap-1 pt-1">
+                      {sheetQuickTypes.map((qt) => (
+                        <button
+                          key={qt.type}
+                          type="button"
+                          onClick={() => onAddChildToActionSheet(selectedBlock.id, qt.type)}
+                          className="py-1 px-2 rounded border border-dashed border-[#00C98A] bg-white hover:bg-[#ECFDF6] text-[10.5px] font-semibold text-[#17243D] cursor-pointer text-left"
+                        >
+                          {qt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#DCE5EF]">
+              <div>
+                <label className="block text-[10px] font-semibold text-[#17243D] mb-1">
+                  Warna Tombol
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={c.adminCtaBgColor || '#16A34A'}
+                    onChange={(e) => updateContent({ adminCtaBgColor: e.target.value })}
+                    className="w-7 h-7 rounded border border-[#DCE5EF] cursor-pointer bg-white p-0.5"
+                  />
+                  <span className="text-[10px] font-mono text-[#51637D] uppercase">
+                    {c.adminCtaBgColor || '#16A34A'}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-[#17243D] mb-1">
+                  Warna Teks
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={c.adminCtaTextColor || '#FFFFFF'}
+                    onChange={(e) => updateContent({ adminCtaTextColor: e.target.value })}
+                    className="w-7 h-7 rounded border border-[#DCE5EF] cursor-pointer bg-white p-0.5"
+                  />
+                  <span className="text-[10px] font-mono text-[#51637D] uppercase">
+                    {c.adminCtaTextColor || '#FFFFFF'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // --- 2. KONTEN UTAMA ---
@@ -1089,6 +1399,7 @@ export function BlockContentTab({
                 />
               </div>
             </div>
+            {renderAdminCtaControls(c.fnbSliderWhatsappNumber)}
           </div>
         );
 
@@ -1185,6 +1496,7 @@ export function BlockContentTab({
                 />
               </div>
             </div>
+            {renderAdminCtaControls(c.culinaryWhatsappNumber)}
           </div>
         );
 
@@ -1273,6 +1585,511 @@ export function BlockContentTab({
             </div>
           </div>
         );
+
+      case 'interactive_box_showcase': {
+        const slideMode = c.boxShowcaseSlideMode === 'auto' ? 'auto' : 'manual';
+        const intervalSec = c.boxShowcaseAutoIntervalSec ?? 2.5;
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Label Brand Header (Opsional)
+              </label>
+              <input
+                type="text"
+                value={c.boxShowcaseBrandLabel ?? ''}
+                placeholder="Kosongkan untuk menyembunyikan header atas"
+                onChange={(e) => updateContent({ boxShowcaseBrandLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">Mode Slide Animasi</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'manual', label: 'Manual Slide' },
+                    { id: 'auto', label: 'Auto Slide' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ boxShowcaseSlideMode: opt.id })}
+                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                      slideMode === opt.id
+                        ? 'bg-[#17243D] text-white border-[#17243D]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {slideMode === 'auto' && (
+                <div>
+                  <div className="flex items-center justify-between text-[10.5px] mb-1">
+                    <span className="font-semibold text-[#17243D]">Jeda Auto Slide</span>
+                    <span className="font-mono font-semibold text-[#17243D] tabular-nums">
+                      {intervalSec.toFixed(1)} dtk
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1.5}
+                    max={6.0}
+                    step={0.5}
+                    value={intervalSec}
+                    onChange={(e) =>
+                      updateContent({ boxShowcaseAutoIntervalSec: Number(e.target.value) })
+                    }
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Tampilkan Rating</span>
+                <ToggleSwitch
+                  checked={c.boxShowcaseShowRating !== false}
+                  onChange={(val) => updateContent({ boxShowcaseShowRating: val })}
+                  label="Tampilkan Rating"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Tombol Keranjang (Tas)</span>
+                <ToggleSwitch
+                  checked={c.boxShowcaseShowCartButton !== false}
+                  onChange={(val) => updateContent({ boxShowcaseShowCartButton: val })}
+                  label="Tombol Keranjang"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#17243D]">Tombol Favorit (Hati)</span>
+                <ToggleSwitch
+                  checked={c.boxShowcaseShowFavorite !== false}
+                  onChange={(val) => updateContent({ boxShowcaseShowFavorite: val })}
+                  label="Tombol Favorit"
+                />
+              </div>
+            </div>
+            {renderAdminCtaControls(c.boxShowcaseWhatsappNumber)}
+          </div>
+        );
+      }
+
+      case 'product_box_reveal': {
+        const showDots = c.boxRevealShowDots !== false;
+        const dotsPos = c.boxRevealDotsPosition || 'right';
+        const verticalSwipe = c.boxRevealVerticalSwipeEnabled !== false;
+        const slideMode = c.boxRevealSlideMode === 'auto' ? 'auto' : 'manual';
+        const autoIntervalSec = c.boxRevealAutoIntervalSec ?? 4;
+        const transitionEff = c.boxRevealTransitionEffect || 'slide_vertical';
+        const transitionMs = c.boxRevealTransitionDurationMs ?? 520;
+        const zoomEnabled = c.boxRevealZoomEffectEnabled !== false;
+        const zoomStart = c.boxRevealProductZoomStart ?? 118;
+        const zoomEnd = c.boxRevealProductZoomEnd ?? 100;
+        const lidLogoSize = c.boxRevealLidLogoSize ?? 44;
+        const lidLogoPadding = c.boxRevealLidLogoPadding ?? 12;
+        const lidLogoFit = c.boxRevealLidLogoFit ?? 'contain';
+        const isCartActive =
+          c.boxRevealShowCartButton !== false && c.boxRevealFloatingCartEnabled !== false;
+        const boxColor = c.boxRevealColor || '#5C3626';
+        return (
+          <div className="space-y-2.5">
+            {/* Logo / Gambar Tutup Kotak (Global) */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">Gambar / Logo Tutup Kotak</span>
+                {c.boxRevealLidLogoImage && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({
+                        boxRevealLidLogoPadding: 0,
+                        boxRevealLidLogoSize: 100,
+                        boxRevealLidLogoFit: 'cover',
+                      })
+                    }
+                    className="text-[10px] font-bold text-[#00A872] hover:underline cursor-pointer"
+                  >
+                    Penuh (0px)
+                  </button>
+                )}
+              </div>
+              <MediaSourceInput
+                label="Logo / Gambar Tutup (Default Semua Kotak)"
+                value={c.boxRevealLidLogoImage ?? ''}
+                placeholder="Upload atau tempel URL logo tutup kotak"
+                onChangeUrl={(url) => updateContent({ boxRevealLidLogoImage: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(f, { maxDimension: 512, quality: 0.9 }, (blk, url) => ({
+                    ...blk,
+                    content: { ...blk.content, boxRevealLidLogoImage: url },
+                  }))
+                }
+                onClear={
+                  c.boxRevealLidLogoImage
+                    ? () => updateContent({ boxRevealLidLogoImage: '' })
+                    : undefined
+                }
+              />
+              {c.boxRevealLidLogoImage && (
+                <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#51637D] mb-1">
+                      <span>Jarak Tepi Tutup (0px = Penuh)</span>
+                      <span className="tabular-nums">{lidLogoPadding}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={48}
+                      step={1}
+                      value={lidLogoPadding}
+                      onChange={(e) =>
+                        updateContent({ boxRevealLidLogoPadding: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#00C98A]"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#51637D] mb-1">
+                      <span>Ukuran Gambar Tutup</span>
+                      <span className="tabular-nums">{lidLogoSize}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={10}
+                      max={100}
+                      step={2}
+                      value={lidLogoSize}
+                      onChange={(e) =>
+                        updateContent({ boxRevealLidLogoSize: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#00C98A]"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'contain', label: 'Utuh (Contain)' },
+                        { id: 'cover', label: 'Penuhi (Cover)' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ boxRevealLidLogoFit: opt.id })}
+                        className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                          lidLogoFit === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Slide Vertical & Indikator (...) + Manual / Auto Slide */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-xs font-bold text-[#17243D]">Slide Vertikal & Indikator (•••)</div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                  Mode Slide Kotak
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { id: 'manual', label: 'Manual Slide' },
+                      { id: 'auto', label: 'Auto Slide' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ boxRevealSlideMode: opt.id })}
+                      className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                        slideMode === opt.id
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {slideMode === 'auto' && (
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-[#51637D] mb-1">
+                    <span>Waktu Auto Slide</span>
+                    <span className="tabular-nums">{autoIntervalSec.toFixed(1)} detik</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={2}
+                    max={10}
+                    step={0.5}
+                    value={autoIntervalSec}
+                    onChange={(e) =>
+                      updateContent({ boxRevealAutoIntervalSec: Number(e.target.value) })
+                    }
+                    className="w-full accent-[#00C98A]"
+                  />
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#51637D]">
+                  Aktifkan Geser Vertikal
+                </span>
+                <ToggleSwitch
+                  checked={verticalSwipe}
+                  onChange={(val) => updateContent({ boxRevealVerticalSwipeEnabled: val })}
+                  label="Aktifkan Geser Vertikal"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#51637D]">
+                  Tampilkan Tanda (•••)
+                </span>
+                <ToggleSwitch
+                  checked={showDots}
+                  onChange={(val) => updateContent({ boxRevealShowDots: val })}
+                  label="Tampilkan Tanda Titik Slide"
+                />
+              </div>
+              {showDots && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                    Posisi Indikator (•••)
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'right', label: 'Kanan (Vertikal)' },
+                        { id: 'left', label: 'Kiri (Vertikal)' },
+                        { id: 'bottom', label: 'Bawah (Horizontal)' },
+                        { id: 'top', label: 'Atas (Horizontal)' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ boxRevealDotsPosition: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                          dotsPos === opt.id
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Transisi Antar Box & Zoom Out Produk */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-xs font-bold text-[#17243D]">
+                Transisi Antar Box & Zoom Out Produk
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                  Animasi Perpindahan Box
+                </label>
+                <select
+                  value={transitionEff}
+                  onChange={(e) =>
+                    updateContent({
+                      boxRevealTransitionEffect: e.target.value as
+                        | 'slide_vertical'
+                        | 'fade'
+                        | 'zoom_out'
+                        | 'flip',
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                >
+                  <option value="slide_vertical">Slide Vertikal (Atas / Bawah)</option>
+                  <option value="fade">Fade Halus</option>
+                  <option value="zoom_out">Zoom Out Masuk</option>
+                  <option value="flip">Flip 3D</option>
+                </select>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[11px] font-semibold text-[#51637D] mb-1">
+                  <span>Durasi Transisi</span>
+                  <span className="tabular-nums">{transitionMs} ms</span>
+                </div>
+                <input
+                  type="range"
+                  min={250}
+                  max={1200}
+                  step={30}
+                  value={transitionMs}
+                  onChange={(e) =>
+                    updateContent({ boxRevealTransitionDurationMs: Number(e.target.value) })
+                  }
+                  className="w-full accent-[#00C98A]"
+                />
+              </div>
+
+              <div className="pt-1 border-t border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Efek Zoom Out Produk dalam Box
+                  </span>
+                  <ToggleSwitch
+                    checked={zoomEnabled}
+                    onChange={(val) => updateContent({ boxRevealZoomEffectEnabled: val })}
+                    label="Efek Zoom Out Produk"
+                  />
+                </div>
+                {zoomEnabled && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D] mb-0.5">
+                        <span>Set Awal</span>
+                        <span className="tabular-nums">{zoomStart}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={60}
+                        max={170}
+                        step={2}
+                        value={zoomStart}
+                        onChange={(e) =>
+                          updateContent({ boxRevealProductZoomStart: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D] mb-0.5">
+                        <span>Set Akhir</span>
+                        <span className="tabular-nums">{zoomEnd}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={50}
+                        max={150}
+                        step={2}
+                        value={zoomEnd}
+                        onChange={(e) =>
+                          updateContent({ boxRevealProductZoomEnd: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#00C98A]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Gabungan Tombol Keranjang & Keranjang Mengambang */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#17243D]">
+                  Keranjang & Keranjang Mengambang
+                </span>
+                <ToggleSwitch
+                  checked={isCartActive}
+                  onChange={(val) =>
+                    updateContent({
+                      boxRevealShowCartButton: val,
+                      boxRevealFloatingCartEnabled: val,
+                      catalogCartEnabled: val,
+                    })
+                  }
+                  label="Keranjang & Keranjang Mengambang"
+                />
+              </div>
+              {isCartActive && (
+                <div className="space-y-2 pt-1 border-t border-[#DCE5EF]">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                      No. WhatsApp Checkout
+                    </label>
+                    <input
+                      type="text"
+                      value={c.boxRevealWhatsappNumber ?? '6281234567890'}
+                      placeholder="6281234567890"
+                      onChange={(e) =>
+                        updateContent({
+                          boxRevealWhatsappNumber: e.target.value,
+                          catalogWhatsappNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums outline-none focus:border-[#00C98A]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#51637D] mb-1">
+                      Posisi Keranjang Mengambang
+                    </label>
+                    <select
+                      value={c.boxRevealFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          boxRevealFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Label Keranjang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.boxRevealFloatingCartLabel ?? 'Lihat Keranjang'}
+                        onChange={(e) =>
+                          updateContent({ boxRevealFloatingCartLabel: e.target.value })
+                        }
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Warna Keranjang
+                      </label>
+                      <input
+                        type="color"
+                        value={c.boxRevealFloatingCartBg ?? boxColor}
+                        onChange={(e) =>
+                          updateContent({ boxRevealFloatingCartBg: e.target.value })
+                        }
+                        className="w-full h-[30px] rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {renderAdminCtaControls(c.boxRevealWhatsappNumber)}
+          </div>
+        );
+      }
 
       case 'fnb_catalog':
         return (
@@ -5067,6 +5884,720 @@ export function BlockContentTab({
                     if (editingItemKey === `fps:${item.id}`) setEditingItemKey(null);
                   }}
                 />
+              </div>
+            ))}
+          </div>
+        ),
+      };
+    }
+
+    // --- INTERACTIVE BOX SHOWCASE ---
+    if (selectedBlock.type === 'interactive_box_showcase') {
+      const items: InteractiveBoxItem[] = c.boxShowcaseItems ?? [];
+      const slideMode = c.boxShowcaseSlideMode === 'auto' ? 'auto' : 'manual';
+      const boxColor = c.boxShowcaseColor || '#F46A1F';
+      const BOX_COLOR_PRESETS = [
+        { hex: '#F46A1F', label: 'Oranye Klasik' },
+        { hex: '#DC2626', label: 'Merah' },
+        { hex: '#2563EB', label: 'Biru' },
+        { hex: '#059669', label: 'Hijau' },
+        { hex: '#1F2937', label: 'Hitam' },
+        { hex: '#D97706', label: 'Amber' },
+      ];
+
+      const updateBoxItem = (id: string, patch: Partial<InteractiveBoxItem>) => {
+        updateContent({
+          boxShowcaseItems: items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+        });
+      };
+
+      if (editingItemKey?.startsWith('ibs:')) {
+        const targetId = editingItemKey.slice('ibs:'.length);
+        const item = items.find((it) => it.id === targetId);
+        if (!item) return { badge: items.length, body: renderDrillHeader('Box Produk') };
+        return {
+          badge: items.length,
+          body: (
+            <div className="space-y-2.5">
+              {renderDrillHeader(
+                item.title || 'Detail Box Produk',
+                items.length > 1
+                  ? () => {
+                      updateContent({
+                        boxShowcaseItems: removeSelectedItemByIdOrIndex(items, item.id),
+                      });
+                      setEditingItemKey(null);
+                    }
+                  : undefined
+              )}
+              <MediaSourceInput
+                label="Foto Produk di Dalam Box (PNG / Foto)"
+                value={item.image ?? ''}
+                placeholder="https://... atau upload foto produk"
+                onChangeUrl={(url) => updateBoxItem(item.id, { image: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(f, { maxDimension: 720, quality: 0.88 }, (blk, url) => ({
+                    ...blk,
+                    content: {
+                      ...blk.content,
+                      boxShowcaseItems: (blk.content.boxShowcaseItems ?? []).map((it) =>
+                        it.id === item.id ? { ...it, image: url } : it
+                      ),
+                    },
+                  }))
+                }
+                onClear={item.image ? () => updateBoxItem(item.id, { image: '' }) : undefined}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Nama Produk
+                  </label>
+                  <input
+                    type="text"
+                    value={item.title}
+                    onChange={(e) => updateBoxItem(item.id, { title: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga
+                  </label>
+                  <input
+                    type="text"
+                    value={item.price}
+                    onChange={(e) => updateBoxItem(item.id, { price: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Kategori
+                  </label>
+                  <input
+                    type="text"
+                    value={item.category ?? ''}
+                    placeholder="MEN'S SHOE"
+                    onChange={(e) => updateBoxItem(item.id, { category: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Rating
+                  </label>
+                  <input
+                    type="text"
+                    value={item.rating ?? ''}
+                    placeholder="4.5"
+                    onChange={(e) => updateBoxItem(item.id, { rating: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+                  />
+                </div>
+              </div>
+              <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#17243D]">
+                    Warna Khusus Box Ini
+                  </span>
+                  {item.boxColorOverride && (
+                    <button
+                      type="button"
+                      onClick={() => updateBoxItem(item.id, { boxColorOverride: undefined })}
+                      className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                    >
+                      Ikut Warna Utama
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={item.boxColorOverride || boxColor}
+                    onChange={(e) => updateBoxItem(item.id, { boxColorOverride: e.target.value })}
+                    className="w-9 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                  <span className="text-[10.5px] text-[#51637D] font-mono">
+                    {item.boxColorOverride || `${boxColor} (Utama)`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: items.length,
+        body: (
+          <div className="space-y-2.5">
+            {/* Quick Controls: Mode Slide & Warna Box */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div>
+                <div className="text-[10.5px] font-bold text-[#17243D] mb-1">Mode Slide</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { id: 'manual', label: 'Manual Slide' },
+                      { id: 'auto', label: 'Auto Slide' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ boxShowcaseSlideMode: opt.id })}
+                      className={`py-1.5 px-2 rounded-md text-[11px] font-bold border transition-colors cursor-pointer ${
+                        slideMode === opt.id
+                          ? 'bg-[#17243D] text-white border-[#17243D]'
+                          : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10.5px] font-bold text-[#17243D]">Warna Box</span>
+                  <span className="text-[10px] font-mono text-[#51637D]">{boxColor}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={boxColor}
+                    onChange={(e) => updateContent({ boxShowcaseColor: e.target.value })}
+                    className="w-8 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white shrink-0"
+                  />
+                  <div className="flex items-center gap-1 flex-1 justify-end">
+                    {BOX_COLOR_PRESETS.map((preset) => (
+                      <button
+                        key={preset.hex}
+                        type="button"
+                        title={preset.label}
+                        onClick={() => updateContent({ boxShowcaseColor: preset.hex })}
+                        style={{ backgroundColor: preset.hex }}
+                        className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-transform hover:scale-105 ${
+                          boxColor.toLowerCase() === preset.hex.toLowerCase()
+                            ? 'border-[#17243D] scale-105'
+                            : 'border-white shadow-2xs'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const nextItem: InteractiveBoxItem = {
+                  id: createId('ibs_it'),
+                  category: "MEN'S SHOE",
+                  title: `Sneaker Box #${items.length + 1}`,
+                  price: '$140',
+                  rating: '4.7',
+                  image: BOX_SHOE_PRESTO_SVG,
+                  variants: '40, 41, 42, 43, 44',
+                };
+                updateContent({ boxShowcaseItems: [...items, nextItem] });
+                setEditingItemKey(`ibs:${nextItem.id}`);
+              }}
+              className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
+              <span>Tambah Box ({items.length})</span>
+            </button>
+
+            {items.map((item, idx) => (
+              <div
+                key={item.id}
+                onClick={() => setEditingItemKey(`ibs:${item.id}`)}
+                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center gap-2 cursor-pointer"
+              >
+                <div
+                  style={{
+                    borderColor: item.boxColorOverride || boxColor,
+                    backgroundColor: '#E5CAAA',
+                  }}
+                  className="w-10 h-9 rounded-md border-2 overflow-hidden shrink-0 flex items-center justify-center p-1"
+                >
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[9px] font-bold text-[#7C5B3A]">BOX</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-[#17243D] truncate">{item.title}</div>
+                  <div className="text-[10.5px] text-[#8FA4BF] truncate tabular-nums">
+                    {item.price}
+                    {item.rating ? ` · ★ ${item.rating}` : ''}
+                  </div>
+                </div>
+                <ItemOverflowMenu
+                  onEdit={() => setEditingItemKey(`ibs:${item.id}`)}
+                  onDuplicate={() => {
+                    const dup: InteractiveBoxItem = {
+                      ...item,
+                      id: createId('ibs_it'),
+                      title: `${item.title} Salinan`,
+                    };
+                    const copy = [...items];
+                    copy.splice(idx + 1, 0, dup);
+                    updateContent({ boxShowcaseItems: copy });
+                  }}
+                  onMoveUp={() =>
+                    updateContent({ boxShowcaseItems: moveArrayItem(items, idx, -1) })
+                  }
+                  onMoveDown={() =>
+                    updateContent({ boxShowcaseItems: moveArrayItem(items, idx, 1) })
+                  }
+                  disableMoveUp={idx === 0}
+                  disableMoveDown={idx === items.length - 1}
+                  onDelete={() => {
+                    if (items.length <= 1) return;
+                    updateContent({
+                      boxShowcaseItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                    });
+                    if (editingItemKey === `ibs:${item.id}`) setEditingItemKey(null);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ),
+      };
+    }
+
+    // --- ANIMATED PRODUCT BOX REVEAL ---
+    if (selectedBlock.type === 'product_box_reveal') {
+      const items: ProductBoxRevealItem[] = c.boxRevealItems ?? [];
+      const boxColor = c.boxRevealColor || '#5C3626';
+      const WOOD_PRESETS = [
+        { hex: '#5C3626', label: 'Walnut' },
+        { hex: '#4A3F36', label: 'Espresso' },
+        { hex: '#A9866A', label: 'Teak' },
+        { hex: '#2D2927', label: 'Ebony' },
+        { hex: '#6E2C22', label: 'Mahogany' },
+        { hex: '#C2A88D', label: 'Natural Oak' },
+      ];
+
+      const updateRevealItem = (id: string, patch: Partial<ProductBoxRevealItem>) => {
+        updateContent({
+          boxRevealItems: items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+        });
+      };
+
+      const duplicateRevealItem = (
+        source: ProductBoxRevealItem,
+        atIndex?: number,
+        openAfter = false
+      ) => {
+        const baseTitle = (source.title || 'Produk Kotak')
+          .replace(/\s*\(Salinan(?:\s+\d+)?\)$/i, '')
+          .trim();
+        const cloned: ProductBoxRevealItem = {
+          ...source,
+          id: createId('pbr_it'),
+          title: `${baseTitle} (Salinan)`,
+        };
+        const nextList = [...items];
+        const insertAt =
+          typeof atIndex === 'number' && atIndex >= 0 && atIndex < nextList.length
+            ? atIndex + 1
+            : nextList.length;
+        nextList.splice(insertAt, 0, cloned);
+        updateContent({ boxRevealItems: nextList });
+        if (openAfter) {
+          setEditingItemKey(`pbr:${cloned.id}`);
+        }
+      };
+
+      if (editingItemKey?.startsWith('pbr:')) {
+        const targetId = editingItemKey.slice('pbr:'.length);
+        const itemIdx = items.findIndex((it) => it.id === targetId);
+        const item = itemIdx >= 0 ? items[itemIdx] : undefined;
+        if (!item) return { badge: items.length, body: renderDrillHeader('Kotak Produk') };
+        return {
+          badge: items.length,
+          body: (
+            <div className="space-y-2.5">
+              {renderDrillHeader(
+                item.title || 'Kotak Produk',
+                items.length > 1
+                  ? () => {
+                      updateContent({
+                        boxRevealItems: removeSelectedItemByIdOrIndex(items, item.id),
+                      });
+                      setEditingItemKey(null);
+                    }
+                  : undefined
+              )}
+              <button
+                type="button"
+                onClick={() => duplicateRevealItem(item, itemIdx, true)}
+                className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg border border-[#00C98A]/40 bg-[#ECFDF6] text-[11px] font-bold text-[#008A5E] hover:bg-[#D8FAEC] transition-colors cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Duplikat Kotak &amp; Foto Produk
+              </button>
+              <MediaSourceInput
+                label="Foto Produk"
+                value={item.image ?? ''}
+                placeholder="Upload atau tempel URL foto produk"
+                onChangeUrl={(url) => updateRevealItem(item.id, { image: url })}
+                onUploadFile={(f) =>
+                  handleCompressAndSet(f, { maxDimension: 720, quality: 0.88 }, (blk, url) => ({
+                    ...blk,
+                    content: {
+                      ...blk.content,
+                      boxRevealItems: (blk.content.boxRevealItems ?? []).map((it) =>
+                        it.id === item.id ? { ...it, image: url } : it
+                      ),
+                    },
+                  }))
+                }
+                onClear={item.image ? () => updateRevealItem(item.id, { image: '' }) : undefined}
+              />
+              {item.image && (
+                <button
+                  type="button"
+                  onClick={() => updateRevealItem(item.id, { image: '' })}
+                  className="w-full py-1.5 px-2.5 rounded-lg border border-rose-200 bg-rose-50 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                >
+                  Hapus Foto
+                </button>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Nama Produk
+                  </label>
+                  <input
+                    type="text"
+                    value={item.title}
+                    onChange={(e) => updateRevealItem(item.id, { title: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga
+                  </label>
+                  <input
+                    type="text"
+                    value={item.price}
+                    onChange={(e) => updateRevealItem(item.id, { price: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Deskripsi Produk
+                </label>
+                <textarea
+                  rows={2}
+                  value={item.description ?? ''}
+                  placeholder="Tulis deskripsi singkat produk..."
+                  onChange={(e) => updateRevealItem(item.id, { description: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white resize-y outline-none focus:border-[#00C98A]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Varian Produk (pisahkan dengan koma)
+                </label>
+                <input
+                  type="text"
+                  value={item.variants ?? ''}
+                  placeholder="Contoh: 38mm, 40mm, 42mm"
+                  onChange={(e) => updateRevealItem(item.id, { variants: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-[#17243D]">
+                    Logo / Gambar Tutup Kotak (Opsional per Kotak)
+                  </span>
+                  {(item.lidLogoImage || c.boxRevealLidLogoImage) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateRevealItem(item.id, {
+                          lidLogoPadding: 0,
+                          lidLogoSize: 100,
+                          lidLogoFit: 'cover',
+                        })
+                      }
+                      className="text-[10px] font-bold text-[#00A872] hover:underline cursor-pointer shrink-0"
+                    >
+                      Penuh (0px)
+                    </button>
+                  )}
+                </div>
+                <MediaSourceInput
+                  label="Foto / Logo Tutup Kotak"
+                  value={item.lidLogoImage ?? ''}
+                  placeholder="Kosongkan untuk pakai logo tutup global"
+                  onChangeUrl={(url) => updateRevealItem(item.id, { lidLogoImage: url })}
+                  onUploadFile={(f) =>
+                    handleCompressAndSet(f, { maxDimension: 512, quality: 0.9 }, (blk, url) => ({
+                      ...blk,
+                      content: {
+                        ...blk.content,
+                        boxRevealItems: (blk.content.boxRevealItems ?? []).map((it) =>
+                          it.id === item.id ? { ...it, lidLogoImage: url } : it
+                        ),
+                      },
+                    }))
+                  }
+                  onClear={
+                    item.lidLogoImage
+                      ? () => updateRevealItem(item.id, { lidLogoImage: '' })
+                      : undefined
+                  }
+                />
+                {(item.lidLogoImage || c.boxRevealLidLogoImage) && (
+                  <div className="space-y-2 pt-1.5 border-t border-[#DCE5EF]">
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D] mb-0.5">
+                        <span>Jarak Tepi Tutup (0px = Penuh)</span>
+                        <span className="tabular-nums">
+                          {item.lidLogoPadding ?? c.boxRevealLidLogoPadding ?? 12}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={48}
+                        step={1}
+                        value={item.lidLogoPadding ?? c.boxRevealLidLogoPadding ?? 12}
+                        onChange={(e) =>
+                          updateRevealItem(item.id, { lidLogoPadding: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D] mb-0.5">
+                        <span>Ukuran Gambar dalam Tutup</span>
+                        <span className="tabular-nums">
+                          {item.lidLogoSize ?? c.boxRevealLidLogoSize ?? 44}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        step={2}
+                        value={item.lidLogoSize ?? c.boxRevealLidLogoSize ?? 44}
+                        onChange={(e) =>
+                          updateRevealItem(item.id, { lidLogoSize: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#00C98A]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(
+                        [
+                          { id: 'contain', label: 'Utuh (Contain)' },
+                          { id: 'cover', label: 'Penuhi (Cover)' },
+                        ] as const
+                      ).map((opt) => {
+                        const activeFit = item.lidLogoFit ?? c.boxRevealLidLogoFit ?? 'contain';
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => updateRevealItem(item.id, { lidLogoFit: opt.id })}
+                            className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer transition-colors ${
+                              activeFit === opt.id
+                                ? 'bg-[#17243D] text-white border-[#17243D]'
+                                : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#00C98A]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(item.lidLogoPadding !== undefined ||
+                      item.lidLogoSize !== undefined ||
+                      item.lidLogoFit !== undefined) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateRevealItem(item.id, {
+                            lidLogoPadding: undefined,
+                            lidLogoSize: undefined,
+                            lidLogoFit: undefined,
+                          })
+                        }
+                        className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                      >
+                        Ikuti Pengaturan Global Tutup
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="p-2 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#17243D]">Warna Kotak</span>
+                  {item.boxColorOverride && (
+                    <button
+                      type="button"
+                      onClick={() => updateRevealItem(item.id, { boxColorOverride: undefined })}
+                      className="text-[10px] font-semibold text-[#00A872] hover:underline cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {WOOD_PRESETS.map((p) => (
+                    <button
+                      key={p.hex}
+                      type="button"
+                      title={p.label}
+                      onClick={() => updateRevealItem(item.id, { boxColorOverride: p.hex })}
+                      style={{ backgroundColor: p.hex }}
+                      className={`h-6 rounded-md border-2 cursor-pointer transition-transform hover:scale-105 ${
+                        (item.boxColorOverride || boxColor).toLowerCase() === p.hex.toLowerCase()
+                          ? 'border-[#17243D] scale-105'
+                          : 'border-white shadow-2xs'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-0.5">
+                  <input
+                    type="color"
+                    value={item.boxColorOverride || boxColor}
+                    onChange={(e) =>
+                      updateRevealItem(item.id, { boxColorOverride: e.target.value })
+                    }
+                    className="w-9 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                  <span className="text-[10.5px] text-[#51637D] font-mono">
+                    {item.boxColorOverride || boxColor}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: items.length,
+        body: (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-[#51637D]">
+                {items.length} kotak aktif
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextIdx = items.length + 1;
+                  const presetColor = WOOD_PRESETS[(nextIdx - 1) % WOOD_PRESETS.length].hex;
+                  const nextItem: ProductBoxRevealItem = {
+                    id: createId('pbr_it'),
+                    title: `Produk Kotak ${nextIdx}`,
+                    price: 'Rp 1.250.000',
+                    description: 'Produk pilihan dalam kotak kayu eksklusif.',
+                    variants: 'Standar, Premium',
+                    image: BOX_REVEAL_WATCH_ROSE_SVG,
+                    boxColorOverride: presetColor,
+                  };
+                  updateContent({ boxRevealItems: [...items, nextItem] });
+                  setEditingItemKey(`pbr:${nextItem.id}`);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#00C98A] text-white text-[11px] font-bold hover:bg-[#00B27A] transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Kotak
+              </button>
+            </div>
+
+            {items.map((item, idx) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 p-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] transition-colors"
+              >
+                <button
+                  type="button"
+                  onClick={() => setEditingItemKey(`pbr:${item.id}`)}
+                  className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
+                >
+                  <div
+                    className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center overflow-hidden border border-black/10 p-1"
+                    style={{ backgroundColor: item.boxColorOverride || boxColor }}
+                  >
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-[9px] font-bold text-white/70">Kosong</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-[#17243D] truncate">
+                      {item.title || `Kotak ${idx + 1}`}
+                    </div>
+                    <div className="text-[11px] text-[#51637D] truncate tabular-nums">
+                      {item.price || 'Ganti foto produk'}
+                    </div>
+                  </div>
+                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setEditingItemKey(`pbr:${item.id}`)}
+                    className="px-2 py-1 rounded-md bg-[#F0F5FA] text-[10.5px] font-semibold text-[#17243D] hover:bg-[#E2ECF5] cursor-pointer"
+                  >
+                    Ganti Foto
+                  </button>
+                  <button
+                    type="button"
+                    title="Duplikat Kotak & Foto Produk"
+                    aria-label="Duplikat Kotak & Foto Produk"
+                    onClick={() => duplicateRevealItem(item, idx, false)}
+                    className="p-1.5 rounded-md text-[#00996B] hover:bg-[#ECFDF6] cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      title="Hapus Kotak"
+                      aria-label="Hapus Kotak"
+                      onClick={() => {
+                        updateContent({
+                          boxRevealItems: removeSelectedItemByIdOrIndex(items, item.id, idx),
+                        });
+                        if (editingItemKey === `pbr:${item.id}`) setEditingItemKey(null);
+                      }}
+                      className="p-1.5 rounded-md text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -9079,6 +10610,44 @@ export function BlockContentTab({
           </div>
         );
 
+      case 'interactive_box_showcase':
+        return (
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                No. WhatsApp Checkout
+              </label>
+              <input
+                type="text"
+                value={c.boxShowcaseWhatsappNumber ?? '6281234567890'}
+                onChange={(e) => updateContent({ boxShowcaseWhatsappNumber: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#17243D] mb-1">
+                Teks Tombol Keranjang Mengambang
+              </label>
+              <input
+                type="text"
+                value={c.boxShowcaseFloatingCartLabel ?? 'Lihat Keranjang'}
+                onChange={(e) => updateContent({ boxShowcaseFloatingCartLabel: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[#17243D]">
+                Label Keranjang Mengambang
+              </span>
+              <ToggleSwitch
+                checked={c.boxShowcaseFloatingCartEnabled !== false}
+                onChange={(val) => updateContent({ boxShowcaseFloatingCartEnabled: val })}
+                label="Label Keranjang Mengambang"
+              />
+            </div>
+          </div>
+        );
+
       case 'fnb_catalog':
         return (
           <div className="space-y-2.5">
@@ -10267,6 +11836,7 @@ export function BlockContentTab({
   const extraContent = renderExtraSection();
 
   const resolvedWaCenter = resolveWhatsappCenter({ whatsappCenter });
+  const isProductBoxReveal = selectedBlock.type === 'product_box_reveal';
   const supportsWaCenterIntegration =
     selectedBlock.type === 'button' ||
     selectedBlock.type === 'catalog' ||
@@ -10274,6 +11844,8 @@ export function BlockContentTab({
     selectedBlock.type === 'fnb_hero_slider' ||
     selectedBlock.type === 'culinary_spin_slider' ||
     selectedBlock.type === 'floating_product_studio' ||
+    selectedBlock.type === 'interactive_box_showcase' ||
+    selectedBlock.type === 'product_box_reveal' ||
     selectedBlock.type === 'cart_button' ||
     selectedBlock.type === 'training_catalog' ||
     selectedBlock.type === 'form' ||
@@ -10285,7 +11857,11 @@ export function BlockContentTab({
       {itemsInfo && isVisible('konten.sec.items') && isContentSectionAllowed('items') && (
         <AccordionSection
           id="items"
-          title={label('konten.sec.items', 'Data & Daftar Item')}
+          title={
+            isProductBoxReveal
+              ? 'Kotak & Foto Produk'
+              : label('konten.sec.items', 'Data & Daftar Item')
+          }
           icon={<ListOrdered className="w-3.5 h-3.5" />}
           badge={itemsInfo.badge}
           isOpen={openSections.items}
@@ -10299,7 +11875,7 @@ export function BlockContentTab({
       {mainContent && isVisible('konten.sec.main') && isContentSectionAllowed('main') && (
         <AccordionSection
           id="main"
-          title={label('konten.sec.main', 'Konten Utama')}
+          title={isProductBoxReveal ? 'Aksi Produk' : label('konten.sec.main', 'Konten Utama')}
           icon={<FileText className="w-3.5 h-3.5" />}
           isOpen={openSections.main}
           onToggle={() => toggleSection('main')}
@@ -10309,20 +11885,23 @@ export function BlockContentTab({
       )}
 
       {/* 3. TAUTAN & NAVIGASI */}
-      {navContent && isVisible('konten.sec.nav') && isContentSectionAllowed('nav') && (
-        <AccordionSection
-          id="nav"
-          title={label('konten.sec.nav', 'Tautan & Navigasi')}
-          icon={<Link2 className="w-3.5 h-3.5" />}
-          isOpen={openSections.nav}
-          onToggle={() => toggleSection('nav')}
-        >
-          {navContent}
-        </AccordionSection>
-      )}
+      {!isProductBoxReveal &&
+        navContent &&
+        isVisible('konten.sec.nav') &&
+        isContentSectionAllowed('nav') && (
+          <AccordionSection
+            id="nav"
+            title={label('konten.sec.nav', 'Tautan & Navigasi')}
+            icon={<Link2 className="w-3.5 h-3.5" />}
+            isOpen={openSections.nav}
+            onToggle={() => toggleSection('nav')}
+          >
+            {navContent}
+          </AccordionSection>
+        )}
 
       {/* 4. PENGATURAN UMUM */}
-      {isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
+      {!isProductBoxReveal && isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
         <AccordionSection
           id="general"
           title={label('konten.sec.general', 'Pengaturan Umum')}
@@ -10452,29 +12031,35 @@ export function BlockContentTab({
       )}
 
       {/* 5. AKSI & INTERAKSI */}
-      {actionsContent && isVisible('konten.sec.actions') && isContentSectionAllowed('actions') && (
-        <AccordionSection
-          id="actions"
-          title={label('konten.sec.actions', 'Aksi & Interaksi')}
-          icon={<MousePointerClick className="w-3.5 h-3.5" />}
-          isOpen={openSections.actions}
-          onToggle={() => toggleSection('actions')}
-        >
-          {actionsContent}
-        </AccordionSection>
-      )}
+      {!isProductBoxReveal &&
+        actionsContent &&
+        isVisible('konten.sec.actions') &&
+        isContentSectionAllowed('actions') && (
+          <AccordionSection
+            id="actions"
+            title={label('konten.sec.actions', 'Aksi & Interaksi')}
+            icon={<MousePointerClick className="w-3.5 h-3.5" />}
+            isOpen={openSections.actions}
+            onToggle={() => toggleSection('actions')}
+          >
+            {actionsContent}
+          </AccordionSection>
+        )}
 
-      {extraContent && isVisible('konten.sec.extra') && isContentSectionAllowed('extra') && (
-        <AccordionSection
-          id="extra"
-          title={label('konten.sec.extra', 'Pengaturan Tambahan')}
-          icon={<Settings2 className="w-3.5 h-3.5" />}
-          isOpen={openSections.extra}
-          onToggle={() => toggleSection('extra')}
-        >
-          {extraContent}
-        </AccordionSection>
-      )}
+      {!isProductBoxReveal &&
+        extraContent &&
+        isVisible('konten.sec.extra') &&
+        isContentSectionAllowed('extra') && (
+          <AccordionSection
+            id="extra"
+            title={label('konten.sec.extra', 'Pengaturan Tambahan')}
+            icon={<Settings2 className="w-3.5 h-3.5" />}
+            isOpen={openSections.extra}
+            onToggle={() => toggleSection('extra')}
+          >
+            {extraContent}
+          </AccordionSection>
+        )}
 
       {selectedSubLayer && onClearSubLayer && (
         <button

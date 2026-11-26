@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronLeft,
   Menu,
+  MessageCircle,
   Minus,
   Plus,
   Search,
@@ -22,6 +23,7 @@ interface FnbHeroSliderProps {
   onIncCart?: (item: FnbHeroSlideItem, variant: string) => void;
   onDecCart?: (item: FnbHeroSlideItem, variant: string) => void;
   onOpenCart?: () => void;
+  onAdminCtaClick?: (item: FnbHeroSlideItem) => void;
 }
 
 function wrapIndex(index: number, length: number): number {
@@ -101,9 +103,14 @@ export function FnbHeroSlider({
   onIncCart,
   onDecCart,
   onOpenCart,
+  onAdminCtaClick,
 }: FnbHeroSliderProps) {
   const items = content.fnbSliderItems ?? [];
   const total = items.length;
+  const adminCtaEnabled = Boolean(content.adminCtaEnabled);
+  const adminCtaLabel = (content.adminCtaLabel ?? '').trim() || 'Tanya Admin';
+  const adminCtaBg = content.adminCtaBgColor || '#16A34A';
+  const adminCtaText = content.adminCtaTextColor || '#FFFFFF';
 
   // Continuous virtual slide position (unbounded float for seamless infinite circular glide)
   const [virtualPos, setVirtualPos] = useState<number>(0);
@@ -935,6 +942,32 @@ export function FnbHeroSlider({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Optional Customizable "Tanya Admin" Action Button */}
+        {adminCtaEnabled && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex items-center justify-center pt-3"
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isEditor) onAdminCtaClick?.(activeItem);
+              }}
+              style={{
+                backgroundColor: detailOpen ? 'rgba(255,255,255,0.22)' : adminCtaBg,
+                color: detailOpen ? '#FFFFFF' : adminCtaText,
+                border: detailOpen ? '1px solid rgba(255,255,255,0.45)' : '0',
+              }}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-xs font-bold shadow-sm hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <MessageCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2.2} />
+              <span>{adminCtaLabel}</span>
+            </button>
           </div>
         )}
 

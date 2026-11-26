@@ -120,6 +120,26 @@ export function isSubLayerHidden(block: BuilderBlock | null | undefined, subId: 
   if (subId === 'fnb_floating_cart' && c.fnbFloatingCartEnabled === false) return true;
   if (subId === 'fnb_customer_form' && c.catalogAskCustomerInfo === false) return true;
   if (subId === 'fnb_shipping' && c.catalogShippingEnabled === false) return true;
+  if (subId === 'catalog_floating_cart' && c.catalogCartEnabled === false) return true;
+  if (subId === 'catalog_customer_form' && c.catalogAskCustomerInfo === false) return true;
+  if (subId === 'catalog_shipping' && c.catalogShippingEnabled === false) return true;
+  if (subId === 'pbr_dots' && c.boxRevealShowDots === false) return true;
+  if (
+    subId === 'pbr_cart_action' &&
+    (c.boxRevealShowCartButton === false || c.boxRevealFloatingCartEnabled === false)
+  )
+    return true;
+  if (subId === 'pbr_admin_cta' && !c.adminCtaEnabled) return true;
+  if (subId === 'ibs_admin_cta' && !c.adminCtaEnabled) return true;
+  if (subId === 'fhs_dots' && c.fnbSliderShowDots === false) return true;
+  if (subId === 'fhs_cart' && c.fnbSliderShowCart === false) return true;
+  if (subId === 'fhs_admin_cta' && !c.adminCtaEnabled) return true;
+  if (subId === 'css_dots' && c.culinaryShowDots === false) return true;
+  if (subId === 'css_cart' && c.culinaryShowCartButton === false) return true;
+  if (subId === 'css_admin_cta' && !c.adminCtaEnabled) return true;
+  if (subId === 'fps_dots' && c.studioShowDots === false) return true;
+  if (subId === 'fps_cart' && c.studioShowCartButton === false) return true;
+  if (subId === 'carousel_controls' && c.carouselShowDots === false) return true;
   const parsedFnb = parseFnbItemSubLayerId(subId);
   if (parsedFnb?.kind === 'card' && Array.isArray(c.fnbItems)) {
     const matched = findFnbItemBySubLayerKey(c.fnbItems, parsedFnb.itemKey);
@@ -173,6 +193,24 @@ export function toggleSubLayerVisibility(block: BuilderBlock, subId: string): Bu
   if (subId === 'fnb_floating_cart') nextContent.fnbFloatingCartEnabled = !nextHidden;
   if (subId === 'fnb_customer_form') nextContent.catalogAskCustomerInfo = !nextHidden;
   if (subId === 'fnb_shipping') nextContent.catalogShippingEnabled = !nextHidden;
+  if (subId === 'catalog_floating_cart') nextContent.catalogCartEnabled = !nextHidden;
+  if (subId === 'catalog_customer_form') nextContent.catalogAskCustomerInfo = !nextHidden;
+  if (subId === 'catalog_shipping') nextContent.catalogShippingEnabled = !nextHidden;
+  if (subId === 'pbr_dots') nextContent.boxRevealShowDots = !nextHidden;
+  if (subId === 'pbr_cart_action') {
+    nextContent.boxRevealShowCartButton = !nextHidden;
+    nextContent.boxRevealFloatingCartEnabled = !nextHidden;
+  }
+  if (subId === 'pbr_admin_cta' || subId === 'ibs_admin_cta' || subId === 'fhs_admin_cta' || subId === 'css_admin_cta') {
+    nextContent.adminCtaEnabled = !nextHidden;
+  }
+  if (subId === 'fhs_dots') nextContent.fnbSliderShowDots = !nextHidden;
+  if (subId === 'fhs_cart') nextContent.fnbSliderShowCart = !nextHidden;
+  if (subId === 'css_dots') nextContent.culinaryShowDots = !nextHidden;
+  if (subId === 'css_cart') nextContent.culinaryShowCartButton = !nextHidden;
+  if (subId === 'fps_dots') nextContent.studioShowDots = !nextHidden;
+  if (subId === 'fps_cart') nextContent.studioShowCartButton = !nextHidden;
+  if (subId === 'carousel_controls') nextContent.carouselShowDots = !nextHidden;
 
   const parsedFnb = parseFnbItemSubLayerId(subId);
   if (parsedFnb?.kind === 'card' && Array.isArray(c.fnbItems)) {
@@ -253,8 +291,24 @@ export function restoreSubLayer(block: BuilderBlock, subId: string): BuilderBloc
   if (subId === 'fnb_search') nextContent.fnbShowSearch = true;
   if (subId === 'fnb_section_heading') nextContent.fnbGroupByCategory = true;
   if (subId === 'fnb_floating_cart') nextContent.fnbFloatingCartEnabled = true;
-  if (subId === 'fnb_customer_form') nextContent.catalogAskCustomerInfo = true;
-  if (subId === 'fnb_shipping') nextContent.catalogShippingEnabled = true;
+  if (subId === 'fnb_customer_form' || subId === 'catalog_customer_form') nextContent.catalogAskCustomerInfo = true;
+  if (subId === 'fnb_shipping' || subId === 'catalog_shipping') nextContent.catalogShippingEnabled = true;
+  if (subId === 'catalog_floating_cart') nextContent.catalogCartEnabled = true;
+  if (subId === 'pbr_dots') nextContent.boxRevealShowDots = true;
+  if (subId === 'pbr_cart_action') {
+    nextContent.boxRevealShowCartButton = true;
+    nextContent.boxRevealFloatingCartEnabled = true;
+  }
+  if (subId === 'pbr_admin_cta' || subId === 'ibs_admin_cta' || subId === 'fhs_admin_cta' || subId === 'css_admin_cta') {
+    nextContent.adminCtaEnabled = true;
+  }
+  if (subId === 'fhs_dots') nextContent.fnbSliderShowDots = true;
+  if (subId === 'fhs_cart') nextContent.fnbSliderShowCart = true;
+  if (subId === 'css_dots') nextContent.culinaryShowDots = true;
+  if (subId === 'css_cart') nextContent.culinaryShowCartButton = true;
+  if (subId === 'fps_dots') nextContent.studioShowDots = true;
+  if (subId === 'fps_cart') nextContent.studioShowCartButton = true;
+  if (subId === 'carousel_controls') nextContent.carouselShowDots = true;
 
   return { ...block, content: nextContent };
 }
@@ -315,13 +369,35 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       },
     };
   }
-  if (subId.startsWith('catalog_') && Array.isArray(c.catalogItems)) {
+  if (
+    subId.startsWith('catalog_') &&
+    subId !== 'catalog_header' &&
+    subId !== 'catalog_floating_cart' &&
+    subId !== 'catalog_customer_form' &&
+    subId !== 'catalog_shipping' &&
+    !subId.startsWith('catalog_img_') &&
+    !subId.startsWith('catalog_info_') &&
+    !subId.startsWith('catalog_price_') &&
+    Array.isArray(c.catalogItems)
+  ) {
     const key = subId.slice(8);
     return {
       ...block,
       content: {
         ...c,
         catalogItems: c.catalogItems.filter((it, idx) => String(it.id || idx) !== key),
+      },
+    };
+  }
+  if (subId.startsWith('catalog_img_') && Array.isArray(c.catalogItems)) {
+    const key = subId.slice('catalog_img_'.length);
+    return {
+      ...block,
+      content: {
+        ...c,
+        catalogItems: c.catalogItems.map((it, idx) =>
+          String(it.id || idx) === key ? { ...it, image: '' } : it
+        ),
       },
     };
   }
@@ -348,7 +424,16 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       };
     }
   }
-  if (subId.startsWith('fhs_') && Array.isArray(c.fnbSliderItems)) {
+  if (
+    subId.startsWith('fhs_') &&
+    subId !== 'fhs_stage' &&
+    subId !== 'fhs_dots' &&
+    subId !== 'fhs_cart' &&
+    subId !== 'fhs_admin_cta' &&
+    !subId.startsWith('fhs_img_') &&
+    !subId.startsWith('fhs_info_') &&
+    Array.isArray(c.fnbSliderItems)
+  ) {
     const key = subId.slice(4);
     return {
       ...block,
@@ -358,7 +443,16 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       },
     };
   }
-  if (subId.startsWith('css_') && Array.isArray(c.culinarySpinItems)) {
+  if (
+    subId.startsWith('css_') &&
+    subId !== 'css_stage' &&
+    subId !== 'css_dots' &&
+    subId !== 'css_cart' &&
+    subId !== 'css_admin_cta' &&
+    !subId.startsWith('css_img_') &&
+    !subId.startsWith('css_info_') &&
+    Array.isArray(c.culinarySpinItems)
+  ) {
     const key = subId.slice(4);
     return {
       ...block,
@@ -368,13 +462,90 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       },
     };
   }
-  if (subId.startsWith('fps_') && Array.isArray(c.floatingStudioItems)) {
+  if (
+    subId.startsWith('fps_') &&
+    subId !== 'fps_stage' &&
+    subId !== 'fps_dots' &&
+    subId !== 'fps_cart' &&
+    !subId.startsWith('fps_img_') &&
+    !subId.startsWith('fps_info_') &&
+    Array.isArray(c.floatingStudioItems)
+  ) {
     const key = subId.slice(4);
     return {
       ...block,
       content: {
         ...c,
         floatingStudioItems: c.floatingStudioItems.filter(
+          (it, idx) => String(it.id || idx) !== key
+        ),
+      },
+    };
+  }
+  if (
+    subId.startsWith('ibs_') &&
+    subId !== 'ibs_header' &&
+    subId !== 'ibs_stage' &&
+    subId !== 'ibs_info' &&
+    subId !== 'ibs_actions' &&
+    subId !== 'ibs_admin_cta' &&
+    !subId.startsWith('ibs_img_') &&
+    !subId.startsWith('ibs_info_') &&
+    !subId.startsWith('ibs_color_') &&
+    Array.isArray(c.boxShowcaseItems)
+  ) {
+    const key = subId.slice(4);
+    return {
+      ...block,
+      content: {
+        ...c,
+        boxShowcaseItems: c.boxShowcaseItems.filter(
+          (it, idx) => String(it.id || idx) !== key
+        ),
+      },
+    };
+  }
+  if (subId.startsWith('ibs_img_') && Array.isArray(c.boxShowcaseItems)) {
+    const key = subId.slice('ibs_img_'.length);
+    return {
+      ...block,
+      content: {
+        ...c,
+        boxShowcaseItems: c.boxShowcaseItems.map((it, idx) =>
+          String(it.id || idx) === key ? { ...it, image: '' } : it
+        ),
+      },
+    };
+  }
+  if (subId.startsWith('pbr_img_') && Array.isArray(c.boxRevealItems)) {
+    const key = subId.slice('pbr_img_'.length);
+    return {
+      ...block,
+      content: {
+        ...c,
+        boxRevealItems: c.boxRevealItems.map((it, idx) =>
+          String(it.id || idx) === key ? { ...it, image: '' } : it
+        ),
+      },
+    };
+  }
+  if (
+    subId.startsWith('pbr_') &&
+    subId !== 'pbr_lid_logo' &&
+    subId !== 'pbr_box_frame' &&
+    subId !== 'pbr_dots' &&
+    subId !== 'pbr_cart_action' &&
+    subId !== 'pbr_admin_cta' &&
+    !subId.startsWith('pbr_info_') &&
+    !subId.startsWith('pbr_variant_') &&
+    Array.isArray(c.boxRevealItems)
+  ) {
+    const key = subId.slice(4);
+    return {
+      ...block,
+      content: {
+        ...c,
+        boxRevealItems: c.boxRevealItems.filter(
           (it, idx) => String(it.id || idx) !== key
         ),
       },
@@ -410,7 +581,7 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       },
     };
   }
-  if (subId.startsWith('cat_') && Array.isArray(c.categoryButtons)) {
+  if (subId.startsWith('cat_') && subId !== 'cat_bar' && Array.isArray(c.categoryButtons)) {
     const key = subId.slice(4);
     return {
       ...block,
@@ -522,7 +693,51 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
       nextContent.catalogAskCustomerInfo = false;
       break;
     case 'fnb_shipping':
+    case 'catalog_shipping':
       nextContent.catalogShippingEnabled = false;
+      break;
+    case 'catalog_floating_cart':
+      nextContent.catalogCartEnabled = false;
+      break;
+    case 'catalog_customer_form':
+      nextContent.catalogAskCustomerInfo = false;
+      break;
+    case 'pbr_lid_logo':
+      nextContent.boxRevealLidLogoImage = '';
+      break;
+    case 'pbr_dots':
+      nextContent.boxRevealShowDots = false;
+      break;
+    case 'pbr_cart_action':
+      nextContent.boxRevealShowCartButton = false;
+      nextContent.boxRevealFloatingCartEnabled = false;
+      break;
+    case 'pbr_admin_cta':
+    case 'ibs_admin_cta':
+    case 'fhs_admin_cta':
+    case 'css_admin_cta':
+      nextContent.adminCtaEnabled = false;
+      break;
+    case 'fhs_dots':
+      nextContent.fnbSliderShowDots = false;
+      break;
+    case 'fhs_cart':
+      nextContent.fnbSliderShowCart = false;
+      break;
+    case 'css_dots':
+      nextContent.culinaryShowDots = false;
+      break;
+    case 'css_cart':
+      nextContent.culinaryShowCartButton = false;
+      break;
+    case 'fps_dots':
+      nextContent.studioShowDots = false;
+      break;
+    case 'fps_cart':
+      nextContent.studioShowCartButton = false;
+      break;
+    case 'carousel_controls':
+      nextContent.carouselShowDots = false;
       break;
     default:
       break;
@@ -535,11 +750,8 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
 }
 
 /**
- * Extracts real, visual, independently editable sub-layers and list items for ALL block types.
- * - Atomic elements (text, image, divider, videos) remain clean single-layer nodes without redundant pseudo-children.
- * - Structural containers (container, row) show their actual child blocks without fake layout pseudo-nodes.
- * - Button exposes the 3-Layer Standard: Parent (Wadah Tombol) -> Ikon Tombol + Teks Tombol.
- * - Showcase Card exposes real independent parts: Header (when present), Media, Konten/Teks, Tarif items, Footer (when applicable).
+ * Standard Baku Ekstraksi Layer — extracts complete, visual, independently editable sub-layers
+ * and list items for ALL block types without exception (atomic, container, media, slider, catalog, box reveal, etc.).
  * - Deleted sub-layers are excluded cleanly so deleted parts vanish from both Canvas and Layer Tree.
  */
 export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] {
@@ -711,10 +923,6 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
       break;
     }
 
-    // Structural containers display their real child blocks directly — no fake pseudo-sublayers
-    case 'row':
-    case 'container':
-      break;
 
     case 'toggle_container': {
       pushIfNotDeleted({
@@ -760,15 +968,6 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
       break;
     }
 
-    // Atomic single-layer elements: Text, Image, Divider, Videos
-    case 'text':
-    case 'image':
-    case 'divider':
-    case 'youtube':
-    case 'facebook_video':
-    case 'tiktok_video':
-    case 'instagram_video':
-      break;
 
     // 3-Layer Button Standard: Parent (Wadah Tombol) -> Ikon Tombol + Teks Tombol
     case 'button': {
@@ -907,20 +1106,63 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'carousel': {
       const items = c.carouselItems ?? [];
+      pushIfNotDeleted({
+        id: 'carousel_controls',
+        label: 'Kontrol & Indikator Slide',
+        typeLabel:
+          c.carouselShowDots !== false ? 'Titik Slide & Panah Aktif' : 'Kontrol Navigasi Slide',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main', 'actions'],
+        designSections: ['specific', 'layout'],
+      });
       items.forEach((item, idx) => {
+        const key = String(item.id || idx);
         layers.push({
-          id: `slide_${item.id || idx}`,
+          id: `slide_${key}`,
           label: item.title?.trim() || `Slide ${idx + 1}`,
           typeLabel: item.caption?.trim() ? snippet(item.caption, 22) : `Item Slide #${idx + 1}`,
           kind: 'item',
           icon: 'image',
           itemKey: `slide:${item.id}`,
+          thumbnailUrl: item.image?.trim() || undefined,
           canDelete: true,
           canToggleVisibility: false,
           canLock: true,
-          isLocked: isSubLayerLocked(block, `slide_${item.id || idx}`),
+          isLocked: isSubLayerLocked(block, `slide_${key}`),
           contentSections: ['items'],
           designSections: ['specific', 'visual'],
+          children: [
+            {
+              id: `slide_img_${key}`,
+              label: 'Gambar Slide',
+              typeLabel: item.image ? 'Media Slide' : 'Belum ada gambar',
+              kind: 'item',
+              icon: 'image',
+              itemKey: `slide:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `slide_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'visual'],
+            },
+            {
+              id: `slide_text_${key}`,
+              label: 'Judul & Keterangan',
+              typeLabel: snippet(item.caption || item.title, 22) || 'Teks Slide',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `slide:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `slide_text_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'typo'],
+            },
+          ],
         });
       });
       break;
@@ -928,21 +1170,116 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'catalog': {
       const items = c.catalogItems ?? [];
+      pushIfNotDeleted({
+        id: 'catalog_header',
+        label: c.catalogStoreName?.trim()
+          ? `Toko · ${snippet(c.catalogStoreName, 20)}`
+          : 'Pengaturan Toko & Katalog',
+        typeLabel: `${items.length} Produk · Katalog`,
+        kind: 'part',
+        icon: 'card',
+        canDelete: false,
+        contentSections: ['main', 'general'],
+        designSections: ['specific', 'visual', 'typo'],
+      });
+      pushIfNotDeleted({
+        id: 'catalog_floating_cart',
+        label: 'Keranjang & Checkout WA',
+        typeLabel: c.catalogCartEnabled !== false ? 'Keranjang Aktif' : 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['actions'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'catalog_customer_form',
+        label: 'Form Data Pemesan',
+        typeLabel: c.catalogAskCustomerInfo !== false ? 'Aktif saat Checkout' : 'Nonaktif',
+        kind: 'part',
+        icon: 'form',
+        subListTab: 'customer',
+        canDelete: false,
+        contentSections: ['items', 'actions'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'catalog_shipping',
+        label: 'Opsi Pengiriman',
+        typeLabel: c.catalogShippingEnabled !== false ? 'Layanan & Ongkir' : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        subListTab: 'shipping',
+        canDelete: false,
+        contentSections: ['items', 'actions'],
+        designSections: ['specific'],
+      });
       items.forEach((item, idx) => {
+        const key = String(item.id || idx);
         layers.push({
-          id: `catalog_${item.id || idx}`,
+          id: `catalog_${key}`,
           label: item.title?.trim() || `Produk ${idx + 1}`,
           typeLabel: item.price?.trim() || 'Item Produk',
           kind: 'item',
           icon: 'cart',
           itemKey: `catalog:${item.id}`,
           subListTab: 'products',
+          thumbnailUrl: item.image?.trim() || undefined,
           canDelete: true,
           canToggleVisibility: false,
           canLock: true,
-          isLocked: isSubLayerLocked(block, `catalog_${item.id || idx}`),
+          isLocked: isSubLayerLocked(block, `catalog_${key}`),
           contentSections: ['items'],
           designSections: ['specific', 'visual', 'typo'],
+          children: [
+            {
+              id: `catalog_img_${key}`,
+              label: 'Foto Produk',
+              typeLabel: item.image ? 'Media Produk' : 'Belum ada foto',
+              kind: 'item',
+              icon: 'image',
+              itemKey: `catalog:${item.id}`,
+              subListTab: 'products',
+              canDelete: Boolean(item.image),
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `catalog_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'visual'],
+            },
+            {
+              id: `catalog_info_${key}`,
+              label: 'Judul, Deskripsi & Varian',
+              typeLabel: item.variants?.trim()
+                ? `Varian: ${snippet(item.variants, 18)}`
+                : snippet(item.subtitle || item.description, 22) || 'Detail Produk',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `catalog:${item.id}`,
+              subListTab: 'products',
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `catalog_info_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'typo'],
+            },
+            {
+              id: `catalog_price_${key}`,
+              label: 'Harga & Tombol Beli',
+              typeLabel: item.price?.trim() || 'Rp 0',
+              kind: 'item',
+              icon: 'cart',
+              itemKey: `catalog:${item.id}`,
+              subListTab: 'products',
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `catalog_price_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific'],
+            },
+          ],
         });
       });
       break;
@@ -1113,20 +1450,92 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'fnb_hero_slider': {
       const items = c.fnbSliderItems ?? [];
+      pushIfNotDeleted({
+        id: 'fhs_stage',
+        label: 'Panggung & Animasi Slide',
+        typeLabel: c.fnbSliderAutoplay ? 'Auto Slide · Panggung F&B' : 'Manual · Panggung F&B',
+        kind: 'part',
+        icon: 'sparkles',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'layout'],
+      });
+      pushIfNotDeleted({
+        id: 'fhs_dots',
+        label: 'Indikator Titik Slide',
+        typeLabel: c.fnbSliderDotsPosition === 'overlay' ? 'Melayang di Atas' : 'Di Bawah Kartu',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'fhs_cart',
+        label: 'Keranjang & Checkout WA',
+        typeLabel: c.fnbSliderShowCart !== false ? 'Keranjang Aktif' : 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main', 'actions'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'fhs_admin_cta',
+        label: c.adminCtaLabel?.trim() || 'Tombol Tanya Admin',
+        typeLabel: c.adminCtaEnabled ? 'Aktif · CTA Admin' : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
       items.forEach((item, idx) => {
+        const key = String(item.id || idx);
         layers.push({
-          id: `fhs_${item.id || idx}`,
+          id: `fhs_${key}`,
           label: item.title?.trim() || `Slide Produk ${idx + 1}`,
           typeLabel: item.price?.trim() || 'Slide F&B',
           kind: 'item',
           icon: 'image',
           itemKey: `fhs:${item.id}`,
+          thumbnailUrl: item.image?.trim() || undefined,
           canDelete: true,
           canToggleVisibility: false,
           canLock: true,
-          isLocked: isSubLayerLocked(block, `fhs_${item.id || idx}`),
+          isLocked: isSubLayerLocked(block, `fhs_${key}`),
           contentSections: ['items'],
           designSections: ['specific', 'visual'],
+          children: [
+            {
+              id: `fhs_img_${key}`,
+              label: 'Foto Produk',
+              typeLabel: item.image ? 'Media Slide' : 'Belum ada foto',
+              kind: 'item',
+              icon: 'image',
+              itemKey: `fhs:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `fhs_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'visual'],
+            },
+            {
+              id: `fhs_info_${key}`,
+              label: 'Judul, Harga & Varian',
+              typeLabel: item.price?.trim() || 'Info Produk',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `fhs:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `fhs_info_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'typo'],
+            },
+          ],
         });
       });
       break;
@@ -1134,20 +1543,92 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'culinary_spin_slider': {
       const items = c.culinarySpinItems ?? [];
+      pushIfNotDeleted({
+        id: 'css_stage',
+        label: 'Panggung Putar 360°',
+        typeLabel: c.culinaryAutoplay ? 'Auto Putar · Piring Kuliner' : 'Manual · Piring Kuliner',
+        kind: 'part',
+        icon: 'sparkles',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'layout'],
+      });
+      pushIfNotDeleted({
+        id: 'css_dots',
+        label: 'Indikator Titik Slide',
+        typeLabel: c.culinaryDotsPosition === 'overlay' ? 'Melayang di Atas' : 'Di Bawah Kartu',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'css_cart',
+        label: 'Keranjang & Checkout WA',
+        typeLabel: c.culinaryShowCartButton !== false ? 'Keranjang Aktif' : 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main', 'actions'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'css_admin_cta',
+        label: c.adminCtaLabel?.trim() || 'Tombol Tanya Admin',
+        typeLabel: c.adminCtaEnabled ? 'Aktif · CTA Admin' : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
       items.forEach((item, idx) => {
+        const key = String(item.id || idx);
         layers.push({
-          id: `css_${item.id || idx}`,
+          id: `css_${key}`,
           label: item.title?.trim() || `Menu Putar ${idx + 1}`,
           typeLabel: item.price?.trim() || 'Kuliner Putar',
           kind: 'item',
           icon: 'image',
           itemKey: `css:${item.id}`,
+          thumbnailUrl: item.image?.trim() || undefined,
           canDelete: true,
           canToggleVisibility: false,
           canLock: true,
-          isLocked: isSubLayerLocked(block, `css_${item.id || idx}`),
+          isLocked: isSubLayerLocked(block, `css_${key}`),
           contentSections: ['items'],
           designSections: ['specific', 'visual'],
+          children: [
+            {
+              id: `css_img_${key}`,
+              label: 'Foto Menu Putar',
+              typeLabel: item.image ? 'Media Piring' : 'Belum ada foto',
+              kind: 'item',
+              icon: 'image',
+              itemKey: `css:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `css_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'visual'],
+            },
+            {
+              id: `css_info_${key}`,
+              label: 'Nama Menu, Harga & Deskripsi',
+              typeLabel: item.price?.trim() || 'Info Menu',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `css:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `css_info_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'typo'],
+            },
+          ],
         });
       });
       break;
@@ -1155,20 +1636,341 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'floating_product_studio': {
       const items = c.floatingStudioItems ?? [];
+      pushIfNotDeleted({
+        id: 'fps_stage',
+        label: 'Panggung Produk Melayang',
+        typeLabel: c.studioLevitateEnabled !== false ? 'Efek Melayang & Bayangan' : 'Panggung Studio',
+        kind: 'part',
+        icon: 'sparkles',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'layout'],
+      });
+      pushIfNotDeleted({
+        id: 'fps_dots',
+        label: 'Indikator Titik Slide',
+        typeLabel: c.studioDotsPosition === 'overlay' ? 'Melayang di Atas' : 'Di Bawah Kartu',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'fps_cart',
+        label: 'Keranjang & Checkout WA',
+        typeLabel: c.studioShowCartButton !== false ? 'Keranjang Aktif' : 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main', 'actions'],
+        designSections: ['specific'],
+      });
       items.forEach((item, idx) => {
+        const key = String(item.id || idx);
         layers.push({
-          id: `fps_${item.id || idx}`,
+          id: `fps_${key}`,
           label: item.title?.trim() || `Produk Studio ${idx + 1}`,
           typeLabel: item.price?.trim() || 'Studio Melayang',
           kind: 'item',
           icon: 'image',
           itemKey: `fps:${item.id}`,
+          thumbnailUrl: item.image?.trim() || undefined,
           canDelete: true,
           canToggleVisibility: false,
           canLock: true,
-          isLocked: isSubLayerLocked(block, `fps_${item.id || idx}`),
+          isLocked: isSubLayerLocked(block, `fps_${key}`),
           contentSections: ['items'],
           designSections: ['specific', 'visual'],
+          children: [
+            {
+              id: `fps_img_${key}`,
+              label: 'Foto Produk Studio',
+              typeLabel: item.image ? 'Media Melayang' : 'Belum ada foto',
+              kind: 'item',
+              icon: 'image',
+              itemKey: `fps:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `fps_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'visual'],
+            },
+            {
+              id: `fps_info_${key}`,
+              label: 'Judul, Harga & Varian',
+              typeLabel: item.price?.trim() || 'Info Produk',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `fps:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `fps_info_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'typo'],
+            },
+          ],
+        });
+      });
+      break;
+    }
+
+    case 'interactive_box_showcase': {
+      const items = c.boxShowcaseItems ?? [];
+      pushIfNotDeleted({
+        id: 'ibs_header',
+        label: c.boxShowcaseBrandLabel?.trim()
+          ? `Header · ${snippet(c.boxShowcaseBrandLabel, 18)}`
+          : 'Header Brand & Navigasi',
+        typeLabel: c.boxShowcaseBrandLabel?.trim() ? 'Label Brand & Panah' : 'Tersembunyi (Kosong)',
+        kind: 'part',
+        icon: 'text',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'ibs_stage',
+        label: 'Panggung & Ukuran Box 3D',
+        typeLabel: `${c.boxShowcaseBoxWidth ? `${c.boxShowcaseBoxWidth}px` : 'Auto'} × ${
+          c.boxShowcaseBoxHeight ? `${c.boxShowcaseBoxHeight}px` : 'Auto'
+        } · Foto ${c.boxShowcaseImageScale ?? 100}%`,
+        kind: 'part',
+        icon: 'sparkles',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual'],
+      });
+      pushIfNotDeleted({
+        id: 'ibs_info',
+        label: 'Info Produk & Harga',
+        typeLabel: 'Kategori, Judul & Harga',
+        kind: 'part',
+        icon: 'text',
+        canDelete: false,
+        contentSections: ['items'],
+        designSections: ['specific', 'typo'],
+      });
+      pushIfNotDeleted({
+        id: 'ibs_actions',
+        label: 'Aksi Rating, Keranjang & Favorit',
+        typeLabel: c.boxShowcaseShowCartButton !== false ? 'Keranjang Aktif' : 'Bar Aksi Bawah',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main', 'actions'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'ibs_admin_cta',
+        label: c.adminCtaLabel?.trim() || 'Tombol Tanya Admin',
+        typeLabel: c.adminCtaEnabled ? 'Aktif · CTA Admin' : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      items.forEach((item, idx) => {
+        const key = String(item.id || idx);
+        layers.push({
+          id: `ibs_${key}`,
+          label: item.title?.trim() || `Box Produk #${idx + 1}`,
+          typeLabel:
+            [item.category?.trim(), item.price?.trim()].filter(Boolean).join(' · ') || 'Box Produk',
+          kind: 'item',
+          icon: 'image',
+          itemKey: `ibs:${item.id}`,
+          thumbnailUrl: item.image?.trim() || undefined,
+          canDelete: items.length > 1,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `ibs_${key}`),
+          contentSections: ['items'],
+          designSections: ['specific', 'visual'],
+          children: [
+            {
+              id: `ibs_img_${key}`,
+              label: 'Foto Produk dalam Box',
+              typeLabel: `Skala ${c.boxShowcaseImageScale ?? 100}%`,
+              kind: 'item',
+              icon: 'image',
+              itemKey: `ibs:${item.id}`,
+              canDelete: Boolean(item.image),
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `ibs_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific'],
+            },
+            {
+              id: `ibs_info_${key}`,
+              label: 'Kategori, Judul & Harga',
+              typeLabel: item.price?.trim() || 'Detail Produk',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `ibs:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `ibs_info_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific', 'typo'],
+            },
+            {
+              id: `ibs_color_${key}`,
+              label: 'Warna Box',
+              typeLabel: item.boxColorOverride || c.boxShowcaseColor || '#F46A1F',
+              kind: 'item',
+              icon: 'sliders',
+              itemKey: `ibs:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `ibs_color_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific'],
+            },
+          ],
+        });
+      });
+      break;
+    }
+
+    case 'product_box_reveal': {
+      const items = c.boxRevealItems ?? [];
+      const boxSize = c.boxRevealBoxSize ?? 220;
+      const borderThick = c.boxRevealBorderThickness ?? 18;
+      const dotsPosLabel: Record<string, string> = {
+        right: 'Kanan (Vertikal)',
+        left: 'Kiri (Vertikal)',
+        bottom: 'Bawah (Horizontal)',
+        top: 'Atas (Horizontal)',
+      };
+      pushIfNotDeleted({
+        id: 'pbr_lid_logo',
+        label: 'Tutup Kotak & Logo',
+        typeLabel: c.boxRevealLidLogoImage
+          ? `Logo Tutup · ${c.boxRevealLidLogoSize ?? 44}%`
+          : 'Tutup Kayu (Belum ada logo)',
+        kind: 'part',
+        icon: 'image',
+        canDelete: Boolean(c.boxRevealLidLogoImage),
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'pbr_box_frame',
+        label: 'Ukuran & Outline Box Dalam',
+        typeLabel: `${boxSize}px · Outline ${borderThick}px · Zoom ${c.boxRevealProductZoomStart ?? 118}%→${c.boxRevealProductZoomEnd ?? 100}%`,
+        kind: 'part',
+        icon: 'card',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'pbr_dots',
+        label: 'Slide Vertikal & Indikator (•••)',
+        typeLabel: dotsPosLabel[c.boxRevealDotsPosition || 'right'] || 'Kanan (Vertikal)',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'pbr_cart_action',
+        label: 'Keranjang & Checkout WA',
+        typeLabel: c.boxRevealShowCartButton !== false ? 'Keranjang Aktif' : 'Nonaktif',
+        kind: 'part',
+        icon: 'cart',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'pbr_admin_cta',
+        label: c.adminCtaLabel?.trim() || 'Tombol Tanya Admin',
+        typeLabel: c.adminCtaEnabled ? 'Aktif · CTA Admin' : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific'],
+      });
+
+      items.forEach((item, idx) => {
+        const key = String(item.id || idx);
+        layers.push({
+          id: `pbr_${key}`,
+          label: item.title?.trim() || `Kotak Produk #${idx + 1}`,
+          typeLabel:
+            [item.price?.trim(), item.variants?.trim() ? snippet(item.variants, 16) : '']
+              .filter(Boolean)
+              .join(' · ') || 'Kotak Produk',
+          kind: 'item',
+          icon: 'card',
+          itemKey: `pbr:${item.id}`,
+          thumbnailUrl: item.image?.trim() || undefined,
+          canDelete: items.length > 1,
+          canToggleVisibility: false,
+          canLock: true,
+          isLocked: isSubLayerLocked(block, `pbr_${key}`),
+          contentSections: ['items'],
+          designSections: ['specific'],
+          children: [
+            {
+              id: `pbr_img_${key}`,
+              label: 'Foto Produk & Zoom Out',
+              typeLabel: item.image
+                ? `${c.boxRevealProductZoomStart ?? 118}% → ${c.boxRevealProductZoomEnd ?? 100}%`
+                : 'Belum ada foto',
+              kind: 'item',
+              icon: 'image',
+              itemKey: `pbr:${item.id}`,
+              canDelete: Boolean(item.image),
+              canToggleVisibility: false,
+              canLock: true,
+              isLocked: isSubLayerLocked(block, `pbr_img_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific'],
+            },
+            {
+              id: `pbr_info_${key}`,
+              label: 'Judul, Harga & Deskripsi',
+              typeLabel: snippet(item.description || item.price, 22) || 'Detail Produk',
+              kind: 'item',
+              icon: 'text',
+              itemKey: `pbr:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: true,
+              canLock: true,
+              isHidden: isSubLayerHidden(block, `pbr_info_${key}`),
+              isLocked: isSubLayerLocked(block, `pbr_info_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific'],
+            },
+            {
+              id: `pbr_variant_${key}`,
+              label: 'Varian & Warna Kotak',
+              typeLabel: item.variants?.trim()
+                ? snippet(item.variants, 22)
+                : item.boxColorOverride || c.boxRevealColor || '#5C3626',
+              kind: 'item',
+              icon: 'sliders',
+              itemKey: `pbr:${item.id}`,
+              canDelete: false,
+              canToggleVisibility: true,
+              canLock: true,
+              isHidden: isSubLayerHidden(block, `pbr_variant_${key}`),
+              isLocked: isSubLayerLocked(block, `pbr_variant_${key}`),
+              contentSections: ['items'],
+              designSections: ['specific'],
+            },
+          ],
         });
       });
       break;
@@ -1254,6 +2056,16 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'category_tabs': {
       const buttons = c.categoryButtons ?? [];
+      pushIfNotDeleted({
+        id: 'cat_bar',
+        label: 'Gaya Bar Tab Kategori',
+        typeLabel: `${buttons.length} Kategori`,
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'layout'],
+      });
       buttons.forEach((btn, idx) => {
         layers.push({
           id: `cat_${btn.id || idx}`,
@@ -1305,6 +2117,16 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'social': {
       const items = c.socialItems ?? [];
+      pushIfNotDeleted({
+        id: 'social_bar',
+        label: 'Tata Letak Ikon Sosmed',
+        typeLabel: `${items.length} Tautan Aktif`,
+        kind: 'part',
+        icon: 'share',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'layout'],
+      });
       items.forEach((item, idx) => {
         const meta = SOCIAL_PLATFORMS[item.platform];
         layers.push({
@@ -1328,6 +2150,16 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
 
     case 'social_follower': {
       const accounts = c.socialFollowerAccounts ?? [];
+      pushIfNotDeleted({
+        id: 'sfa_layout',
+        label: 'Tata Letak & Gaya Kartu Akun',
+        typeLabel: `${accounts.length} Akun Sosmed`,
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'layout'],
+      });
       accounts.forEach((acc, idx) => {
         layers.push({
           id: `sfa_${acc.id || idx}`,
@@ -1374,6 +2206,7 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
           kind: 'item',
           icon: post.mediaType === 'video' ? 'video' : 'image',
           itemKey: `sfp:${post.id}`,
+          thumbnailUrl: post.imageUrl?.trim() || undefined,
           canDelete: true,
           canToggleVisibility: false,
           canLock: true,
@@ -1381,6 +2214,178 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
           contentSections: ['items'],
           designSections: ['specific', 'visual'],
         });
+      });
+      break;
+    }
+
+    case 'text': {
+      pushIfNotDeleted({
+        id: 'text_body',
+        label: c.text?.trim() ? `Teks · ${snippet(c.text, 22)}` : 'Isi Teks & Tipografi',
+        typeLabel: 'Konten Teks Utama',
+        kind: 'part',
+        icon: 'text',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main', 'typo'],
+        designSections: ['typo', 'visual'],
+      });
+      pushIfNotDeleted({
+        id: 'text_box',
+        label: 'Wadah & Latar Teks',
+        typeLabel: 'Padding, Radius & Warna',
+        kind: 'part',
+        icon: 'card',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['general'],
+        designSections: ['visual', 'layout', 'effects'],
+      });
+      break;
+    }
+
+    case 'image': {
+      pushIfNotDeleted({
+        id: 'image_media',
+        label: c.alt?.trim() ? `Gambar · ${snippet(c.alt, 20)}` : 'Media Gambar',
+        typeLabel: c.objectFit ? `Fit: ${c.objectFit}` : 'Foto & Bentuk',
+        kind: 'part',
+        icon: 'image',
+        thumbnailUrl: c.src?.trim() || undefined,
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'effects'],
+      });
+      pushIfNotDeleted({
+        id: 'image_frame',
+        label: 'Bingkai, Ukuran & Aksi Klik',
+        typeLabel: c.url?.trim() ? 'Tautan Aktif' : 'Rasio, Radius & Spasi',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['nav', 'general'],
+        designSections: ['layout', 'visual'],
+      });
+      break;
+    }
+
+    case 'divider': {
+      pushIfNotDeleted({
+        id: 'divider_line',
+        label: 'Garis Pemisah',
+        typeLabel: `${block.style?.borderStyle || 'solid'} · ${block.style?.borderWidth ?? 1}px`,
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'layout'],
+      });
+      break;
+    }
+
+    case 'youtube':
+    case 'facebook_video':
+    case 'tiktok_video':
+    case 'instagram_video': {
+      const platformName =
+        block.type === 'youtube'
+          ? 'YouTube'
+          : block.type === 'facebook_video'
+          ? 'Facebook'
+          : block.type === 'tiktok_video'
+          ? 'TikTok'
+          : 'Instagram';
+      pushIfNotDeleted({
+        id: 'video_embed',
+        label: `Pemutar Video ${platformName}`,
+        typeLabel: c.videoUrl?.trim() ? snippet(c.videoUrl, 22) : `URL ${platformName}`,
+        kind: 'part',
+        icon: 'video',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual'],
+      });
+      pushIfNotDeleted({
+        id: 'video_frame',
+        label: 'Bingkai & Rasio Video',
+        typeLabel: c.videoAspectRatio || '16:9',
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['general'],
+        designSections: ['layout', 'visual', 'effects'],
+      });
+      break;
+    }
+
+    case 'container': {
+      pushIfNotDeleted({
+        id: 'container_surface',
+        label: 'Wadah & Latar Grup',
+        typeLabel: 'Warna, Gradasi & Border',
+        kind: 'part',
+        icon: 'card',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main', 'general'],
+        designSections: ['visual', 'effects'],
+      });
+      pushIfNotDeleted({
+        id: 'container_layout',
+        label: 'Tata Letak & Spasi Grup',
+        typeLabel: `${(block.children ?? []).length} Blok di Dalam`,
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['nav'],
+        designSections: ['layout', 'specific'],
+      });
+      break;
+    }
+
+    case 'row': {
+      pushIfNotDeleted({
+        id: 'row_layout',
+        label: 'Tata Letak Baris / Kolom',
+        typeLabel: `${(block.children ?? []).length} Elemen Sejajar`,
+        kind: 'part',
+        icon: 'sliders',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main'],
+        designSections: ['layout', 'specific'],
+      });
+      pushIfNotDeleted({
+        id: 'row_surface',
+        label: 'Wadah & Latar Baris',
+        typeLabel: 'Latar, Radius & Spasi',
+        kind: 'part',
+        icon: 'card',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['general'],
+        designSections: ['visual', 'effects'],
+      });
+      break;
+    }
+
+    default: {
+      pushIfNotDeleted({
+        id: 'block_content_core',
+        label: 'Konten Utama Blok',
+        typeLabel: block.label || 'Pengaturan Konten',
+        kind: 'part',
+        icon: 'card',
+        canDelete: false,
+        canToggleVisibility: false,
+        contentSections: ['main'],
+        designSections: ['specific', 'visual', 'layout'],
       });
       break;
     }

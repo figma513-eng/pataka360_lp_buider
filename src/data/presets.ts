@@ -12,8 +12,10 @@ import type {
   CategoryJumpItem,
   FnbHeroSlideItem,
   FnbMenuItem,
+  InteractiveBoxItem,
   PageTheme,
   PrebuiltSectionCategory,
+  ProductBoxRevealItem,
   ShadowPreset,
   ShowcaseCardVariant,
   SocialFollowerAccount,
@@ -514,6 +516,115 @@ export const DEFAULT_FLOATING_STUDIO_SLIDES: FnbHeroSlideItem[] = [
   },
 ];
 
+function buildSneakerPairSvg(opts: {
+  upperMain: string;
+  upperSecondary: string;
+  midsole: string;
+  accent: string;
+  lace: string;
+  outsole: string;
+}): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 180" width="280" height="180">
+  <defs>
+    <linearGradient id="u1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${opts.upperSecondary}"/>
+      <stop offset="55%" stop-color="${opts.upperMain}"/>
+      <stop offset="100%" stop-color="${opts.outsole}"/>
+    </linearGradient>
+    <linearGradient id="ms" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${opts.midsole}"/>
+      <stop offset="100%" stop-color="#D7DCE3"/>
+    </linearGradient>
+    <filter id="sh" x="-15%" y="-15%" width="130%" height="145%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#1E130A" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <!-- Back Shoe (Right Foot, slightly angled behind) -->
+  <g transform="translate(18, 6) rotate(-5 120 75)" filter="url(#sh)">
+    <path d="M24,62 C26,42 48,30 74,30 C92,30 108,38 128,44 C156,52 192,50 222,58 C238,62 246,72 242,82 C236,92 204,96 154,96 C94,96 34,94 24,84 C19,79 21,70 24,62 Z" fill="url(#u1)"/>
+    <path d="M22,78 C54,84 114,84 176,82 C210,80 236,76 244,70 C246,78 242,88 228,93 C196,100 116,101 52,98 C30,96 20,90 22,78 Z" fill="url(#ms)"/>
+    <path d="M24,91 C68,97 154,98 232,90 C236,92 232,96 218,98 C166,104 78,104 34,98 C24,96 22,93 24,91 Z" fill="${opts.outsole}"/>
+    <path d="M36,80 C50,82 68,82 84,81 L82,91 C64,92 48,91 34,88 Z" fill="${opts.accent}"/>
+    <path d="M84,42 C96,46 112,50 128,54" stroke="${opts.lace}" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M96,38 C108,42 122,46 138,50" stroke="${opts.lace}" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <path d="M112,68 C134,74 162,72 194,61 C166,78 134,81 108,74 Z" fill="${opts.accent}"/>
+    <ellipse cx="64" cy="44" rx="22" ry="9" fill="#181A20" opacity="0.72"/>
+  </g>
+  <!-- Front Shoe (Left Foot, crisp foreground) -->
+  <g transform="translate(8, 52) rotate(3 130 62)" filter="url(#sh)">
+    <path d="M26,56 C28,34 52,22 78,22 C96,22 114,32 134,39 C164,49 200,47 230,56 C248,61 255,73 250,84 C243,95 210,100 158,100 C96,100 36,97 26,86 C20,80 22,66 26,56 Z" fill="url(#u1)"/>
+    <path d="M48,26 C64,22 86,28 106,36 C128,44 150,48 176,52 L166,64 C136,60 108,52 80,44 C64,40 50,36 48,26 Z" fill="${opts.upperSecondary}" opacity="0.88"/>
+    <path d="M24,74 C60,81 124,81 186,79 C220,78 244,73 252,67 C255,76 250,87 236,93 C202,101 118,103 52,99 C30,97 20,89 24,74 Z" fill="url(#ms)"/>
+    <path d="M26,90 C72,97 160,99 240,90 C244,93 240,98 224,100 C172,106 80,106 36,100 C25,98 23,94 26,90 Z" fill="${opts.outsole}"/>
+    <path d="M38,78 C54,81 74,82 94,80 L92,92 C72,93 52,92 36,88 Z" fill="${opts.accent}"/>
+    <path d="M126,82 C142,83 158,83 172,82 L170,92 C156,93 140,93 126,92 Z" fill="${opts.accent}" opacity="0.85"/>
+    <path d="M88,36 C102,41 118,46 134,50" stroke="${opts.lace}" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+    <path d="M102,32 C116,37 132,42 148,46" stroke="${opts.lace}" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+    <path d="M116,29 C130,34 144,39 158,43" stroke="${opts.lace}" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M116,64 C140,71 170,69 204,56 C174,76 140,80 112,71 Z" fill="${opts.accent}"/>
+    <ellipse cx="66" cy="39" rx="23" ry="10" fill="#181A20" opacity="0.78"/>
+  </g>
+</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+export const BOX_SHOE_PRESTO_SVG = buildSneakerPairSvg({
+  upperMain: '#283655',
+  upperSecondary: '#F8FAFC',
+  midsole: '#FFFFFF',
+  accent: '#F46A1F',
+  lace: '#FFFFFF',
+  outsole: '#1E293B',
+});
+
+export const BOX_SHOE_AIRMAX_SVG = buildSneakerPairSvg({
+  upperMain: '#E2E8F0',
+  upperSecondary: '#FFFFFF',
+  midsole: '#F8FAFC',
+  accent: '#2563EB',
+  lace: '#94A3B8',
+  outsole: '#1E293B',
+});
+
+export const BOX_SHOE_VAPORMAX_SVG = buildSneakerPairSvg({
+  upperMain: '#27292F',
+  upperSecondary: '#4B505C',
+  midsole: '#3A3F4B',
+  accent: '#7DD3FC',
+  lace: '#64748B',
+  outsole: '#111318',
+});
+
+export const DEFAULT_INTERACTIVE_BOX_ITEMS: InteractiveBoxItem[] = [
+  {
+    id: 'ibs_1',
+    category: "MEN'S SHOE",
+    title: 'Nike React Presto Rabid Panda',
+    price: '$110',
+    rating: '4.5',
+    image: BOX_SHOE_PRESTO_SVG,
+    variants: '40, 41, 42, 43, 44',
+  },
+  {
+    id: 'ibs_2',
+    category: "MEN'S SHOE",
+    title: 'Nike Air Max 270',
+    price: '$150',
+    rating: '4.8',
+    image: BOX_SHOE_AIRMAX_SVG,
+    variants: '40, 41, 42, 43, 44',
+  },
+  {
+    id: 'ibs_3',
+    category: "MEN'S SHOE",
+    title: 'Nike Air VaporMax Flyknit 2',
+    price: '$190',
+    rating: '4.6',
+    image: BOX_SHOE_VAPORMAX_SVG,
+    variants: '40, 41, 42, 43, 44',
+  },
+];
+
 export const POPOUT_SHOE_RED_SVG =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 180" fill="none">
@@ -958,6 +1069,163 @@ export const DEFAULT_ADVANCE_OPTIONS: AdvanceOptions = {
   blockLayout: 'default',
 };
 
+export const BOX_REVEAL_WATCH_ROSE_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">
+      <defs>
+        <linearGradient id="strapRose" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#3E1813"/>
+          <stop offset="50%" stop-color="#6B2B20"/>
+          <stop offset="100%" stop-color="#35130E"/>
+        </linearGradient>
+        <linearGradient id="bezelRose" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#F7DFC7"/>
+          <stop offset="45%" stop-color="#C8936C"/>
+          <stop offset="100%" stop-color="#8A573B"/>
+        </linearGradient>
+        <radialGradient id="dialWhite" cx="42%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#FFFFFF"/>
+          <stop offset="82%" stop-color="#F4F1EC"/>
+          <stop offset="100%" stop-color="#DDD5CB"/>
+        </radialGradient>
+      </defs>
+      <rect x="85" y="10" width="50" height="60" rx="8" fill="url(#strapRose)"/>
+      <rect x="85" y="150" width="50" height="60" rx="8" fill="url(#strapRose)"/>
+      <rect x="92" y="14" width="36" height="52" rx="4" fill="none" stroke="rgba(255,220,195,0.22)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <rect x="92" y="154" width="36" height="52" rx="4" fill="none" stroke="rgba(255,220,195,0.22)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <rect x="163" y="101" width="11" height="18" rx="3" fill="url(#bezelRose)"/>
+      <circle cx="110" cy="110" r="57" fill="url(#bezelRose)"/>
+      <circle cx="110" cy="110" r="50" fill="url(#dialWhite)"/>
+      <circle cx="110" cy="110" r="46" fill="none" stroke="#D8CEC2" stroke-width="1"/>
+      <g stroke="#8E674C" stroke-width="2" stroke-linecap="round">
+        <line x1="110" y1="67" x2="110" y2="75"/>
+        <line x1="110" y1="145" x2="110" y2="153"/>
+        <line x1="67" y1="110" x2="75" y2="110"/>
+        <line x1="145" y1="110" x2="153" y2="110"/>
+      </g>
+      <g stroke="#B8A99A" stroke-width="1.3" stroke-linecap="round">
+        <line x1="131.5" y1="72.8" x2="128.5" y2="78"/>
+        <line x1="147.2" y1="88.5" x2="142" y2="91.5"/>
+        <line x1="147.2" y1="131.5" x2="142" y2="128.5"/>
+        <line x1="131.5" y1="147.2" x2="128.5" y2="142"/>
+        <line x1="88.5" y1="147.2" x2="91.5" y2="142"/>
+        <line x1="72.8" y1="131.5" x2="78" y2="128.5"/>
+        <line x1="72.8" y1="88.5" x2="78" y2="91.5"/>
+        <line x1="88.5" y1="72.8" x2="91.5" y2="78"/>
+      </g>
+      <line x1="110" y1="110" x2="91" y2="94" stroke="#3D2B22" stroke-width="3.2" stroke-linecap="round"/>
+      <line x1="110" y1="110" x2="136" y2="88" stroke="#3D2B22" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="110" y1="118" x2="110" y2="74" stroke="#B67852" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="110" cy="110" r="4" fill="#B67852"/>
+    </svg>`
+  );
+
+export const BOX_REVEAL_WATCH_SILVER_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">
+      <defs>
+        <linearGradient id="strapDark" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1E1D1C"/>
+          <stop offset="50%" stop-color="#383533"/>
+          <stop offset="100%" stop-color="#181716"/>
+        </linearGradient>
+        <linearGradient id="bezelSilver" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#FFFFFF"/>
+          <stop offset="50%" stop-color="#C6CCD4"/>
+          <stop offset="100%" stop-color="#7E8690"/>
+        </linearGradient>
+        <radialGradient id="dialPearl" cx="42%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#FFFFFF"/>
+          <stop offset="84%" stop-color="#EEF1F4"/>
+          <stop offset="100%" stop-color="#D4DAE0"/>
+        </radialGradient>
+      </defs>
+      <rect x="85" y="10" width="50" height="60" rx="8" fill="url(#strapDark)"/>
+      <rect x="85" y="150" width="50" height="60" rx="8" fill="url(#strapDark)"/>
+      <rect x="163" y="101" width="11" height="18" rx="3" fill="url(#bezelSilver)"/>
+      <circle cx="110" cy="110" r="57" fill="url(#bezelSilver)"/>
+      <circle cx="110" cy="110" r="50" fill="url(#dialPearl)"/>
+      <g stroke="#334155" stroke-width="2" stroke-linecap="round">
+        <line x1="110" y1="67" x2="110" y2="75"/>
+        <line x1="110" y1="145" x2="110" y2="153"/>
+        <line x1="67" y1="110" x2="75" y2="110"/>
+        <line x1="145" y1="110" x2="153" y2="110"/>
+      </g>
+      <line x1="110" y1="110" x2="94" y2="90" stroke="#1E293B" stroke-width="3.2" stroke-linecap="round"/>
+      <line x1="110" y1="110" x2="138" y2="95" stroke="#1E293B" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="110" cy="110" r="4" fill="#64748B"/>
+    </svg>`
+  );
+
+export const BOX_REVEAL_WATCH_DARK_SVG =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">
+      <defs>
+        <linearGradient id="strapTan" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#6B442A"/>
+          <stop offset="50%" stop-color="#9B6A44"/>
+          <stop offset="100%" stop-color="#5E3A22"/>
+        </linearGradient>
+        <linearGradient id="bezelGold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#F7E3A8"/>
+          <stop offset="50%" stop-color="#C9A24D"/>
+          <stop offset="100%" stop-color="#876623"/>
+        </linearGradient>
+        <radialGradient id="dialCharcoal" cx="45%" cy="38%" r="65%">
+          <stop offset="0%" stop-color="#2E323A"/>
+          <stop offset="100%" stop-color="#14161A"/>
+        </radialGradient>
+      </defs>
+      <rect x="85" y="10" width="50" height="60" rx="8" fill="url(#strapTan)"/>
+      <rect x="85" y="150" width="50" height="60" rx="8" fill="url(#strapTan)"/>
+      <rect x="163" y="101" width="11" height="18" rx="3" fill="url(#bezelGold)"/>
+      <circle cx="110" cy="110" r="57" fill="url(#bezelGold)"/>
+      <circle cx="110" cy="110" r="50" fill="url(#dialCharcoal)"/>
+      <g stroke="#E3C376" stroke-width="2" stroke-linecap="round">
+        <line x1="110" y1="67" x2="110" y2="75"/>
+        <line x1="110" y1="145" x2="110" y2="153"/>
+        <line x1="67" y1="110" x2="75" y2="110"/>
+        <line x1="145" y1="110" x2="153" y2="110"/>
+      </g>
+      <line x1="110" y1="110" x2="90" y2="95" stroke="#F8E7B9" stroke-width="3.2" stroke-linecap="round"/>
+      <line x1="110" y1="110" x2="136" y2="86" stroke="#F8E7B9" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="110" cy="110" r="4" fill="#D4AF37"/>
+    </svg>`
+  );
+
+export const DEFAULT_PRODUCT_BOX_REVEAL_ITEMS: ProductBoxRevealItem[] = [
+  {
+    id: 'pbr_1',
+    title: 'Heritage Classic Rose',
+    price: 'Rp 1.450.000',
+    description: 'Jam tangan klasik dengan strap kulit premium dan kotak kayu walnut eksklusif.',
+    variants: '38mm, 40mm, 42mm',
+    image: BOX_REVEAL_WATCH_ROSE_SVG,
+    boxColorOverride: '#5C3626',
+  },
+  {
+    id: 'pbr_2',
+    title: 'Minimalist Steel Edition',
+    price: 'Rp 1.290.000',
+    description: 'Desain minimalis berbalut baja tahan karat dengan kaca safir anti gores.',
+    variants: 'Silver 38mm, Silver 40mm',
+    image: BOX_REVEAL_WATCH_SILVER_SVG,
+    boxColorOverride: '#4A3F36',
+  },
+  {
+    id: 'pbr_3',
+    title: 'Noir Gold Signature',
+    price: 'Rp 1.650.000',
+    description: 'Dial hitam elegan dengan aksen emas mewah, cocok untuk acara formal & hadiah.',
+    variants: 'Black Leather, Gold Mesh',
+    image: BOX_REVEAL_WATCH_DARK_SVG,
+    boxColorOverride: '#A9866A',
+  },
+];
+
 export const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
   {
     id: 'cat_1',
@@ -1238,6 +1506,8 @@ export const BLOCK_TYPE_NAMES: Record<BlockType, string> = {
   fnb_hero_slider: 'Slide Produk F&B',
   culinary_spin_slider: 'Slide Kuliner Putar',
   floating_product_studio: 'Studio Produk Melayang',
+  interactive_box_showcase: 'Interactive Box Showcase',
+  product_box_reveal: 'Animated Product Box Reveal',
   category_tabs: 'Tombol Kategori',
   menu_icon: 'Menu Icon',
   cart_button: 'Tombol Keranjang',
@@ -2103,6 +2373,119 @@ export function createBlock(type: BlockType, theme: PageTheme = THEMES[0]): Buil
           catalogCartEnabled: true,
           catalogWhatsappNumber: '6281234567890',
           catalogStoreName: 'Urban Studio Wear',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+
+    case 'interactive_box_showcase':
+      return {
+        id: createId('ibs'),
+        type: 'interactive_box_showcase',
+        label: 'Interactive Box Showcase',
+        style: {
+          ...baseStyle,
+          minHeight: 420,
+          padding: 0,
+          backgroundColor: '#F4F4F6',
+          borderRadius: 24,
+          borderWidth: 0,
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          boxShowcaseItems: DEFAULT_INTERACTIVE_BOX_ITEMS.map((it) => ({
+            ...it,
+            id: createId('ibs_it'),
+          })),
+          boxShowcaseSlideMode: 'auto',
+          boxShowcaseAutoIntervalSec: 2.5,
+          boxShowcaseColor: '#F46A1F',
+          boxShowcaseBrandLabel: '',
+          boxShowcaseBgColor: '#F4F4F6',
+          boxShowcaseShowRating: true,
+          boxShowcaseShowFavorite: true,
+          boxShowcaseShowCartButton: true,
+          boxShowcaseImageScale: 100,
+          boxShowcaseWhatsappNumber: '6281234567890',
+          boxShowcaseStoreName: 'Sneaker Box Studio',
+          boxShowcaseFloatingCartEnabled: true,
+          boxShowcaseFloatingCartLabel: 'Lihat Keranjang',
+          boxShowcaseFloatingCartBg: '#25272D',
+          boxShowcaseFloatingCartPosition: 'bottom-floating',
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Sneaker Box Studio',
+          catalogWhatsappIntro: 'Halo, saya ingin memesan produk berikut:',
+          catalogAskCustomerInfo: true,
+          catalogCustomerFields: getDefaultCustomerFields('physical'),
+          catalogShippingEnabled: true,
+          catalogShippingOptions: cloneDefaultCatalogShippingOptions(),
+        },
+      };
+
+    case 'product_box_reveal':
+      return {
+        id: createId('pbr'),
+        type: 'product_box_reveal',
+        label: 'Animated Product Box Reveal',
+        style: {
+          ...baseStyle,
+          minHeight: 420,
+          padding: 0,
+          backgroundColor: '#EFEFEF',
+          borderRadius: 24,
+          borderWidth: 0,
+          shadow: 'md',
+          align: 'center',
+          marginBottom: 18,
+        },
+        content: {
+          boxRevealItems: DEFAULT_PRODUCT_BOX_REVEAL_ITEMS.map((it) => ({
+            ...it,
+            id: createId('pbr_it'),
+          })),
+          boxRevealColor: '#5C3626',
+          boxRevealBgColor: '#EFEFEF',
+          boxRevealShowCartButton: true,
+          boxRevealShowDots: true,
+          boxRevealDotsPosition: 'right',
+          boxRevealVerticalSwipeEnabled: true,
+          boxRevealSlideMode: 'manual',
+          boxRevealAutoIntervalSec: 4,
+          boxRevealZoomEffectEnabled: true,
+          boxRevealProductZoomStart: 118,
+          boxRevealProductZoomEnd: 100,
+          boxRevealBoxSize: 220,
+          boxRevealBorderThickness: 18,
+          boxRevealLidLogoImage: '',
+          boxRevealLidLogoSize: 44,
+          boxRevealLidLogoPadding: 12,
+          boxRevealLidLogoFit: 'contain',
+          boxRevealTransitionEffect: 'slide_vertical',
+          boxRevealTransitionDurationMs: 520,
+          boxRevealWhatsappNumber: '6281234567890',
+          boxRevealStoreName: 'Butik Jam & Aksesoris',
+          boxRevealFloatingCartEnabled: true,
+          boxRevealFloatingCartLabel: 'Lihat Keranjang',
+          boxRevealFloatingCartBg: '#5C3626',
+          boxRevealFloatingCartPosition: 'bottom-floating',
+          adminCtaEnabled: false,
+          adminCtaLabel: 'Tanya Admin',
+          adminCtaActionType: 'whatsapp',
+          adminCtaWhatsappNumber: '',
+          adminCtaWhatsappMessage: 'Halo Admin, saya tertarik dengan produk {produk} ({harga}).',
+          adminCtaBgColor: '#8E6D5B',
+          adminCtaTextColor: '#FFFFFF',
+          catalogProductType: 'physical',
+          catalogCartEnabled: true,
+          catalogWhatsappNumber: '6281234567890',
+          catalogStoreName: 'Butik Jam & Aksesoris',
           catalogWhatsappIntro: 'Halo, saya ingin memesan produk berikut:',
           catalogAskCustomerInfo: true,
           catalogCustomerFields: getDefaultCustomerFields('physical'),
@@ -3499,6 +3882,22 @@ export const PREBUILT_SECTIONS: PrebuiltSection[] = [
     description:
       'Panggung studio warna penuh yang berubah mulus mengikuti produk melayang 3D + miniatur klik-pindah di sudut kanan bawah',
     createBlocks: (theme) => [createBlock('floating_product_studio', theme)],
+  },
+  {
+    id: 'interactive-box-showcase',
+    category: 'katalog_store',
+    title: 'Interactive Box Showcase',
+    description:
+      'Animasi box sepatu 3D buka-tutup otomatis saat di-swipe atau auto slide — cukup ganti foto produk, pilih mode slide, warna box & jumlah box',
+    createBlocks: (theme) => [createBlock('interactive_box_showcase', theme)],
+  },
+  {
+    id: 'animated-product-box-reveal',
+    category: 'katalog_store',
+    title: 'Animated Product Box Reveal',
+    description:
+      'Kotak kayu eksklusif tertutup yang membuka mulus memperlihatkan produk di dalamnya lalu berhenti rapi — cukup ganti foto, warna kotak & jumlah kotak',
+    createBlocks: (theme) => [createBlock('product_box_reveal', theme)],
   },
   {
     id: 'katalog-fnb',

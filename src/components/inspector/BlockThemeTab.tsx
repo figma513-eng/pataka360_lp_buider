@@ -74,6 +74,18 @@ function getBlockAccentField(block: BuilderBlock): {
         label: 'Warna Aksen Studio Produk',
         value: c.studioFloatingCartBg || '',
       };
+    case 'interactive_box_showcase':
+      return {
+        key: 'boxShowcaseColor',
+        label: 'Warna Box Utama',
+        value: c.boxShowcaseColor || '',
+      };
+    case 'product_box_reveal':
+      return {
+        key: 'boxRevealColor',
+        label: 'Warna Kotak',
+        value: c.boxRevealColor || '',
+      };
     case 'category_tabs':
       return { key: 'categoryActiveBg', label: 'Warna Tab Aktif', value: c.categoryActiveBg || '' };
     case 'catalog':

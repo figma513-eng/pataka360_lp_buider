@@ -228,6 +228,12 @@ function remapBlocksWithFreshIds(
     if (Array.isArray(c.floatingStudioItems)) {
       c.floatingStudioItems = c.floatingStudioItems.map((it) => ({ ...it, id: createId('fstd') }));
     }
+    if (Array.isArray(c.boxShowcaseItems)) {
+      c.boxShowcaseItems = c.boxShowcaseItems.map((it) => ({ ...it, id: createId('ibs_it') }));
+    }
+    if (Array.isArray(c.boxRevealItems)) {
+      c.boxRevealItems = c.boxRevealItems.map((it) => ({ ...it, id: createId('pbr_it') }));
+    }
     if (Array.isArray(c.cardFeeItems)) {
       c.cardFeeItems = c.cardFeeItems.map((it) => ({ ...it, id: createId('fee') }));
     }

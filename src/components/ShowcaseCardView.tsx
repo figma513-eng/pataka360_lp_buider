@@ -812,11 +812,14 @@ export function ShowcaseCardView({
                     ? 'absolute top-2.5 right-2.5 z-30'
                     : 'mt-auto pt-3 z-30 self-start'
                 }
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
               >
-                {!isEditor && cartQty > 0 ? (
+                {cartQty > 0 ? (
                   <div className="inline-flex items-center gap-1 bg-white/95 text-slate-900 rounded-full px-1.5 py-0.5 shadow-md backdrop-blur-xs">
                     <button
                       type="button"
@@ -849,7 +852,7 @@ export function ShowcaseCardView({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!isEditor) onAddCart?.();
+                      onAddCart?.();
                     }}
                     title="Tambah ke Keranjang"
                     aria-label="Tambah ke Keranjang"

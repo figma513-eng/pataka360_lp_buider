@@ -44,6 +44,7 @@ const CARD_AND_SECTION_TYPES = new Set<BlockType>([
   'fnb_hero_slider',
   'culinary_spin_slider',
   'floating_product_studio',
+  'interactive_box_showcase',
   'training_catalog',
   'social_feed',
   'form',
@@ -181,6 +182,22 @@ export function getBlockDesignCapabilities(
         showEffectsAccordion: true,
       };
     }
+  }
+
+  if (type === 'product_box_reveal') {
+    return {
+      showVisualAccordion: false,
+      showShapePresets: false,
+      showContainerQuickPresets: false,
+      showBgAndGradient: false,
+      showBgImage: false,
+      showFullSpacingControls: false,
+      showLayoutPositionAccordion: false,
+      showFlexGridControls: false,
+      showTypographyAccordion: false,
+      supportsResponsiveLayoutProps: false,
+      showEffectsAccordion: false,
+    };
   }
 
   const isDivider = type === 'divider';

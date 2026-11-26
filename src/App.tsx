@@ -1497,6 +1497,8 @@ export default function App() {
       'fnb_hero_slider',
       'culinary_spin_slider',
       'floating_product_studio',
+      'interactive_box_showcase',
+      'product_box_reveal',
       'carousel',
       'social_feed',
       'social_follower',

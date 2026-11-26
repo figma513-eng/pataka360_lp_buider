@@ -42,6 +42,7 @@ import { resolveCssFontFamily } from './fontHelpers.ts';
 import { buildLinearGradientCss } from './gradientHelpers.ts';
 import { sanitizeCssColor } from './htmlSanitizer.ts';
 import {
+  buildAdminCtaWhatsappUrl,
   buildLineClampCss,
   resolveBlockAction,
   resolveUniversalCartMeta,
@@ -217,6 +218,47 @@ function styleObjectToCss(
   return parts.join('; ');
 }
 
+function renderAdminCtaButtonHtml(
+  block: BuilderBlock,
+  firstTitle: string,
+  firstPrice: string,
+  indent: string,
+  whatsappCenter?: WhatsappCenterConfig,
+  blockFallbackWa?: string
+): string {
+  const c = block.content;
+  if (!c.adminCtaEnabled) return '';
+  const labelText = escapeHtml((c.adminCtaLabel ?? '').trim() || 'Tanya Admin');
+  const bg = sanitizeCssColor(c.adminCtaBgColor, '#16A34A');
+  const fg = sanitizeCssColor(c.adminCtaTextColor, '#FFFFFF');
+  const actionType = c.adminCtaActionType ?? 'whatsapp';
+  const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
+  const iconSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`;
+  const btnStyle = `display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:9px 20px; border-radius:9999px; border:0; background:${bg}; color:${fg}; font-size:12px; font-weight:700; text-decoration:none; cursor:pointer; font-family:inherit; box-shadow:0 6px 16px rgba(15,23,42,0.14);`;
+
+  let innerBtn = '';
+  if (actionType === 'sheet') {
+    innerBtn = `<button type="button" data-admin-cta-btn data-sheet-open="sheet_act_${safeId}" style="${btnStyle}">${iconSvg}<span>${labelText}</span></button>`;
+  } else if (actionType === 'page') {
+    const targetPage = (c.adminCtaTargetPageId ?? '').trim() || 'home';
+    innerBtn = `<button type="button" data-admin-cta-btn data-open-page="${escapeHtml(targetPage)}" style="${btnStyle}">${iconSvg}<span>${labelText}</span></button>`;
+  } else {
+    const waNum =
+      c.adminCtaWhatsappNumber?.trim() ||
+      whatsappCenter?.mainPhone?.trim() ||
+      blockFallbackWa?.trim() ||
+      '6281234567890';
+    const waMsg = (c.adminCtaWhatsappMessage ?? '').trim();
+    const waHref = buildAdminCtaWhatsappUrl(waNum, waMsg, firstTitle, firstPrice);
+    innerBtn = `<a data-admin-cta-btn data-admin-cta-wa data-wa-num="${escapeHtml(
+      waNum
+    )}" data-wa-msg="${escapeHtml(waMsg)}" href="${escapeHtml(
+      waHref
+    )}" target="_blank" rel="noopener noreferrer" style="${btnStyle}">${iconSvg}<span>${labelText}</span></a>`;
+  }
+  return `${indent}<div data-admin-cta-wrap style="position:relative; z-index:20; display:flex; align-items:center; justify-content:center; padding-top:12px;">${innerBtn}</div>\n`;
+}
+
 export function renderBlockHtml(
   block: BuilderBlock,
   theme: PageTheme,
@@ -246,8 +288,16 @@ export function renderBlockHtml(
   const action = rawAction && rawAction.type !== 'none' ? rawAction : null;
   const isButtonHandledDirectly = block.type === 'button';
   const uc = resolveUniversalCartMeta(block, theme);
+  const needsAdminSheet = Boolean(
+    block.content.adminCtaEnabled &&
+      block.content.adminCtaActionType === 'sheet' &&
+      (block.type === 'interactive_box_showcase' ||
+        block.type === 'product_box_reveal' ||
+        block.type === 'fnb_hero_slider' ||
+        block.type === 'culinary_spin_slider')
+  );
 
-  if (!action && !uc) return html;
+  if (!action && !uc && !needsAdminSheet) return html;
   if (isButtonHandledDirectly && (!action || action.type !== 'sheet') && !uc) return html;
 
   const safeId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -307,6 +357,48 @@ ${indent}</div>`;
         )}" style="cursor: pointer;"`;
       }
     }
+  }
+
+  if (needsAdminSheet && !actionSheetModalHtml) {
+    const sheetId = `sheet_act_${safeId}`;
+    const pos = block.content.actionSheetPosition ?? 'bottom';
+    const sheetTitle =
+      block.content.actionSheetTitle?.trim() ||
+      block.content.adminCtaLabel?.trim() ||
+      'Tanya Admin';
+    const sheetBlocks = block.content.actionSheetBlocks ?? [];
+    const sheetInner = sheetBlocks
+      .map((ch) =>
+        renderBlockHtml(ch, theme, advance, indent + '        ', theme.textColor, whatsappCenter)
+      )
+      .filter(Boolean)
+      .join('\n');
+    const handleHtml =
+      pos === 'bottom' || pos === 'top'
+        ? `${indent}        <div class="lynk-sheet-handle"></div>\n`
+        : '';
+    actionSheetModalHtml = `\n${indent}<div id="${sheetId}" data-bottom-sheet data-sheet-pos="${escapeHtml(
+      pos
+    )}" class="lynk-sheet-backdrop" role="dialog" aria-modal="true" aria-label="${escapeHtml(
+      sheetTitle
+    )}">
+${indent}  <div class="lynk-sheet-panel" style="background: ${theme.cardBg}; color: ${
+      theme.textColor
+    }; border-color: ${theme.borderColor};">
+${indent}    <div class="lynk-sheet-header" style="border-color: ${theme.borderColor};">
+${handleHtml}${indent}      <div class="lynk-sheet-header-row">
+${indent}        <h3 class="lynk-sheet-title">${escapeHtml(sheetTitle)}</h3>
+${indent}        <button type="button" data-sheet-close class="lynk-sheet-close" aria-label="Tutup">&times;</button>
+${indent}      </div>
+${indent}    </div>
+${indent}    <div class="lynk-sheet-body">
+${
+      sheetInner ||
+      `${indent}      <div style="padding: 20px 8px; text-align: center; font-size: 12px; opacity: 0.6;">Belum ada konten di panel ini.</div>`
+    }
+${indent}    </div>
+${indent}  </div>
+${indent}</div>`;
   }
 
   let cartBarHtml = '';
@@ -3288,7 +3380,7 @@ ${indent}    <div data-fhs-detail-panel style="display:none; margin-top:12px;">
 ${indent}      <p data-fhs-desc style="margin:0 0 10px; font-size:12px; line-height:1.5; color:rgba(255,255,255,0.92);"></p>
 ${indent}      <div data-fhs-variants style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; margin-bottom:12px;"></div>
 ${enableCart ? `${indent}      <div data-fhs-cart-actions style="display:flex; align-items:center; justify-content:center;"></div>\n` : ''}${indent}    </div>
-${showDots && dotsPos === 'below' ? `${indent}    <div data-fhs-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>
+${renderAdminCtaButtonHtml(block, first.title || 'Produk F&B', first.price || '', `${indent}    `, whatsappCenter, c.fnbSliderWhatsappNumber)}${showDots && dotsPos === 'below' ? `${indent}    <div data-fhs-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>
 ${indent}</div>`;
     }
 
@@ -3380,7 +3472,12 @@ ${indent}  </div>`
       })();
 
       const hasBottomSection =
-        showInfo || showPrice || showDescription || showCartButton || (showDots && dotsPos === 'below');
+        showInfo ||
+        showPrice ||
+        showDescription ||
+        showCartButton ||
+        Boolean(c.adminCtaEnabled) ||
+        (showDots && dotsPos === 'below');
 
       const navArrowsHtml =
         items.length > 1
@@ -3405,7 +3502,7 @@ ${indent}    </div>\n` : ''}${indent}    <div data-css-detail-panel style="displ
 ${indent}      <p data-css-desc style="margin:0 0 8px; font-size:12px; line-height:1.5; color:#475569;">${escapeHtml(first.description || first.subtitle || '')}</p>
 ${indent}      <div data-css-variants style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; margin-bottom:10px;"></div>
 ${indent}    </div>
-${showCartButton ? `${indent}    <div data-css-cart-actions style="display:flex; align-items:center; justify-content:center; margin-top:10px;"></div>\n` : ''}${showDots && dotsPos === 'below' ? `${indent}    <div data-css-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>\n` : ''}${indent}</div>`;
+${showCartButton ? `${indent}    <div data-css-cart-actions style="display:flex; align-items:center; justify-content:center; margin-top:10px;"></div>\n` : ''}${renderAdminCtaButtonHtml(block, first.title || 'Hidangan Spesial', first.price || '', `${indent}    `, whatsappCenter, c.culinaryWhatsappNumber)}${showDots && dotsPos === 'below' ? `${indent}    <div data-css-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>\n` : ''}${indent}</div>`;
     }
 
     case 'floating_product_studio': {
@@ -3494,6 +3591,390 @@ ${indent}      <div data-fps-label-b aria-hidden="true" style="position:absolute
 ${showInfo ? `${indent}        <div data-fps-title-b style="font-size:18px; font-weight:700; line-height:1.25;"></div>\n` : ''}${showPrice ? `${indent}        <div data-fps-price-b style="font-size:15px; font-weight:800; margin-top:2px; opacity:0.94; font-variant-numeric:tabular-nums;"></div>\n` : ''}${indent}      </div>
 ${indent}    </div>\n` : ''}${showDescription ? `${indent}    <p data-fps-desc style="margin:6px auto 8px; max-width:290px; font-size:12px; line-height:1.45; opacity:0.88;">${escapeHtml(first.description || first.subtitle || '')}</p>
 ${indent}    <div data-fps-variants style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; margin-bottom:10px;"></div>\n` : ''}${showCartButton ? `${indent}    <div data-fps-cart-actions style="display:flex; align-items:center; justify-content:center; margin-top:10px;"></div>\n` : ''}${showDots && dotsPos === 'below' ? `${indent}    <div data-fps-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>\n` : ''}${indent}</div>`;
+    }
+
+    case 'interactive_box_showcase': {
+      const c = block.content;
+      const items = c.boxShowcaseItems ?? [];
+      if (items.length === 0) return '';
+      const first = items[0];
+      const radius = Math.max(0, block.style.borderRadius ?? 24);
+      const slideMode = c.boxShowcaseSlideMode === 'auto' ? 'auto' : 'manual';
+      const intervalMs = Math.round(
+        Math.max(1.4, Math.min(8, c.boxShowcaseAutoIntervalSec ?? 2.5)) * 1000
+      );
+      const boxColor = sanitizeCssColor(c.boxShowcaseColor, '#F46A1F');
+      const bgColor = sanitizeCssColor(c.boxShowcaseBgColor, '#F4F4F6');
+      const brandLabel = (c.boxShowcaseBrandLabel ?? '').trim();
+      const showRating = c.boxShowcaseShowRating !== false;
+      const showFavorite = c.boxShowcaseShowFavorite !== false;
+      const showCart = c.boxShowcaseShowCartButton !== false;
+
+      const safeItems = items.map((it) => ({
+        id: it.id,
+        title: it.title || 'Produk',
+        category: it.category || '',
+        price: it.price || '',
+        rating: it.rating || '',
+        image:
+          it.image && /^(data:image\/|https?:\/\/|\/)/i.test(it.image.trim())
+            ? it.image.trim()
+            : '',
+        boxColorOverride: it.boxColorOverride
+          ? sanitizeCssColor(it.boxColorOverride, boxColor)
+          : '',
+      }));
+      const safeItemsJson = escapeHtml(JSON.stringify(safeItems));
+      const headerHtml = brandLabel
+        ? `${indent}  <div style="position:relative; z-index:20; display:flex; align-items:center; justify-content:space-between; padding:0 16px 4px;">
+${indent}    <button type="button" data-ibs-prev aria-label="Box sebelumnya" style="width:32px; height:32px; border-radius:9999px; border:0; background:transparent; color:#3A3D45; display:flex; align-items:center; justify-content:center; cursor:pointer;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+${indent}    <div style="display:flex; align-items:center; justify-content:center; min-width:0; padding:0 8px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.18em; text-transform:uppercase; color:#1D1F24; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(brandLabel)}</span></div>
+${indent}    <button type="button" data-ibs-next aria-label="Box berikutnya" style="width:32px; height:32px; border-radius:9999px; border:0; background:transparent; color:rgba(58,61,69,0.45); display:flex; align-items:center; justify-content:center; cursor:pointer;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+${indent}  </div>\n`
+        : '';
+      const actionsRowHtml =
+        showRating || showCart || showFavorite
+          ? `${indent}  <div style="position:relative; z-index:20; display:flex; align-items:center; justify-content:space-between; padding:4px 24px 0;">
+${indent}    <div style="width:48px; display:flex; align-items:center; justify-content:flex-start;">${showRating ? `<div data-ibs-rating style="display:${first.rating ? 'inline-flex' : 'none'}; align-items:center; gap:4px; padding:4px 8px; border-radius:9999px; background:#FFFFFF; box-shadow:0 3px 10px rgba(15,23,42,0.08); border:1px solid rgba(0,0,0,0.04); font-size:10.5px; font-weight:700; color:#252830; font-variant-numeric:tabular-nums;"><span data-ibs-rating-val>${escapeHtml(first.rating || '')}</span><svg viewBox="0 0 24 24" width="10" height="10" fill="#252830" stroke="#252830" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>` : ''}</div>
+${indent}    <div style="display:flex; align-items:center; justify-content:center;">${showCart ? `<button type="button" data-ibs-bag data-fnb-add="${escapeHtml(block.id)}::${escapeHtml(first.id)}" aria-label="Tambah ke keranjang" style="position:relative; width:48px; height:48px; border-radius:9999px; border:0; background:#25272D; color:#FFFFFF; box-shadow:0 8px 20px rgba(20,22,28,0.28); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform 150ms ease;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></button>` : ''}</div>
+${indent}    <div style="width:48px; display:flex; align-items:center; justify-content:flex-end;">${showFavorite ? `<button type="button" data-ibs-fav aria-label="Simpan favorit" style="width:36px; height:36px; border-radius:9999px; border:1px solid rgba(0,0,0,0.04); background:#FFFFFF; color:#8B919C; box-shadow:0 3px 10px rgba(15,23,42,0.08); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 150ms ease;"><svg data-ibs-fav-icon viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></button>` : ''}</div>
+${indent}  </div>\n`
+          : '';
+      const adminCtaHtml = renderAdminCtaButtonHtml(
+        block,
+        first.title || 'Produk',
+        first.price || '',
+        `${indent}  `,
+        whatsappCenter,
+        c.boxShowcaseWhatsappNumber
+      );
+
+      const boxWAttr =
+        typeof c.boxShowcaseBoxWidth === 'number' && Number.isFinite(c.boxShowcaseBoxWidth)
+          ? ` data-ibs-box-w="${Math.max(100, Math.min(260, Math.round(c.boxShowcaseBoxWidth)))}"`
+          : '';
+      const boxHAttr =
+        typeof c.boxShowcaseBoxHeight === 'number' && Number.isFinite(c.boxShowcaseBoxHeight)
+          ? ` data-ibs-box-h="${Math.max(70, Math.min(240, Math.round(c.boxShowcaseBoxHeight)))}"`
+          : '';
+      const imgScaleVal = Math.max(40, Math.min(180, Math.round(c.boxShowcaseImageScale ?? 100)));
+
+      return `${indent}<div data-interactive-box-showcase="${escapeHtml(block.id)}" data-ibs-items="${safeItemsJson}" data-ibs-mode="${slideMode}" data-ibs-interval="${intervalMs}" data-ibs-color="${escapeHtml(boxColor)}"${boxWAttr}${boxHAttr} data-ibs-img-scale="${imgScaleVal}" style="${css}; position:relative; overflow:hidden; background:linear-gradient(180deg, ${bgColor} 0%, #FFFFFF 100%); border-radius:${radius}px; padding:14px 0 18px; display:flex; flex-direction:column; justify-content:space-between; user-select:none;">
+${headerHtml}${indent}  <div data-ibs-stage style="position:relative; width:100%; height:268px; overflow:hidden; touch-action:pan-y; perspective:1050px; perspective-origin:50% 62%; cursor:${items.length > 1 ? 'grab' : 'default'};"></div>
+${indent}  <div data-ibs-info style="padding:4px 24px 12px; text-align:center; min-height:78px; display:flex; flex-direction:column; align-items:center; justify-content:center; will-change:transform, opacity;">
+${indent}    <div data-ibs-cat style="font-size:9.5px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:#9AA0AA; margin-bottom:4px;">${escapeHtml(first.category || '')}</div>
+${indent}    <div data-ibs-title style="font-size:14.5px; font-weight:600; color:#23262D; line-height:1.35; max-width:210px;">${escapeHtml(first.title || 'Produk')}</div>
+${indent}    <div data-ibs-price style="font-size:18px; font-weight:800; color:#14161B; font-variant-numeric:tabular-nums; margin-top:6px;">${escapeHtml(first.price || '')}</div>
+${indent}  </div>
+${actionsRowHtml}${adminCtaHtml}${indent}</div>`;
+    }
+
+    case 'product_box_reveal': {
+      const c = block.content;
+      const items = c.boxRevealItems ?? [];
+      if (items.length === 0) return '';
+      const defaultBoxColor = sanitizeCssColor(c.boxRevealColor, '#5C3626');
+      const stageBg = sanitizeCssColor(c.boxRevealBgColor, '#EFEFEF');
+      const radius = Math.max(12, block.style.borderRadius || 24);
+      const showCart =
+        c.boxRevealShowCartButton !== false && c.boxRevealFloatingCartEnabled !== false;
+      const cartButtonBg = sanitizeCssColor(c.boxRevealFloatingCartBg, '#8E6D5B');
+      const showDots = c.boxRevealShowDots !== false;
+      const dotsPos = c.boxRevealDotsPosition || 'right';
+      const verticalSwipe = c.boxRevealVerticalSwipeEnabled !== false;
+      const slideMode = c.boxRevealSlideMode === 'auto' ? 'auto' : 'manual';
+      const autoMs = Math.round(
+        Math.max(2, Math.min(10, c.boxRevealAutoIntervalSec ?? 4)) * 1000
+      );
+      const zoomEnabled = c.boxRevealZoomEffectEnabled !== false;
+      const zoomStart = Math.max(50, Math.min(180, Math.round(c.boxRevealProductZoomStart ?? 118)));
+      const zoomEnd = Math.max(40, Math.min(160, Math.round(c.boxRevealProductZoomEnd ?? 100)));
+      const boxSize = Math.max(140, Math.min(300, Math.round(c.boxRevealBoxSize ?? 220)));
+      const borderThick = Math.max(1, Math.min(36, Math.round(c.boxRevealBorderThickness ?? 18)));
+      const globalLidLogo = (c.boxRevealLidLogoImage || '').trim();
+      const globalLidSize = Math.max(10, Math.min(100, Math.round(c.boxRevealLidLogoSize ?? 44)));
+      const globalLidPad = Math.max(0, Math.min(48, Math.round(c.boxRevealLidLogoPadding ?? 12)));
+      const globalLidFit: 'contain' | 'cover' =
+        c.boxRevealLidLogoFit === 'cover' ? 'cover' : 'contain';
+      const transEffect = c.boxRevealTransitionEffect || 'slide_vertical';
+      const transMs = Math.max(220, Math.min(1400, Math.round(c.boxRevealTransitionDurationMs ?? 520)));
+      const first = items[0];
+      const firstBoxColor = sanitizeCssColor(first.boxColorOverride, defaultBoxColor);
+      const firstLidLogo = (first.lidLogoImage || globalLidLogo).trim();
+      const firstLidSize = Math.max(
+        10,
+        Math.min(100, Math.round(first.lidLogoSize ?? globalLidSize))
+      );
+      const firstLidPad = Math.max(
+        0,
+        Math.min(48, Math.round(first.lidLogoPadding ?? globalLidPad))
+      );
+      const firstLidFit: 'contain' | 'cover' =
+        first.lidLogoFit === 'cover' || first.lidLogoFit === 'contain'
+          ? first.lidLogoFit
+          : globalLidFit;
+      const firstVariants = (first.variants || '')
+        .split(/[,|\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const parseHexRgb = (hex: string) => {
+        const clean = hex.trim().replace('#', '');
+        if (/^[0-9a-fA-F]{3}$/.test(clean)) {
+          return {
+            r: parseInt(clean[0] + clean[0], 16),
+            g: parseInt(clean[1] + clean[1], 16),
+            b: parseInt(clean[2] + clean[2], 16),
+          };
+        }
+        if (/^[0-9a-fA-F]{6}$/.test(clean)) {
+          return {
+            r: parseInt(clean.slice(0, 2), 16),
+            g: parseInt(clean.slice(2, 4), 16),
+            b: parseInt(clean.slice(4, 6), 16),
+          };
+        }
+        return { r: 92, g: 54, b: 38 };
+      };
+      const shadeHex = (rgb: { r: number; g: number; b: number }, delta: number) => {
+        const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+        return `rgb(${cl(rgb.r + delta)}, ${cl(rgb.g + delta)}, ${cl(rgb.b + delta)})`;
+      };
+      const rgb0 = parseHexRgb(firstBoxColor);
+      const grainCss =
+        'repeating-linear-gradient(2deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, rgba(0,0,0,0.09) 2px, rgba(0,0,0,0.09) 5px, rgba(255,255,255,0.02) 5px, rgba(255,255,255,0.02) 9px)';
+      const lidBg = `${grainCss}, linear-gradient(155deg, ${shadeHex(rgb0, 26)} 0%, ${shadeHex(
+        rgb0,
+        0
+      )} 48%, ${shadeHex(rgb0, -34)} 100%)`;
+      const frameBg = `${grainCss}, linear-gradient(145deg, ${shadeHex(rgb0, 26)} 0%, ${shadeHex(
+        rgb0,
+        -14
+      )} 55%, ${shadeHex(rgb0, -56)} 100%)`;
+      const cavityBg = `radial-gradient(circle at 50% 46%, ${shadeHex(rgb0, -34)} 0%, ${shadeHex(
+        rgb0,
+        -68
+      )} 62%, #110C0A 100%)`;
+
+      const serializedItems = items.map((it) => ({
+        id: it.id,
+        title: it.title || 'Produk Eksklusif',
+        price: it.price || '',
+        description: it.description || '',
+        variants: it.variants || '',
+        image: it.image || '',
+        lidLogoImage: (it.lidLogoImage || '').trim(),
+        lidLogoSize: typeof it.lidLogoSize === 'number' ? Math.max(10, Math.min(100, Math.round(it.lidLogoSize))) : undefined,
+        lidLogoPadding: typeof it.lidLogoPadding === 'number' ? Math.max(0, Math.min(48, Math.round(it.lidLogoPadding))) : undefined,
+        lidLogoFit: it.lidLogoFit === 'cover' || it.lidLogoFit === 'contain' ? it.lidLogoFit : undefined,
+        boxColor: sanitizeCssColor(it.boxColorOverride, defaultBoxColor),
+      }));
+      const safeItemsJson = escapeHtml(JSON.stringify(serializedItems));
+      const firstKey = `${escapeHtml(block.id)}::${escapeHtml(first.id)}`;
+
+      const isVertDots = dotsPos === 'right' || dotsPos === 'left';
+      const upSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>`;
+      const downSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+
+      const buildDotsStripHtml = (placement: 'right' | 'left' | 'top' | 'bottom') => {
+        if (!showDots || items.length <= 1) return '';
+        const isV = placement === 'right' || placement === 'left';
+        if (isV) {
+          return `${indent}  <div data-pbr-vstrip style="position:absolute; top:50%; transform:translateY(-50%); ${
+            placement === 'right' ? 'right:10px;' : 'left:10px;'
+          } z-index:20; display:flex; flex-direction:column; align-items:center; gap:8px; padding:8px 6px; border-radius:9999px; background:rgba(255,255,255,0.74); backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(35,29,26,0.09); border:1px solid rgba(92,54,38,0.1);" role="tablist" aria-label="Navigasi slide kotak vertikal">
+${indent}    <button type="button" data-pbr-prev aria-label="Kotak sebelumnya" style="width:20px; height:20px; border-radius:9999px; border:0; background:transparent; color:#5C4B42; display:flex; align-items:center; justify-content:center; cursor:pointer;">${upSvg}</button>
+${indent}    <div style="display:flex; flex-direction:column; align-items:center; gap:6px; padding:2px 0;">
+${items
+  .map((it, idx) => {
+    const col = sanitizeCssColor(it.boxColorOverride, defaultBoxColor);
+    const isSel = idx === 0;
+    return `${indent}      <button type="button" role="tab" aria-selected="${
+      isSel ? 'true' : 'false'
+    }" data-pbr-vdot="${idx}" data-pbr-vdot-orient="v" title="${escapeHtml(
+      it.title || `Kotak ${idx + 1}`
+    )}" style="width:${isSel ? 8 : 6}px; height:${
+      isSel ? 20 : 6
+    }px; border-radius:9999px; border:0; cursor:pointer; background:${
+      isSel ? col : 'rgba(92,75,66,0.32)'
+    }; transition:all 180ms ease;"></button>`;
+  })
+  .join('\n')}
+${indent}    </div>
+${indent}    <button type="button" data-pbr-next aria-label="Kotak berikutnya" style="width:20px; height:20px; border-radius:9999px; border:0; background:transparent; color:#5C4B42; display:flex; align-items:center; justify-content:center; cursor:pointer;">${downSvg}</button>
+${indent}  </div>\n`;
+        }
+        return `${indent}    <div data-pbr-vstrip style="display:flex; align-items:center; justify-content:center; gap:8px; ${
+          placement === 'top' ? 'margin-bottom:20px;' : 'margin-top:16px;'
+        }" role="tablist" aria-label="Navigasi slide kotak">
+${indent}      <button type="button" data-pbr-prev aria-label="Kotak sebelumnya" style="width:24px; height:24px; border-radius:9999px; border:0; background:rgba(255,255,255,0.82); color:#5C4B42; display:flex; align-items:center; justify-content:center; cursor:pointer;">${upSvg}</button>
+${indent}      <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:9999px; background:rgba(255,255,255,0.78); border:1px solid rgba(0,0,0,0.05);">
+${items
+  .map((it, idx) => {
+    const col = sanitizeCssColor(it.boxColorOverride, defaultBoxColor);
+    const isSel = idx === 0;
+    return `${indent}        <button type="button" role="tab" aria-selected="${
+      isSel ? 'true' : 'false'
+    }" data-pbr-vdot="${idx}" data-pbr-vdot-orient="h" title="${escapeHtml(
+      it.title || `Kotak ${idx + 1}`
+    )}" style="width:${
+      isSel ? 20 : 7
+    }px; height:7px; border-radius:9999px; border:0; cursor:pointer; background:${
+      isSel ? col : 'rgba(92,75,66,0.3)'
+    }; transition:all 180ms ease;"></button>`;
+  })
+  .join('\n')}
+${indent}      </div>
+${indent}      <button type="button" data-pbr-next aria-label="Kotak berikutnya" style="width:24px; height:24px; border-radius:9999px; border:0; background:rgba(255,255,255,0.82); color:#5C4B42; display:flex; align-items:center; justify-content:center; cursor:pointer;">${downSvg}</button>
+${indent}    </div>\n`;
+      };
+
+      const swatchesHtml =
+        items.length > 1
+          ? `${indent}    <div data-pbr-swatches style="margin-top:16px; display:flex; align-items:center; justify-content:center; gap:12px;" role="tablist" aria-label="Pilih kotak produk">\n${items
+              .map((it, idx) => {
+                const col = sanitizeCssColor(it.boxColorOverride, defaultBoxColor);
+                const isSel = idx === 0;
+                return `${indent}      <button type="button" role="tab" aria-selected="${
+                  isSel ? 'true' : 'false'
+                }" data-pbr-dot="${idx}" title="${escapeHtml(
+                  it.title || `Kotak ${idx + 1}`
+                )}" style="width:${isSel ? 26 : 20}px; height:${
+                  isSel ? 26 : 20
+                }px; border-radius:9999px; border:0; cursor:pointer; background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.26) 0%, transparent 55%), ${col}; box-shadow:${
+                  isSel
+                    ? '0 0 0 2px #EFEFEF, 0 0 0 3.5px #5C3626, 0 4px 10px rgba(0,0,0,0.18)'
+                    : '0 2px 6px rgba(0,0,0,0.16)'
+                }; transition:all 180ms ease;"></button>`;
+              })
+              .join('\n')}\n${indent}    </div>\n`
+          : '';
+
+      const variantsHtml = `${indent}    <div data-pbr-variants style="margin-top:14px; display:${
+        firstVariants.length ? 'flex' : 'none'
+      }; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; max-width:280px;">${firstVariants
+        .map(
+          (v, vi) =>
+            `<button type="button" data-pbr-variant-btn="${escapeHtml(
+              v
+            )}" style="padding:4px 10px; border-radius:9999px; font-size:11px; font-weight:600; cursor:pointer; background:${
+              vi === 0 ? firstBoxColor : 'rgba(255,255,255,0.86)'
+            }; color:${vi === 0 ? '#FFFFFF' : '#4A3D36'}; border:1px solid ${
+              vi === 0 ? firstBoxColor : 'rgba(92,54,38,0.16)'
+            };">${escapeHtml(v)}</button>`
+        )
+        .join('')}</div>\n`;
+
+      const bagSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`;
+      const cartBtnHtml = showCart
+        ? `<div data-pbr-cart-wrap style="display:flex; align-items:center; justify-content:center;">
+${indent}        <button type="button" data-pbr-add data-fnb-add="${firstKey}" data-add-display="inline-flex" style="display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:10px 20px; border-radius:9999px; border:0; background:${cartButtonBg}; color:#FFFFFF; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; box-shadow:0 6px 16px rgba(92,54,38,0.24); white-space:nowrap;">${bagSvg}<span>Keranjang</span></button>
+${indent}        <div data-pbr-stepper data-fnb-stepper="${firstKey}" style="display:none; align-items:center; gap:8px; padding:4px 8px; border-radius:9999px; background:#FFFFFF; border:1px solid rgba(92,54,38,0.14); box-shadow:0 4px 14px rgba(35,29,26,0.1);">
+${indent}          <button type="button" data-pbr-dec data-fnb-dec="${firstKey}" aria-label="Kurangi jumlah" style="width:28px; height:28px; border-radius:9999px; border:0; background:#EFEAE6; color:#3B2B23; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">-</button>
+${indent}          <span data-pbr-qty data-fnb-qty="${firstKey}" style="min-width:22px; text-align:center; font-size:12px; font-weight:800; color:#231D1A; font-variant-numeric:tabular-nums;">0</span>
+${indent}          <button type="button" data-pbr-inc data-fnb-inc="${firstKey}" aria-label="Tambah jumlah" style="width:28px; height:28px; border-radius:9999px; border:0; background:${firstBoxColor}; color:#FFFFFF; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">+</button>
+${indent}        </div>
+${indent}      </div>`
+        : '';
+
+      const adminCtaRaw = renderAdminCtaButtonHtml(
+        block,
+        first.title || 'Produk Eksklusif',
+        first.price || '',
+        `${indent}      `,
+        whatsappCenter,
+        c.boxRevealWhatsappNumber
+      );
+      const adminCtaInline = adminCtaRaw
+        ? adminCtaRaw.replace('padding-top:12px;', 'padding-top:0;')
+        : '';
+
+      const actionsBarHtml =
+        showCart || adminCtaInline
+          ? `${indent}    <div style="margin-top:20px; width:100%; max-width:280px; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px;">
+${cartBtnHtml ? `${indent}      ${cartBtnHtml}\n` : ''}${adminCtaInline}${indent}    </div>\n`
+          : '';
+
+      const imgHtml = first.image
+        ? `<img data-pbr-img src="${escapeHtml(first.image)}" alt="${escapeHtml(
+            first.title || 'Foto Produk'
+          )}" referrerpolicy="no-referrer" draggable="false" style="max-width:100%; max-height:100%; object-fit:contain; filter:drop-shadow(0 10px 14px rgba(0,0,0,0.58));" />`
+        : `<img data-pbr-img src="" alt="" referrerpolicy="no-referrer" draggable="false" style="display:none; max-width:100%; max-height:100%; object-fit:contain; filter:drop-shadow(0 10px 14px rgba(0,0,0,0.58));" />`;
+
+      const lidLogoHtml = `<div data-pbr-lid-logo-wrap style="pointer-events:none; position:absolute; inset:0; display:${
+        firstLidLogo ? 'flex' : 'none'
+      }; align-items:center; justify-content:center; overflow:hidden; border-radius:7px; padding:${firstLidPad}px; box-sizing:border-box;"><img data-pbr-lid-logo src="${escapeHtml(
+        firstLidLogo
+      )}" alt="Logo Tutup Kotak" referrerpolicy="no-referrer" draggable="false" style="display:${
+        firstLidLogo ? 'block' : 'none'
+      }; width:${firstLidSize}%; height:${firstLidSize}%; object-fit:${firstLidFit}; border-radius:${
+        firstLidPad === 0 && firstLidSize >= 98 ? '7px' : '2px'
+      }; filter:${
+        firstLidPad === 0 && firstLidFit === 'cover'
+          ? 'none'
+          : 'drop-shadow(0 2px 4px rgba(0,0,0,0.38))'
+      }; pointer-events:none;" /></div>`;
+
+      const emptyFallbackHtml = `<div data-pbr-empty style="display:${
+        first.image ? 'none' : 'flex'
+      }; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; padding:12px;"><span style="font-size:11px; font-weight:600; color:rgba(255,255,255,0.62);">Produk</span></div>`;
+
+      const initialProdScale = zoomEnabled ? (zoomStart / 100).toFixed(3) : (zoomEnd / 100).toFixed(3);
+      const stagePadCss =
+        isVertDots && showDots && items.length > 1
+          ? dotsPos === 'right'
+            ? '40px 44px 28px 20px'
+            : '40px 20px 28px 44px'
+          : '40px 20px 28px';
+
+      return `${indent}<div data-product-box-reveal="${escapeHtml(
+        block.id
+      )}" data-pbr-items="${safeItemsJson}" data-pbr-color="${escapeHtml(
+        defaultBoxColor
+      )}" data-pbr-zoom-on="${zoomEnabled ? '1' : '0'}" data-pbr-zoom-start="${zoomStart}" data-pbr-zoom-end="${zoomEnd}" data-pbr-trans="${escapeHtml(
+        transEffect
+      )}" data-pbr-trans-ms="${transMs}" data-pbr-vswipe="${
+        verticalSwipe ? '1' : '0'
+      }" data-pbr-slide-mode="${slideMode}" data-pbr-auto-ms="${autoMs}" data-pbr-global-lid-logo="${escapeHtml(
+        globalLidLogo
+      )}" data-pbr-global-lid-size="${globalLidSize}" data-pbr-global-lid-pad="${globalLidPad}" data-pbr-global-lid-fit="${globalLidFit}" data-pbr-state="closed" style="${css}; position:relative; overflow:hidden; background:${stageBg}; border-radius:${radius}px; color:#2A2421; user-select:none; touch-action:${
+        verticalSwipe && items.length > 1 ? 'pan-x' : 'auto'
+      };">
+${indent}  <div aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; background:radial-gradient(circle at 50% 34%, rgba(255,255,255,0.68) 0%, rgba(235,233,230,0.22) 58%, rgba(210,206,202,0.24) 100%);"></div>
+${indent}  <button type="button" data-pbr-replay title="Putar ulang animasi buka kotak" aria-label="Putar ulang animasi buka kotak" style="position:absolute; top:14px; right:14px; z-index:20; width:32px; height:32px; border-radius:9999px; border:0; background:rgba(255,255,255,0.8); color:#5C4B42; box-shadow:0 2px 8px rgba(0,0,0,0.08); display:flex; align-items:center; justify-content:center; cursor:pointer;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+${isVertDots ? buildDotsStripHtml(dotsPos) : ''}${indent}  <div style="position:relative; z-index:10; display:flex; flex-direction:column; align-items:center; padding:${stagePadCss};">
+${dotsPos === 'top' ? buildDotsStripHtml('top') : ''}${indent}    <div style="position:relative; width:min(${boxSize}px, 74vw); aspect-ratio:1/1; perspective:960px; display:flex; align-items:center; justify-content:center;">
+${indent}      <div data-pbr-box-wrap style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; will-change:transform, opacity;">
+${indent}        <div aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; border-radius:8px; transform:translate(10px, 18px) scale(0.96); background:rgba(24,16,12,0.28); filter:blur(20px);"></div>
+${indent}        <div data-pbr-frame style="position:relative; width:100%; height:100%; border-radius:7px; padding:${borderThick}px; box-sizing:border-box; background:${frameBg}; box-shadow:inset 0 2px 2px rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.45), 0 14px 28px -8px rgba(20,14,10,0.34);">
+${indent}          <div data-pbr-cavity style="position:relative; width:100%; height:100%; overflow:hidden; border-radius:${borderThick <= 4 ? 5 : 3}px; background:${cavityBg}; box-shadow:inset 0 10px 22px rgba(0,0,0,0.78), inset 0 2px 6px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center;">
+${indent}            <div aria-hidden="true" style="pointer-events:none; position:absolute; inset:8px; border-radius:2px; border:1px solid rgba(255,255,255,0.04); background:radial-gradient(circle at 50% 48%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.35) 100%);"></div>
+${indent}            <div data-pbr-product style="position:relative; z-index:10; width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:10px; opacity:0; transform:scale(${initialProdScale}); transition:opacity 540ms cubic-bezier(0.16, 1, 0.3, 1) 240ms, transform 720ms cubic-bezier(0.16, 1, 0.3, 1) 200ms; will-change:transform, opacity;">
+${indent}              ${imgHtml}
+${indent}              ${emptyFallbackHtml}
+${indent}            </div>
+${indent}          </div>
+${indent}        </div>
+${indent}        <div data-pbr-lid style="position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; border-radius:7px; background:${lidBg}; transform-origin:50% 0%; transform:rotateX(0deg) translateY(0px); opacity:1; cursor:pointer; box-shadow:inset 0 2px 3px rgba(255,255,255,0.22), inset 0 -4px 8px rgba(0,0,0,0.44), 0 12px 24px -6px rgba(20,14,10,0.34); transition:transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease 520ms; will-change:transform, opacity;">
+${indent}          <div style="pointer-events:none; position:absolute; inset:10px; border-radius:4px; border:1px solid rgba(255,255,255,0.09); box-shadow:inset 0 1px 4px rgba(0,0,0,0.22);"></div>
+${indent}          <div style="pointer-events:none; position:absolute; top:0; left:12px; right:12px; height:2px; background:rgba(0,0,0,0.28);"></div>
+${indent}          ${lidLogoHtml}
+${indent}        </div>
+${indent}      </div>
+${indent}    </div>
+${indent}    <div style="margin-top:24px; text-align:center; max-width:270px;">
+${indent}      <div data-pbr-title style="font-size:15.5px; font-weight:700; letter-spacing:-0.01em; color:#231D1A; line-height:1.35;">${escapeHtml(
+        first.title || 'Produk Eksklusif'
+      )}</div>
+${indent}      <div data-pbr-price style="margin-top:4px; font-size:14px; font-weight:700; color:#6B5A50; font-variant-numeric:tabular-nums;">${escapeHtml(
+        first.price || ''
+      )}</div>
+${indent}      <div data-pbr-desc style="margin-top:8px; font-size:11.5px; line-height:1.5; color:#5D514A; white-space:pre-line; display:${
+        first.description ? 'block' : 'none'
+      };">${escapeHtml(first.description || '')}</div>
+${indent}    </div>
+${variantsHtml}${swatchesHtml}${dotsPos === 'bottom' ? buildDotsStripHtml('bottom') : ''}${actionsBarHtml}${indent}  </div>
+${indent}</div>`;
     }
 
     case 'cart_button': {
@@ -3838,7 +4319,7 @@ ${indent}</div>`;
             : 'margin-top:auto; padding-top:12px; z-index:30; align-self:flex-start;';
         const cartHtml =
           !hideDefaultContent && c.cardEnableCart && !c.universalCartEnabled
-            ? `<div style="${cartPosCss}" onclick="event.stopPropagation()"><button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" aria-label="Tambah ke Keranjang" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:9999px; border:0; background:rgba(255,255,255,0.95); color:#0F172A; font-size:16px; font-weight:800; line-height:1; cursor:pointer; box-shadow:0 4px 10px rgba(15,23,42,0.18);">+</button><div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:5px; padding:2px 6px; border-radius:9999px; background:rgba(255,255,255,0.96); color:#0F172A; box-shadow:0 4px 12px rgba(15,23,42,0.18);"><button type="button" data-fnb-dec="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-weight:700; cursor:pointer;">-</button><span data-fnb-qty="${itemKey}" style="min-width:14px; text-align:center; font-size:11px; font-weight:700;">0</span><button type="button" data-fnb-inc="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#059669; color:#FFFFFF; font-weight:700; cursor:pointer;">+</button></div></div>`
+            ? `<div style="${cartPosCss}" onclick="event.preventDefault(); event.stopPropagation()"><button type="button" data-fnb-add="${itemKey}" data-add-display="inline-flex" aria-label="Tambah ke Keranjang" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:9999px; border:0; background:rgba(255,255,255,0.95); color:#0F172A; font-size:16px; font-weight:800; line-height:1; cursor:pointer; box-shadow:0 4px 10px rgba(15,23,42,0.18);">+</button><div data-fnb-stepper="${itemKey}" style="display:none; align-items:center; gap:5px; padding:2px 6px; border-radius:9999px; background:rgba(255,255,255,0.96); color:#0F172A; box-shadow:0 4px 12px rgba(15,23,42,0.18);"><button type="button" data-fnb-dec="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#F1F5F9; color:#0F172A; font-weight:700; cursor:pointer;">-</button><span data-fnb-qty="${itemKey}" style="min-width:14px; text-align:center; font-size:11px; font-weight:700;">0</span><button type="button" data-fnb-inc="${itemKey}" style="width:20px; height:20px; border-radius:9999px; border:0; background:#059669; color:#FFFFFF; font-weight:700; cursor:pointer;">+</button></div></div>`
             : '';
         const popMediaEl =
           !isMediaOff && c.cardImage
@@ -4223,6 +4704,83 @@ export function collectCatalogData(
           ctaLabel: 'Tambah',
           badge: it.badge,
           description: it.description || it.subtitle || '',
+          variants: it.variants || '',
+          productType: 'physical' as CatalogProductType,
+        })),
+      };
+    } else if (
+      blk.type === 'interactive_box_showcase' &&
+      blk.content.boxShowcaseShowCartButton !== false
+    ) {
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber:
+          blk.content.boxShowcaseWhatsappNumber ??
+          blk.content.catalogWhatsappNumber ??
+          '6281234567890',
+        storeName: blk.content.boxShowcaseStoreName ?? blk.content.catalogStoreName ?? '',
+        whatsappIntro:
+          blk.content.catalogWhatsappIntro ?? 'Halo, saya ingin memesan produk berikut:',
+        askCustomerInfo: blk.content.catalogAskCustomerInfo ?? true,
+        customerFields: resolveCatalogCustomerFields({
+          catalogProductType: 'physical',
+          catalogCustomerFields: blk.content.catalogCustomerFields,
+        }),
+        shippingEnabled: blk.content.catalogShippingEnabled ?? true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya produk tidak termasuk ongkos kirim (kurir).',
+        items: (blk.content.boxShowcaseItems ?? []).map((it) => ({
+          id: it.id,
+          title: it.title,
+          subtitle: it.category || '',
+          price: it.price,
+          unitSold: 0,
+          image: it.image || '',
+          url: '#',
+          ctaLabel: 'Tambah',
+          description: it.description || it.category || '',
+          variants: it.variants || '',
+          productType: 'physical' as CatalogProductType,
+        })),
+      };
+    } else if (
+      blk.type === 'product_box_reveal' &&
+      blk.content.boxRevealShowCartButton !== false &&
+      blk.content.boxRevealFloatingCartEnabled !== false
+    ) {
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber:
+          blk.content.boxRevealWhatsappNumber ??
+          blk.content.catalogWhatsappNumber ??
+          '6281234567890',
+        storeName: blk.content.boxRevealStoreName ?? blk.content.catalogStoreName ?? '',
+        whatsappIntro:
+          blk.content.catalogWhatsappIntro ?? 'Halo, saya ingin memesan produk berikut:',
+        askCustomerInfo: blk.content.catalogAskCustomerInfo ?? true,
+        customerFields: resolveCatalogCustomerFields({
+          catalogProductType: 'physical',
+          catalogCustomerFields: blk.content.catalogCustomerFields,
+        }),
+        shippingEnabled: blk.content.catalogShippingEnabled ?? true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya produk tidak termasuk ongkos kirim (kurir).',
+        items: (blk.content.boxRevealItems ?? []).map((it) => ({
+          id: it.id,
+          title: it.title,
+          subtitle: '',
+          price: it.price,
+          unitSold: 0,
+          image: it.image || '',
+          url: '#',
+          ctaLabel: 'Keranjang',
+          description: it.description || '',
           variants: it.variants || '',
           productType: 'physical' as CatalogProductType,
         })),

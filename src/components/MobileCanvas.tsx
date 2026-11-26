@@ -41,7 +41,9 @@ import {
   CategoryJumpItem,
   FnbHeroSlideItem,
   FnbMenuItem,
+  InteractiveBoxItem,
   PageTheme,
+  ProductBoxRevealItem,
   ViewportBreakpoint,
 } from '../types/builder';
 import { BLOCK_TYPE_NAMES, resolveNavbarMetrics } from '../data/presets';
@@ -77,6 +79,8 @@ import {
 } from './DynamicBlocks';
 import { CulinarySpinSlider } from './CulinarySpinSlider';
 import { FloatingProductStudio } from './FloatingProductStudio';
+import { InteractiveBoxShowcase } from './InteractiveBoxShowcase';
+import { ProductBoxReveal } from './ProductBoxReveal';
 import { FnbHeroSlider } from './FnbHeroSlider';
 import { MapsPlaceCard } from './MapsPlaceCard';
 import { PhotoCarousel } from './PhotoCarousel';
@@ -722,7 +726,9 @@ export function MobileCanvas({
             !s.locked &&
             block.type !== 'fnb_hero_slider' &&
             block.type !== 'culinary_spin_slider' &&
-            block.type !== 'floating_product_studio'
+            block.type !== 'floating_product_studio' &&
+            block.type !== 'interactive_box_showcase' &&
+            block.type !== 'product_box_reveal'
           }
           onDragStart={(e) => {
             if (
@@ -730,7 +736,9 @@ export function MobileCanvas({
               s.locked ||
               block.type === 'fnb_hero_slider' ||
               block.type === 'culinary_spin_slider' ||
-              block.type === 'floating_product_studio'
+              block.type === 'floating_product_studio' ||
+              block.type === 'interactive_box_showcase' ||
+              block.type === 'product_box_reveal'
             ) {
               e.preventDefault();
               return;
@@ -2810,6 +2818,45 @@ export function MobileCanvas({
           />
         )}
 
+        {block.type === 'interactive_box_showcase' && (
+          <InteractiveBoxShowcase
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            cartQtyMap={fnbPreviewQtys}
+            onAddCart={(item: InteractiveBoxItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onOpenCart={onOpenPreview}
+          />
+        )}
+
+        {block.type === 'product_box_reveal' && (
+          <ProductBoxReveal
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            cartQtyMap={fnbPreviewQtys}
+            onAddCart={(item: ProductBoxRevealItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onIncCart={(item: ProductBoxRevealItem) => {
+              setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
+            }}
+            onDecCart={(item: ProductBoxRevealItem) => {
+              setFnbPreviewQtys((prev) => ({
+                ...prev,
+                [item.id]: Math.max(0, (prev[item.id] ?? 0) - 1),
+              }));
+            }}
+            onOpenCart={onOpenPreview}
+          />
+        )}
+
         {block.type === 'cart_button' && (() => {
           const itemKey = `cb_${block.id}`;
           const qty = fnbPreviewQtys[itemKey] ?? 0;
@@ -3079,6 +3126,7 @@ export function MobileCanvas({
             </div>
           ) : undefined;
 
+          const scKey = `sc_${block.id}`;
           return (
             <ShowcaseCardView
               content={block.content}
@@ -3086,6 +3134,19 @@ export function MobileCanvas({
               borderRadius={s.borderRadius}
               blockStyle={s}
               isEditor
+              cartQty={fnbPreviewQtys[scKey] ?? 0}
+              onAddCart={() => {
+                setFnbPreviewQtys((prev) => ({ ...prev, [scKey]: (prev[scKey] ?? 0) + 1 }));
+              }}
+              onIncCart={() => {
+                setFnbPreviewQtys((prev) => ({ ...prev, [scKey]: (prev[scKey] ?? 0) + 1 }));
+              }}
+              onDecCart={() => {
+                setFnbPreviewQtys((prev) => ({
+                  ...prev,
+                  [scKey]: Math.max(0, (prev[scKey] ?? 0) - 1),
+                }));
+              }}
               enableSubLayerClick={interactionMode === 'pointer'}
               selectedSubLayerId={isSelected ? selectedSubLayerId : null}
               onSelectSubLayer={(subId) => onSelectSubLayer?.(block.id, subId)}
@@ -3734,7 +3795,26 @@ export function MobileCanvas({
                   b.type === 'floating_product_studio' &&
                   b.content.studioShowCartButton !== false
               );
+              const boxShowcaseBlocks = allFlatCanvasBlocks.filter(
+                (b) =>
+                  b.type === 'interactive_box_showcase' &&
+                  b.content.boxShowcaseShowCartButton !== false
+              );
+              const boxRevealBlocks = allFlatCanvasBlocks.filter(
+                (b) =>
+                  b.type === 'product_box_reveal' &&
+                  b.content.boxRevealShowCartButton !== false &&
+                  b.content.boxRevealFloatingCartEnabled !== false
+              );
               const cartBtnBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'cart_button');
+              const showcaseCartBlocks = allFlatCanvasBlocks.filter(
+                (b) =>
+                  b.type === 'showcase_card' &&
+                  (b.content.cardVariant === 'popout_product' ||
+                    b.content.cardVariant === 'store_card') &&
+                  Boolean(b.content.cardEnableCart) &&
+                  !b.content.universalCartEnabled
+              );
               const universalCartBlocks = allFlatCanvasBlocks.filter(
                 (b) => resolveUniversalCartMeta(b, theme) !== null
               );
@@ -3747,6 +3827,12 @@ export function MobileCanvas({
               );
               const studioSliderItems = studioSliderBlocks.flatMap(
                 (b) => b.content.floatingStudioItems ?? []
+              );
+              const boxShowcaseItems = boxShowcaseBlocks.flatMap(
+                (b) => b.content.boxShowcaseItems ?? []
+              );
+              const boxRevealItems = boxRevealBlocks.flatMap(
+                (b) => b.content.boxRevealItems ?? []
               );
               const fnbCount = fnbItems.reduce(
                 (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
@@ -3764,8 +3850,20 @@ export function MobileCanvas({
                 (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
                 0
               );
+              const boxShowcaseCount = boxShowcaseItems.reduce(
+                (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
+                0
+              );
+              const boxRevealCount = boxRevealItems.reduce(
+                (sum, it) => sum + (fnbPreviewQtys[it.id] ?? 0),
+                0
+              );
               const cbCount = cartBtnBlocks.reduce(
                 (sum, cb) => sum + (fnbPreviewQtys[`cb_${cb.id}`] ?? 0),
+                0
+              );
+              const scCount = showcaseCartBlocks.reduce(
+                (sum, sc) => sum + (fnbPreviewQtys[`sc_${sc.id}`] ?? 0),
                 0
               );
               const ucCount = universalCartBlocks.reduce(
@@ -3773,7 +3871,15 @@ export function MobileCanvas({
                 0
               );
               const activeCount =
-                fnbCount + fnbSliderCount + culinaryCount + studioCount + cbCount + ucCount;
+                fnbCount +
+                fnbSliderCount +
+                culinaryCount +
+                studioCount +
+                boxShowcaseCount +
+                boxRevealCount +
+                cbCount +
+                scCount +
+                ucCount;
               const pricedEntries: Array<{ price: string; qty: number }> = [
                 ...fnbItems.map((it) => ({ price: it.price, qty: fnbPreviewQtys[it.id] ?? 0 })),
                 ...fnbSliderItems.map((it) => ({
@@ -3788,9 +3894,21 @@ export function MobileCanvas({
                   price: it.price,
                   qty: fnbPreviewQtys[it.id] ?? 0,
                 })),
+                ...boxShowcaseItems.map((it) => ({
+                  price: it.price,
+                  qty: fnbPreviewQtys[it.id] ?? 0,
+                })),
+                ...boxRevealItems.map((it) => ({
+                  price: it.price,
+                  qty: fnbPreviewQtys[it.id] ?? 0,
+                })),
                 ...cartBtnBlocks.map((cb) => ({
                   price: cb.content.cartProductPrice || '0',
                   qty: fnbPreviewQtys[`cb_${cb.id}`] ?? 0,
+                })),
+                ...showcaseCartBlocks.map((sc) => ({
+                  price: sc.content.cardPrice || '0',
+                  qty: fnbPreviewQtys[`sc_${sc.id}`] ?? 0,
                 })),
                 ...universalCartBlocks.map((ub) => ({
                   price: String(resolveUniversalCartMeta(ub, theme)?.price ?? 0),
@@ -3811,7 +3929,10 @@ export function MobileCanvas({
                       fnbSliderBlocks.some((b) => b.id === selectedId) ||
                       culinarySliderBlocks.some((b) => b.id === selectedId) ||
                       studioSliderBlocks.some((b) => b.id === selectedId) ||
+                      boxShowcaseBlocks.some((b) => b.id === selectedId) ||
+                      boxRevealBlocks.some((b) => b.id === selectedId) ||
                       cartBtnBlocks.some((b) => b.id === selectedId) ||
+                      showcaseCartBlocks.some((b) => b.id === selectedId) ||
                       universalCartBlocks.some((b) => b.id === selectedId))
                 );
 
@@ -3825,8 +3946,14 @@ export function MobileCanvas({
                   ? sourceBlk.content.culinarySpinItems?.[0]?.price || '0'
                   : sourceBlk?.type === 'floating_product_studio'
                   ? sourceBlk.content.floatingStudioItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'interactive_box_showcase'
+                  ? sourceBlk.content.boxShowcaseItems?.[0]?.price || '0'
+                  : sourceBlk?.type === 'product_box_reveal'
+                  ? sourceBlk.content.boxRevealItems?.[0]?.price || '0'
                   : sourceBlk?.type === 'cart_button'
                   ? sourceBlk.content.cartProductPrice || '0'
+                  : sourceBlk?.type === 'showcase_card'
+                  ? sourceBlk.content.cardPrice || '0'
                   : sourceBlk
                   ? String(resolveUniversalCartMeta(sourceBlk, theme)?.price ?? 0)
                   : '0';

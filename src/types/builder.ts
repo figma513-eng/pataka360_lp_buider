@@ -24,11 +24,39 @@ export type BlockType =
   | 'fnb_hero_slider'
   | 'culinary_spin_slider'
   | 'floating_product_studio'
+  | 'interactive_box_showcase'
+  | 'product_box_reveal'
   | 'category_tabs'
   | 'menu_icon'
   | 'cart_button'
   | 'showcase_card'
   | 'back_button';
+
+export interface InteractiveBoxItem {
+  id: string;
+  title: string;
+  category?: string;
+  price: string;
+  rating?: string;
+  image?: string;
+  boxColorOverride?: string;
+  variants?: string;
+  description?: string;
+}
+
+export interface ProductBoxRevealItem {
+  id: string;
+  title: string;
+  price: string;
+  description?: string;
+  image?: string;
+  lidLogoImage?: string;
+  lidLogoSize?: number;
+  lidLogoPadding?: number;
+  lidLogoFit?: 'contain' | 'cover';
+  boxColorOverride?: string;
+  variants?: string;
+}
 
 export type ShowcaseCardVariant =
   | 'quote_banner'
@@ -1121,6 +1149,61 @@ export interface BlockContent {
   studioFloatingCartLabel?: string;
   studioFloatingCartBg?: string;
   studioFloatingCartPosition?: FloatingCartPosition;
+  // Interactive Box Showcase (3D Shoebox Lid-Open Swipe Showcase)
+  boxShowcaseItems?: InteractiveBoxItem[];
+  boxShowcaseSlideMode?: 'manual' | 'auto';
+  boxShowcaseAutoIntervalSec?: number;
+  boxShowcaseColor?: string;
+  boxShowcaseBrandLabel?: string;
+  boxShowcaseBgColor?: string;
+  boxShowcaseShowRating?: boolean;
+  boxShowcaseShowFavorite?: boolean;
+  boxShowcaseShowCartButton?: boolean;
+  boxShowcaseBoxWidth?: number;
+  boxShowcaseBoxHeight?: number;
+  boxShowcaseImageScale?: number;
+  boxShowcaseWhatsappNumber?: string;
+  boxShowcaseStoreName?: string;
+  boxShowcaseFloatingCartEnabled?: boolean;
+  boxShowcaseFloatingCartLabel?: string;
+  boxShowcaseFloatingCartBg?: string;
+  boxShowcaseFloatingCartPosition?: FloatingCartPosition;
+  // Animated Product Box Reveal (One-Shot Wooden Box Closed -> Open Product Reveal)
+  boxRevealItems?: ProductBoxRevealItem[];
+  boxRevealColor?: string;
+  boxRevealBgColor?: string;
+  boxRevealShowCartButton?: boolean;
+  boxRevealShowDots?: boolean;
+  boxRevealDotsPosition?: 'right' | 'left' | 'bottom' | 'top';
+  boxRevealVerticalSwipeEnabled?: boolean;
+  boxRevealSlideMode?: 'manual' | 'auto';
+  boxRevealAutoIntervalSec?: number;
+  boxRevealZoomEffectEnabled?: boolean;
+  boxRevealProductZoomStart?: number;
+  boxRevealProductZoomEnd?: number;
+  boxRevealBoxSize?: number;
+  boxRevealBorderThickness?: number;
+  boxRevealLidLogoImage?: string;
+  boxRevealLidLogoSize?: number;
+  boxRevealLidLogoPadding?: number;
+  boxRevealLidLogoFit?: 'contain' | 'cover';
+  boxRevealTransitionEffect?: 'slide_vertical' | 'fade' | 'zoom_out' | 'flip';
+  boxRevealTransitionDurationMs?: number;
+  boxRevealWhatsappNumber?: string;
+  boxRevealStoreName?: string;
+  boxRevealFloatingCartEnabled?: boolean;
+  boxRevealFloatingCartLabel?: string;
+  boxRevealFloatingCartBg?: string;
+  boxRevealFloatingCartPosition?: FloatingCartPosition;
+  // Opsi Tombol Tanya Admin (Interactive Box Showcase, Animated Product Box Reveal, Slide Produk F&B, Slide Kuliner Putar)
+  adminCtaEnabled?: boolean;
+  adminCtaLabel?: string;
+  adminCtaActionType?: 'whatsapp' | 'page' | 'sheet';
+  adminCtaWhatsappNumber?: string;
+  adminCtaWhatsappMessage?: string;
+  adminCtaTargetPageId?: string;
+  adminCtaBgColor?: string;
+  adminCtaTextColor?: string;
   // Independent Sub-Layer Storage (per-element styling, visibility, deletion & lock without mutating siblings/parent)
   hiddenSubLayers?: string[];
   deletedSubLayers?: string[];

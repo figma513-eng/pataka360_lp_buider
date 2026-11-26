@@ -60,6 +60,8 @@ export const UNIVERSAL_CART_EXCLUDED_TYPES = new Set([
   'fnb_hero_slider',
   'culinary_spin_slider',
   'floating_product_studio',
+  'interactive_box_showcase',
+  'product_box_reveal',
   'cart_button',
   'divider',
   'back_button',
@@ -217,6 +219,7 @@ export function resolveProjectFloatingCartConfig(
 ): ResolvedProjectFloatingCart | null {
   let fnbMatch: BuilderBlock | null = null;
   let cartBtnMatch: BuilderBlock | null = null;
+  let showcaseCartMatch: BuilderBlock | null = null;
   let universalCartMatch: BuilderBlock | null = null;
   let totalSources = 0;
 
@@ -232,13 +235,28 @@ export function resolveProjectFloatingCartConfig(
           b.content.culinaryFloatingCartEnabled !== false) ||
         (b.type === 'floating_product_studio' &&
           b.content.studioShowCartButton !== false &&
-          b.content.studioFloatingCartEnabled !== false)
+          b.content.studioFloatingCartEnabled !== false) ||
+        (b.type === 'interactive_box_showcase' &&
+          b.content.boxShowcaseShowCartButton !== false &&
+          b.content.boxShowcaseFloatingCartEnabled !== false) ||
+        (b.type === 'product_box_reveal' &&
+          b.content.boxRevealShowCartButton !== false &&
+          b.content.boxRevealFloatingCartEnabled !== false)
       ) {
         totalSources += 1;
         if (!fnbMatch) fnbMatch = b;
       } else if (b.type === 'cart_button' && b.content.cartFloatingEnabled !== false) {
         totalSources += 1;
         if (!cartBtnMatch) cartBtnMatch = b;
+      } else if (
+        b.type === 'showcase_card' &&
+        (b.content.cardVariant === 'popout_product' ||
+          b.content.cardVariant === 'store_card') &&
+        Boolean(b.content.cardEnableCart) &&
+        !b.content.universalCartEnabled
+      ) {
+        totalSources += 1;
+        if (!showcaseCartMatch) showcaseCartMatch = b;
       } else if (
         b.content.universalCartEnabled &&
         b.content.universalCartFloatingEnabled !== false &&
@@ -264,6 +282,8 @@ export function resolveProjectFloatingCartConfig(
     const isHeroSlider = blk.type === 'fnb_hero_slider';
     const isCulinary = blk.type === 'culinary_spin_slider';
     const isStudio = blk.type === 'floating_product_studio';
+    const isBoxShowcase = blk.type === 'interactive_box_showcase';
+    const isBoxReveal = blk.type === 'product_box_reveal';
     return {
       label: isHeroSlider
         ? c.fnbSliderFloatingCartLabel || 'Lihat Keranjang'
@@ -271,6 +291,10 @@ export function resolveProjectFloatingCartConfig(
         ? c.culinaryFloatingCartLabel || 'Lihat Pesanan'
         : isStudio
         ? c.studioFloatingCartLabel || 'Lihat Keranjang'
+        : isBoxShowcase
+        ? c.boxShowcaseFloatingCartLabel || 'Lihat Keranjang'
+        : isBoxReveal
+        ? c.boxRevealFloatingCartLabel || 'Lihat Keranjang'
         : c.fnbFloatingCartLabel || 'Lanjut',
       bg: isHeroSlider
         ? c.fnbSliderFloatingCartBg || c.fnbSliderItems?.[0]?.gradientFrom || '#EA580C'
@@ -278,6 +302,10 @@ export function resolveProjectFloatingCartConfig(
         ? c.culinaryFloatingCartBg || c.culinaryAccentColor || '#F43F5E'
         : isStudio
         ? c.studioFloatingCartBg || c.floatingStudioItems?.[0]?.gradientTo || '#111827'
+        : isBoxShowcase
+        ? c.boxShowcaseFloatingCartBg || c.boxShowcaseColor || '#25272D'
+        : isBoxReveal
+        ? c.boxRevealFloatingCartBg || c.boxRevealColor || '#5C3626'
         : c.fnbFloatingCartBg || c.fnbAccentColor || '#EA580C',
       position: isHeroSlider
         ? c.fnbSliderFloatingCartPosition || 'bottom-floating'
@@ -285,6 +313,10 @@ export function resolveProjectFloatingCartConfig(
         ? c.culinaryFloatingCartPosition || 'bottom-floating'
         : isStudio
         ? c.studioFloatingCartPosition || 'bottom-floating'
+        : isBoxShowcase
+        ? c.boxShowcaseFloatingCartPosition || 'bottom-floating'
+        : isBoxReveal
+        ? c.boxRevealFloatingCartPosition || 'bottom-floating'
         : c.fnbFloatingCartPosition || 'bottom-floating',
       offsetY: typeof c.fnbFloatingCartOffsetY === 'number' ? c.fnbFloatingCartOffsetY : 16,
       sourceBlockId: blk.id,
@@ -296,6 +328,10 @@ export function resolveProjectFloatingCartConfig(
           ? 'Slide Kuliner Putar'
           : isStudio
           ? 'Studio Produk Melayang'
+          : isBoxShowcase
+          ? 'Interactive Box Showcase'
+          : isBoxReveal
+          ? 'Animated Product Box Reveal'
           : 'Katalog FnB'),
       sourceType: 'fnb_catalog',
       totalSources,
@@ -311,6 +347,20 @@ export function resolveProjectFloatingCartConfig(
       offsetY: 16,
       sourceBlockId: blk.id,
       sourceBlockLabel: blk.label || 'Tombol Keranjang',
+      sourceType: 'cart_button',
+      totalSources,
+    };
+  }
+  if (showcaseCartMatch) {
+    const blk = showcaseCartMatch as BuilderBlock;
+    const c = blk.content;
+    return {
+      label: 'Lihat Keranjang',
+      bg: c.cardAccentColor || c.cardGradientTo || '#059669',
+      position: 'bottom-floating',
+      offsetY: 16,
+      sourceBlockId: blk.id,
+      sourceBlockLabel: c.cardTitle?.trim() || blk.label || 'Koleksi Produk 3D Pop-Out',
       sourceType: 'cart_button',
       totalSources,
     };
@@ -350,4 +400,27 @@ export function findFirstFloatingCartConfig(
     position: resolved.position,
     offsetY: resolved.offsetY,
   };
+}
+
+export function buildAdminCtaWhatsappUrl(
+  phoneRaw: string | undefined,
+  messageTemplate?: string,
+  productTitle?: string,
+  productPrice?: string
+): string {
+  const digits = (phoneRaw || '6281234567890').replace(/\D/g, '');
+  const cleanPhone = digits.startsWith('0')
+    ? `62${digits.slice(1)}`
+    : digits || '6281234567890';
+  const prodLabel = [productTitle?.trim(), productPrice?.trim()].filter(Boolean).join(' - ');
+  const rawTpl =
+    (messageTemplate || '').trim() ||
+    (prodLabel
+      ? `Halo Admin, saya ingin bertanya tentang ${prodLabel}.`
+      : 'Halo Admin, saya ingin bertanya tentang produk ini.');
+  const finalMsg = rawTpl
+    .replace(/\{produk\}/gi, prodLabel || productTitle?.trim() || 'produk ini')
+    .replace(/\{nama\}/gi, productTitle?.trim() || 'produk ini')
+    .replace(/\{harga\}/gi, productPrice?.trim() || '');
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMsg)}`;
 }
