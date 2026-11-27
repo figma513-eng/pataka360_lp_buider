@@ -501,6 +501,13 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         ...btn,
         label: String(btn.label || 'Kategori').slice(0, 60),
         targetTitle: btn.targetTitle ? String(btn.targetTitle).slice(0, 120) : undefined,
+        isShowAll: typeof btn.isShowAll === 'boolean' ? btn.isShowAll : undefined,
+        targetIds: Array.isArray(btn.targetIds)
+          ? btn.targetIds
+              .map((id) => String(id || '').trim().slice(0, 140))
+              .filter(Boolean)
+              .slice(0, 120)
+          : undefined,
       }))
     : c.categoryButtons;
 
@@ -1240,6 +1247,10 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         ? sanitizeOptionalCssColor(c.adminCtaTextColor) ?? '#FFFFFF'
         : c.adminCtaTextColor,
       categoryButtons: sanitizedCategoryButtons,
+      categoryActionMode:
+        c.categoryActionMode === 'filter' || c.categoryActionMode === 'jump'
+          ? c.categoryActionMode
+          : c.categoryActionMode,
       categoryScrollMode:
         c.categoryScrollMode === 'horizontal' ||
         c.categoryScrollMode === 'vertical' ||

@@ -57,6 +57,14 @@ import { sanitizeExternalUrl } from '../../utils/urlHelpers';
 import { DevicePreset } from '../../utils/devicePresets';
 import { trackAnalyticsEvent } from '../../utils/analyticsClient';
 import {
+  extractBlockSearchText,
+  filterBlockCardsForCategory,
+  findCategoryJumpTarget,
+  isShowAllCategoryButton,
+  isStructuralCategoryBlock,
+  matchesCategoryFilter,
+} from '../../utils/categoryMatching';
+import {
   extractWhatsappPhoneFromUrl,
   isWhatsappHref,
   resolveProjectAds,
@@ -238,6 +246,10 @@ export function PreviewModal({
   const [pageHistory, setPageHistory] = useState<string[]>(['home']);
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [activeCategoryTabs, setActiveCategoryTabs] = useState<Record<string, string>>({});
+  const [activePreviewCategoryFilter, setActivePreviewCategoryFilter] = useState<{
+    tabBlockId: string;
+    button: CategoryJumpItem;
+  } | null>(null);
   const [detailVariant, setDetailVariant] = useState('');
   const [detailQty, setDetailQty] = useState(1);
   const [detailPhotoIdx, setDetailPhotoIdx] = useState(0);
@@ -428,9 +440,35 @@ export function PreviewModal({
     scrollBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const jumpToMatchingHeading = (targetTitle: string) => {
-    const query = targetTitle.trim().toLowerCase();
-    if (!query || !scrollBodyRef.current) return;
+  useEffect(() => {
+    setActivePreviewCategoryFilter(null);
+  }, [subPage, currentCustomPageId]);
+
+  const pulsePreviewHighlight = (targetEl: HTMLElement) => {
+    targetEl.style.outline = `2px solid ${project.theme.accentColor}`;
+    targetEl.style.outlineOffset = '3px';
+    window.setTimeout(() => {
+      targetEl.style.outline = '';
+      targetEl.style.outlineOffset = '';
+    }, 1200);
+  };
+
+  const jumpToCategoryTarget = (catItem: CategoryJumpItem) => {
+    if (!scrollBodyRef.current) return;
+    const activePageBlocks = currentCustomPage ? currentCustomPage.blocks : project.blocks;
+    const hit = findCategoryJumpTarget(activePageBlocks, catItem);
+    if (hit) {
+      const byId = scrollBodyRef.current.querySelector<HTMLElement>(
+        `[data-block-id="${CSS.escape(hit.blockId)}"]`
+      );
+      if (byId) {
+        byId.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        pulsePreviewHighlight(byId);
+        return;
+      }
+    }
+    const query = (catItem.targetTitle || catItem.label || '').trim().toLowerCase();
+    if (!query) return;
     const candidates = Array.from(
       scrollBodyRef.current.querySelectorAll<HTMLElement>('[data-jump-title]')
     );
@@ -443,8 +481,36 @@ export function PreviewModal({
         (el.getAttribute('data-jump-title') || '').trim().toLowerCase().includes(query)
       );
     if (partial) {
-      partial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      partial.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pulsePreviewHighlight(partial);
     }
+  };
+
+  const handlePreviewCategorySelect = (
+    tabBlock: BuilderBlock,
+    catItem: CategoryJumpItem
+  ) => {
+    const actionMode = tabBlock.content.categoryActionMode ?? 'filter';
+    if (actionMode === 'filter') {
+      const isSameActive =
+        activePreviewCategoryFilter?.tabBlockId === tabBlock.id &&
+        activePreviewCategoryFilter.button.id === catItem.id;
+      if (isShowAllCategoryButton(catItem)) {
+        setActivePreviewCategoryFilter(null);
+        setActiveCategoryTabs((prev) => ({ ...prev, [tabBlock.id]: catItem.id }));
+      } else if (isSameActive) {
+        setActivePreviewCategoryFilter(null);
+        setActiveCategoryTabs((prev) => ({ ...prev, [tabBlock.id]: '' }));
+      } else {
+        setActivePreviewCategoryFilter({ tabBlockId: tabBlock.id, button: catItem });
+        setActiveCategoryTabs((prev) => ({ ...prev, [tabBlock.id]: catItem.id }));
+      }
+      return;
+    }
+
+    setActivePreviewCategoryFilter(null);
+    setActiveCategoryTabs((prev) => ({ ...prev, [tabBlock.id]: catItem.id }));
+    jumpToCategoryTarget(catItem);
   };
 
   const jumpToBlockId = (targetBlockId: string) => {
@@ -676,10 +742,17 @@ export function PreviewModal({
     const action = rawAction && rawAction.type !== 'none' ? rawAction : null;
     const uc = resolveUniversalCartMeta(block, project.theme);
 
+    const jumpSearchText = extractBlockSearchText(block) || undefined;
+
     let node: React.ReactNode = rendered;
     if (React.isValidElement(rendered)) {
+      const existingJump = (rendered.props as Record<string, unknown>)['data-jump-title'];
       node = React.cloneElement(rendered as React.ReactElement<Record<string, unknown>>, {
         'data-block-id': block.id,
+        'data-jump-title':
+          typeof existingJump === 'string' && existingJump.trim()
+            ? existingJump
+            : jumpSearchText,
       });
     }
 
@@ -704,6 +777,7 @@ export function PreviewModal({
       <div
         key={block.id}
         data-block-id={block.id}
+        data-jump-title={jumpSearchText}
         onClick={action ? (e) => triggerUniversalBlockAction(block, e) : undefined}
         className={action ? 'cursor-pointer' : undefined}
       >
@@ -2714,10 +2788,13 @@ export function PreviewModal({
           <CategoryJumpTabs
             block={block}
             theme={project.theme}
-            activeId={activeCategoryTabs[block.id] ?? null}
+            activeId={
+              Object.prototype.hasOwnProperty.call(activeCategoryTabs, block.id)
+                ? activeCategoryTabs[block.id]
+                : null
+            }
             onSelect={(catItem: CategoryJumpItem) => {
-              setActiveCategoryTabs((prev) => ({ ...prev, [block.id]: catItem.id }));
-              jumpToMatchingHeading(catItem.targetTitle || catItem.label);
+              handlePreviewCategorySelect(block, catItem);
             }}
           />
         </div>
@@ -3664,18 +3741,62 @@ export function PreviewModal({
                   </span>
                 </div>
               )}
-              {(currentCustomPage ? currentCustomPage.blocks : project.blocks).map((block) => (
-                <div
-                  key={block.id}
-                  className={
-                    block.style.fullBleed
-                      ? 'w-full px-0'
-                      : containerPaddingClass
-                  }
-                >
-                  {renderPreviewBlock(block, 0)}
-                </div>
-              ))}
+              {(() => {
+                const rawPageBlocks = currentCustomPage
+                  ? currentCustomPage.blocks
+                  : project.blocks;
+                const activeFilterBtn = activePreviewCategoryFilter?.button ?? null;
+                const visiblePageBlocks = activeFilterBtn
+                  ? rawPageBlocks
+                      .filter((blk) => matchesCategoryFilter(blk, activeFilterBtn))
+                      .map((blk) => filterBlockCardsForCategory(blk, activeFilterBtn))
+                  : rawPageBlocks;
+                const matchedContentCount = activeFilterBtn
+                  ? visiblePageBlocks.filter((blk) => !isStructuralCategoryBlock(blk)).length
+                  : 1;
+
+                return (
+                  <>
+                    {visiblePageBlocks.map((block) => (
+                      <div
+                        key={block.id}
+                        className={
+                          block.style.fullBleed ? 'w-full px-0' : containerPaddingClass
+                        }
+                      >
+                        {renderPreviewBlock(block, 0)}
+                      </div>
+                    ))}
+                    {activeFilterBtn && matchedContentCount === 0 && (
+                      <div className={containerPaddingClass}>
+                        <div className="my-3 p-5 rounded-2xl border border-black/10 bg-white/90 text-center shadow-xs space-y-2.5">
+                          <p className="text-xs font-semibold text-slate-600">
+                            Belum ada card atau produk pada kategori{' '}
+                            <span className="font-bold text-slate-900">
+                              &ldquo;{activeFilterBtn.label}&rdquo;
+                            </span>
+                            .
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tabId = activePreviewCategoryFilter?.tabBlockId;
+                              setActivePreviewCategoryFilter(null);
+                              if (tabId) {
+                                setActiveCategoryTabs((prev) => ({ ...prev, [tabId]: '' }));
+                              }
+                            }}
+                            style={{ backgroundColor: project.theme.accentColor }}
+                            className="inline-flex items-center justify-center px-4 py-1.5 rounded-full text-white text-xs font-bold shadow-xs cursor-pointer"
+                          >
+                            Tampilkan Semua
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 

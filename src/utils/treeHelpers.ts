@@ -216,6 +216,7 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
       categoryButtons: block.content.categoryButtons?.map((it) => ({
         ...it,
         id: createId('catbtn'),
+        targetIds: it.targetIds ? [...it.targetIds] : undefined,
       })),
       formFields: block.content.formFields?.map((it) => ({
         ...it,

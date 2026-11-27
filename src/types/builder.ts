@@ -179,6 +179,8 @@ export interface CategoryJumpItem {
   id: string;
   label: string;
   targetTitle?: string;
+  isShowAll?: boolean;
+  targetIds?: string[];
 }
 
 export type CarouselAspectRatio =
@@ -968,6 +970,7 @@ export interface BlockContent {
   categoryButtonPaddingY?: number;
   categoryGap?: number;
   categoryActiveId?: string;
+  categoryActionMode?: 'filter' | 'jump';
   categoryFilterFnbOnClick?: boolean;
   // Kolom / Row Dinamis (1-20 Kolom, Grid Baris x Kolom / Slide Horizontal 3 Titik / Slide Vertikal)
   rowLayoutMode?: 'grid' | 'horizontal' | 'vertical';

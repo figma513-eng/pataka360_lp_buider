@@ -134,6 +134,10 @@ import {
   restoreSubLayer,
 } from '../../utils/layerStructure';
 import {
+  isShowAllCategoryButton,
+  listCategoryTargets,
+} from '../../utils/categoryMatching';
+import {
   AccordionSection,
   ItemOverflowMenu,
   MediaSourceInput,
@@ -10797,6 +10801,7 @@ export function BlockContentTab({
     // --- CATEGORY TABS ---
     if (selectedBlock.type === 'category_tabs') {
       const buttons = c.categoryButtons ?? [];
+      const actionMode = c.categoryActionMode ?? 'filter';
       const updateBtn = (id: string, patch: Partial<CategoryJumpItem>) =>
         updateContent({
           categoryButtons: buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)),
@@ -10806,6 +10811,16 @@ export function BlockContentTab({
         const id = editingItemKey.slice('cat:'.length);
         const btn = buttons.find((b) => b.id === id);
         if (!btn) return { badge: buttons.length, body: renderDrillHeader('Tombol Kategori') };
+        const selectedTargetIds = Array.isArray(btn.targetIds) ? btn.targetIds : [];
+        const selectedTargetSet = new Set(selectedTargetIds);
+        const targetGroups = listCategoryTargets(allBlocks, selectedBlock.id);
+        const toggleTargetKey = (key: string) => {
+          const next = selectedTargetSet.has(key)
+            ? selectedTargetIds.filter((k) => k !== key)
+            : [...selectedTargetIds, key];
+          updateBtn(btn.id, { targetIds: next });
+        };
+
         return {
           badge: buttons.length,
           body: (
@@ -10822,32 +10837,194 @@ export function BlockContentTab({
                 <input
                   type="text"
                   value={btn.label}
-                  onChange={(e) =>
-                    updateBtn(btn.id, { label: e.target.value, targetTitle: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const prevSync = !btn.targetTitle || btn.targetTitle === btn.label;
+                    updateBtn(btn.id, {
+                      label: e.target.value,
+                      ...(prevSync ? { targetTitle: e.target.value } : {}),
+                    });
+                  }}
                   className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
-                  {label('konten.items.label.tujuanGulirKategori', 'Judul Tujuan Gulir')}
-                </label>
-                <input
-                  type="text"
-                  value={btn.targetTitle ?? btn.label}
-                  onChange={(e) => updateBtn(btn.id, { targetTitle: e.target.value })}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
+                <div>
+                  <div className="text-[11px] font-semibold text-[#17243D]">
+                    Tombol &ldquo;Tampilkan Semua&rdquo;
+                  </div>
+                  <div className="text-[10px] text-[#64748B]">
+                    Menampilkan kembali semua card &amp; blok di halaman
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={Boolean(btn.isShowAll)}
+                  onChange={(v) => updateBtn(btn.id, { isShowAll: v })}
+                  label="Jadikan tombol ini untuk menampilkan semua card dan blok"
                 />
               </div>
+
+              {!btn.isShowAll && (
+                <>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                      {label(
+                        'konten.items.label.tujuanGulirKategori',
+                        'Kata Kunci Pencocokan Otomatis'
+                      )}
+                    </label>
+                    <input
+                      type="text"
+                      value={btn.targetTitle ?? btn.label}
+                      onChange={(e) => updateBtn(btn.id, { targetTitle: e.target.value })}
+                      placeholder="Contoh: Serabi, Minuman, Kambing..."
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white"
+                    />
+                    <p className="mt-1 text-[10px] text-[#64748B] leading-snug">
+                      Cocok otomatis dengan judul card/blok bila tidak ada item yang dicentang di
+                      bawah.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#DCE5EF] bg-[#F8FBFE] p-2 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#17243D]">
+                        Card &amp; Blok Terhubung ({selectedTargetIds.length})
+                      </span>
+                      {selectedTargetIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => updateBtn(btn.id, { targetIds: [] })}
+                          className="text-[10.5px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Bersihkan
+                        </button>
+                      )}
+                    </div>
+
+                    {targetGroups.length === 0 ? (
+                      <div className="text-[11px] text-[#64748B] py-1">
+                        Belum ada blok atau card lain di halaman ini.
+                      </div>
+                    ) : (
+                      <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+                        {targetGroups.map((grp) => {
+                          const blockChecked = selectedTargetSet.has(grp.blockId);
+                          const typeLabel = BLOCK_TYPE_NAMES[grp.type] || grp.type;
+                          return (
+                            <div
+                              key={grp.blockId}
+                              style={{ marginLeft: grp.depth > 0 ? `${Math.min(grp.depth, 3) * 10}px` : undefined }}
+                              className="rounded-lg border border-[#E2E8F0] bg-white p-1.5 space-y-1"
+                            >
+                              <label className="flex items-start gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={blockChecked}
+                                  onChange={() => toggleTargetKey(grp.blockId)}
+                                  className="mt-0.5 accent-[#00C98A] rounded cursor-pointer"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[11.5px] font-bold text-[#17243D] truncate">
+                                    {grp.label}
+                                  </div>
+                                  <div className="text-[10px] text-[#64748B] truncate">
+                                    {typeLabel}
+                                    {grp.cards.length > 0
+                                      ? ` · ${grp.cards.length} card di dalam blok`
+                                      : ''}
+                                  </div>
+                                </div>
+                              </label>
+
+                              {grp.cards.length > 0 && (
+                                <div className="pl-5 pt-1 border-t border-slate-100 space-y-1">
+                                  {grp.cards.map((card) => {
+                                    const cardChecked =
+                                      blockChecked || selectedTargetSet.has(card.key);
+                                    return (
+                                      <label
+                                        key={card.key}
+                                        className={`flex items-center gap-1.5 text-[11px] ${
+                                          blockChecked
+                                            ? 'opacity-60 cursor-not-allowed'
+                                            : 'cursor-pointer'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={cardChecked}
+                                          disabled={blockChecked}
+                                          onChange={() => toggleTargetKey(card.key)}
+                                          className="accent-[#00C98A] rounded cursor-pointer"
+                                        />
+                                        <span className="truncate font-medium text-[#1E293B]">
+                                          {card.title}
+                                        </span>
+                                        {card.subtitle && (
+                                          <span className="text-[10px] text-[#8FA4BF] truncate ml-auto">
+                                            {card.subtitle}
+                                          </span>
+                                        )}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           ),
         };
       }
 
+      const hasShowAllBtn = buttons.some((b) => isShowAllCategoryButton(b));
+
       return {
         badge: buttons.length,
         body: (
           <div className="space-y-2">
+            <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-1.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Mode Aksi Tombol Kategori
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => updateContent({ categoryActionMode: 'filter' })}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                    actionMode === 'filter'
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#475569] border-[#DCE5EF] hover:border-[#94A3B8]'
+                  }`}
+                >
+                  Filter Card &amp; Blok
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateContent({ categoryActionMode: 'jump' })}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                    actionMode === 'jump'
+                      ? 'bg-[#17243D] text-white border-[#17243D]'
+                      : 'bg-white text-[#475569] border-[#DCE5EF] hover:border-[#94A3B8]'
+                  }`}
+                >
+                  Lompat ke Card/Blok
+                </button>
+              </div>
+              <p className="text-[10px] text-[#64748B] leading-snug">
+                {actionMode === 'filter'
+                  ? 'Saat kategori diklik, hanya card & blok yang terhubung atau cocok yang ditampilkan.'
+                  : 'Saat kategori diklik, layar menggulir otomatis dan menyorot card/blok tujuan.'}
+              </p>
+            </div>
+
             {(c.categoryScrollMode ?? 'vertical') !== 'wrap' && (
               <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
                 <span className="text-[11px] font-semibold text-[#17243D]">
@@ -10860,54 +11037,85 @@ export function BlockContentTab({
                 />
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                const nextBtn: CategoryJumpItem = {
-                  id: createId('catbtn'),
-                  label: `Kategori ${buttons.length + 1}`,
-                  targetTitle: `Kategori ${buttons.length + 1}`,
-                };
-                updateContent({ categoryButtons: [...buttons, nextBtn] });
-                setEditingItemKey(`cat:${nextBtn.id}`);
-              }}
-              className="w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
-              <span>Tambah Kategori</span>
-            </button>
 
-            {buttons.map((btn, idx) => (
-              <div
-                key={btn.id}
-                onClick={() => setEditingItemKey(`cat:${btn.id}`)}
-                className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer"
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const nextBtn: CategoryJumpItem = {
+                    id: createId('catbtn'),
+                    label: `Kategori ${buttons.length + 1}`,
+                    targetTitle: `Kategori ${buttons.length + 1}`,
+                  };
+                  updateContent({ categoryButtons: [...buttons, nextBtn] });
+                  setEditingItemKey(`cat:${nextBtn.id}`);
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-[#17243D] text-white text-xs font-semibold cursor-pointer"
               >
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-[#17243D] truncate">{btn.label}</div>
-                  <div className="text-[10.5px] text-[#8FA4BF] truncate">
-                    Tujuan: {btn.targetTitle ?? btn.label}
-                  </div>
-                </div>
-                <ItemOverflowMenu
-                  onEdit={() => setEditingItemKey(`cat:${btn.id}`)}
-                  onMoveUp={() =>
-                    updateContent({ categoryButtons: moveArrayItem(buttons, idx, -1) })
-                  }
-                  onMoveDown={() =>
-                    updateContent({ categoryButtons: moveArrayItem(buttons, idx, 1) })
-                  }
-                  disableMoveUp={idx === 0}
-                  disableMoveDown={idx === buttons.length - 1}
-                  onDelete={() => {
+                <Plus className="w-3.5 h-3.5 text-[#00C98A]" />
+                <span>Tambah Kategori</span>
+              </button>
+              {actionMode === 'filter' && !hasShowAllBtn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allBtn: CategoryJumpItem = {
+                      id: createId('catbtn'),
+                      label: 'Semua',
+                      targetTitle: 'Semua',
+                      isShowAll: true,
+                    };
                     updateContent({
-                      categoryButtons: removeSelectedItemByIdOrIndex(buttons, btn.id, idx),
+                      categoryButtons: [allBtn, ...buttons],
+                      categoryActiveId: allBtn.id,
                     });
-                    if (editingItemKey === `cat:${btn.id}`) setEditingItemKey(null);
                   }}
-                />
-              </div>
-            ))}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0] text-[11px] font-bold hover:bg-[#D1FAE5] cursor-pointer whitespace-nowrap"
+                >
+                  + Semua
+                </button>
+              )}
+            </div>
+
+            {buttons.map((btn, idx) => {
+              const targetCount = Array.isArray(btn.targetIds) ? btn.targetIds.length : 0;
+              const isAll = isShowAllCategoryButton(btn);
+              return (
+                <div
+                  key={btn.id}
+                  onClick={() => setEditingItemKey(`cat:${btn.id}`)}
+                  className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-[#17243D] truncate">{btn.label}</div>
+                    <div className="text-[10.5px] text-[#8FA4BF] truncate">
+                      {isAll
+                        ? 'Tampilkan Semua Card & Blok'
+                        : targetCount > 0
+                        ? `${targetCount} card/blok terhubung`
+                        : `Otomatis: ${btn.targetTitle || btn.label}`}
+                    </div>
+                  </div>
+                  <ItemOverflowMenu
+                    onEdit={() => setEditingItemKey(`cat:${btn.id}`)}
+                    onMoveUp={() =>
+                      updateContent({ categoryButtons: moveArrayItem(buttons, idx, -1) })
+                    }
+                    onMoveDown={() =>
+                      updateContent({ categoryButtons: moveArrayItem(buttons, idx, 1) })
+                    }
+                    disableMoveUp={idx === 0}
+                    disableMoveDown={idx === buttons.length - 1}
+                    onDelete={() => {
+                      updateContent({
+                        categoryButtons: removeSelectedItemByIdOrIndex(buttons, btn.id, idx),
+                      });
+                      if (editingItemKey === `cat:${btn.id}`) setEditingItemKey(null);
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
         ),
       };

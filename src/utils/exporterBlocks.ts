@@ -52,6 +52,11 @@ import { buildSectionDInlineCss } from './blockStyleCss.ts';
 import { resolveFieldRequiredRule } from './formValidation.ts';
 import { blockHasPopoutVisual, resolveImagePopoutMetrics } from './popoutHelpers.ts';
 import { buildWaMeUrl, resolveWhatsappDispatch } from './whatsappBuilder.ts';
+import {
+  extractBlockSearchText,
+  isShowAllCategoryButton,
+  isStructuralCategoryBlock,
+} from './categoryMatching.ts';
 
 export { extractYouTubeId };
 
@@ -276,10 +281,20 @@ export function renderBlockHtml(
     whatsappCenter
   );
   if (!rawHtml) return rawHtml;
-  const html = rawHtml.replace(
-    /^(\s*<[a-zA-Z0-9-]+)/,
-    `$1 data-block-id="${escapeHtml(block.id)}"`
-  );
+  const catSearchText = extractBlockSearchText(block);
+  const structuralFlag = isStructuralCategoryBlock(block) ? '1' : '0';
+  const rootOpenTagMatch = rawHtml.match(/^\s*<[^>]+>/);
+  const hasRootJumpTitle = rootOpenTagMatch ? /\bdata-jump-title=/.test(rootOpenTagMatch[0]) : false;
+  const extraCatAttrs = [
+    `data-block-id="${escapeHtml(block.id)}"`,
+    `data-block-type="${escapeHtml(block.type)}"`,
+    `data-cat-structural="${structuralFlag}"`,
+    catSearchText ? `data-cat-search="${escapeHtml(catSearchText)}"` : '',
+    !hasRootJumpTitle && catSearchText ? `data-jump-title="${escapeHtml(catSearchText)}"` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const html = rawHtml.replace(/^(\s*<[a-zA-Z0-9-]+)/, `$1 ${extraCatAttrs}`);
 
   const rawAction =
     block.type === 'menu_icon' || block.type === 'back_button'
@@ -1548,6 +1563,12 @@ ${indent}</div>`;
             : '';
           const quickBtnAttr = `data-quick-add="${escapeHtml(block.id)}::${escapeHtml(item.id)}"`;
 
+          const catCardAttrs = `data-cat-card-id="${escapeHtml(
+            item.id
+          )}" data-cat-card-text="${escapeHtml(
+            `${item.title || ''} ${item.subtitle || ''} ${item.description || ''}`.toLowerCase()
+          )}"`;
+
           if (layout === 'grid') {
             const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
             const mediaAndText = `
@@ -1563,9 +1584,9 @@ ${indent}    </div>`;
               ? `\n${indent}    <div style="padding: 0 10px 10px 10px; margin-top: auto;"><button type="button" ${quickBtnAttr} style="width:100%; padding:${cartBtn.gridPadding}; border:0; border-radius:${cartBtn.gridRadius}px; background:${theme.accentColor}; color:#FFFFFF; font-size:${cartBtn.gridFontSize}px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:${cartBtn.gridGap}px; cursor:pointer;">${gridCartSvg}<span>+ Keranjang</span></button></div>`
               : '';
             if (detailEnabled) {
-              return `${indent}  <div ${detailAttr} style="${cardBase} position: relative; display: flex; flex-direction: column; cursor: pointer;">${mediaAndText}${quickBtnHtml}\n${indent}  </div>`;
+              return `${indent}  <div ${catCardAttrs} ${detailAttr} style="${cardBase} position: relative; display: flex; flex-direction: column; cursor: pointer;">${mediaAndText}${quickBtnHtml}\n${indent}  </div>`;
             }
-            return `${indent}  <div style="${cardBase} position: relative; display: flex; flex-direction: column;">\n${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="display: flex; flex-direction: column; flex: 1; text-decoration: none; color: inherit;">${mediaAndText}\n${indent}    </a>${quickBtnHtml}\n${indent}  </div>`;
+            return `${indent}  <div ${catCardAttrs} style="${cardBase} position: relative; display: flex; flex-direction: column;">\n${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="display: flex; flex-direction: column; flex: 1; text-decoration: none; color: inherit;">${mediaAndText}\n${indent}    </a>${quickBtnHtml}\n${indent}  </div>`;
           }
 
           if (layout === 'large-image') {
@@ -1589,9 +1610,9 @@ ${indent}        <span style="font-size: 12px; font-weight: 600; color: ${theme.
 ${indent}        ${quickBtnHtml}
 ${indent}      </div>
 ${indent}    </div>`;
-              return `${indent}  <div ${detailAttr} style="${cardBase} position: relative; display: block; cursor: pointer;">${inner}\n${indent}  </div>`;
+              return `${indent}  <div ${catCardAttrs} ${detailAttr} style="${cardBase} position: relative; display: block; cursor: pointer;">${inner}\n${indent}  </div>`;
             }
-            return `${indent}  <div style="${cardBase} position: relative; display: block;">
+            return `${indent}  <div ${catCardAttrs} style="${cardBase} position: relative; display: block;">
 ${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="display: block; position: relative; text-decoration: none; color: inherit;">
 ${indent}      ${badgeHtml ? `<div style="position:absolute; top:10px; left:10px; z-index:2;">${badgeHtml}</div>` : ''}
 ${indent}      <div style="width: 100%; ${ratioCss('16/10')} overflow: hidden; background: #F1F5F9;">
@@ -1619,7 +1640,7 @@ ${indent}  </div>`;
             const primaryBtn = detailEnabled
               ? `<button type="button" ${detailAttr} style="flex:1; padding: 8px 12px; border:0; border-radius: 8px; background: ${theme.accentColor}; color: #FFFFFF; font-size: 12px; font-weight: 600; cursor: pointer;">${escapeHtml(item.ctaLabel)}</button>`
               : `<a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex:1; display: block; text-align: center; padding: 8px 12px; border-radius: 8px; background: ${theme.accentColor}; color: #FFFFFF; font-size: 12px; font-weight: 600; text-decoration: none;">${escapeHtml(item.ctaLabel)}</a>`;
-            return `${indent}  <div style="${cardBase} padding: 12px;">
+            return `${indent}  <div ${catCardAttrs} style="${cardBase} padding: 12px;">
 ${indent}    <div ${detailAttr} style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; ${detailEnabled ? 'cursor: pointer;' : ''}">
 ${indent}      <div style="${thumbSize} border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #F1F5F9;">
 ${indent}        <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" style="width: 100%; height: 100%; object-fit: ${fit}; display: block;${catalogZoomCss}" />
@@ -1656,9 +1677,9 @@ ${indent}    </div>`;
             : '';
           const safeItemUrl = escapeHtml(sanitizeExternalUrl(item.url, '#'));
           if (detailEnabled) {
-            return `${indent}  <div ${detailAttr} style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer;">${defaultBody}${defaultQuickBtn}\n${indent}  </div>`;
+            return `${indent}  <div ${catCardAttrs} ${detailAttr} style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer;">${defaultBody}${defaultQuickBtn}\n${indent}  </div>`;
           }
-          return `${indent}  <div style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px;">\n${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;">${defaultBody}\n${indent}    </a>${defaultQuickBtn}\n${indent}  </div>`;
+          return `${indent}  <div ${catCardAttrs} style="${cardBase} display: flex; align-items: center; gap: 12px; padding: 10px 12px;">\n${indent}    <a href="${safeItemUrl}" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;">${defaultBody}\n${indent}    </a>${defaultQuickBtn}\n${indent}  </div>`;
         })
         .join('\n');
 
@@ -3006,6 +3027,7 @@ ${indent}</div>`;
       const c = block.content;
       const items = c.categoryButtons ?? [];
       if (items.length === 0) return '';
+      const actionMode = c.categoryActionMode === 'jump' ? 'jump' : 'filter';
       const mode = c.categoryScrollMode ?? 'vertical';
       const maxHeight = Math.max(48, Math.min(320, c.categoryMaxHeight ?? 112));
       const activeBg = c.categoryActiveBg || theme.accentColor || '#EA580C';
@@ -3038,10 +3060,14 @@ ${indent}</div>`;
         .map((btn) => {
           const isOn = btn.id === activeId;
           const targetHeading = (btn.targetTitle || btn.label || '').trim().toLowerCase();
-          return `${indent}  <button type="button" data-cat-jump-btn="${escapeHtml(
+          const showAllFlag = isShowAllCategoryButton(btn) ? '1' : '0';
+          const targetIdsJson = JSON.stringify(Array.isArray(btn.targetIds) ? btn.targetIds : []);
+          return `${indent}    <button type="button" data-cat-jump-btn="${escapeHtml(
             btn.id
-          )}" data-cat-target="${escapeHtml(
+          )}" data-cat-label="${escapeHtml(btn.label)}" data-cat-target="${escapeHtml(
             targetHeading
+          )}" data-cat-show-all="${showAllFlag}" data-cat-target-ids="${escapeHtml(
+            targetIdsJson
           )}" style="flex-shrink:0; white-space:nowrap; border:0; cursor:pointer; font-family:inherit; border-radius:${radius}px; font-size:${fontSize}px; font-weight:${weight}; padding:${padY}px ${padX}px; background-color:${
             isOn ? activeBg : inactiveBg
           }; color:${isOn ? activeText : inactiveText}; transition:all 0.18s ease;">${escapeHtml(
@@ -3051,7 +3077,8 @@ ${indent}</div>`;
         .join('\n');
 
       const catScrollbarClass = c.categoryShowScrollbar ? '' : ' class="lynk-hide-scrollbar"';
-      return `${indent}<div${catScrollbarClass} data-cat-jump data-cat-active-bg="${escapeHtml(
+      return `${indent}<div data-cat-tabs-root>
+${indent}  <div${catScrollbarClass} data-cat-jump data-cat-mode="${actionMode}" data-cat-active-bg="${escapeHtml(
         activeBg
       )}" data-cat-active-text="${escapeHtml(activeText)}" data-cat-inactive-bg="${escapeHtml(
         inactiveBg
@@ -3059,6 +3086,15 @@ ${indent}</div>`;
         inactiveText
       )}" style="${css}; display:flex; align-items:center; justify-content:${justify}; gap:${gap}px; ${modeCss}">
 ${btnsHtml}
+${indent}  </div>
+${indent}  <div data-cat-empty style="display:none; margin:10px auto 12px auto; width:${block.style.widthPercent}%; padding:18px 16px; border-radius:16px; border:1px solid rgba(15,23,42,0.1); background:rgba(255,255,255,0.92); color:#475569; text-align:center; box-sizing:border-box;">
+${indent}    <div data-cat-empty-text style="font-size:12px; font-weight:600; margin-bottom:10px;">Belum ada card atau produk pada kategori ini.</div>
+${indent}    <button type="button" data-cat-reset-btn style="border:0; border-radius:9999px; padding:7px 16px; background:${escapeHtml(
+        activeBg
+      )}; color:${escapeHtml(
+        activeText
+      )}; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;">Tampilkan Semua</button>
+${indent}  </div>
 ${indent}</div>`;
     }
 

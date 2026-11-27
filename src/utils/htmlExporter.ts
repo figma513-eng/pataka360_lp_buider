@@ -1782,37 +1782,364 @@ ${bodyBlocks}
         });
       });
 
-      // Tombol Kategori -> Lompat & Highlight Judul yang Sama
+      // Tombol Kategori -> Filter Card & Blok atau Lompat & Sorot (Universal Semua Blok & Card)
       document.querySelectorAll('[data-cat-jump]').forEach(function (groupEl) {
+        var actionMode = groupEl.getAttribute('data-cat-mode') || 'filter';
         var aBg = groupEl.getAttribute('data-cat-active-bg') || '#EA580C';
         var aTxt = groupEl.getAttribute('data-cat-active-text') || '#FFFFFF';
         var iBg = groupEl.getAttribute('data-cat-inactive-bg') || '#F1F5F9';
         var iTxt = groupEl.getAttribute('data-cat-inactive-text') || '#334155';
         var btns = groupEl.querySelectorAll('[data-cat-jump-btn]');
+        var rootWrap = groupEl.closest('[data-cat-tabs-root]') || groupEl.parentElement;
+        var emptyBox = rootWrap ? rootWrap.querySelector('[data-cat-empty]') : null;
+        var emptyText = rootWrap ? rootWrap.querySelector('[data-cat-empty-text]') : null;
+        var resetBtn = rootWrap ? rootWrap.querySelector('[data-cat-reset-btn]') : null;
+        var activeFilterBtnId = '';
+
+        function getPageScope() {
+          return (
+            groupEl.closest('[data-custom-page]') ||
+            document.getElementById('lynk-main-view') ||
+            document.body
+          );
+        }
+
+        function getToggleTarget(blockEl) {
+          var parent = blockEl.parentElement;
+          if (parent && parent.hasAttribute('data-universal-layer')) {
+            return parent;
+          }
+          return blockEl;
+        }
+
+        function getPageBlocks(scope) {
+          var all = Array.prototype.slice.call(scope.querySelectorAll('[data-block-id]'));
+          return all.filter(function (el) {
+            if (el.closest('[data-bottom-sheet]')) return false;
+            var anc = el.parentElement ? el.parentElement.closest('[data-block-id]') : null;
+            return !anc;
+          });
+        }
+
+        function setButtonStyles(selectedId) {
+          btns.forEach(function (b) {
+            var on = selectedId !== '' && (b.getAttribute('data-cat-jump-btn') || '') === selectedId;
+            b.style.backgroundColor = on ? aBg : iBg;
+            b.style.color = on ? aTxt : iTxt;
+          });
+        }
+
+        function pulseHighlight(el) {
+          if (!el) return;
+          var prevOutline = el.style.outline;
+          var prevOffset = el.style.outlineOffset;
+          el.style.outline = '2px solid ' + aBg;
+          el.style.outlineOffset = '3px';
+          window.setTimeout(function () {
+            el.style.outline = prevOutline;
+            el.style.outlineOffset = prevOffset;
+          }, 1200);
+        }
+
+        function parseTargetIds(btn) {
+          var raw = btn.getAttribute('data-cat-target-ids') || '[]';
+          try {
+            var parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function restoreCardsInBlock(blockEl) {
+          blockEl.querySelectorAll('[data-cat-card-id], [data-fnb-item]').forEach(function (card) {
+            card.style.display = '';
+          });
+          blockEl.querySelectorAll('[data-fnb-section]').forEach(function (sec) {
+            sec.style.display = '';
+          });
+          blockEl.querySelectorAll('[data-block-id]').forEach(function (child) {
+            if (!child.closest('[data-bottom-sheet]')) {
+              getToggleTarget(child).style.display = '';
+            }
+          });
+        }
+
+        function applyCardFilterInBlock(blockEl, blockId, explicitIds, rawTarget) {
+          restoreCardsInBlock(blockEl);
+          if (explicitIds.indexOf(blockId) !== -1) return;
+
+          var prefix = blockId + '::';
+          var linkedCards = {};
+          var linkedCardCount = 0;
+          for (var i = 0; i < explicitIds.length; i++) {
+            if (explicitIds[i].indexOf(prefix) === 0) {
+              linkedCards[explicitIds[i].slice(prefix.length)] = true;
+              linkedCardCount++;
+            }
+          }
+
+          var catCards = Array.prototype.slice.call(blockEl.querySelectorAll('[data-cat-card-id]'));
+          if (catCards.length > 0) {
+            if (linkedCardCount > 0) {
+              catCards.forEach(function (card) {
+                var cid = card.getAttribute('data-cat-card-id') || '';
+                card.style.display = linkedCards[cid] ? '' : 'none';
+              });
+            } else if (explicitIds.length === 0 && rawTarget) {
+              var matchedCat = catCards.filter(function (card) {
+                return (card.getAttribute('data-cat-card-text') || '').indexOf(rawTarget) !== -1;
+              });
+              if (matchedCat.length > 0 && matchedCat.length < catCards.length) {
+                catCards.forEach(function (card) {
+                  var hit = (card.getAttribute('data-cat-card-text') || '').indexOf(rawTarget) !== -1;
+                  card.style.display = hit ? '' : 'none';
+                });
+              }
+            }
+          }
+
+          var fnbCards = Array.prototype.slice.call(blockEl.querySelectorAll('[data-fnb-item]'));
+          if (fnbCards.length > 0) {
+            var filteredFnb = false;
+            if (linkedCardCount > 0) {
+              filteredFnb = true;
+              fnbCards.forEach(function (card) {
+                var fid = card.getAttribute('data-fnb-item') || '';
+                card.style.display = linkedCards[fid] ? '' : 'none';
+              });
+            } else if (explicitIds.length === 0 && rawTarget) {
+              var matchedFnb = fnbCards.filter(function (card) {
+                var h = (card.getAttribute('data-fnb-haystack') || '') + ' ' + (card.getAttribute('data-fnb-cat-val') || '');
+                return h.toLowerCase().indexOf(rawTarget) !== -1;
+              });
+              if (matchedFnb.length > 0 && matchedFnb.length < fnbCards.length) {
+                filteredFnb = true;
+                fnbCards.forEach(function (card) {
+                  var h = (card.getAttribute('data-fnb-haystack') || '') + ' ' + (card.getAttribute('data-fnb-cat-val') || '');
+                  card.style.display = h.toLowerCase().indexOf(rawTarget) !== -1 ? '' : 'none';
+                });
+              }
+            }
+            if (filteredFnb) {
+              blockEl.querySelectorAll('[data-fnb-section]').forEach(function (sec) {
+                var anyVisible = false;
+                sec.querySelectorAll('[data-fnb-item]').forEach(function (c) {
+                  if (c.style.display !== 'none') anyVisible = true;
+                });
+                sec.style.display = anyVisible ? '' : 'none';
+              });
+            }
+          }
+
+          var childBlocks = Array.prototype.slice.call(
+            blockEl.querySelectorAll('[data-block-id]')
+          ).filter(function (ch) {
+            if (ch.closest('[data-bottom-sheet]')) return false;
+            var p = ch.parentElement ? ch.parentElement.closest('[data-block-id]') : null;
+            return p === blockEl;
+          });
+          if (childBlocks.length > 0) {
+            if (explicitIds.length > 0) {
+              var explicitBlockSet = {};
+              for (var eIdx = 0; eIdx < explicitIds.length; eIdx++) {
+                var eSep = explicitIds[eIdx].indexOf('::');
+                var eBid = eSep === -1 ? explicitIds[eIdx] : explicitIds[eIdx].slice(0, eSep);
+                if (eBid) explicitBlockSet[eBid] = true;
+              }
+              var anyChildHit = childBlocks.some(function (ch) {
+                var cid = ch.getAttribute('data-block-id') || '';
+                return Boolean(explicitBlockSet[cid]);
+              });
+              if (anyChildHit) {
+                childBlocks.forEach(function (ch) {
+                  var cid = ch.getAttribute('data-block-id') || '';
+                  var isHit = Boolean(explicitBlockSet[cid]);
+                  getToggleTarget(ch).style.display = isHit ? '' : 'none';
+                  if (isHit) applyCardFilterInBlock(ch, cid, explicitIds, rawTarget);
+                });
+              }
+            } else if (rawTarget) {
+              var matchedChildren = childBlocks.filter(function (ch) {
+                var h = (
+                  (ch.getAttribute('data-cat-search') || '') +
+                  ' ' +
+                  (ch.getAttribute('data-jump-title') || '')
+                ).toLowerCase();
+                return h.indexOf(rawTarget) !== -1;
+              });
+              if (matchedChildren.length > 0 && matchedChildren.length < childBlocks.length) {
+                childBlocks.forEach(function (ch) {
+                  var h = (
+                    (ch.getAttribute('data-cat-search') || '') +
+                    ' ' +
+                    (ch.getAttribute('data-jump-title') || '')
+                  ).toLowerCase();
+                  var isHit = h.indexOf(rawTarget) !== -1;
+                  getToggleTarget(ch).style.display = isHit ? '' : 'none';
+                  if (isHit) {
+                    applyCardFilterInBlock(ch, ch.getAttribute('data-block-id') || '', explicitIds, rawTarget);
+                  }
+                });
+              }
+            }
+          }
+        }
+
+        function resetFilter(selectedId) {
+          activeFilterBtnId = '';
+          setButtonStyles(selectedId || '');
+          var scope = getPageScope();
+          var pageBlocks = getPageBlocks(scope);
+          pageBlocks.forEach(function (blk) {
+            getToggleTarget(blk).style.display = '';
+            restoreCardsInBlock(blk);
+          });
+          if (emptyBox) emptyBox.style.display = 'none';
+        }
+
+        if (resetBtn) {
+          resetBtn.addEventListener('click', function () {
+            resetFilter('');
+          });
+        }
+
         btns.forEach(function (btn) {
           btn.addEventListener('click', function () {
-            var activeId = btn.getAttribute('data-cat-jump-btn') || '';
-            btns.forEach(function (b) {
-              var on = (b.getAttribute('data-cat-jump-btn') || '') === activeId;
-              b.style.backgroundColor = on ? aBg : iBg;
-              b.style.color = on ? aTxt : iTxt;
-            });
-            var rawTarget = (btn.getAttribute('data-cat-target') || btn.textContent || '').trim().toLowerCase();
-            if (!rawTarget) return;
-            var candidates = document.querySelectorAll('[data-jump-title]');
-            var match = null;
-            for (var i = 0; i < candidates.length; i++) {
-              var key = (candidates[i].getAttribute('data-jump-title') || '').trim().toLowerCase();
-              if (key === rawTarget) { match = candidates[i]; break; }
+            var btnId = btn.getAttribute('data-cat-jump-btn') || '';
+            var labelTxt = btn.getAttribute('data-cat-label') || btn.textContent || '';
+            var rawTarget = (btn.getAttribute('data-cat-target') || labelTxt || '').trim().toLowerCase();
+            var isShowAll = btn.getAttribute('data-cat-show-all') === '1';
+            var explicitIds = parseTargetIds(btn);
+            var scope = getPageScope();
+
+            if (actionMode === 'filter') {
+              if (isShowAll) {
+                resetFilter(btnId);
+                return;
+              }
+              if (activeFilterBtnId === btnId) {
+                resetFilter('');
+                return;
+              }
+
+              activeFilterBtnId = btnId;
+              setButtonStyles(btnId);
+
+              var targetBlockSet = {};
+              for (var t = 0; t < explicitIds.length; t++) {
+                var sep = explicitIds[t].indexOf('::');
+                var bId = sep === -1 ? explicitIds[t] : explicitIds[t].slice(0, sep);
+                if (bId) targetBlockSet[bId] = true;
+              }
+
+              var pageBlocks = getPageBlocks(scope);
+              var matchedContentCount = 0;
+
+              pageBlocks.forEach(function (blk) {
+                var isStructural = blk.getAttribute('data-cat-structural') === '1';
+                if (isStructural) {
+                  getToggleTarget(blk).style.display = '';
+                  return;
+                }
+
+                var blkId = blk.getAttribute('data-block-id') || '';
+                var matched = false;
+
+                if (explicitIds.length > 0) {
+                  if (targetBlockSet[blkId]) {
+                    matched = true;
+                  } else {
+                    var desc = blk.querySelectorAll('[data-block-id]');
+                    for (var d = 0; d < desc.length; d++) {
+                      var did = desc[d].getAttribute('data-block-id') || '';
+                      if (targetBlockSet[did]) {
+                        matched = true;
+                        break;
+                      }
+                    }
+                  }
+                } else if (!rawTarget) {
+                  matched = true;
+                } else {
+                  var haystack = (
+                    (blk.getAttribute('data-cat-search') || '') +
+                    ' ' +
+                    (blk.getAttribute('data-jump-title') || '')
+                  ).toLowerCase();
+                  matched = haystack.indexOf(rawTarget) !== -1;
+                }
+
+                getToggleTarget(blk).style.display = matched ? '' : 'none';
+                if (matched) {
+                  matchedContentCount++;
+                  applyCardFilterInBlock(blk, blkId, explicitIds, rawTarget);
+                } else {
+                  restoreCardsInBlock(blk);
+                }
+              });
+
+              if (emptyBox) {
+                if (matchedContentCount === 0) {
+                  if (emptyText) {
+                    emptyText.textContent =
+                      'Belum ada card atau produk pada kategori "' + labelTxt + '".';
+                  }
+                  emptyBox.style.display = 'block';
+                } else {
+                  emptyBox.style.display = 'none';
+                }
+              }
+              return;
             }
-            if (!match) {
-              for (var j = 0; j < candidates.length; j++) {
-                var key2 = (candidates[j].getAttribute('data-jump-title') || '').trim().toLowerCase();
-                if (key2.indexOf(rawTarget) !== -1 || rawTarget.indexOf(key2) !== -1) { match = candidates[j]; break; }
+
+            // Mode 'jump': Lompat & Sorot Card/Blok Tujuan
+            setButtonStyles(btnId);
+            var match = null;
+            if (explicitIds.length > 0) {
+              var firstSep = explicitIds[0].indexOf('::');
+              var firstBlockId =
+                firstSep === -1 ? explicitIds[0] : explicitIds[0].slice(0, firstSep);
+              if (firstBlockId) {
+                var allScopeBlocks = scope.querySelectorAll('[data-block-id]');
+                for (var k = 0; k < allScopeBlocks.length; k++) {
+                  if (allScopeBlocks[k].getAttribute('data-block-id') === firstBlockId) {
+                    match = allScopeBlocks[k];
+                    break;
+                  }
+                }
+              }
+            }
+            if (!match && rawTarget) {
+              var candidates = scope.querySelectorAll('[data-jump-title], [data-cat-search]');
+              for (var i = 0; i < candidates.length; i++) {
+                if (candidates[i].getAttribute('data-block-type') === 'category_tabs') continue;
+                var key = (candidates[i].getAttribute('data-jump-title') || '').trim().toLowerCase();
+                if (key === rawTarget) {
+                  match = candidates[i];
+                  break;
+                }
+              }
+              if (!match) {
+                for (var j = 0; j < candidates.length; j++) {
+                  if (candidates[j].getAttribute('data-block-type') === 'category_tabs') continue;
+                  var key2 = (
+                    (candidates[j].getAttribute('data-jump-title') || '') +
+                    ' ' +
+                    (candidates[j].getAttribute('data-cat-search') || '')
+                  )
+                    .trim()
+                    .toLowerCase();
+                  if (key2 && key2.indexOf(rawTarget) !== -1) {
+                    match = candidates[j];
+                    break;
+                  }
+                }
               }
             }
             if (match) {
-              match.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              pulseHighlight(match);
             }
           });
         });

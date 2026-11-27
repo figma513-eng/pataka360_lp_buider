@@ -87,6 +87,7 @@ function cloneBlocksWithNewIds(blocks: BuilderBlock[]): BuilderBlock[] {
       categoryButtons: blk.content.categoryButtons?.map((it) => ({
         ...it,
         id: createId('catbtn'),
+        targetIds: it.targetIds ? [...it.targetIds] : undefined,
       })),
     },
     children: blk.children ? cloneBlocksWithNewIds(blk.children) : undefined,

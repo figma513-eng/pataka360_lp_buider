@@ -55,6 +55,13 @@ import { resolveCssFontFamily } from '../utils/fontHelpers';
 import { buildLinearGradientCss, resolveBackgroundInlineProps } from '../utils/gradientHelpers';
 import { clampDimension } from '../utils/devicePresets';
 import {
+  extractBlockSearchText,
+  findCategoryJumpTarget,
+  isShowAllCategoryButton,
+  isStructuralCategoryBlock,
+  matchesCategoryFilter,
+} from '../utils/categoryMatching';
+import {
   VIEWPORT_PRESET_HEIGHTS,
   VIEWPORT_PRESET_WIDTHS,
   resolveEffectiveBlockStyle,
@@ -230,6 +237,10 @@ export function MobileCanvas({
   const [openSheets, setOpenSheets] = useState<Record<string, boolean>>({});
   const [openNavSheetId, setOpenNavSheetId] = useState<string | null>(null);
   const [activeCategoryTabIds, setActiveCategoryTabIds] = useState<Record<string, string>>({});
+  const [activeCanvasCategoryFilter, setActiveCanvasCategoryFilter] = useState<{
+    tabBlockId: string;
+    button: CategoryJumpItem;
+  } | null>(null);
   const [fnbPreviewQtys, setFnbPreviewQtys] = useState<Record<string, number>>({});
   const [rowActiveDots, setRowActiveDots] = useState<Record<string, number>>({});
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
@@ -475,9 +486,36 @@ export function MobileCanvas({
     }
   }, [selectedId, selectedSubLayerLabel, blocks, interactionMode]);
 
-  const jumpToMatchingHeadingInCanvas = (targetTitle: string) => {
-    const query = targetTitle.trim().toLowerCase();
-    if (!query || !canvasRootRef.current) return;
+  useEffect(() => {
+    setActiveCanvasCategoryFilter(null);
+  }, [activeSubPageId]);
+
+  const pulseHighlightElement = (el: HTMLElement) => {
+    const prevOutline = el.style.outline;
+    const prevOffset = el.style.outlineOffset;
+    el.style.outline = `2px solid ${theme.accentColor || '#EA580C'}`;
+    el.style.outlineOffset = '4px';
+    window.setTimeout(() => {
+      el.style.outline = prevOutline;
+      el.style.outlineOffset = prevOffset;
+    }, 1100);
+  };
+
+  const jumpToCategoryTargetInCanvas = (catItem: CategoryJumpItem) => {
+    if (!canvasRootRef.current) return;
+    const hit = findCategoryJumpTarget(blocks, catItem);
+    if (hit) {
+      const byId = canvasRootRef.current.querySelector<HTMLElement>(
+        `[data-block-id="${CSS.escape(hit.blockId)}"]`
+      );
+      if (byId) {
+        byId.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        pulseHighlightElement(byId);
+        return;
+      }
+    }
+    const query = (catItem.targetTitle || catItem.label || '').trim().toLowerCase();
+    if (!query) return;
     const candidates = Array.from(
       canvasRootRef.current.querySelectorAll<HTMLElement>('[data-jump-title]')
     );
@@ -490,8 +528,36 @@ export function MobileCanvas({
         (el.getAttribute('data-jump-title') || '').trim().toLowerCase().includes(query)
       );
     if (partial) {
-      partial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      partial.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pulseHighlightElement(partial);
     }
+  };
+
+  const handleCategoryTabSelectInCanvas = (
+    tabBlock: BuilderBlock,
+    catItem: CategoryJumpItem
+  ) => {
+    const actionMode = tabBlock.content.categoryActionMode ?? 'filter';
+    if (actionMode === 'filter') {
+      const isSameActive =
+        activeCanvasCategoryFilter?.tabBlockId === tabBlock.id &&
+        activeCanvasCategoryFilter.button.id === catItem.id;
+      if (isShowAllCategoryButton(catItem)) {
+        setActiveCanvasCategoryFilter(null);
+        setActiveCategoryTabIds((prev) => ({ ...prev, [tabBlock.id]: catItem.id }));
+      } else if (isSameActive) {
+        setActiveCanvasCategoryFilter(null);
+        setActiveCategoryTabIds((prev) => ({ ...prev, [tabBlock.id]: '' }));
+      } else {
+        setActiveCanvasCategoryFilter({ tabBlockId: tabBlock.id, button: catItem });
+        setActiveCategoryTabIds((prev) => ({ ...prev, [tabBlock.id]: catItem.id }));
+      }
+      return;
+    }
+
+    setActiveCanvasCategoryFilter(null);
+    setActiveCategoryTabIds((prev) => ({ ...prev, [tabBlock.id]: catItem.id }));
+    jumpToCategoryTargetInCanvas(catItem);
   };
 
   const hasDescendantId = (node: BuilderBlock, targetId: string): boolean => {
@@ -715,6 +781,14 @@ export function MobileCanvas({
       setDragOverRoot(false);
     };
 
+    const isDimmedByCategoryFilter = Boolean(
+      activeCanvasCategoryFilter &&
+        depth === 0 &&
+        !isStructuralCategoryBlock(block) &&
+        !matchesCategoryFilter(block, activeCanvasCategoryFilter.button)
+    );
+    const jumpSearchText = extractBlockSearchText(block);
+
     return (
       <div key={block.id} className={`relative ${topLevelPadClass}`}>
         {isDropTarget && dragState.position === 'before' && (
@@ -723,6 +797,7 @@ export function MobileCanvas({
 
         <div
           data-block-id={block.id}
+          data-jump-title={jumpSearchText || undefined}
           draggable={
             interactionMode === 'drag' &&
             !s.locked &&
@@ -854,7 +929,7 @@ export function MobileCanvas({
             isSelected ? 'z-30' : hoveredBlockId === block.id ? 'z-20' : 'z-0'
           } ${
             s.hoverLift ? 'hover:-translate-y-0.5 hover:shadow-lg' : ''
-          } ${isDraggingThis ? 'opacity-40 scale-[0.99]' : ''} ${
+          } ${isDraggingThis ? 'opacity-40 scale-[0.99]' : isDimmedByCategoryFilter ? 'opacity-25' : ''} ${
             isDropTarget && dragState.position === 'inside' ? 'bg-blue-50/20' : ''
           }`}
         >
@@ -2714,22 +2789,51 @@ export function MobileCanvas({
         })()}
 
         {block.type === 'category_tabs' && (
-          <CategoryJumpTabs
-            block={block}
-            theme={theme}
-            activeId={activeCategoryTabIds[block.id] ?? null}
-            onSelect={(catItem: CategoryJumpItem, e) => {
-              e.stopPropagation();
-              if (interactionMode === 'pointer' && onSelectSubLayer) {
-                const catIdx = (block.content.categoryButtons ?? []).indexOf(catItem);
-                onSelectSubLayer(block.id, `cat_${catItem.id || (catIdx >= 0 ? catIdx : 0)}`);
-              } else {
-                onSelectBlock(block.id);
+          <div>
+            <CategoryJumpTabs
+              block={block}
+              theme={theme}
+              activeId={
+                Object.prototype.hasOwnProperty.call(activeCategoryTabIds, block.id)
+                  ? activeCategoryTabIds[block.id]
+                  : null
               }
-              setActiveCategoryTabIds((prev) => ({ ...prev, [block.id]: catItem.id }));
-              jumpToMatchingHeadingInCanvas(catItem.targetTitle || catItem.label);
-            }}
-          />
+              onSelect={(catItem: CategoryJumpItem, e) => {
+                e.stopPropagation();
+                if (interactionMode === 'pointer' && onSelectSubLayer) {
+                  const catIdx = (block.content.categoryButtons ?? []).indexOf(catItem);
+                  onSelectSubLayer(block.id, `cat_${catItem.id || (catIdx >= 0 ? catIdx : 0)}`);
+                } else {
+                  onSelectBlock(block.id);
+                }
+                handleCategoryTabSelectInCanvas(block, catItem);
+              }}
+            />
+            {activeCanvasCategoryFilter?.tabBlockId === block.id && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="mt-1.5 px-2.5 py-1 rounded-lg bg-slate-900/5 border border-slate-900/10 flex items-center justify-between gap-2 text-[10.5px] text-slate-600"
+              >
+                <span className="truncate">
+                  Filter aktif:{' '}
+                  <strong className="text-slate-900">
+                    {activeCanvasCategoryFilter.button.label}
+                  </strong>{' '}
+                  (blok lain diredupkan di editor)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCanvasCategoryFilter(null);
+                    setActiveCategoryTabIds((prev) => ({ ...prev, [block.id]: '' }));
+                  }}
+                  className="font-bold text-slate-900 underline shrink-0 cursor-pointer"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {block.type === 'fnb_catalog' && (
