@@ -878,7 +878,8 @@ export function MobileCanvas({
               block.type === 'bottom_sheet' ||
               block.type === 'menu_icon' ||
               block.type === 'showcase_card' ||
-              block.type === 'hero_profile'
+              block.type === 'hero_profile' ||
+              block.type === 'fnb_catalog'
             ) {
               if (relY < rect.height * 0.25) pos = 'before';
               else if (relY > rect.height * 0.75) pos = 'after';
@@ -2873,6 +2874,16 @@ export function MobileCanvas({
             block={block}
             theme={theme}
             cartQtyLookup={fnbPreviewQtys}
+            renderChildNode={(ch) => renderBlockContent(ch, depth + 1, nextInheritedTextColor)}
+            childrenSlot={
+              (block.children?.length ?? 0) === 0 &&
+              isDropTarget &&
+              dragState.position === 'inside' ? (
+                <div className="rounded-xl border-2 border-dashed border-[#00C98A] bg-[#ECFDF6]/90 px-3 py-4 text-center text-[11px] font-semibold text-[#008F63]">
+                  Lepas card atau blok di sini untuk memasukkannya ke Katalog Menu F&amp;B
+                </div>
+              ) : undefined
+            }
             onAddItem={(item: FnbMenuItem) => {
               setFnbPreviewQtys((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
             }}

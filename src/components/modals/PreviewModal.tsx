@@ -2808,6 +2808,7 @@ export function PreviewModal({
             block={block}
             theme={project.theme}
             cartQtyLookup={fnbCartQtyMap}
+            renderChildNode={(ch) => renderPreviewBlock(ch, depth + 1, resolvedTextColor)}
             onAddItem={(item: FnbMenuItem) => {
               addToCart(block.id, toCatalogLikeItem(item), '', 1);
             }}

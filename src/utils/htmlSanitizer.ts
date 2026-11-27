@@ -1272,6 +1272,14 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.categoryStickyTopOffset === 'number' && Number.isFinite(c.categoryStickyTopOffset)
           ? Math.max(0, Math.min(120, Math.round(c.categoryStickyTopOffset)))
           : c.categoryStickyTopOffset,
+      fnbChildrenPosition:
+        c.fnbChildrenPosition === 'above' || c.fnbChildrenPosition === 'below'
+          ? c.fnbChildrenPosition
+          : c.fnbChildrenPosition,
+      fnbHideDefaultMenu:
+        typeof c.fnbHideDefaultMenu === 'boolean'
+          ? c.fnbHideDefaultMenu
+          : c.fnbHideDefaultMenu,
       rowLayoutMode:
         c.rowLayoutMode === 'horizontal' ||
         c.rowLayoutMode === 'vertical' ||

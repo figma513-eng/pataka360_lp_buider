@@ -3288,6 +3288,35 @@ ${indent}    </div>`;
         })
         .join('\n');
 
+      const fnbChildren = block.children ?? [];
+      const fnbChildrenPos = c.fnbChildrenPosition === 'above' ? 'above' : 'below';
+      const hideDefaultMenu = Boolean(c.fnbHideDefaultMenu);
+      const renderedFnbChildren = fnbChildren
+        .map((ch) => {
+          const innerHtml = renderBlockHtml(
+            ch,
+            theme,
+            advance,
+            indent + '      ',
+            nextInheritedTextColor,
+            whatsappCenter
+          );
+          if (!innerHtml) return '';
+          const childHaystack = extractBlockSearchText(ch);
+          return `${indent}    <div data-fnb-child-card="1" data-fnb-child-haystack="${escapeHtml(
+            childHaystack
+          )}">\n${innerHtml}\n${indent}    </div>`;
+        })
+        .filter(Boolean)
+        .join('\n');
+      const fnbChildrenSlotHtml = renderedFnbChildren
+        ? `${indent}  <div data-fnb-children-slot style="display:flex; flex-direction:column; gap:12px;">\n${renderedFnbChildren}\n${indent}  </div>\n`
+        : '';
+      const defaultSectionsBlockHtml =
+        !hideDefaultMenu && sectionsHtml
+          ? `${indent}  <div data-fnb-sections style="display:flex; flex-direction:column; gap:16px;">\n${sectionsHtml}\n${indent}  </div>\n`
+          : '';
+
       return `${indent}<div data-fnb-catalog="${escapeHtml(
         block.id
       )}" data-fnb-accent="${escapeHtml(
@@ -3295,10 +3324,9 @@ ${indent}    </div>`;
       )}" style="${css}; display:flex; flex-direction:column; gap:14px; text-align:left;">
 ${catBarHtml ? `${indent}  ${catBarHtml}\n` : ''}${
         searchHtml ? `${indent}  ${searchHtml}\n` : ''
-      }${indent}  <div data-fnb-sections style="display:flex; flex-direction:column; gap:16px;">
-${sectionsHtml}
-${indent}  </div>
-${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:${cardRadius}px; border:1px solid ${cardBorderDefault}; background:${cardBgDefault}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
+      }${fnbChildrenPos === 'above' ? fnbChildrenSlotHtml : ''}${defaultSectionsBlockHtml}${
+        fnbChildrenPos === 'below' ? fnbChildrenSlotHtml : ''
+      }${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:${cardRadius}px; border:1px solid ${cardBorderDefault}; background:${cardBgDefault}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
 ${indent}</div>`;
     }
 

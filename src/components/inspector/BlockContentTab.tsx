@@ -292,7 +292,7 @@ export function BlockContentTab({
   const [catalogSubList, setCatalogSubList] = useState<'products' | 'customer' | 'shipping'>(
     'products'
   );
-  const [fnbSubList, setFnbSubList] = useState<'menu' | 'customer' | 'shipping'>('menu');
+  const [fnbSubList, setFnbSubList] = useState<'menu' | 'cards' | 'customer' | 'shipping'>('menu');
   const [trainingSubList, setTrainingSubList] = useState<
     'programs' | 'boxes' | 'media' | 'checklist' | 'form'
   >('programs');
@@ -8209,9 +8209,143 @@ export function BlockContentTab({
       };
     }
 
+    // Helper bersama: daftar alat lengkap (19 elemen) + pencarian Template Blok & Card untuk seluruh wadah Data & Daftar Item
+    const renderUniversalContainerPicker = (opts: {
+      disabled?: boolean;
+      excludeHeroTemplates?: boolean;
+      onAddTool: (toolType: BlockType) => void;
+      onAddTemplate: (sectionId: string) => void;
+    }) => {
+      const baseTemplates = opts.excludeHeroTemplates
+        ? PREBUILT_SECTIONS.filter(
+            (sec) =>
+              sec.id !== 'hero-profil-kompak' &&
+              sec.id !== 'hero-profil-banner' &&
+              sec.id !== 'hero-profile'
+          )
+        : PREBUILT_SECTIONS;
+      const q = heroTemplateSearch.trim().toLowerCase();
+      const filteredTemplates = q
+        ? baseTemplates.filter(
+            (sec) =>
+              sec.title.toLowerCase().includes(q) || sec.description.toLowerCase().includes(q)
+          )
+        : baseTemplates;
+
+      return (
+        <>
+          {/* + Tambah Elemen ke Wadah (Semua Alat Standar) */}
+          <div>
+            <div className="text-[11px] font-semibold text-[#17243D] mb-1.5">
+              {label('konten.field.tambahElemenWadah', '+ Tambah Elemen ke Wadah')}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {TOOL_ITEMS.map((tool) => (
+                <button
+                  key={tool.key}
+                  type="button"
+                  disabled={opts.disabled}
+                  onClick={() => opts.onAddTool(tool.type)}
+                  title={tool.desc}
+                  className="group inline-flex items-center gap-1.5 py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] hover:bg-[#ECFDF6]/60 text-[11px] font-medium text-[#17243D] text-left transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span className="text-[#5B708B] group-hover:text-[#008F63] shrink-0">
+                    {tool.icon}
+                  </span>
+                  <span className="truncate">
+                    {label(`alat.item.${tool.key}.label`, tool.label)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Template Blok & Card */}
+          <div className="pt-2 border-t border-[#DCE5EF] space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-[#5B708B]">
+                Template Blok &amp; Card ({filteredTemplates.length})
+              </span>
+            </div>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={heroTemplateSearch}
+                onChange={(e) => setHeroTemplateSearch(e.target.value)}
+                placeholder="Cari template blok..."
+                className="w-full pl-8 pr-7 py-1.5 text-[11px] rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#8FA4BF] focus:border-[#00C98A] outline-none"
+              />
+              {heroTemplateSearch && (
+                <button
+                  type="button"
+                  onClick={() => setHeroTemplateSearch('')}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-0.5">
+              {filteredTemplates.length === 0 ? (
+                <SectionEmptyNote message="Template tidak ditemukan untuk kata kunci tersebut." />
+              ) : (
+                filteredTemplates.map((sec) => (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    disabled={opts.disabled}
+                    onClick={() => opts.onAddTemplate(sec.id)}
+                    className="group w-full p-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] hover:bg-[#ECFDF6]/45 flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#F0F5FA] group-hover:bg-[#ECFDF6] border border-[#DCE5EF] group-hover:border-[#00C98A]/40 flex items-center justify-center text-[#5B708B] group-hover:text-[#008F63] shrink-0 transition-colors">
+                      {getSectionIcon(sec.id)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-bold text-[#17243D] truncate">
+                        {label(`blok.sec.${sec.id}.title`, sec.title)}
+                      </div>
+                      <div className="text-[10px] text-[#8FA4BF] truncate">
+                        {label(`blok.sec.${sec.id}.desc`, sec.description)}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      );
+    };
+
+    const appendTemplateToBlock = (sectionId: string, maxItems?: number) => {
+      const sec = PREBUILT_SECTIONS.find((item) => item.id === sectionId);
+      if (!sec) return;
+      const createdBlocks = sec.createBlocks(theme);
+      if (!createdBlocks.length) return;
+      onUpdateBlock(selectedBlock.id, (blk) => {
+        const current = blk.children ?? [];
+        const remaining =
+          typeof maxItems === 'number'
+            ? Math.max(0, maxItems - current.length)
+            : createdBlocks.length;
+        if (remaining <= 0) return blk;
+        return {
+          ...blk,
+          children: [...current, ...createdBlocks.slice(0, remaining)],
+        };
+      });
+    };
+
     // --- FNB CATALOG ---
     if (selectedBlock.type === 'fnb_catalog') {
       const items = c.fnbItems ?? [];
+      const fnbChildren = selectedBlock.children ?? [];
+      const updateFnbChildren = (nextChildren: BuilderBlock[]) =>
+        onUpdateBlock(selectedBlock.id, (blk) => ({ ...blk, children: nextChildren }));
       const customerFields = resolveCatalogCustomerFields(c);
       const shippingOpts = resolveCatalogShippingOptions(c);
       const updateFnbItem = (id: string, patch: Partial<FnbMenuItem>) => {
@@ -8686,13 +8820,14 @@ export function BlockContentTab({
       }
 
       return {
-        badge: items.length,
+        badge: items.length + fnbChildren.length,
         body: (
           <div className="space-y-2.5">
-            <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF]">
               {(
                 [
                   { id: 'menu', label: `Menu (${items.length})` },
+                  { id: 'cards', label: `Card & Blok (${fnbChildren.length})` },
                   { id: 'customer', label: `Pemesan (${customerFields.length})` },
                   { id: 'shipping', label: `Kirim (${shippingOpts.length})` },
                 ] as const
@@ -8701,7 +8836,7 @@ export function BlockContentTab({
                   key={tab.id}
                   type="button"
                   onClick={() => setFnbSubList(tab.id)}
-                  className={`py-1 px-1 rounded text-[10.5px] font-semibold cursor-pointer truncate ${
+                  className={`py-1 px-1.5 rounded text-[10.5px] font-semibold cursor-pointer truncate ${
                     fnbSubList === tab.id
                       ? 'bg-[#17243D] text-white'
                       : 'text-[#8FA4BF] hover:text-[#17243D]'
@@ -8711,6 +8846,131 @@ export function BlockContentTab({
                 </button>
               ))}
             </div>
+
+            {fnbSubList === 'cards' && (
+              <div className="space-y-3">
+                <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2">
+                  <div>
+                    <div className="text-[11px] font-semibold text-[#17243D] mb-1">
+                      Posisi Card &amp; Blok
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => updateContent({ fnbChildrenPosition: 'below' })}
+                        className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer ${
+                          (c.fnbChildrenPosition ?? 'below') === 'below'
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                        }`}
+                      >
+                        Di Bawah Menu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateContent({ fnbChildrenPosition: 'above' })}
+                        className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer ${
+                          c.fnbChildrenPosition === 'above'
+                            ? 'bg-[#17243D] text-white border-[#17243D]'
+                            : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                        }`}
+                      >
+                        Di Atas Menu
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#E2E8F0]">
+                    <span className="text-[11px] font-semibold text-[#17243D]">
+                      Sembunyikan Daftar Menu Bawaan
+                    </span>
+                    <ToggleSwitch
+                      checked={Boolean(c.fnbHideDefaultMenu)}
+                      onChange={(v) => updateContent({ fnbHideDefaultMenu: v })}
+                      label="Sembunyikan daftar menu standar dan tampilkan hanya card/blok tambahan"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-[#17243D]">
+                      Card &amp; Blok di Dalam Katalog ({fnbChildren.length})
+                    </span>
+                  </div>
+                  {fnbChildren.length === 0 ? (
+                    <div className="p-2.5 rounded-lg border border-dashed border-[#DCE5EF] bg-[#F8FBFE] text-[11px] text-[#64748B] text-center">
+                      Belum ada card tambahan. Pilih elemen atau template blok di bawah, atau seret
+                      card langsung ke dalam Katalog Menu F&amp;B.
+                    </div>
+                  ) : (
+                    fnbChildren.map((child, idx) => (
+                      <div
+                        key={child.id}
+                        onClick={() => onSelectBlock?.(child.id)}
+                        className="p-2 rounded-lg border border-[#DCE5EF] bg-white hover:border-[#00C98A] flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-[#17243D] truncate">
+                            {idx + 1}.{' '}
+                            {child.label ||
+                              label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])}
+                          </div>
+                          <div className="text-[10.5px] text-[#8FA4BF] truncate">
+                            {label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])} ·
+                            Klik untuk edit
+                          </div>
+                        </div>
+                        <div
+                          className="flex items-center gap-0.5 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            title="Hapus card"
+                            onClick={() =>
+                              updateFnbChildren(
+                                removeSelectedItemByIdOrIndex(fnbChildren, child.id, idx)
+                              )
+                            }
+                            className="p-1 rounded-md text-[#8FA4BF] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <ItemOverflowMenu
+                            onEdit={() => onSelectBlock?.(child.id)}
+                            editLabel="Buka & Edit Card"
+                            onDuplicate={() => {
+                              const dup = cloneBlockDeep(child);
+                              dup.label = `${
+                                child.label ||
+                                label(`komponen.type.${child.type}`, BLOCK_TYPE_NAMES[child.type])
+                              } Salinan`;
+                              const next = [...fnbChildren];
+                              next.splice(idx + 1, 0, dup);
+                              updateFnbChildren(next);
+                            }}
+                            onMoveUp={() => updateFnbChildren(moveArrayItem(fnbChildren, idx, -1))}
+                            onMoveDown={() => updateFnbChildren(moveArrayItem(fnbChildren, idx, 1))}
+                            disableMoveUp={idx === 0}
+                            disableMoveDown={idx === fnbChildren.length - 1}
+                            onDelete={() =>
+                              updateFnbChildren(
+                                removeSelectedItemByIdOrIndex(fnbChildren, child.id, idx)
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {renderUniversalContainerPicker({
+                  onAddTool: (toolType) => onAddChildToContainer(selectedBlock.id, toolType),
+                  onAddTemplate: (sectionId) => appendTemplateToBlock(sectionId),
+                })}
+              </div>
+            )}
 
             {fnbSubList === 'menu' && (
               <div className="space-y-2">
@@ -11188,137 +11448,6 @@ export function BlockContentTab({
         ),
       };
     }
-
-    // Helper bersama: daftar alat lengkap (19 elemen) + pencarian Template Blok & Card untuk seluruh wadah Data & Daftar Item
-    const renderUniversalContainerPicker = (opts: {
-      disabled?: boolean;
-      excludeHeroTemplates?: boolean;
-      onAddTool: (toolType: BlockType) => void;
-      onAddTemplate: (sectionId: string) => void;
-    }) => {
-      const baseTemplates = opts.excludeHeroTemplates
-        ? PREBUILT_SECTIONS.filter(
-            (sec) =>
-              sec.id !== 'hero-profil-kompak' &&
-              sec.id !== 'hero-profil-banner' &&
-              sec.id !== 'hero-profile'
-          )
-        : PREBUILT_SECTIONS;
-      const q = heroTemplateSearch.trim().toLowerCase();
-      const filteredTemplates = q
-        ? baseTemplates.filter(
-            (sec) =>
-              sec.title.toLowerCase().includes(q) || sec.description.toLowerCase().includes(q)
-          )
-        : baseTemplates;
-
-      return (
-        <>
-          {/* + Tambah Elemen ke Wadah (Semua Alat Standar) */}
-          <div>
-            <div className="text-[11px] font-semibold text-[#17243D] mb-1.5">
-              {label('konten.field.tambahElemenWadah', '+ Tambah Elemen ke Wadah')}
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {TOOL_ITEMS.map((tool) => (
-                <button
-                  key={tool.key}
-                  type="button"
-                  disabled={opts.disabled}
-                  onClick={() => opts.onAddTool(tool.type)}
-                  title={tool.desc}
-                  className="group inline-flex items-center gap-1.5 py-1.5 px-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] hover:bg-[#ECFDF6]/60 text-[11px] font-medium text-[#17243D] text-left transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <span className="text-[#5B708B] group-hover:text-[#008F63] shrink-0">
-                    {tool.icon}
-                  </span>
-                  <span className="truncate">
-                    {label(`alat.item.${tool.key}.label`, tool.label)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Template Blok & Card */}
-          <div className="pt-2 border-t border-[#DCE5EF] space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-[#5B708B]">
-                Template Blok &amp; Card ({filteredTemplates.length})
-              </span>
-            </div>
-
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#8FA4BF] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={heroTemplateSearch}
-                onChange={(e) => setHeroTemplateSearch(e.target.value)}
-                placeholder="Cari template blok..."
-                className="w-full pl-8 pr-7 py-1.5 text-[11px] rounded-lg border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#8FA4BF] focus:border-[#00C98A] outline-none"
-              />
-              {heroTemplateSearch && (
-                <button
-                  type="button"
-                  onClick={() => setHeroTemplateSearch('')}
-                  aria-label="Hapus pencarian"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8FA4BF] hover:text-[#17243D] cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-0.5">
-              {filteredTemplates.length === 0 ? (
-                <SectionEmptyNote message="Template tidak ditemukan untuk kata kunci tersebut." />
-              ) : (
-                filteredTemplates.map((sec) => (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    disabled={opts.disabled}
-                    onClick={() => opts.onAddTemplate(sec.id)}
-                    className="group w-full p-2 rounded-lg bg-white border border-[#DCE5EF] hover:border-[#00C98A] hover:bg-[#ECFDF6]/45 flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-[#F0F5FA] group-hover:bg-[#ECFDF6] border border-[#DCE5EF] group-hover:border-[#00C98A]/40 flex items-center justify-center text-[#5B708B] group-hover:text-[#008F63] shrink-0 transition-colors">
-                      {getSectionIcon(sec.id)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-bold text-[#17243D] truncate">
-                        {label(`blok.sec.${sec.id}.title`, sec.title)}
-                      </div>
-                      <div className="text-[10px] text-[#8FA4BF] truncate">
-                        {label(`blok.sec.${sec.id}.desc`, sec.description)}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </>
-      );
-    };
-
-    const appendTemplateToBlock = (sectionId: string, maxItems?: number) => {
-      const sec = PREBUILT_SECTIONS.find((item) => item.id === sectionId);
-      if (!sec) return;
-      const createdBlocks = sec.createBlocks(theme);
-      if (!createdBlocks.length) return;
-      onUpdateBlock(selectedBlock.id, (blk) => {
-        const current = blk.children ?? [];
-        const remaining =
-          typeof maxItems === 'number'
-            ? Math.max(0, maxItems - current.length)
-            : createdBlocks.length;
-        if (remaining <= 0) return blk;
-        return {
-          ...blk,
-          children: [...current, ...createdBlocks.slice(0, remaining)],
-        };
-      });
-    };
 
     // --- ROW ---
     if (selectedBlock.type === 'row') {

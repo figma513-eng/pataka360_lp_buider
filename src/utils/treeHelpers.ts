@@ -9,7 +9,8 @@ export function isContainerBlockType(type: BuilderBlock['type']): boolean {
     type === 'bottom_sheet' ||
     type === 'menu_icon' ||
     type === 'showcase_card' ||
-    type === 'hero_profile'
+    type === 'hero_profile' ||
+    type === 'fnb_catalog'
   );
 }
 

@@ -3415,6 +3415,7 @@ ${bodyBlocks}
               var q = searchInput ? String(searchInput.value || '').trim().toLowerCase() : '';
               var visibleTotal = 0;
               fnbBox.querySelectorAll('[data-fnb-section]').forEach(function (sec) {
+                if (sec.closest('[data-fnb-catalog]') !== fnbBox) return;
                 var secVisible = 0;
                 sec.querySelectorAll('[data-fnb-item]').forEach(function (card) {
                   var catVal = card.getAttribute('data-fnb-cat-val') || '';
@@ -3426,6 +3427,15 @@ ${bodyBlocks}
                   if (show) { secVisible += 1; visibleTotal += 1; }
                 });
                 sec.style.display = secVisible > 0 ? 'flex' : 'none';
+              });
+              fnbBox.querySelectorAll('[data-fnb-child-card]').forEach(function (childWrap) {
+                if (childWrap.closest('[data-fnb-catalog]') !== fnbBox) return;
+                var cHay = (childWrap.getAttribute('data-fnb-child-haystack') || '').toLowerCase();
+                var okCat = activeCat === 'semua' || cHay.indexOf(activeCat) !== -1;
+                var okSearch = !q || cHay.indexOf(q) !== -1;
+                var showChild = okCat && okSearch;
+                childWrap.style.display = showChild ? '' : 'none';
+                if (showChild) { visibleTotal += 1; }
               });
               if (emptyBox) emptyBox.style.display = visibleTotal === 0 ? 'block' : 'none';
             }

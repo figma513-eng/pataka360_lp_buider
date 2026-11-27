@@ -13,6 +13,7 @@ import { resolveBackgroundInlineProps } from '../utils/gradientHelpers';
 import { shadowToCss } from '../utils/exporterBlocks';
 import { resolveFnbItemImageGeometry } from '../utils/fnbHelpers';
 import { isSubLayerHidden } from '../utils/layerStructure';
+import { extractBlockSearchText } from '../utils/categoryMatching';
 
 export function HeroProfileCard({
   block,
@@ -502,6 +503,8 @@ export function FnbCatalogCard({
   onAddItem,
   onIncrementItem,
   onDecrementItem,
+  renderChildNode,
+  childrenSlot,
 }: {
   block: BuilderBlock;
   theme: PageTheme;
@@ -511,6 +514,8 @@ export function FnbCatalogCard({
   onAddItem: (item: FnbMenuItem) => void;
   onIncrementItem: (item: FnbMenuItem) => void;
   onDecrementItem: (item: FnbMenuItem) => void;
+  renderChildNode?: (child: BuilderBlock) => React.ReactNode;
+  childrenSlot?: React.ReactNode;
 }) {
   const c = block.content;
   const s = block.style;
@@ -604,6 +609,38 @@ export function FnbCatalogCard({
   const searchTextColor = c.fnbSearchTextColor || theme.textColor;
   const searchRadius = Math.max(6, Math.min(32, c.fnbSearchRadius ?? 16));
 
+  const childBlocks = block.children ?? [];
+  const hideDefaultMenu = Boolean(c.fnbHideDefaultMenu);
+  const childrenPos = c.fnbChildrenPosition ?? 'below';
+
+  const filteredChildBlocks = useMemo(() => {
+    if (childBlocks.length === 0) return [];
+    const q = searchQuery.trim().toLowerCase();
+    const cat = (effectiveCat || 'Semua').trim().toLowerCase();
+    return childBlocks.filter((ch) => {
+      if (!q && (!cat || cat === 'semua')) return true;
+      const haystack = extractBlockSearchText(ch);
+      const okCat = !cat || cat === 'semua' || haystack.includes(cat);
+      const okSearch = !q || haystack.includes(q);
+      return okCat && okSearch;
+    });
+  }, [childBlocks, effectiveCat, searchQuery]);
+
+  const renderedChildrenBlock =
+    renderChildNode && filteredChildBlocks.length > 0 ? (
+      <div className="space-y-2.5">
+        {filteredChildBlocks.map((ch) => (
+          <React.Fragment key={ch.id}>{renderChildNode(ch)}</React.Fragment>
+        ))}
+      </div>
+    ) : childrenSlot ? (
+      <div>{childrenSlot}</div>
+    ) : null;
+
+  const hasVisibleMenuItems = !hideDefaultMenu && filteredItems.length > 0;
+  const hasAnyVisibleContent =
+    hasVisibleMenuItems || filteredChildBlocks.length > 0 || Boolean(childrenSlot);
+
   return (
     <div style={{ fontFamily: fontStack }} className="space-y-3.5 text-left">
       {showCategories && categories.length > 0 && (
@@ -658,7 +695,9 @@ export function FnbCatalogCard({
         </div>
       )}
 
-      {filteredItems.length === 0 ? (
+      {childrenPos === 'above' && renderedChildrenBlock}
+
+      {!hasAnyVisibleContent ? (
         <div
           style={{
             backgroundColor: cardBgDefault,
@@ -669,7 +708,7 @@ export function FnbCatalogCard({
         >
           Menu yang dicari tidak ditemukan.
         </div>
-      ) : (
+      ) : hasVisibleMenuItems ? (
         <div className="space-y-4">
           {groupedSections.map((sec, sIdx) => (
             <div key={`${sec.category}_${sIdx}`} className="space-y-2.5">
@@ -888,7 +927,9 @@ export function FnbCatalogCard({
             </div>
           ))}
         </div>
-      )}
+      ) : null}
+
+      {childrenPos === 'below' && renderedChildrenBlock}
     </div>
   );
 }
