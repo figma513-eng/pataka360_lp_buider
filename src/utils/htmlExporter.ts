@@ -352,11 +352,34 @@ ${enabledNavItems
     catalogs: catalogMap,
   }).replace(/</g, '\\u003c');
 
+  const renderTopLevelBlockWrap = (
+    block: BuilderBlock,
+    rendered: string,
+    defaultTopOffset = 0
+  ): string => {
+    const baseClass = block.style.fullBleed ? 'page-full' : 'page-pad';
+    if (block.type === 'category_tabs' && block.content.categoryStickyHeader) {
+      const topOffset =
+        block.content.categoryStickyTopOffset !== undefined
+          ? Math.max(0, Math.min(120, Math.round(block.content.categoryStickyTopOffset)))
+          : defaultTopOffset;
+      const stickyBg =
+        block.content.categoryStickyBg?.trim() ||
+        (block.style.backgroundColor && block.style.backgroundColor !== 'transparent'
+          ? block.style.backgroundColor
+          : project.theme.cardBg || '#FFFFFF');
+      return `    <div data-cat-sticky-wrap="1" data-cat-sticky-top="${topOffset}" class="${baseClass} lynk-cat-sticky-wrap" style="top: ${topOffset}px; --cat-sticky-bg: ${escapeHtml(
+        stickyBg
+      )};">\n${rendered}\n    </div>`;
+    }
+    return `    <div class="${baseClass}">\n${rendered}\n    </div>`;
+  };
+
   const bodyBlocks = project.blocks
     .map((block) => {
       const rendered = renderBlockHtml(block, project.theme, adv, '      ', undefined, resolvedWaCenter);
       if (!rendered) return '';
-      return `    <div class="${block.style.fullBleed ? 'page-full' : 'page-pad'}">\n${rendered}\n    </div>`;
+      return renderTopLevelBlockWrap(block, rendered, 0);
     })
     .filter(Boolean)
     .join('\n');
@@ -370,11 +393,12 @@ ${enabledNavItems
 
   const subPagesHtml = subPages
     .map((pg) => {
+      const subDefaultStickyTop = pg.showBackButton !== false ? 48 : 0;
       const pgBlocksHtml = (pg.blocks ?? [])
         .map((block) => {
           const rendered = renderBlockHtml(block, project.theme, adv, '      ', undefined, resolvedWaCenter);
           if (!rendered) return '';
-          return `    <div class="${block.style.fullBleed ? 'page-full' : 'page-pad'}">\n${rendered}\n    </div>`;
+          return renderTopLevelBlockWrap(block, rendered, subDefaultStickyTop);
         })
         .filter(Boolean)
         .join('\n');
@@ -570,6 +594,21 @@ ${backBarHtml}${
       padding-left: 0;
       padding-right: 0;
       box-sizing: border-box;
+    }
+    .lynk-cat-sticky-wrap {
+      position: -webkit-sticky;
+      position: sticky;
+      z-index: 60;
+      transition: background-color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, padding 0.18s ease;
+    }
+    .lynk-cat-sticky-wrap.is-stuck {
+      background-color: var(--cat-sticky-bg, rgba(255, 255, 255, 0.94));
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding-top: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.09);
     }
     [data-car-track] {
       scrollbar-width: none;
@@ -2144,6 +2183,26 @@ ${bodyBlocks}
           });
         });
       });
+
+      // Tombol Kategori -> Deteksi posisi Sticky Header saat scroll
+      (function () {
+        var stickyWraps = Array.prototype.slice.call(
+          document.querySelectorAll('[data-cat-sticky-wrap="1"]')
+        );
+        if (!stickyWraps.length) return;
+        function syncStickyCatHeaders() {
+          var y = window.scrollY || window.pageYOffset || 0;
+          stickyWraps.forEach(function (wrap) {
+            var topVal = parseFloat(wrap.getAttribute('data-cat-sticky-top') || '0') || 0;
+            var rect = wrap.getBoundingClientRect();
+            var isStuck = y > 4 && rect.top <= topVal + 1.5;
+            wrap.classList.toggle('is-stuck', isStuck);
+          });
+        }
+        window.addEventListener('scroll', syncStickyCatHeaders, { passive: true });
+        window.addEventListener('resize', syncStickyCatHeaders, { passive: true });
+        syncStickyCatHeaders();
+      })();
 
       // Sub-Page Detail Produk & Keranjang Pesan via WhatsApp
       var storeEl = document.getElementById('lynk-store-data');

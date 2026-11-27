@@ -971,6 +971,9 @@ export interface BlockContent {
   categoryGap?: number;
   categoryActiveId?: string;
   categoryActionMode?: 'filter' | 'jump';
+  categoryStickyHeader?: boolean;
+  categoryStickyBg?: string;
+  categoryStickyTopOffset?: number;
   categoryFilterFnbOnClick?: boolean;
   // Kolom / Row Dinamis (1-20 Kolom, Grid Baris x Kolom / Slide Horizontal 3 Titik / Slide Vertikal)
   rowLayoutMode?: 'grid' | 'horizontal' | 'vertical';

@@ -788,9 +788,41 @@ export function MobileCanvas({
         !matchesCategoryFilter(block, activeCanvasCategoryFilter.button)
     );
     const jumpSearchText = extractBlockSearchText(block);
+    const isStickyCategoryHeader =
+      depth === 0 &&
+      block.type === 'category_tabs' &&
+      Boolean(block.content.categoryStickyHeader);
+    const stickyTopOffset = Math.max(
+      0,
+      Math.min(120, block.content.categoryStickyTopOffset ?? 0)
+    );
+    const stickyHeaderBg =
+      block.content.categoryStickyBg?.trim() ||
+      (s.backgroundColor && s.backgroundColor !== 'transparent'
+        ? s.backgroundColor
+        : theme.cardBg || '#FFFFFF');
 
     return (
-      <div key={block.id} className={`relative ${topLevelPadClass}`}>
+      <div
+        key={block.id}
+        style={
+          isStickyCategoryHeader
+            ? {
+                position: 'sticky',
+                top: `${stickyTopOffset}px`,
+                zIndex: isSelected ? 45 : 35,
+                backgroundColor: stickyHeaderBg,
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                paddingTop: '4px',
+                paddingBottom: '4px',
+                borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+                boxShadow: '0 6px 16px rgba(15, 23, 42, 0.07)',
+              }
+            : undefined
+        }
+        className={`relative ${topLevelPadClass}`}
+      >
         {isDropTarget && dragState.position === 'before' && (
           <div className="h-1 bg-blue-600 rounded-full mb-1.5 shadow-xs transition-all" />
         )}
@@ -3867,7 +3899,7 @@ export function MobileCanvas({
               onDropItemTemplate?.(itemTemplateId);
             }
           }}
-          className={`shadow-xl transition-all shrink-0 overflow-hidden ${
+          className={`shadow-xl transition-all shrink-0 overflow-clip ${
             isWideViewport
               ? 'rounded-2xl border border-[#DCE5EF] bg-white'
               : 'rounded-[36px] bg-[#17243D] p-[7px] border border-[#223456]'
@@ -4161,7 +4193,7 @@ export function MobileCanvas({
                     : `${Math.max(600, frameHeight - 28)}px`,
                 }}
                 className={`flex flex-col justify-between relative ${
-                  isWideViewport ? '' : 'rounded-[24px] overflow-hidden'
+                  isWideViewport ? '' : 'rounded-[24px] overflow-clip'
                 }`}
               >
                 {floatingCartRenderData &&

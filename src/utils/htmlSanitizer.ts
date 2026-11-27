@@ -1261,6 +1261,17 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.categoryShowScrollbar === 'boolean'
           ? c.categoryShowScrollbar
           : c.categoryShowScrollbar,
+      categoryStickyHeader:
+        typeof c.categoryStickyHeader === 'boolean'
+          ? c.categoryStickyHeader
+          : c.categoryStickyHeader,
+      categoryStickyBg: c.categoryStickyBg
+        ? sanitizeOptionalCssColor(c.categoryStickyBg) ?? '#FFFFFF'
+        : c.categoryStickyBg,
+      categoryStickyTopOffset:
+        typeof c.categoryStickyTopOffset === 'number' && Number.isFinite(c.categoryStickyTopOffset)
+          ? Math.max(0, Math.min(120, Math.round(c.categoryStickyTopOffset)))
+          : c.categoryStickyTopOffset,
       rowLayoutMode:
         c.rowLayoutMode === 'horizontal' ||
         c.rowLayoutMode === 'vertical' ||

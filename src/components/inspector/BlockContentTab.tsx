@@ -11025,6 +11025,74 @@ export function BlockContentTab({
               </p>
             </div>
 
+            <div className="p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[11px] font-bold text-[#17243D]">
+                    Tetap di Atas Saat Scroll (Header)
+                  </div>
+                  <div className="text-[10px] text-[#64748B] leading-snug">
+                    Tombol kategori tidak ikut tergulir dan menempel menjadi header di atas layar.
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={Boolean(c.categoryStickyHeader)}
+                  onChange={(v) => updateContent({ categoryStickyHeader: v })}
+                  label="Jadikan tombol kategori menempel sebagai header saat halaman digulir"
+                />
+              </div>
+
+              {c.categoryStickyHeader && (
+                <div className="pt-2 border-t border-[#E2E8F0] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-[#17243D]">
+                      Warna Latar Header
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={
+                          c.categoryStickyBg && /^#[0-9a-fA-F]{6}$/.test(c.categoryStickyBg)
+                            ? c.categoryStickyBg
+                            : '#FFFFFF'
+                        }
+                        onChange={(e) => updateContent({ categoryStickyBg: e.target.value })}
+                        className="w-6 h-6 rounded border border-[#DCE5EF] cursor-pointer bg-white p-0.5"
+                      />
+                      {c.categoryStickyBg && (
+                        <button
+                          type="button"
+                          onClick={() => updateContent({ categoryStickyBg: '' })}
+                          className="text-[10px] font-semibold text-[#64748B] hover:text-[#17243D] underline cursor-pointer"
+                        >
+                          Otomatis
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] mb-1">
+                      <span className="font-semibold text-[#17243D]">Jarak dari Atas</span>
+                      <span className="font-mono text-[10.5px] text-[#64748B]">
+                        {c.categoryStickyTopOffset ?? 0}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      step={2}
+                      value={c.categoryStickyTopOffset ?? 0}
+                      onChange={(e) =>
+                        updateContent({ categoryStickyTopOffset: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#00C98A] cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {(c.categoryScrollMode ?? 'vertical') !== 'wrap' && (
               <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#F8FBFE] border border-[#DCE5EF]">
                 <span className="text-[11px] font-semibold text-[#17243D]">

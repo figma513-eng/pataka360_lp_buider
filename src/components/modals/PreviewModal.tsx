@@ -3757,16 +3757,53 @@ export function PreviewModal({
 
                 return (
                   <>
-                    {visiblePageBlocks.map((block) => (
-                      <div
-                        key={block.id}
-                        className={
-                          block.style.fullBleed ? 'w-full px-0' : containerPaddingClass
-                        }
-                      >
-                        {renderPreviewBlock(block, 0)}
-                      </div>
-                    ))}
+                    {visiblePageBlocks.map((block) => {
+                      const isStickyCat =
+                        block.type === 'category_tabs' &&
+                        Boolean(block.content.categoryStickyHeader);
+                      const hasSubpageBackBar = Boolean(
+                        currentCustomPage && currentCustomPage.showBackButton !== false
+                      );
+                      const stickyTopPx =
+                        block.content.categoryStickyTopOffset !== undefined
+                          ? Math.max(0, Math.min(120, block.content.categoryStickyTopOffset))
+                          : hasSubpageBackBar
+                          ? 45
+                          : 0;
+                      const stickyBg =
+                        block.content.categoryStickyBg?.trim() ||
+                        (block.style.backgroundColor &&
+                        block.style.backgroundColor !== 'transparent'
+                          ? block.style.backgroundColor
+                          : project.theme.cardBg || '#FFFFFF');
+
+                      return (
+                        <div
+                          key={block.id}
+                          style={
+                            isStickyCat
+                              ? {
+                                  position: 'sticky',
+                                  top: `${stickyTopPx}px`,
+                                  zIndex: 40,
+                                  backgroundColor: stickyBg,
+                                  backdropFilter: 'blur(12px)',
+                                  WebkitBackdropFilter: 'blur(12px)',
+                                  paddingTop: '6px',
+                                  paddingBottom: '6px',
+                                  borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+                                  boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)',
+                                }
+                              : undefined
+                          }
+                          className={
+                            block.style.fullBleed ? 'w-full px-0' : containerPaddingClass
+                          }
+                        >
+                          {renderPreviewBlock(block, 0)}
+                        </div>
+                      );
+                    })}
                     {activeFilterBtn && matchedContentCount === 0 && (
                       <div className={containerPaddingClass}>
                         <div className="my-3 p-5 rounded-2xl border border-black/10 bg-white/90 text-center shadow-xs space-y-2.5">
