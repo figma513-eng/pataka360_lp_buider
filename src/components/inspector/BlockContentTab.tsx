@@ -3,7 +3,9 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   CheckCircle2,
   ChevronLeft,
   Copy,
@@ -2180,6 +2182,8 @@ export function BlockContentTab({
         const showProductSize = c.mixRasaShowProductSize !== false;
         const showDescription = Boolean(c.mixRasaShowDescription);
         const previewSize = Math.max(150, Math.min(320, Number(c.mixRasaPreviewSize ?? 232)));
+        const dividerWidth = Math.max(0, Math.min(20, Number(c.mixRasaDividerWidth ?? 4)));
+        const dividerColor = c.mixRasaDividerColor || '#FFFFFF';
         const showBack = c.mixRasaShowBackButton !== false;
         const centerHeader = Boolean(c.mixRasaCenterHeader);
         const backActionType = c.mixRasaBackActionType || 'back';
@@ -2270,6 +2274,37 @@ export function BlockContentTab({
                 >
                   + Perbesar
                 </button>
+              </div>
+              <div className="space-y-1.5 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-semibold text-[#51637D]">
+                    Ketebalan Garis Pemisah
+                  </span>
+                  <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                    {dividerWidth === 0 ? '0px (Tanpa Garis)' : `${dividerWidth}px`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={20}
+                    step={1}
+                    value={dividerWidth}
+                    onChange={(e) =>
+                      updateContent({ mixRasaDividerWidth: Number(e.target.value) })
+                    }
+                    className="w-full accent-[#EA6314] cursor-pointer"
+                  />
+                  <input
+                    type="color"
+                    title="Warna Garis Pemisah"
+                    aria-label="Warna Garis Pemisah"
+                    value={dividerColor}
+                    onChange={(e) => updateContent({ mixRasaDividerColor: e.target.value })}
+                    className="w-8 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white shrink-0"
+                  />
+                </div>
               </div>
             </div>
 
@@ -2501,6 +2536,496 @@ export function BlockContentTab({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      case 'slide_mix_rasa': {
+        const flavors: MixRasaFlavorItem[] = c.slideMixFlavors ?? [];
+        const showBack = c.slideMixShowBackButton !== false;
+        const centerHeader = c.slideMixCenterHeader !== false;
+        const showProductSize = c.slideMixShowProductSize !== false;
+        const showDescription = Boolean(c.slideMixShowDescription);
+        const showDice = c.slideMixShowDiceButton !== false;
+        const enableLoop = c.slideMixLoop !== false;
+        const autoSlide = Boolean(c.slideMixAutoSlide);
+        const autoSlideSec = Math.max(
+          1.5,
+          Math.min(15, Math.round(((c.slideMixAutoSlideMs ?? 3500) / 1000) * 10) / 10)
+        );
+        const previewSize = Math.max(150, Math.min(320, Number(c.slideMixPreviewSize ?? 236)));
+        const peekSize = Math.max(56, Math.min(160, Number(c.slideMixPeekSize ?? 102)));
+        const itemGap = Math.max(0, Math.min(64, Number(c.slideMixItemGap ?? 22)));
+        const peekOpacity = Math.max(10, Math.min(100, Number(c.slideMixPeekOpacity ?? 58)));
+        const transitionMs = Math.max(180, Math.min(900, Number(c.slideMixTransitionMs ?? 420)));
+        const dividerWidth = Math.max(0, Math.min(20, Number(c.slideMixDividerWidth ?? 4)));
+        const dividerColor = c.slideMixDividerColor || '#FFFFFF';
+        const backActionType = c.slideMixBackActionType || 'back';
+        const sizePresets = ['35 cm', '30 cm', '25 cm', '40 cm', 'Loyang 20 cm'];
+
+        return (
+          <div className="space-y-3">
+            {/* Ukuran Produk, Jarak Antar Produk & Animasi Slide */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Ukuran Gambar &amp; Jarak Antar Produk
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-semibold text-[#51637D]">
+                    Produk Utama (Tengah)
+                  </span>
+                  <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                    {previewSize}px
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({ slideMixPreviewSize: Math.max(150, previewSize - 12) })
+                    }
+                    className="px-2 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                  >
+                    − Perkecil
+                  </button>
+                  <input
+                    type="range"
+                    min={150}
+                    max={320}
+                    step={2}
+                    value={previewSize}
+                    onChange={(e) =>
+                      updateContent({ slideMixPreviewSize: Number(e.target.value) })
+                    }
+                    className="w-full accent-[#EA6314] cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateContent({ slideMixPreviewSize: Math.min(320, previewSize + 12) })
+                    }
+                    className="px-2 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                  >
+                    + Perbesar
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-semibold text-[#51637D]">
+                    Produk Atas &amp; Bawah
+                  </span>
+                  <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                    {peekSize}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={56}
+                  max={160}
+                  step={2}
+                  value={peekSize}
+                  onChange={(e) => updateContent({ slideMixPeekSize: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-semibold text-[#51637D]">
+                    Jarak Antar Produk (Atas &amp; Bawah Sama)
+                  </span>
+                  <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                    {itemGap}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={64}
+                  step={2}
+                  value={itemGap}
+                  onChange={(e) => updateContent({ slideMixItemGap: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#DCE5EF]/80">
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-[#51637D] mb-1">
+                    <span>Opasitas Atas/Bawah</span>
+                    <span className="font-bold text-[#17243D] tabular-nums">{peekOpacity}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    step={2}
+                    value={peekOpacity}
+                    onChange={(e) => updateContent({ slideMixPeekOpacity: Number(e.target.value) })}
+                    className="w-full accent-[#EA6314] cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-[#51637D] mb-1">
+                    <span>Kehalusan Slide</span>
+                    <span className="font-bold text-[#17243D] tabular-nums">{transitionMs}ms</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={180}
+                    max={900}
+                    step={20}
+                    value={transitionMs}
+                    onChange={(e) => updateContent({ slideMixTransitionMs: Number(e.target.value) })}
+                    className="w-full accent-[#EA6314] cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-semibold text-[#51637D]">
+                    Ketebalan Garis Pemisah
+                  </span>
+                  <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                    {dividerWidth === 0 ? '0px (Tanpa Garis)' : `${dividerWidth}px`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={20}
+                    step={1}
+                    value={dividerWidth}
+                    onChange={(e) =>
+                      updateContent({ slideMixDividerWidth: Number(e.target.value) })
+                    }
+                    className="w-full accent-[#EA6314] cursor-pointer"
+                  />
+                  <input
+                    type="color"
+                    title="Warna Garis Pemisah"
+                    aria-label="Warna Garis Pemisah"
+                    value={dividerColor}
+                    onChange={(e) => updateContent({ slideMixDividerColor: e.target.value })}
+                    className="w-8 h-7 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Judul, Ukuran, Keterangan & Prefix Harga */}
+            <div className="grid grid-cols-1 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Judul Produk
+                </label>
+                <input
+                  type="text"
+                  value={c.slideMixTitle ?? 'Pizza Mix Rasa'}
+                  onChange={(e) => updateContent({ slideMixTitle: e.target.value })}
+                  placeholder="Pizza Mix Rasa"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-[#17243D]">
+                      Ukuran Produk
+                    </div>
+                    <div className="text-[10px] text-[#51637D]">
+                      {showProductSize
+                        ? 'Ditampilkan bersama judul & detail pesanan'
+                        : 'Disembunyikan dari tampilan & detail pesanan'}
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={showProductSize}
+                    onChange={(val) => updateContent({ slideMixShowProductSize: val })}
+                    label="Tampilkan Ukuran Produk"
+                  />
+                </div>
+                {showProductSize && (
+                  <>
+                    <input
+                      type="text"
+                      value={c.slideMixProductSize ?? '35 cm'}
+                      onChange={(e) => updateContent({ slideMixProductSize: e.target.value })}
+                      placeholder="35 cm"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    />
+                    <div className="flex flex-wrap gap-1">
+                      {sizePresets.map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => updateContent({ slideMixProductSize: sz })}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border cursor-pointer ${
+                            (c.slideMixProductSize ?? '35 cm') === sz
+                              ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                              : 'bg-white text-[#51637D] border-[#DCE5EF] hover:border-[#EA6314]'
+                          }`}
+                        >
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#DCE5EF] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-[#17243D]">
+                      Keterangan Produk
+                    </div>
+                    <div className="text-[10px] text-[#51637D]">
+                      Tampilkan catatan singkat di bawah judul produk
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={showDescription}
+                    onChange={(val) => updateContent({ slideMixShowDescription: val })}
+                    label="Tampilkan Keterangan Produk"
+                  />
+                </div>
+                {showDescription && (
+                  <textarea
+                    rows={2}
+                    value={c.slideMixDescription ?? ''}
+                    onChange={(e) => updateContent({ slideMixDescription: e.target.value })}
+                    placeholder="Contoh: Geser atas/bawah di sisi kiri atau kanan untuk memilih kombinasi rasa."
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Label Harga
+                </label>
+                <input
+                  type="text"
+                  value={c.slideMixPricePrefix ?? 'Harga'}
+                  onChange={(e) => updateContent({ slideMixPricePrefix: e.target.value })}
+                  placeholder="Harga"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+            </div>
+
+            {/* Tampilan Header */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Tampilan Header Produk
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Tampilkan Tombol Kembali
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Tombol navigasi di sudut kiri atas (misal: &lt; Menu)
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={showBack}
+                  onChange={(val) => updateContent({ slideMixShowBackButton: val })}
+                  label="Tampilkan Tombol Kembali"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Judul Produk di Tengah
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Posisikan teks judul tepat di tengah header
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={centerHeader}
+                  onChange={(val) => updateContent({ slideMixCenterHeader: val })}
+                  label="Judul Produk di Tengah"
+                />
+              </div>
+              {showBack && (
+                <div className="pt-2 border-t border-[#DCE5EF]/80 space-y-2">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                      Label Tombol Kembali
+                    </label>
+                    <input
+                      type="text"
+                      value={c.slideMixBackLabel ?? 'Menu'}
+                      onChange={(e) => updateContent({ slideMixBackLabel: e.target.value })}
+                      placeholder="Menu"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                      Aksi Tombol Kembali
+                    </label>
+                    <select
+                      value={backActionType}
+                      onChange={(e) =>
+                        updateContent({
+                          slideMixBackActionType: e.target.value as 'back' | 'page' | 'url',
+                        })
+                      }
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="back">Kembali ke Halaman Sebelumnya</option>
+                      <option value="page">Menuju Halaman Lain</option>
+                      <option value="url">Buka Tautan URL</option>
+                    </select>
+                  </div>
+                  {backActionType === 'page' && (
+                    <select
+                      value={c.slideMixBackTargetPageId ?? ''}
+                      onChange={(e) => updateContent({ slideMixBackTargetPageId: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="">Beranda (Home)</option>
+                      {pages.map((pg) => (
+                        <option key={pg.id} value={pg.id}>
+                          {pg.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {backActionType === 'url' && (
+                    <input
+                      type="url"
+                      value={c.slideMixBackUrl ?? ''}
+                      onChange={(e) => updateContent({ slideMixBackUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Interaksi Slide & Acak Rasa */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Interaksi Slide Vertikal
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Tombol Acak Rasa (Dadu)
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Tombol bulat di kanan bawah untuk mengacak kombinasi rasa
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={showDice}
+                  onChange={(val) => updateContent({ slideMixShowDiceButton: val })}
+                  label="Tombol Acak Rasa"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Putar Tanpa Batas (Loop)
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Geser terus menerus kembali ke rasa pertama
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={enableLoop}
+                  onChange={(val) => updateContent({ slideMixLoop: val })}
+                  label="Putar Tanpa Batas"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE5EF]/80">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17243D]">
+                    Slide Otomatis (Auto Slide)
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Ganti rasa secara berkala otomatis di halaman publik
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={autoSlide}
+                  onChange={(val) => updateContent({ slideMixAutoSlide: val })}
+                  label="Slide Otomatis"
+                />
+              </div>
+              {autoSlide && (
+                <div className="pt-1.5 space-y-1">
+                  <div className="flex items-center justify-between text-[10.5px] font-semibold text-[#51637D]">
+                    <span>Interval Slide Otomatis</span>
+                    <span className="font-bold text-[#EA6314] tabular-nums">{autoSlideSec} detik</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1500}
+                    max={10000}
+                    step={500}
+                    value={c.slideMixAutoSlideMs ?? 3500}
+                    onChange={(e) => updateContent({ slideMixAutoSlideMs: Number(e.target.value) })}
+                    className="w-full accent-[#EA6314] cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Kombinasi Rasa Awal Kiri & Kanan */}
+            {flavors.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">
+                  Rasa Awal (Sisi Kiri &amp; Sisi Kanan)
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                      Sisi Kiri
+                    </label>
+                    <select
+                      value={c.slideMixDefaultLeftId || flavors[0]?.id || ''}
+                      onChange={(e) => updateContent({ slideMixDefaultLeftId: e.target.value })}
+                      className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                    >
+                      {flavors.map((flv) => (
+                        <option key={flv.id} value={flv.id}>
+                          {flv.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#51637D] mb-0.5">
+                      Sisi Kanan
+                    </label>
+                    <select
+                      value={c.slideMixDefaultRightId || flavors[1]?.id || flavors[0]?.id || ''}
+                      onChange={(e) => updateContent({ slideMixDefaultRightId: e.target.value })}
+                      className="w-full px-2 py-1 text-[11px] rounded-md border border-[#DCE5EF] bg-white"
+                    >
+                      {flavors.map((flv) => (
+                        <option key={flv.id} value={flv.id}>
+                          {flv.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             )}
@@ -7356,6 +7881,330 @@ export function BlockContentTab({
       };
     }
 
+    // --- SLIDE MIX RASA: DAFTAR RASA ---
+    if (selectedBlock.type === 'slide_mix_rasa') {
+      const flavors: MixRasaFlavorItem[] = c.slideMixFlavors ?? [];
+      const updateFlavor = (id: string, patch: Partial<MixRasaFlavorItem>) => {
+        updateContent({
+          slideMixFlavors: flavors.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+        });
+      };
+
+      const editingId = editingItemKey?.startsWith('smr:')
+        ? editingItemKey.slice('smr:'.length)
+        : null;
+      const editingFlavor = editingId ? flavors.find((f) => f.id === editingId) : null;
+
+      if (editingFlavor) {
+        return {
+          badge: 'Edit Rasa',
+          body: (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#DCE5EF]">
+                <button
+                  type="button"
+                  onClick={() => setEditingItemKey(null)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#17243D] hover:text-[#EA6314] cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Kembali ke Daftar Rasa</span>
+                </button>
+              </div>
+              <MediaSourceInput
+                label="Foto / Gambar Rasa (Bundar)"
+                value={editingFlavor.image ?? ''}
+                placeholder="Upload foto atau tempel URL gambar..."
+                onChangeUrl={(url) => updateFlavor(editingFlavor.id, { image: url })}
+                onUploadFile={(file) =>
+                  handleCompressAndSet(file, { maxDimension: 720, quality: 0.86 }, (blk, url) => ({
+                    ...blk,
+                    content: {
+                      ...blk.content,
+                      slideMixFlavors: (blk.content.slideMixFlavors ?? []).map((f) =>
+                        f.id === editingFlavor.id ? { ...f, image: url } : f
+                      ),
+                    },
+                  }))
+                }
+                onClear={
+                  editingFlavor.image
+                    ? () => updateFlavor(editingFlavor.id, { image: '' })
+                    : undefined
+                }
+              />
+              {(() => {
+                const flvScale = Math.max(
+                  50,
+                  Math.min(200, Number(editingFlavor.imageScale ?? 100))
+                );
+                return (
+                  <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#17243D]">
+                        Skala Foto Rasa (Perbesar / Perkecil)
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10.5px] font-bold text-[#EA6314] tabular-nums">
+                          {flvScale}%
+                        </span>
+                        {flvScale !== 100 && (
+                          <button
+                            type="button"
+                            onClick={() => updateFlavor(editingFlavor.id, { imageScale: 100 })}
+                            className="text-[10px] font-semibold text-[#51637D] hover:text-[#17243D] underline cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-11 h-11 rounded-full overflow-hidden bg-white border border-[#DCE5EF] shrink-0">
+                        {editingFlavor.image ? (
+                          <img
+                            src={editingFlavor.image}
+                            alt={editingFlavor.name}
+                            className="w-full h-full object-cover"
+                            style={{
+                              transform: `scale(${flvScale / 100})`,
+                              transformOrigin: 'center center',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className="w-full h-full"
+                            style={{ backgroundColor: editingFlavor.accentColor || '#EA6314' }}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateFlavor(editingFlavor.id, {
+                              imageScale: Math.max(50, flvScale - 10),
+                            })
+                          }
+                          className="px-2 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                        >
+                          − Perkecil
+                        </button>
+                        <input
+                          type="range"
+                          min={50}
+                          max={200}
+                          step={5}
+                          value={flvScale}
+                          onChange={(e) =>
+                            updateFlavor(editingFlavor.id, {
+                              imageScale: Number(e.target.value),
+                            })
+                          }
+                          className="w-full accent-[#EA6314] cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateFlavor(editingFlavor.id, {
+                              imageScale: Math.min(200, flvScale + 10),
+                            })
+                          }
+                          className="px-2 py-1 rounded-md bg-white border border-[#DCE5EF] text-[11px] font-bold text-[#17243D] hover:bg-slate-50 cursor-pointer shrink-0"
+                        >
+                          + Perbesar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Nama Rasa
+                </label>
+                <input
+                  type="text"
+                  value={editingFlavor.name}
+                  onChange={(e) => updateFlavor(editingFlavor.id, { name: e.target.value })}
+                  placeholder="Contoh: Hawaiian"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                  Subjudul (Tampil Saat Kiri &amp; Kanan Sama)
+                </label>
+                <input
+                  type="text"
+                  value={editingFlavor.subtitle ?? ''}
+                  onChange={(e) => updateFlavor(editingFlavor.id, { subtitle: e.target.value })}
+                  placeholder="Resep asli"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Harga per Setengah
+                  </label>
+                  <input
+                    type="text"
+                    value={editingFlavor.price}
+                    onChange={(e) => updateFlavor(editingFlavor.id, { price: e.target.value })}
+                    placeholder="Rp390.000"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A] tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#17243D] mb-1">
+                    Warna Cadangan
+                  </label>
+                  <input
+                    type="color"
+                    value={editingFlavor.accentColor || '#EA6314'}
+                    onChange={(e) =>
+                      updateFlavor(editingFlavor.id, { accentColor: e.target.value })
+                    }
+                    className="w-full h-[30px] rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      return {
+        badge: `${flavors.length} Rasa`,
+        body: (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const nextFlavor: MixRasaFlavorItem = {
+                  id: createId('smr_flv'),
+                  name: `Rasa Baru ${flavors.length + 1}`,
+                  subtitle: 'Resep asli',
+                  price: 'Rp350.000',
+                  image: MIX_RASA_PEPPERONI_SVG,
+                  accentColor: '#EA6314',
+                };
+                updateContent({ slideMixFlavors: [...flavors, nextFlavor] });
+                setEditingItemKey(`smr:${nextFlavor.id}`);
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-[#EA6314] hover:bg-[#D4550E] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Pilihan Rasa</span>
+            </button>
+            <div className="space-y-1.5">
+              {flavors.map((flv, idx) => (
+                <div
+                  key={flv.id}
+                  className="flex items-center gap-1.5 p-2 rounded-lg bg-white border border-[#DCE5EF]"
+                >
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                    {flv.image ? (
+                      <img
+                        src={flv.image}
+                        alt={flv.name}
+                        className="w-full h-full object-cover"
+                        style={
+                          (flv.imageScale ?? 100) !== 100
+                            ? {
+                                transform: `scale(${
+                                  Math.max(50, Math.min(200, Number(flv.imageScale ?? 100))) / 100
+                                })`,
+                                transformOrigin: 'center center',
+                              }
+                            : undefined
+                        }
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full"
+                        style={{ backgroundColor: flv.accentColor || '#EA6314' }}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-[#17243D] truncate">{flv.name}</div>
+                    <div className="text-[10.5px] font-semibold text-[#51637D] tabular-nums">
+                      {flv.price}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      title="Geser ke atas"
+                      onClick={() =>
+                        updateContent({ slideMixFlavors: moveArrayItem(flavors, idx, -1) })
+                      }
+                      className="p-0.5 rounded text-[#51637D] hover:bg-[#F0F5FA] disabled:opacity-30 cursor-pointer"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === flavors.length - 1}
+                      title="Geser ke bawah"
+                      onClick={() =>
+                        updateContent({ slideMixFlavors: moveArrayItem(flavors, idx, 1) })
+                      }
+                      className="p-0.5 rounded text-[#51637D] hover:bg-[#F0F5FA] disabled:opacity-30 cursor-pointer"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingItemKey(`smr:${flv.id}`)}
+                    className="px-2 py-1 rounded-md bg-[#F0F5FA] text-[10.5px] font-semibold text-[#17243D] hover:bg-[#E2ECF5] cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    title="Duplikat Rasa"
+                    aria-label="Duplikat Rasa"
+                    onClick={() => {
+                      const clone: MixRasaFlavorItem = {
+                        ...flv,
+                        id: createId('smr_flv'),
+                        name: `${flv.name} (Salinan)`,
+                      };
+                      const next = [...flavors];
+                      next.splice(idx + 1, 0, clone);
+                      updateContent({ slideMixFlavors: next });
+                    }}
+                    className="p-1.5 rounded-md text-[#00996B] hover:bg-[#ECFDF6] cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  {flavors.length > 1 && (
+                    <button
+                      type="button"
+                      title="Hapus Rasa"
+                      aria-label="Hapus Rasa"
+                      onClick={() => {
+                        updateContent({
+                          slideMixFlavors: removeSelectedItemByIdOrIndex(flavors, flv.id, idx),
+                        });
+                      }}
+                      className="p-1.5 rounded-md text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ),
+      };
+    }
+
     // --- FNB CATALOG ---
     if (selectedBlock.type === 'fnb_catalog') {
       const items = c.fnbItems ?? [];
@@ -11478,6 +12327,337 @@ export function BlockContentTab({
         );
       }
 
+      case 'slide_mix_rasa': {
+        const floatingCartEnabled = c.slideMixFloatingCartEnabled !== false;
+        const waEnabled = Boolean(c.slideMixWaEnabled);
+        const waIncludeDetails = c.slideMixWaIncludeDetails !== false;
+        const adminEnabled = Boolean(c.adminCtaEnabled);
+        const accent = c.slideMixAccentColor || '#FF6900';
+        const flavors: MixRasaFlavorItem[] = c.slideMixFlavors ?? [];
+        const leftPreview =
+          flavors.find((f) => f.id === c.slideMixDefaultLeftId) || flavors[0];
+        const rightPreview =
+          flavors.find((f) => f.id === c.slideMixDefaultRightId) || flavors[1] || flavors[0];
+        const previewSelected = [leftPreview, rightPreview].filter(Boolean) as MixRasaFlavorItem[];
+        const previewTotal = previewSelected.reduce((sum, f) => sum + parseMixRasaPrice(f.price), 0);
+        const showProductSize = c.slideMixShowProductSize !== false;
+        const previewWaText = buildMixRasaWaMessage({
+          title: c.slideMixTitle || 'Pizza Mix Rasa',
+          productSize: showProductSize ? c.slideMixProductSize || '35 cm' : '',
+          selectedFlavors: previewSelected,
+          totalAmount: previewTotal,
+          qty: 1,
+          intro: c.slideMixWaIntro ?? 'Halo, saya ingin memesan:',
+          includeDetails: waIncludeDetails,
+        });
+
+        const buttonSize =
+          c.slideMixButtonSize === 'sm' || c.slideMixButtonSize === 'lg'
+            ? c.slideMixButtonSize
+            : 'md';
+        const buttonDisplay =
+          c.slideMixButtonDisplay === 'icon_only' ? 'icon_only' : 'icon_text';
+        const buttonLayout = c.slideMixButtonLayout === 'row' ? 'row' : 'stack';
+
+        return (
+          <div className="space-y-3">
+            {/* GAYA & UKURAN TOMBOL AKSI (Gabung Rasa / WA / Admin) */}
+            <div className="p-2.5 rounded-lg bg-[#FFF7ED] border border-[#FED7AA] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#9A3412]">
+                Ukuran &amp; Tampilan Tombol (Gabung Rasa / WA)
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-[#9A3412] mb-1">
+                  Tampilan Isi Tombol
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { id: 'icon_text', label: 'Ikon + Teks' },
+                      { id: 'icon_only', label: 'Ikon Saja' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ slideMixButtonDisplay: opt.id })}
+                      className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-all ${
+                        buttonDisplay === opt.id
+                          ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                          : 'bg-white text-[#51637D] border-[#FED7AA] hover:border-[#EA6314]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-[#9A3412] mb-1">
+                  Ukuran Tombol
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'sm', label: 'Kecil' },
+                      { id: 'md', label: 'Sedang' },
+                      { id: 'lg', label: 'Besar' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ slideMixButtonSize: opt.id })}
+                      className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-all ${
+                        buttonSize === opt.id
+                          ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                          : 'bg-white text-[#51637D] border-[#FED7AA] hover:border-[#EA6314]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {buttonDisplay === 'icon_text' && (
+                <div>
+                  <label className="block text-[10px] font-semibold text-[#9A3412] mb-1">
+                    Susunan Tombol
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'stack', label: 'Tumpuk Vertikal' },
+                        { id: 'row', label: 'Sejajar Horizontal' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updateContent({ slideMixButtonLayout: opt.id })}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border cursor-pointer transition-all ${
+                          buttonLayout === opt.id
+                            ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                            : 'bg-white text-[#51637D] border-[#FED7AA] hover:border-[#EA6314]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 1. KERANJANG MELAYANG */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#17243D]">
+                    1. Keranjang Melayang
+                  </div>
+                  <div className="text-[10px] text-[#51637D]">
+                    Tampilkan tombol Gabungkan Rasa &amp; keranjang melayang berisi kombinasi kiri &amp; kanan
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={floatingCartEnabled}
+                  onChange={(val) =>
+                    updateContent({
+                      slideMixFloatingCartEnabled: val,
+                      catalogCartEnabled: val,
+                    })
+                  }
+                  label="Keranjang Melayang"
+                />
+              </div>
+
+              {floatingCartEnabled && (
+                <div className="space-y-2 pt-2 border-t border-[#DCE5EF]/80">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                      Posisi Keranjang Melayang
+                    </label>
+                    <select
+                      value={c.slideMixFloatingCartPosition ?? 'bottom-floating'}
+                      onChange={(e) =>
+                        updateContent({
+                          slideMixFloatingCartPosition: e.target.value as FloatingCartPosition,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                    >
+                      <option value="bottom-floating">Melayang Bawah Penuh (Default)</option>
+                      <option value="bottom-docked">Menempel Tepi Bawah</option>
+                      <option value="bottom-left">Melayang Kiri Bawah</option>
+                      <option value="bottom-right">Melayang Kanan Bawah</option>
+                      <option value="top-floating">Melayang Atas Penuh</option>
+                      <option value="top-left">Melayang Kiri Atas</option>
+                      <option value="top-right">Melayang Kanan Atas</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Label Tombol Utama
+                      </label>
+                      <input
+                        type="text"
+                        value={c.slideMixCartButtonLabel ?? 'Gabungkan Rasa'}
+                        onChange={(e) =>
+                          updateContent({ slideMixCartButtonLabel: e.target.value })
+                        }
+                        placeholder="Gabungkan Rasa"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Label Keranjang Melayang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.slideMixFloatingCartLabel ?? 'Lihat Keranjang'}
+                        onChange={(e) =>
+                          updateContent({ slideMixFloatingCartLabel: e.target.value })
+                        }
+                        placeholder="Lihat Keranjang"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        No. WA Checkout Keranjang
+                      </label>
+                      <input
+                        type="text"
+                        value={c.catalogWhatsappNumber ?? c.slideMixWaNumber ?? '6281234567890'}
+                        onChange={(e) =>
+                          updateContent({ catalogWhatsappNumber: e.target.value })
+                        }
+                        placeholder="6281234567890"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white tabular-nums outline-none focus:border-[#00C98A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#51637D] mb-1">
+                        Warna Keranjang
+                      </label>
+                      <input
+                        type="color"
+                        value={c.slideMixFloatingCartBg ?? accent}
+                        onChange={(e) =>
+                          updateContent({ slideMixFloatingCartBg: e.target.value })
+                        }
+                        className="w-full h-[30px] rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. LINK WHATSAPP */}
+            <div className="p-2.5 rounded-lg bg-[#ECFDF5] border border-[#BBF7D0] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-[#14532D]">
+                    2. Link WhatsApp
+                  </div>
+                  <div className="text-[10px] text-[#166534]">
+                    Buka WhatsApp langsung dengan nomor tujuan &amp; kombinasi rasa terpilih
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={waEnabled}
+                  onChange={(val) => updateContent({ slideMixWaEnabled: val })}
+                  label="Link WhatsApp"
+                />
+              </div>
+
+              {waEnabled && (
+                <div className="space-y-2 pt-2 border-t border-[#BBF7D0]">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#166534] mb-1">
+                        Nomor WhatsApp Tujuan
+                      </label>
+                      <input
+                        type="text"
+                        value={c.slideMixWaNumber ?? '6281234567890'}
+                        onChange={(e) => updateContent({ slideMixWaNumber: e.target.value })}
+                        placeholder="6281234567890"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#86EFAC] bg-white tabular-nums outline-none focus:border-[#16A34A]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10.5px] font-semibold text-[#166534] mb-1">
+                        Label Tombol
+                      </label>
+                      <input
+                        type="text"
+                        value={c.slideMixWaLabel ?? 'Pesan via WhatsApp'}
+                        onChange={(e) => updateContent({ slideMixWaLabel: e.target.value })}
+                        placeholder="Pesan via WhatsApp"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#86EFAC] bg-white outline-none focus:border-[#16A34A]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-[#166534] mb-1">
+                      Pesan Awal WhatsApp
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={c.slideMixWaIntro ?? 'Halo, saya ingin memesan:'}
+                      onChange={(e) => updateContent({ slideMixWaIntro: e.target.value })}
+                      placeholder="Halo, saya ingin memesan:"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#86EFAC] bg-white outline-none focus:border-[#16A34A]"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-[#14532D]">
+                        Sertakan Detail Kombinasi Rasa Otomatis
+                      </div>
+                      <div className="text-[9.5px] text-[#166534]">
+                        Otomatis mengisi nama produk, daftar rasa, jumlah &amp; total harga
+                      </div>
+                    </div>
+                    <ToggleSwitch
+                      checked={waIncludeDetails}
+                      onChange={(val) => updateContent({ slideMixWaIncludeDetails: val })}
+                      label="Sertakan Detail Kombinasi Rasa"
+                    />
+                  </div>
+                  <div className="rounded-lg bg-white/90 border border-[#BBF7D0] p-2">
+                    <div className="text-[9.5px] font-bold uppercase tracking-wider text-[#15803D] mb-1">
+                      Pratinjau Pesan WhatsApp
+                    </div>
+                    <pre className="text-[10px] leading-relaxed text-slate-700 whitespace-pre-wrap font-sans m-0">
+                      {previewWaText}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. TOMBOL TANYA ADMIN (WHATSAPP / HALAMAN / BOTTOM SHEET) */}
+            {renderAdminCtaControls(
+              c.slideMixWaNumber || c.catalogWhatsappNumber || '6281234567890'
+            )}
+
+            {!floatingCartEnabled && !waEnabled && !adminEnabled && (
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[10.5px] text-amber-800 font-medium">
+                Semua aksi nonaktif — tidak ada tombol pemesanan tambahan yang ditampilkan pada halaman publik.
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case 'fnb_hero_slider':
         return (
           <div className="space-y-2.5">
@@ -12820,6 +14000,8 @@ export function BlockContentTab({
   const resolvedWaCenter = resolveWhatsappCenter({ whatsappCenter });
   const isProductBoxReveal = selectedBlock.type === 'product_box_reveal';
   const isMixRasa = selectedBlock.type === 'mix_rasa';
+  const isSlideMixRasa = selectedBlock.type === 'slide_mix_rasa';
+  const isMixFamily = isMixRasa || isSlideMixRasa;
   const supportsWaCenterIntegration =
     selectedBlock.type === 'button' ||
     selectedBlock.type === 'catalog' ||
@@ -12830,6 +14012,7 @@ export function BlockContentTab({
     selectedBlock.type === 'interactive_box_showcase' ||
     selectedBlock.type === 'product_box_reveal' ||
     selectedBlock.type === 'mix_rasa' ||
+    selectedBlock.type === 'slide_mix_rasa' ||
     selectedBlock.type === 'cart_button' ||
     selectedBlock.type === 'training_catalog' ||
     selectedBlock.type === 'form' ||
@@ -12844,7 +14027,7 @@ export function BlockContentTab({
           title={
             isProductBoxReveal
               ? 'Kotak & Foto Produk'
-              : isMixRasa
+              : isMixFamily
               ? 'Daftar Rasa'
               : label('konten.sec.items', 'Data & Daftar Item')
           }
@@ -12864,6 +14047,8 @@ export function BlockContentTab({
           title={
             isProductBoxReveal
               ? 'Aksi Produk'
+              : isSlideMixRasa
+              ? 'Pengaturan Slide Mix Rasa'
               : isMixRasa
               ? 'Pengaturan Mix Rasa'
               : label('konten.sec.main', 'Konten Utama')
@@ -12876,8 +14061,8 @@ export function BlockContentTab({
         </AccordionSection>
       )}
 
-      {/* 2b. AKSI PEMESANAN KHUSUS MIX RASA (tampil menonjol tepat di bawah Pengaturan Mix Rasa) */}
-      {isMixRasa && actionsContent && (
+      {/* 2b. AKSI PEMESANAN KHUSUS MIX RASA & SLIDE MIX RASA */}
+      {isMixFamily && actionsContent && (
         <AccordionSection
           id="actions"
           title="Aksi Pemesanan"
@@ -12891,7 +14076,7 @@ export function BlockContentTab({
 
       {/* 3. TAUTAN & NAVIGASI */}
       {!isProductBoxReveal &&
-        !isMixRasa &&
+        !isMixFamily &&
         navContent &&
         isVisible('konten.sec.nav') &&
         isContentSectionAllowed('nav') && (
@@ -12907,7 +14092,7 @@ export function BlockContentTab({
         )}
 
       {/* 4. PENGATURAN UMUM */}
-      {!isProductBoxReveal && !isMixRasa && isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
+      {!isProductBoxReveal && !isMixFamily && isVisible('konten.sec.general') && isContentSectionAllowed('general') && (
         <AccordionSection
           id="general"
           title={label('konten.sec.general', 'Pengaturan Umum')}
@@ -13038,7 +14223,7 @@ export function BlockContentTab({
 
       {/* 5. AKSI & INTERAKSI */}
       {!isProductBoxReveal &&
-        !isMixRasa &&
+        !isMixFamily &&
         actionsContent &&
         isVisible('konten.sec.actions') &&
         isContentSectionAllowed('actions') && (

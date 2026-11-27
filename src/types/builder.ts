@@ -1223,6 +1223,8 @@ export interface BlockContent {
   mixRasaSliceCount?: 2 | 3 | 4;
   mixRasaAllowSliceSwitch?: boolean;
   mixRasaPreviewSize?: number;
+  mixRasaDividerWidth?: number;
+  mixRasaDividerColor?: string;
   mixRasaShowBackButton?: boolean;
   mixRasaCenterHeader?: boolean;
   mixRasaBackActionType?: 'back' | 'page' | 'url';
@@ -1265,11 +1267,16 @@ export interface BlockContent {
   slideMixPreviewSize?: number;
   slideMixPeekSize?: number;
   slideMixPeekOpacity?: number;
+  slideMixItemGap?: number;
+  slideMixTransitionMs?: number;
   slideMixDividerWidth?: number;
   slideMixDividerColor?: string;
   slideMixBgColor?: string;
   slideMixAccentColor?: string;
   slideMixPricePrefix?: string;
+  slideMixButtonSize?: 'sm' | 'md' | 'lg';
+  slideMixButtonDisplay?: 'icon_text' | 'icon_only';
+  slideMixButtonLayout?: 'stack' | 'row';
   slideMixFloatingCartEnabled?: boolean;
   slideMixFloatingCartPosition?: FloatingCartPosition;
   slideMixFloatingCartLabel?: string;

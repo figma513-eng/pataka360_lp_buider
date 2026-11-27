@@ -169,7 +169,8 @@ function CircularSplitPreview({
   sliceCount,
   sizeClass,
   sizePx,
-  dividerWidth = 3,
+  dividerWidth = 4,
+  dividerColor = '#FFFFFF',
   interactive = false,
   activePickerSlot = null,
   onSelectSlot,
@@ -179,6 +180,7 @@ function CircularSplitPreview({
   sizeClass?: string;
   sizePx?: number;
   dividerWidth?: number;
+  dividerColor?: string;
   interactive?: boolean;
   activePickerSlot?: number | null;
   onSelectSlot?: (idx: number) => void;
@@ -193,10 +195,9 @@ function CircularSplitPreview({
               height: `min(${sizePx}px, 72vw)`,
             }
           : {}),
-        boxShadow:
-          dividerWidth >= 3
-            ? '0 14px 32px -10px rgba(15, 23, 42, 0.24), 0 4px 12px rgba(15, 23, 42, 0.08)'
-            : '0 4px 10px -2px rgba(15, 23, 42, 0.16)',
+        boxShadow: sizePx
+          ? '0 14px 32px -10px rgba(15, 23, 42, 0.24), 0 4px 12px rgba(15, 23, 42, 0.08)'
+          : '0 4px 10px -2px rgba(15, 23, 42, 0.16)',
         backgroundColor: '#F8FAFC',
       }}
     >
@@ -251,36 +252,38 @@ function CircularSplitPreview({
         );
       })}
 
-      {/* Crisp white radial slice seams */}
-      <svg
-        viewBox="0 0 200 200"
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 w-full h-full"
-      >
-        {sliceCount === 2 && (
-          <line
-            x1="100"
-            y1="0"
-            x2="100"
-            y2="200"
-            stroke="#FFFFFF"
-            strokeWidth={dividerWidth}
-          />
-        )}
-        {sliceCount === 3 && (
-          <>
-            <line x1="100" y1="100" x2="100" y2="0" stroke="#FFFFFF" strokeWidth={dividerWidth} />
-            <line x1="100" y1="100" x2="186.6" y2="150" stroke="#FFFFFF" strokeWidth={dividerWidth} />
-            <line x1="100" y1="100" x2="13.4" y2="150" stroke="#FFFFFF" strokeWidth={dividerWidth} />
-          </>
-        )}
-        {sliceCount === 4 && (
-          <>
-            <line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" strokeWidth={dividerWidth} />
-            <line x1="0" y1="100" x2="200" y2="100" stroke="#FFFFFF" strokeWidth={dividerWidth} />
-          </>
-        )}
-      </svg>
+      {/* Crisp radial slice seams */}
+      {dividerWidth > 0 && (
+        <svg
+          viewBox="0 0 200 200"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 w-full h-full"
+        >
+          {sliceCount === 2 && (
+            <line
+              x1="100"
+              y1="0"
+              x2="100"
+              y2="200"
+              stroke={dividerColor}
+              strokeWidth={dividerWidth}
+            />
+          )}
+          {sliceCount === 3 && (
+            <>
+              <line x1="100" y1="100" x2="100" y2="0" stroke={dividerColor} strokeWidth={dividerWidth} />
+              <line x1="100" y1="100" x2="186.6" y2="150" stroke={dividerColor} strokeWidth={dividerWidth} />
+              <line x1="100" y1="100" x2="13.4" y2="150" stroke={dividerColor} strokeWidth={dividerWidth} />
+            </>
+          )}
+          {sliceCount === 4 && (
+            <>
+              <line x1="100" y1="0" x2="100" y2="200" stroke={dividerColor} strokeWidth={dividerWidth} />
+              <line x1="0" y1="100" x2="200" y2="100" stroke={dividerColor} strokeWidth={dividerWidth} />
+            </>
+          )}
+        </svg>
+      )}
     </div>
   );
 }
@@ -318,6 +321,9 @@ export function MixRasaConfigurator({
   const showDescription = Boolean(content.mixRasaShowDescription);
   const descriptionText = (content.mixRasaDescription || '').trim();
   const previewSize = Math.max(150, Math.min(320, Number(content.mixRasaPreviewSize ?? 232)));
+  const dividerWidth = Math.max(0, Math.min(20, Number(content.mixRasaDividerWidth ?? 4)));
+  const dividerColor = content.mixRasaDividerColor || '#FFFFFF';
+  const miniDividerWidth = dividerWidth === 0 ? 0 : Math.max(1.5, Math.min(8, dividerWidth * 0.6));
   const showBackButton = content.mixRasaShowBackButton !== false;
   const centerHeader = Boolean(content.mixRasaCenterHeader);
   const cardBg = content.mixRasaBgColor || '#FFFFFF';
@@ -552,7 +558,8 @@ export function MixRasaConfigurator({
             selectedFlavors={selectedFlavors}
             sliceCount={sliceCount}
             sizePx={previewSize}
-            dividerWidth={3.5}
+            dividerWidth={dividerWidth}
+            dividerColor={dividerColor}
             interactive
             activePickerSlot={pickerSlotIdx}
             onSelectSlot={(idx) => setPickerSlotIdx((cur) => (cur === idx ? null : idx))}
@@ -692,7 +699,8 @@ export function MixRasaConfigurator({
             selectedFlavors={selectedFlavors}
             sliceCount={sliceCount}
             sizeClass="w-[54px] h-[54px]"
-            dividerWidth={2}
+            dividerWidth={miniDividerWidth}
+            dividerColor={dividerColor}
           />
           <div className="min-w-0 flex-1 text-left">
             <div className="text-[11px] font-semibold text-slate-500 leading-tight">

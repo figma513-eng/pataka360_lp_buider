@@ -6549,14 +6549,16 @@ ${bodyBlocks}
           if (idx === 2) return 'inset(50% 50% 0 0)';
           return 'inset(50% 0 0 50%)';
         }
-        function mrSeamsSvg(sc, strokeW) {
+        function mrSeamsSvg(sc, strokeW, strokeColor) {
+          if (!isFinite(strokeW) || strokeW <= 0) return '';
+          var col = mrEsc(strokeColor || '#FFFFFF');
           if (sc === 2) {
-            return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="' + strokeW + '"/></svg>';
+            return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="' + col + '" stroke-width="' + strokeW + '"/></svg>';
           }
           if (sc === 3) {
-            return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="100" x2="100" y2="0" stroke="#FFFFFF" stroke-width="' + strokeW + '"/><line x1="100" y1="100" x2="186.6" y2="150" stroke="#FFFFFF" stroke-width="' + strokeW + '"/><line x1="100" y1="100" x2="13.4" y2="150" stroke="#FFFFFF" stroke-width="' + strokeW + '"/></svg>';
+            return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="100" x2="100" y2="0" stroke="' + col + '" stroke-width="' + strokeW + '"/><line x1="100" y1="100" x2="186.6" y2="150" stroke="' + col + '" stroke-width="' + strokeW + '"/><line x1="100" y1="100" x2="13.4" y2="150" stroke="' + col + '" stroke-width="' + strokeW + '"/></svg>';
           }
-          return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="' + strokeW + '"/><line x1="0" y1="100" x2="200" y2="100" stroke="#FFFFFF" stroke-width="' + strokeW + '"/></svg>';
+          return '<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="' + col + '" stroke-width="' + strokeW + '"/><line x1="0" y1="100" x2="200" y2="100" stroke="' + col + '" stroke-width="' + strokeW + '"/></svg>';
         }
         function mrImgScaleCss(flv) {
           var s = Number(flv && flv.imageScale);
@@ -6575,6 +6577,9 @@ ${bodyBlocks}
           var flavors = cfg.flavors;
           var sliceCount = (cfg.sliceCount === 3 || cfg.sliceCount === 4) ? cfg.sliceCount : 2;
           var accentColor = cfg.accentColor || '#EA6314';
+          var dividerWidth = isFinite(Number(cfg.dividerWidth)) ? Math.max(0, Math.min(20, Number(cfg.dividerWidth))) : 4;
+          var dividerColor = cfg.dividerColor || '#FFFFFF';
+          var miniDividerWidth = dividerWidth === 0 ? 0 : Math.max(1.5, Math.min(8, Math.round(dividerWidth * 6) / 10));
           var effectiveSize = cfg.showProductSize === false ? '' : String(cfg.productSize || '');
           var selectedIds = [];
           function ensureSelectedIds() {
@@ -6639,7 +6644,7 @@ ${bodyBlocks}
                 var clip = mrClipPath(sliceCount, i);
                 mainHtml += '<div data-mr-slice="' + i + '" role="button" style="position:absolute; inset:0; clip-path:' + clip + '; -webkit-clip-path:' + clip + '; cursor:pointer;">' + buildSliceInner(chosen[i]) + '</div>';
               }
-              mainPreviewEl.innerHTML = mainHtml + mrSeamsSvg(sliceCount, 3.5);
+              mainPreviewEl.innerHTML = mainHtml + mrSeamsSvg(sliceCount, dividerWidth, dividerColor);
               mainPreviewEl.querySelectorAll('[data-mr-slice]').forEach(function (el) {
                 el.addEventListener('click', function () {
                   var idx = Number(el.getAttribute('data-mr-slice'));
@@ -6655,7 +6660,7 @@ ${bodyBlocks}
                 var mclip = mrClipPath(sliceCount, j);
                 miniHtml += '<div data-mr-mini-slice="' + j + '" style="position:absolute; inset:0; clip-path:' + mclip + '; -webkit-clip-path:' + mclip + ';">' + buildSliceInner(chosen[j]) + '</div>';
               }
-              miniPreviewEl.innerHTML = miniHtml + mrSeamsSvg(sliceCount, 2);
+              miniPreviewEl.innerHTML = miniHtml + mrSeamsSvg(sliceCount, miniDividerWidth, dividerColor);
             }
 
             if (slotsGridEl) {
@@ -6870,6 +6875,497 @@ ${bodyBlocks}
 
           rebuildStructure();
           syncUi();
+        });
+      })();
+
+      // --- SLIDE MIX RASA INTERACTIVE 5-SLOT SYMMETRIC WHEEL RUNTIME ---
+      (function initSlideMixRasaBlocks() {
+        var roots = document.querySelectorAll('[data-slide-mix-rasa]');
+        if (!roots.length) return;
+
+        var WHEEL_OFFSETS = [-2, -1, 0, 1, 2];
+
+        function smrParsePrice(raw) {
+          if (typeof raw === 'number' && isFinite(raw)) return Math.max(0, Math.round(raw));
+          var digits = String(raw || '').replace(/[^\\d]/g, '');
+          var parsed = Number(digits);
+          return isFinite(parsed) ? parsed : 0;
+        }
+        function smrFormatRp(amount) {
+          var safe = Math.max(0, Math.round(isFinite(amount) ? amount : 0));
+          return 'Rp' + String(safe).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');
+        }
+        function smrEsc(s) {
+          return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+        function smrWrap(idx, total) {
+          if (total <= 0) return 0;
+          return ((idx % total) + total) % total;
+        }
+        function smrBuildProductLabel(title, size) {
+          var cleanTitle = String(title || 'Pizza Mix Rasa').trim() || 'Pizza Mix Rasa';
+          var cleanSize = String(size || '').trim();
+          if (!cleanSize) return cleanTitle;
+          if (cleanTitle.toLowerCase().indexOf(cleanSize.toLowerCase()) !== -1) return cleanTitle;
+          return (cleanTitle + ' ' + cleanSize).trim();
+        }
+        function smrSlotInnerHtml(flv, accent) {
+          if (!flv) return '';
+          var scaleNum = Number(flv.imageScale);
+          if (!isFinite(scaleNum)) scaleNum = 100;
+          var clamped = Math.max(50, Math.min(200, Math.round(scaleNum))) / 100;
+          var scaleCss = clamped !== 1 ? (' transform:scale(' + clamped + '); transform-origin:center center;') : '';
+          if (flv.image) {
+            return '<img src="' + smrEsc(flv.image) + '" alt="' + smrEsc(flv.name) + '" referrerpolicy="no-referrer" draggable="false" style="width:100%; height:100%; object-fit:cover; display:block; user-select:none; pointer-events:none;' + scaleCss + '" />';
+          }
+          return '<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#FFFFFF; font-size:14px; font-weight:700; pointer-events:none; background:' + smrEsc(flv.accentColor || accent || '#EA6314') + ';">' + smrEsc(String(flv.name || '').slice(0, 2).toUpperCase()) + '</div>';
+        }
+
+        roots.forEach(function (root) {
+          var cfgEl = root.querySelector('[data-smr-config]');
+          if (!cfgEl) return;
+          var cfg = null;
+          try { cfg = JSON.parse(cfgEl.textContent || '{}'); } catch (e) { cfg = null; }
+          if (!cfg || !Array.isArray(cfg.flavors) || !cfg.flavors.length) return;
+
+          var flavors = cfg.flavors;
+          var total = flavors.length;
+          var leftVirtual = Math.max(0, Math.min(total - 1, Number(cfg.leftIdx) || 0));
+          var rightVirtual = Math.max(0, Math.min(total - 1, Number(cfg.rightIdx) || (total > 1 ? 1 : 0)));
+          var enableLoop = cfg.enableLoop !== false;
+          var accent = cfg.accentColor || '#EA6314';
+          var rawPreviewSize = Math.max(150, Math.min(320, Number(cfg.previewSize) || 236));
+          var rawPeekSize = Math.max(56, Math.min(160, Number(cfg.peekSize) || 102));
+          var peekOpacity = isFinite(Number(cfg.peekOpacity)) ? Math.max(0.1, Math.min(1, Number(cfg.peekOpacity))) : 0.58;
+          var itemGap = isFinite(Number(cfg.itemGap)) ? Math.max(0, Math.min(64, Number(cfg.itemGap))) : 22;
+          var transitionMs = isFinite(Number(cfg.transitionMs)) ? Math.max(180, Math.min(900, Number(cfg.transitionMs))) : 420;
+          var isIconOnly = cfg.buttonDisplay === 'icon_only';
+          var iconPx = Number(cfg.iconPx) || (isIconOnly ? 19 : 16);
+          var effectiveSize = cfg.showProductSize === false ? '' : String(cfg.productSize || '');
+
+          var stageEl = root.querySelector('[data-smr-stage]');
+          var leftCol = root.querySelector('[data-smr-col="left"]');
+          var rightCol = root.querySelector('[data-smr-col="right"]');
+          var labelsEl = root.querySelector('[data-smr-labels]');
+          var diceBtn = root.querySelector('[data-smr-dice]');
+          var priceEl = root.querySelector('[data-smr-price]');
+          var addCartBtn = root.querySelector('[data-smr-add-cart]');
+          var addCartLabelEl = root.querySelector('[data-smr-add-cart-label]');
+          var waLinkEl = root.querySelector('[data-smr-wa-link]');
+          var adminWaEl = root.querySelector('[data-smr-admin-wa]');
+          var backBtn = root.querySelector('[data-smr-back]');
+
+          var nodeMaps = { left: {}, right: {} };
+          var dragProgress = { left: 0, right: 0 };
+          var draggingSide = null;
+          var suppressClickUntil = 0;
+          var wheelLock = { left: 0, right: 0 };
+          var addedTimer = null;
+          var autoTurn = 'right';
+
+          var geom = {
+            stageAvailW: 360,
+            mainD: rawPreviewSize,
+            peekD: rawPeekSize,
+            gapPx: itemGap,
+            padY: 14,
+            centerY: 0,
+            stepDist: 0,
+            stageH: 0,
+            peekScale: 0.43,
+            sideLabelMaxW: 110
+          };
+
+          function hydrateSide(side, colEl) {
+            if (!colEl) return;
+            var existing = colEl.querySelectorAll('[data-smr-slot-v]');
+            for (var i = 0; i < existing.length; i++) {
+              var el = existing[i];
+              var v = parseInt(el.getAttribute('data-smr-slot-v'), 10);
+              if (isFinite(v)) nodeMaps[side][v] = el;
+            }
+          }
+          hydrateSide('left', leftCol);
+          hydrateSide('right', rightCol);
+
+          function computeGeometry() {
+            var w = stageEl && stageEl.clientWidth > 0 ? stageEl.clientWidth : 360;
+            var maxMainFit = Math.max(140, w - 12);
+            var fitRatio = rawPreviewSize > maxMainFit ? (maxMainFit / rawPreviewSize) : 1;
+            var mainD = Math.round(rawPreviewSize * fitRatio);
+            var peekD = Math.min(Math.round(rawPeekSize * fitRatio), Math.round(mainD * 0.78));
+            var gapPx = Math.round(itemGap * (fitRatio < 0.85 ? 0.85 : 1));
+            var padY = 14;
+            geom.stageAvailW = w;
+            geom.mainD = mainD;
+            geom.peekD = peekD;
+            geom.gapPx = gapPx;
+            geom.padY = padY;
+            geom.centerY = padY + peekD + gapPx + mainD / 2;
+            geom.stepDist = mainD / 2 + gapPx + peekD / 2;
+            geom.stageH = padY + peekD + gapPx + mainD + gapPx + peekD + padY;
+            geom.peekScale = mainD > 0 ? (peekD / mainD) : 0.43;
+            geom.sideLabelMaxW = Math.max(68, Math.floor(w / 2 - peekD / 2 - 10));
+
+            if (stageEl) stageEl.style.height = geom.stageH + 'px';
+            if (diceBtn) diceBtn.style.bottom = Math.max(6, padY + Math.round((peekD - 40) / 2)) + 'px';
+          }
+
+          function canStep(vIdx, delta) {
+            if (total <= 1) return false;
+            if (enableLoop) return true;
+            var next = vIdx + delta;
+            return next >= 0 && next < total;
+          }
+
+          function applySlotStyles(el, pos, k, instant) {
+            var absPos = Math.abs(pos);
+            var yOffset = absPos <= 1
+              ? pos * geom.stepDist
+              : (pos < 0 ? -1 : 1) * (geom.stepDist + (absPos - 1) * (geom.peekD * 0.85 + geom.gapPx));
+            var scale = absPos <= 1
+              ? (1 - absPos * (1 - geom.peekScale))
+              : Math.max(0.24, geom.peekScale * (1 - (absPos - 1) * 0.28));
+            var opacity = absPos <= 1
+              ? (1 - absPos * (1 - peekOpacity))
+              : Math.max(0, peekOpacity * (1 - (absPos - 1)));
+            var zIndex = Math.max(1, Math.round(40 - absPos * 25));
+            var isDominant = absPos < 0.45;
+
+            el.setAttribute('data-smr-slot-k', String(k));
+            el.style.top = geom.centerY + 'px';
+            el.style.width = geom.mainD + 'px';
+            el.style.height = geom.mainD + 'px';
+            el.style.zIndex = String(zIndex);
+            el.style.opacity = opacity.toFixed(4);
+            el.style.transition = instant
+              ? 'none'
+              : ('transform ' + transitionMs + 'ms cubic-bezier(0.22,1,0.36,1), opacity ' + transitionMs + 'ms cubic-bezier(0.22,1,0.36,1), box-shadow ' + transitionMs + 'ms ease');
+            el.style.transform = 'translate3d(-50%, calc(-50% + ' + yOffset.toFixed(2) + 'px), 0) scale(' + scale.toFixed(4) + ')';
+            el.style.boxShadow = isDominant
+              ? '0 18px 36px -12px rgba(15,23,42,0.28), 0 6px 14px rgba(15,23,42,0.10)'
+              : '0 4px 12px rgba(15,23,42,0.08)';
+            el.style.pointerEvents = absPos <= 1.25 ? 'auto' : 'none';
+            el.style.cursor = (k === -1 || k === 1) ? 'pointer' : '';
+          }
+
+          function renderSide(side, instant) {
+            var colEl = side === 'left' ? leftCol : rightCol;
+            if (!colEl) return;
+            var virtualIdx = side === 'left' ? leftVirtual : rightVirtual;
+            var prog = dragProgress[side];
+            var draggingThis = draggingSide === side;
+            var map = nodeMaps[side];
+            var offsets = total <= 1 ? [0] : WHEEL_OFFSETS;
+            var activeKeys = {};
+
+            for (var i = 0; i < offsets.length; i++) {
+              var k = offsets[i];
+              var itemVirtual = virtualIdx + k;
+              if (!enableLoop && (itemVirtual < 0 || itemVirtual >= total)) continue;
+              activeKeys[itemVirtual] = true;
+              var flvIdx = enableLoop ? smrWrap(itemVirtual, total) : itemVirtual;
+              var flv = flavors[flvIdx];
+              if (!flv) continue;
+
+              var el = map[itemVirtual];
+              if (!el) {
+                el = document.createElement('div');
+                el.setAttribute('data-smr-slot-v', String(itemVirtual));
+                el.style.position = 'absolute';
+                el.style.left = '50%';
+                el.style.borderRadius = '9999px';
+                el.style.overflow = 'hidden';
+                el.style.background = '#F8FAFC';
+                el.style.willChange = 'transform, opacity';
+                el.innerHTML = smrSlotInnerHtml(flv, accent);
+                applySlotStyles(el, k + prog, k, true);
+                colEl.appendChild(el);
+                map[itemVirtual] = el;
+              } else {
+                applySlotStyles(el, k + prog, k, Boolean(instant || draggingThis));
+              }
+            }
+
+            var existingKeys = Object.keys(map);
+            for (var j = 0; j < existingKeys.length; j++) {
+              var keyStr = existingKeys[j];
+              if (!activeKeys[keyStr]) {
+                var stale = map[keyStr];
+                if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+                delete map[keyStr];
+              }
+            }
+          }
+
+          function syncMetaUi() {
+            var safeL = enableLoop ? smrWrap(leftVirtual, total) : Math.max(0, Math.min(total - 1, leftVirtual));
+            var safeR = enableLoop ? smrWrap(rightVirtual, total) : Math.max(0, Math.min(total - 1, rightVirtual));
+            var lf = flavors[safeL];
+            var rf = flavors[safeR];
+            var same = lf.id === rf.id;
+            var sum = smrParsePrice(lf.price) + smrParsePrice(rf.price);
+
+            if (leftCol) leftCol.setAttribute('aria-label', 'Geser rasa kiri: ' + (lf.name || ''));
+            if (rightCol) rightCol.setAttribute('aria-label', 'Geser rasa kanan: ' + (rf.name || ''));
+
+            if (labelsEl) {
+              if (same) {
+                labelsEl.innerHTML =
+                  '<div style="pointer-events:none; position:absolute; left:50%; top:' + (geom.padY + geom.peekD + geom.gapPx / 2) + 'px; transform:translate(-50%, -50%); padding:4px 12px; border-radius:9999px; text-align:center; max-width:84%; border:1px solid rgba(226,232,240,0.75); box-shadow:0 1px 4px rgba(15,23,42,0.06); background:rgba(255,255,255,0.92); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-sizing:border-box;">' +
+                    '<div style="font-size:12.5px; font-weight:800; color:#0F172A; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + smrEsc(lf.name) + '</div>' +
+                    '<div style="font-size:10px; font-weight:500; color:#64748B; line-height:1.2; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + smrEsc((lf.subtitle || '').trim() || 'Resep asli') + '</div>' +
+                  '</div>';
+              } else {
+                var lblTop = geom.padY + Math.round(geom.peekD * 0.52);
+                labelsEl.innerHTML =
+                  '<div style="pointer-events:none; position:absolute; left:2px; top:' + lblTop + 'px; transform:translateY(-50%); max-width:' + geom.sideLabelMaxW + 'px; text-align:left;">' +
+                    '<div style="font-size:12.5px; font-weight:700; color:#0F172A; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">' + smrEsc(lf.name) + '</div>' +
+                    '<div style="font-size:11px; font-weight:600; color:#64748B; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">' + smrEsc(smrFormatRp(smrParsePrice(lf.price))) + '</div>' +
+                  '</div>' +
+                  '<div style="pointer-events:none; position:absolute; right:2px; top:' + lblTop + 'px; transform:translateY(-50%); max-width:' + geom.sideLabelMaxW + 'px; text-align:right;">' +
+                    '<div style="font-size:12.5px; font-weight:700; color:#0F172A; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">' + smrEsc(rf.name) + '</div>' +
+                    '<div style="font-size:11px; font-weight:600; color:#64748B; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">' + smrEsc(smrFormatRp(smrParsePrice(rf.price))) + '</div>' +
+                  '</div>';
+              }
+            }
+
+            if (priceEl) {
+              priceEl.textContent = (cfg.pricePrefix || 'Harga') + ' ' + smrFormatRp(sum);
+            }
+
+            var prodLabel = smrBuildProductLabel(cfg.title, effectiveSize);
+            if (waLinkEl && cfg.waEnabled) {
+              var msg = cfg.waIncludeDetails !== false
+                ? [
+                    cfg.waIntro || 'Halo, saya ingin memesan:',
+                    '',
+                    'Produk: ' + prodLabel,
+                    '',
+                    'Kombinasi Rasa:',
+                    '1. ' + (lf.name || 'Rasa Kiri'),
+                    '2. ' + (rf.name || 'Rasa Kanan'),
+                    '',
+                    'Jumlah: 1',
+                    'Total: ' + smrFormatRp(sum),
+                    '',
+                    'Mohon informasi pemesanannya. Terima kasih.'
+                  ].join('\\n')
+                : (cfg.waIntro || 'Halo, saya ingin memesan:');
+              waLinkEl.setAttribute('href', 'https://wa.me/' + encodeURIComponent(cfg.waNumber || '6281234567890') + '?text=' + encodeURIComponent(msg));
+            }
+            if (adminWaEl) {
+              var adminMsg = (cfg.adminCtaWaMessage || 'Halo Admin, saya ingin bertanya tentang produk ini:') + ' ' + prodLabel + ' (' + lf.name + ' + ' + rf.name + ') - ' + smrFormatRp(sum);
+              adminWaEl.setAttribute('href', 'https://wa.me/' + encodeURIComponent(cfg.adminCtaWaNumber || cfg.waNumber || '6281234567890') + '?text=' + encodeURIComponent(adminMsg));
+            }
+          }
+
+          function stepSide(side, delta) {
+            if (total <= 1) return;
+            if (side === 'left') {
+              if (!canStep(leftVirtual, delta)) return;
+              leftVirtual += delta;
+              renderSide('left', false);
+            } else {
+              if (!canStep(rightVirtual, delta)) return;
+              rightVirtual += delta;
+              renderSide('right', false);
+            }
+            syncMetaUi();
+          }
+
+          function bindWheelSide(colEl, side) {
+            if (!colEl) return;
+            var drag = null;
+
+            colEl.addEventListener('pointerdown', function (e) {
+              if ((e.button !== 0 && e.pointerType === 'mouse') || total <= 1) return;
+              drag = {
+                startX: e.clientX,
+                startY: e.clientY,
+                axis: null,
+                moved: false,
+                progress: 0
+              };
+              draggingSide = side;
+              colEl.style.cursor = 'grabbing';
+              try { colEl.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+
+            colEl.addEventListener('pointermove', function (e) {
+              if (!drag) return;
+              var dx = e.clientX - drag.startX;
+              var dy = e.clientY - drag.startY;
+              if (!drag.axis && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+                drag.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? 'x' : 'y';
+                drag.moved = true;
+              }
+              if (!drag.axis) return;
+              var rawProg = drag.axis === 'y'
+                ? dy / Math.max(80, geom.stepDist)
+                : ((dx * (side === 'left' ? 1 : -1)) / Math.max(90, geom.mainD * 0.62));
+              drag.progress = Math.max(-1.05, Math.min(1.05, rawProg));
+              dragProgress[side] = drag.progress;
+              renderSide(side, true);
+            });
+
+            function finishDrag(e) {
+              if (!drag) return;
+              var d = drag;
+              drag = null;
+              draggingSide = null;
+              colEl.style.cursor = total > 1 ? 'grab' : 'default';
+              try { colEl.releasePointerCapture(e.pointerId); } catch (err) {}
+              dragProgress[side] = 0;
+
+              if (d.moved) suppressClickUntil = Date.now() + 260;
+
+              if (d.moved && Math.abs(d.progress) >= 0.2) {
+                stepSide(side, d.progress < 0 ? 1 : -1);
+              } else {
+                renderSide(side, false);
+              }
+            }
+
+            colEl.addEventListener('pointerup', finishDrag);
+            colEl.addEventListener('pointercancel', finishDrag);
+
+            colEl.addEventListener('click', function (e) {
+              if (Date.now() < suppressClickUntil || total <= 1) return;
+              var slotEl = e.target && e.target.closest ? e.target.closest('[data-smr-slot-k]') : null;
+              if (!slotEl) return;
+              var k = parseInt(slotEl.getAttribute('data-smr-slot-k'), 10);
+              if (k === -1) stepSide(side, -1);
+              else if (k === 1) stepSide(side, 1);
+            });
+
+            colEl.addEventListener('wheel', function (e) {
+              if (total <= 1) return;
+              var primaryDelta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+              if (Math.abs(primaryDelta) < 10) return;
+              e.preventDefault();
+              var now = Date.now();
+              if (now - wheelLock[side] < 240) return;
+              wheelLock[side] = now;
+              stepSide(side, primaryDelta > 0 ? 1 : -1);
+            }, { passive: false });
+          }
+
+          bindWheelSide(leftCol, 'left');
+          bindWheelSide(rightCol, 'right');
+
+          if (diceBtn && total > 1) {
+            diceBtn.addEventListener('click', function () {
+              var safeL = enableLoop ? smrWrap(leftVirtual, total) : leftVirtual;
+              var safeR = enableLoop ? smrWrap(rightVirtual, total) : rightVirtual;
+              if (!enableLoop) {
+                var nl = Math.floor(Math.random() * total);
+                var nr = Math.floor(Math.random() * total);
+                if (nl === safeL && nr === safeR) nr = (safeR + 1) % total;
+                leftVirtual = nl;
+                rightVirtual = nr;
+              } else {
+                var deltaL = 1 + Math.floor(Math.random() * Math.max(1, total - 1));
+                var deltaR = 1 + Math.floor(Math.random() * Math.max(1, total - 1));
+                if (smrWrap(leftVirtual + deltaL, total) === safeL && smrWrap(rightVirtual - deltaR, total) === safeR) {
+                  deltaR += 1;
+                }
+                leftVirtual += deltaL;
+                rightVirtual -= deltaR;
+              }
+              diceBtn.style.transform = 'rotate(180deg) scale(1.08)';
+              setTimeout(function () { diceBtn.style.transform = 'rotate(0deg) scale(1)'; }, 380);
+              renderSide('left', false);
+              renderSide('right', false);
+              syncMetaUi();
+            });
+          }
+
+          if (cfg.autoSlide && total > 1) {
+            var intervalMs = Math.max(1500, Math.min(10000, Number(cfg.autoSlideMs) || 3200));
+            setInterval(function () {
+              if (draggingSide) return;
+              var turn = autoTurn;
+              autoTurn = turn === 'right' ? 'left' : 'right';
+              stepSide(turn, 1);
+            }, intervalMs);
+          }
+
+          if (addCartBtn && cfg.floatingCartEnabled) {
+            var defaultCartIconHtml = '<svg data-smr-add-cart-icon viewBox="0 0 24 24" width="' + iconPx + '" height="' + iconPx + '" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>';
+            var checkIconHtml = '<svg data-smr-add-cart-icon viewBox="0 0 24 24" width="' + iconPx + '" height="' + iconPx + '" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 6 9 17l-5-5"/></svg>';
+            addCartBtn.addEventListener('click', function () {
+              var safeL = enableLoop ? smrWrap(leftVirtual, total) : Math.max(0, Math.min(total - 1, leftVirtual));
+              var safeR = enableLoop ? smrWrap(rightVirtual, total) : Math.max(0, Math.min(total - 1, rightVirtual));
+              var lf = flavors[safeL];
+              var rf = flavors[safeR];
+              var sum = smrParsePrice(lf.price) + smrParsePrice(rf.price);
+              var prodLabel = smrBuildProductLabel(cfg.title, effectiveSize);
+              var sizePart = effectiveSize.trim();
+              var variantText = sizePart
+                ? ('1. ' + lf.name + ', 2. ' + rf.name + ' · 2 Bagian · ' + sizePart)
+                : ('1. ' + lf.name + ', 2. ' + rf.name + ' · 2 Bagian');
+              var dynamicItem = {
+                id: 'smr_2_' + lf.id + '_' + rf.id,
+                title: prodLabel,
+                price: smrFormatRp(sum),
+                image: lf.image || rf.image || '',
+                productType: 'physical'
+              };
+              if (typeof window.__lynkAddCartItem === 'function') {
+                window.__lynkAddCartItem(cfg.blockId, dynamicItem, variantText, 1);
+              }
+              addCartBtn.style.background = '#059669';
+              addCartBtn.style.boxShadow = '0 8px 18px -6px #05966988';
+              var curIcon = addCartBtn.querySelector('[data-smr-add-cart-icon]');
+              if (curIcon) curIcon.outerHTML = checkIconHtml;
+              if (addCartLabelEl) addCartLabelEl.textContent = 'Masuk Keranjang!';
+              if (addedTimer) clearTimeout(addedTimer);
+              addedTimer = setTimeout(function () {
+                var bg = cfg.cartButtonBg || accent;
+                addCartBtn.style.background = bg;
+                addCartBtn.style.boxShadow = '0 8px 18px -6px ' + bg + '88';
+                var nextIcon = addCartBtn.querySelector('[data-smr-add-cart-icon]');
+                if (nextIcon) nextIcon.outerHTML = defaultCartIconHtml;
+                if (addCartLabelEl) addCartLabelEl.textContent = cfg.cartButtonLabel || 'Gabungkan Rasa';
+              }, 1400);
+            });
+          }
+
+          if (backBtn) {
+            backBtn.addEventListener('click', function () {
+              var actionType = cfg.backActionType || 'back';
+              if (actionType === 'page' && cfg.backTargetPageId && typeof window.__lynkOpenPage === 'function') {
+                window.__lynkOpenPage(cfg.backTargetPageId);
+              } else if (actionType === 'url' && cfg.backUrl) {
+                window.location.href = cfg.backUrl;
+              } else if (typeof window.__lynkBackPage === 'function') {
+                window.__lynkBackPage();
+              } else if (window.history && window.history.length > 1) {
+                window.history.back();
+              }
+            });
+          }
+
+          function handleResize() {
+            computeGeometry();
+            renderSide('left', true);
+            renderSide('right', true);
+            syncMetaUi();
+          }
+
+          handleResize();
+          if (typeof ResizeObserver !== 'undefined' && stageEl) {
+            var ro = new ResizeObserver(handleResize);
+            ro.observe(stageEl);
+          } else {
+            window.addEventListener('resize', handleResize);
+          }
         });
       })();
 

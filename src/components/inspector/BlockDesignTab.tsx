@@ -1889,6 +1889,8 @@ export function BlockDesignTab({
       case 'mix_rasa': {
         const cardBg = c.mixRasaBgColor || '#FFFFFF';
         const accentColor = c.mixRasaAccentColor || '#EA6314';
+        const dividerWidth = Math.max(0, Math.min(20, Number(c.mixRasaDividerWidth ?? 4)));
+        const dividerColor = c.mixRasaDividerColor || '#FFFFFF';
         const showBack = c.mixRasaShowBackButton !== false;
         const centerHeader = Boolean(c.mixRasaCenterHeader);
         const floatingCartEnabled = c.mixRasaFloatingCartEnabled !== false;
@@ -1952,6 +1954,26 @@ export function BlockDesignTab({
                 onChange={(val) => updateContent({ mixRasaPreviewSize: val })}
               />
               <SliderRow
+                label="Ketebalan Garis Pemisah"
+                value={dividerWidth === 0 ? '0px (Tanpa Garis)' : `${dividerWidth}px`}
+                min={0}
+                max={20}
+                step={1}
+                current={dividerWidth}
+                onChange={(val) => updateContent({ mixRasaDividerWidth: val })}
+              />
+              <div>
+                <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                  Warna Garis Pemisah
+                </label>
+                <input
+                  type="color"
+                  value={dividerColor}
+                  onChange={(e) => updateContent({ mixRasaDividerColor: e.target.value })}
+                  className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+              <SliderRow
                 label="Kelengkungan Sudut Kartu"
                 value={`${s.borderRadius ?? 24}px`}
                 min={0}
@@ -1996,6 +2018,319 @@ export function BlockDesignTab({
                     type="color"
                     value={c.mixRasaFloatingCartBg ?? accentColor}
                     onChange={(e) => updateContent({ mixRasaFloatingCartBg: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      case 'slide_mix_rasa': {
+        const previewSize = Math.max(150, Math.min(320, Number(c.slideMixPreviewSize ?? 236)));
+        const peekSize = Math.max(56, Math.min(160, Number(c.slideMixPeekSize ?? 102)));
+        const peekOpacity = Math.max(10, Math.min(100, Number(c.slideMixPeekOpacity ?? 58)));
+        const itemGap = Math.max(0, Math.min(64, Number(c.slideMixItemGap ?? 22)));
+        const transitionMs = Math.max(180, Math.min(900, Number(c.slideMixTransitionMs ?? 420)));
+        const dividerWidth = Math.max(0, Math.min(20, Number(c.slideMixDividerWidth ?? 4)));
+        const accentColor = c.slideMixAccentColor || '#EA6314';
+        const bgColor = c.slideMixBgColor || '#FFFFFF';
+        const dividerColor = c.slideMixDividerColor || '#FFFFFF';
+        const floatingCartEnabled = c.slideMixFloatingCartEnabled !== false;
+        const showBack = c.slideMixShowBackButton !== false;
+        const centerHeader = c.slideMixCenterHeader !== false;
+        const buttonSize =
+          c.slideMixButtonSize === 'sm' || c.slideMixButtonSize === 'lg'
+            ? c.slideMixButtonSize
+            : 'md';
+        const buttonDisplay =
+          c.slideMixButtonDisplay === 'icon_only' ? 'icon_only' : 'icon_text';
+        const buttonLayout = c.slideMixButtonLayout === 'row' ? 'row' : 'stack';
+
+        return (
+          <div className="space-y-3">
+            {/* Header Layout */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">Tata Letak Header</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-[#17243D]">Tampilkan Tombol Kembali</span>
+                <ToggleSwitch
+                  checked={showBack}
+                  onChange={(val) => updateContent({ slideMixShowBackButton: val })}
+                  label="Tampilkan Tombol Kembali"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[#DCE5EF]/80">
+                <span className="text-[11px] font-medium text-[#17243D]">Judul Produk di Tengah</span>
+                <ToggleSwitch
+                  checked={centerHeader}
+                  onChange={(val) => updateContent({ slideMixCenterHeader: val })}
+                  label="Judul Produk di Tengah"
+                />
+              </div>
+            </div>
+
+            {/* Ukuran, Jarak & Animasi Slide */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Ukuran, Jarak &amp; Animasi Slide
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Diameter Produk Utama (Tengah)</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">{previewSize}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={150}
+                  max={320}
+                  step={2}
+                  value={previewSize}
+                  onChange={(e) => updateContent({ slideMixPreviewSize: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Ukuran Produk Atas &amp; Bawah</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">{peekSize}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={56}
+                  max={160}
+                  step={2}
+                  value={peekSize}
+                  onChange={(e) => updateContent({ slideMixPeekSize: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Jarak Antar Produk (Atas &amp; Bawah Sama)</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">{itemGap}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={64}
+                  step={2}
+                  value={itemGap}
+                  onChange={(e) => updateContent({ slideMixItemGap: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Opasitas Produk Atas &amp; Bawah</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">{peekOpacity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={2}
+                  value={peekOpacity}
+                  onChange={(e) => updateContent({ slideMixPeekOpacity: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Durasi Animasi Transisi Slide</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">{transitionMs}ms</span>
+                </div>
+                <input
+                  type="range"
+                  min={180}
+                  max={900}
+                  step={20}
+                  value={transitionMs}
+                  onChange={(e) => updateContent({ slideMixTransitionMs: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Ketebalan Garis Pemisah</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">
+                    {dividerWidth === 0 ? '0px (Tanpa Garis)' : `${dividerWidth}px`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={dividerWidth}
+                  onChange={(e) => updateContent({ slideMixDividerWidth: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                  Warna Garis Pemisah
+                </label>
+                <input
+                  type="color"
+                  value={dividerColor}
+                  onChange={(e) => updateContent({ slideMixDividerColor: e.target.value })}
+                  className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Ukuran & Tampilan Tombol Aksi */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+              <div className="text-[11px] font-bold text-[#17243D]">
+                Tombol Gabung Rasa &amp; WhatsApp
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'icon_text', label: 'Ikon + Teks' },
+                    { id: 'icon_only', label: 'Ikon Saja' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ slideMixButtonDisplay: opt.id })}
+                    className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                      buttonDisplay === opt.id
+                        ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { id: 'sm', label: 'Kecil' },
+                    { id: 'md', label: 'Sedang' },
+                    { id: 'lg', label: 'Besar' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => updateContent({ slideMixButtonSize: opt.id })}
+                    className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                      buttonSize === opt.id
+                        ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                        : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {buttonDisplay === 'icon_text' && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { id: 'stack', label: 'Tumpuk Vertikal' },
+                      { id: 'row', label: 'Sejajar Horizontal' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateContent({ slideMixButtonLayout: opt.id })}
+                      className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        buttonLayout === opt.id
+                          ? 'bg-[#EA6314] text-white border-[#EA6314]'
+                          : 'bg-white text-[#51637D] border-[#DCE5EF]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Warna & Sudut Kartu */}
+            <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
+              <div className="text-[11px] font-bold text-[#17243D]">Warna &amp; Sudut Kartu</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Latar Kartu
+                  </label>
+                  <input
+                    type="color"
+                    value={bgColor}
+                    onChange={(e) => updateContent({ slideMixBgColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Warna Aksen
+                  </label>
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={(e) => updateAccentContent({ slideMixAccentColor: e.target.value })}
+                    className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-[10.5px] font-medium text-[#51637D] mb-1">
+                  <span>Radius Sudut Kartu</span>
+                  <span className="font-bold text-[#17243D] tabular-nums">{s.borderRadius ?? 24}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={36}
+                  step={2}
+                  value={s.borderRadius ?? 24}
+                  onChange={(e) => updateStyle({ borderRadius: Number(e.target.value) })}
+                  className="w-full accent-[#EA6314] cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {floatingCartEnabled && (
+              <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2">
+                <div className="text-[11px] font-bold text-[#17243D]">Gaya Keranjang Melayang</div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Posisi Keranjang
+                  </label>
+                  <select
+                    value={c.slideMixFloatingCartPosition ?? 'bottom-floating'}
+                    onChange={(e) =>
+                      updateContent({
+                        slideMixFloatingCartPosition: e.target.value as FloatingCartPosition,
+                      })
+                    }
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
+                  >
+                    <option value="bottom-floating">Melayang Bawah Penuh</option>
+                    <option value="bottom-docked">Menempel Tepi Bawah</option>
+                    <option value="bottom-left">Melayang Kiri Bawah</option>
+                    <option value="bottom-right">Melayang Kanan Bawah</option>
+                    <option value="top-floating">Melayang Atas Penuh</option>
+                    <option value="top-left">Melayang Kiri Atas</option>
+                    <option value="top-right">Melayang Kanan Atas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-medium text-[#51637D] mb-1">
+                    Warna Tombol &amp; Keranjang Melayang
+                  </label>
+                  <input
+                    type="color"
+                    value={c.slideMixFloatingCartBg ?? accentColor}
+                    onChange={(e) => updateContent({ slideMixFloatingCartBg: e.target.value })}
                     className="w-full h-8 rounded border border-[#DCE5EF] p-0.5 cursor-pointer bg-white"
                   />
                 </div>

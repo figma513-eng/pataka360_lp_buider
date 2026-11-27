@@ -147,10 +147,10 @@ export function TopBar({
           className="inline-flex items-center gap-2 shrink-0 cursor-pointer group"
         >
           <span className="w-7 h-7 rounded-lg bg-[#17243D] text-white text-[11px] font-extrabold tracking-tight flex items-center justify-center shrink-0">
-            <span className="text-[#00C98A]">L</span>B
+            <span className="text-[#00C98A]">I</span>D
           </span>
           <span className="font-bold text-[#17243D] tracking-tight text-[14px] whitespace-nowrap">
-            Lynk Builder
+            IDEA
           </span>
         </button>
 

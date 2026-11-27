@@ -293,6 +293,7 @@ export function renderBlockHtml(
       block.content.adminCtaActionType === 'sheet' &&
       (block.type === 'interactive_box_showcase' ||
         block.type === 'product_box_reveal' ||
+        block.type === 'slide_mix_rasa' ||
         block.type === 'fnb_hero_slider' ||
         block.type === 'culinary_spin_slider')
   );
@@ -4074,6 +4075,10 @@ ${indent}</div>`;
       const showDescription = Boolean(c.mixRasaShowDescription);
       const descriptionText = (c.mixRasaDescription || '').trim();
       const previewSize = Math.max(150, Math.min(320, Number(c.mixRasaPreviewSize ?? 232)));
+      const dividerWidth = Math.max(0, Math.min(20, Number(c.mixRasaDividerWidth ?? 4)));
+      const dividerColor = sanitizeCssColor(c.mixRasaDividerColor, '#FFFFFF');
+      const miniDividerWidth =
+        dividerWidth === 0 ? 0 : Math.max(1.5, Math.min(8, Number((dividerWidth * 0.6).toFixed(1))));
       const showBackButton = c.mixRasaShowBackButton !== false;
       const centerHeader = Boolean(c.mixRasaCenterHeader);
       const cardBg = sanitizeCssColor(c.mixRasaBgColor, '#FFFFFF');
@@ -4169,13 +4174,14 @@ ${indent}</div>`;
       const initialWaUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(initialWaMessage)}`;
 
       const buildSeamsSvg = (strokeW: number): string => {
+        if (strokeW <= 0) return '';
         if (sliceCount === 2) {
-          return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="${strokeW}"/></svg>`;
+          return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="${dividerColor}" stroke-width="${strokeW}"/></svg>`;
         }
         if (sliceCount === 3) {
-          return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="100" x2="100" y2="0" stroke="#FFFFFF" stroke-width="${strokeW}"/><line x1="100" y1="100" x2="186.6" y2="150" stroke="#FFFFFF" stroke-width="${strokeW}"/><line x1="100" y1="100" x2="13.4" y2="150" stroke="#FFFFFF" stroke-width="${strokeW}"/></svg>`;
+          return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="100" x2="100" y2="0" stroke="${dividerColor}" stroke-width="${strokeW}"/><line x1="100" y1="100" x2="186.6" y2="150" stroke="${dividerColor}" stroke-width="${strokeW}"/><line x1="100" y1="100" x2="13.4" y2="150" stroke="${dividerColor}" stroke-width="${strokeW}"/></svg>`;
         }
-        return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="#FFFFFF" stroke-width="${strokeW}"/><line x1="0" y1="100" x2="200" y2="100" stroke="#FFFFFF" stroke-width="${strokeW}"/></svg>`;
+        return `<svg viewBox="0 0 200 200" aria-hidden="true" style="pointer-events:none; position:absolute; inset:0; width:100%; height:100%;"><line x1="100" y1="0" x2="100" y2="200" stroke="${dividerColor}" stroke-width="${strokeW}"/><line x1="0" y1="100" x2="200" y2="100" stroke="${dividerColor}" stroke-width="${strokeW}"/></svg>`;
       };
 
       const renderSplitSlices = (isMain: boolean): string =>
@@ -4277,6 +4283,8 @@ ${indent}      </a>\n`
         sliceCount,
         allowSliceSwitch,
         accentColor,
+        dividerWidth,
+        dividerColor,
         cartButtonLabel,
         cartButtonBg,
         floatingCartEnabled,
@@ -4319,7 +4327,7 @@ ${indent}    </div>
 ${descriptionHtml}${sliceSwitchHtml}${indent}    <div style="width:100%; display:flex; align-items:center; justify-content:center; padding:4px 0;">
 ${indent}      <div data-mr-main-preview style="position:relative; width:min(${previewSize}px, 72vw); height:min(${previewSize}px, 72vw); border-radius:9999px; overflow:hidden; background:#F8FAFC; box-shadow:0 14px 32px -10px rgba(15,23,42,0.24), 0 4px 12px rgba(15,23,42,0.08); flex-shrink:0;">${renderSplitSlices(
         true
-      )}${buildSeamsSvg(3.5)}</div>
+      )}${buildSeamsSvg(dividerWidth)}</div>
 ${indent}    </div>
 ${indent}    <div data-mr-slots style="display:grid; grid-template-columns:repeat(${
         sliceCount === 3 ? 3 : 2
@@ -4336,7 +4344,7 @@ ${indent}    </div>
 ${indent}    <div style="display:flex; align-items:center; gap:14px; padding:2px 4px 0;">
 ${indent}      <div data-mr-mini-preview style="position:relative; width:54px; height:54px; border-radius:9999px; overflow:hidden; background:#F8FAFC; box-shadow:0 4px 10px -2px rgba(15,23,42,0.16); flex-shrink:0;">${renderSplitSlices(
         false
-      )}${buildSeamsSvg(2)}</div>
+      )}${buildSeamsSvg(miniDividerWidth)}</div>
 ${indent}      <div style="min-width:0; flex:1; text-align:left;">
 ${indent}        <div style="font-size:11px; font-weight:600; color:#64748B; line-height:1.25;">Kombinasi Pilihan</div>
 ${indent}        <div data-mr-combined style="font-size:12px; font-weight:700; color:#1E293B; line-height:1.35; margin-top:2px;">${escapeHtml(
@@ -4348,6 +4356,470 @@ ${indent}        <div data-mr-total style="font-size:18px; font-weight:900; colo
       )}</div>
 ${indent}      </div>
 ${indent}    </div>
+${actionsHtml}${indent}  </div>
+${indent}</div>`;
+    }
+
+    case 'slide_mix_rasa': {
+      const c = block.content;
+      const flavors = Array.isArray(c.slideMixFlavors) ? c.slideMixFlavors : [];
+      const title = (c.slideMixTitle || 'Pizza Mix Rasa').trim() || 'Pizza Mix Rasa';
+      const showProductSize = c.slideMixShowProductSize !== false;
+      const productSize = (c.slideMixProductSize || '35 cm').trim() || '35 cm';
+      const effectiveProductSize = showProductSize ? productSize : '';
+      const showDescription = Boolean(c.slideMixShowDescription);
+      const descriptionText = (c.slideMixDescription || '').trim();
+      const showBackButton = c.slideMixShowBackButton !== false;
+      const backLabel = (c.slideMixBackLabel ?? 'Menu').trim();
+      const centerHeader = c.slideMixCenterHeader !== false;
+      const showDice = c.slideMixShowDiceButton !== false;
+      const enableLoop = c.slideMixLoop !== false;
+      const autoSlide = Boolean(c.slideMixAutoSlide);
+      const autoSlideMs = Math.max(1500, Math.min(10000, Number(c.slideMixAutoSlideMs ?? 3200)));
+
+      const rawPreviewSize = Math.max(150, Math.min(320, Number(c.slideMixPreviewSize ?? 236)));
+      const rawPeekSize = Math.max(56, Math.min(160, Number(c.slideMixPeekSize ?? 102)));
+      const peekOpacity = Math.max(10, Math.min(100, Number(c.slideMixPeekOpacity ?? 58))) / 100;
+      const itemGap = Math.max(0, Math.min(64, Number(c.slideMixItemGap ?? 22)));
+      const transitionMs = Math.max(180, Math.min(900, Number(c.slideMixTransitionMs ?? 420)));
+      const dividerWidth = Math.max(0, Math.min(20, Number(c.slideMixDividerWidth ?? 4)));
+      const dividerColor = sanitizeCssColor(c.slideMixDividerColor, '#FFFFFF');
+      const cardBg = sanitizeCssColor(c.slideMixBgColor, '#FFFFFF');
+      const accentColor = sanitizeCssColor(c.slideMixAccentColor, '#EA6314');
+      const pricePrefix = (c.slideMixPricePrefix ?? 'Harga').trim() || 'Harga';
+      const radius = Math.max(0, Math.min(36, Number(block.style?.borderRadius ?? 24)));
+
+      const buttonSize: 'sm' | 'md' | 'lg' =
+        c.slideMixButtonSize === 'sm' || c.slideMixButtonSize === 'lg'
+          ? c.slideMixButtonSize
+          : 'md';
+      const buttonDisplay: 'icon_text' | 'icon_only' =
+        c.slideMixButtonDisplay === 'icon_only' ? 'icon_only' : 'icon_text';
+      const buttonLayout: 'stack' | 'row' = c.slideMixButtonLayout === 'row' ? 'row' : 'stack';
+
+      const floatingCartEnabled = c.slideMixFloatingCartEnabled !== false;
+      const cartButtonLabel =
+        (c.slideMixCartButtonLabel || 'Gabungkan Rasa').trim() || 'Gabungkan Rasa';
+      const cartButtonBg = sanitizeCssColor(c.slideMixFloatingCartBg, accentColor);
+
+      const waEnabled = Boolean(c.slideMixWaEnabled);
+      const waLabel =
+        (c.slideMixWaLabel || 'Pesan via WhatsApp').trim() || 'Pesan via WhatsApp';
+      const waNumber = normalizeWhatsappNumber(
+        c.slideMixWaNumber || c.catalogWhatsappNumber || '6281234567890'
+      );
+      const waIntro =
+        (c.slideMixWaIntro ?? 'Halo, saya ingin memesan:').trim() || 'Halo, saya ingin memesan:';
+      const waIncludeDetails = c.slideMixWaIncludeDetails !== false;
+
+      const adminCtaEnabled = Boolean(c.adminCtaEnabled);
+      const adminCtaLabel = (c.adminCtaLabel || 'Tanya Admin').trim() || 'Tanya Admin';
+      const adminCtaActionType = c.adminCtaActionType ?? 'whatsapp';
+      const adminCtaBg = sanitizeCssColor(c.adminCtaBgColor, '#1E293B');
+      const adminCtaWaNumber = normalizeWhatsappNumber(
+        c.adminCtaWhatsappNumber || waNumber || '6281234567890'
+      );
+      const adminCtaWaMessage = (
+        c.adminCtaWhatsappMessage || 'Halo Admin, saya ingin bertanya tentang produk ini:'
+      ).trim();
+
+      const parseSmrPrice = (raw?: string | number): number => {
+        if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.round(raw));
+        const digits = String(raw || '').replace(/[^\d]/g, '');
+        const parsed = Number(digits);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const formatSmrRp = (amount: number): string => {
+        const safe = Math.max(0, Math.round(Number.isFinite(amount) ? amount : 0));
+        return 'Rp' + safe.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      };
+      const buildSmrProductLabel = (t: string, sz: string): string => {
+        const cleanTitle = t.trim() || 'Pizza Mix Rasa';
+        const cleanSize = sz.trim();
+        if (!cleanSize) return cleanTitle;
+        if (cleanTitle.toLowerCase().includes(cleanSize.toLowerCase())) return cleanTitle;
+        return `${cleanTitle} ${cleanSize}`.trim();
+      };
+      const wrapIdx = (idx: number, len: number): number => {
+        if (len <= 0) return 0;
+        return ((idx % len) + len) % len;
+      };
+
+      if (flavors.length === 0) {
+        return `${indent}<div style="${css}; background:${cardBg}; border-radius:${radius}px; padding:24px; text-align:center; border:1px dashed #CBD5E1; color:#334155;">
+${indent}  <div style="font-size:14px; font-weight:700;">Slide Mix Rasa</div>
+${indent}  <div style="font-size:12px; color:#64748B; margin-top:4px;">Belum ada pilihan rasa yang ditambahkan.</div>
+${indent}</div>`;
+      }
+
+      const total = flavors.length;
+      const resolveIdx = (preferredId: string | undefined, fallbackIdx: number): number => {
+        if (preferredId) {
+          const found = flavors.findIndex((f) => f.id === preferredId);
+          if (found !== -1) return found;
+        }
+        return wrapIdx(fallbackIdx, total);
+      };
+
+      const leftIdx = resolveIdx(c.slideMixDefaultLeftId, 0);
+      const rightIdx = resolveIdx(c.slideMixDefaultRightId, total > 1 ? 1 : 0);
+      const leftFlavor = flavors[leftIdx];
+      const rightFlavor = flavors[rightIdx];
+      const isSameFlavor = leftFlavor.id === rightFlavor.id;
+      const totalAmount = parseSmrPrice(leftFlavor.price) + parseSmrPrice(rightFlavor.price);
+      const headerLine = showProductSize ? `${title}, ${productSize}` : title;
+      const productLabel = buildSmrProductLabel(title, effectiveProductSize);
+
+      // Symmetric 3-product stage geometry (exact match with SlideMixRasaBlock.tsx)
+      const ssrStageW = 360;
+      const maxMainFit = Math.max(140, ssrStageW - 12);
+      const fitRatio = rawPreviewSize > maxMainFit ? maxMainFit / rawPreviewSize : 1;
+      const mainD = Math.round(rawPreviewSize * fitRatio);
+      const peekD = Math.min(Math.round(rawPeekSize * fitRatio), Math.round(mainD * 0.78));
+      const gapPx = Math.round(itemGap * (fitRatio < 0.85 ? 0.85 : 1));
+      const padY = 14;
+      const centerY = padY + peekD + gapPx + mainD / 2;
+      const stepDist = mainD / 2 + gapPx + peekD / 2;
+      const stageH = padY + peekD + gapPx + mainD + gapPx + peekD + padY;
+      const peekScale = mainD > 0 ? peekD / mainD : 0.43;
+      const sideLabelMaxW = Math.max(68, Math.floor(ssrStageW / 2 - peekD / 2 - 10));
+
+      const initialWaMessage = waIncludeDetails
+        ? [
+            waIntro,
+            '',
+            `Produk: ${productLabel}`,
+            '',
+            'Kombinasi Rasa:',
+            `1. ${leftFlavor.name || 'Rasa Kiri'}`,
+            `2. ${rightFlavor.name || 'Rasa Kanan'}`,
+            '',
+            'Jumlah: 1',
+            `Total: ${formatSmrRp(totalAmount)}`,
+            '',
+            'Mohon informasi pemesanannya. Terima kasih.',
+          ].join('\n')
+        : waIntro;
+      const initialWaUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(initialWaMessage)}`;
+
+      const wheelOffsets = total <= 1 ? [0] : [-2, -1, 0, 1, 2];
+      const renderWheelSlotsHtml = (side: 'left' | 'right', centerVirtual: number): string => {
+        return wheelOffsets
+          .map((k) => {
+            const itemVirtual = centerVirtual + k;
+            if (!enableLoop && (itemVirtual < 0 || itemVirtual >= total)) return '';
+            const flvIdx = enableLoop ? wrapIdx(itemVirtual, total) : itemVirtual;
+            const flv = flavors[flvIdx];
+            if (!flv) return '';
+
+            const absPos = Math.abs(k);
+            const yOffset =
+              absPos <= 1
+                ? k * stepDist
+                : Math.sign(k) * (stepDist + (absPos - 1) * (peekD * 0.85 + gapPx));
+            const scale =
+              absPos <= 1
+                ? 1 - absPos * (1 - peekScale)
+                : Math.max(0.24, peekScale * (1 - (absPos - 1) * 0.28));
+            const opacity =
+              absPos <= 1
+                ? 1 - absPos * (1 - peekOpacity)
+                : Math.max(0, peekOpacity * (1 - (absPos - 1)));
+            const zIndex = Math.max(1, Math.round(40 - absPos * 25));
+            const isDominant = absPos < 0.45;
+            const imgScale = Math.max(50, Math.min(200, Number(flv.imageScale ?? 100))) / 100;
+            const imgScaleCss =
+              imgScale !== 1
+                ? ` transform:scale(${imgScale}); transform-origin:center center;`
+                : '';
+            const shadowCss = isDominant
+              ? '0 18px 36px -12px rgba(15,23,42,0.28), 0 6px 14px rgba(15,23,42,0.10)'
+              : '0 4px 12px rgba(15,23,42,0.08)';
+            const inner = flv.image
+              ? `<img src="${escapeHtml(flv.image)}" alt="${escapeHtml(
+                  flv.name
+                )}" referrerpolicy="no-referrer" draggable="false" style="width:100%; height:100%; object-fit:cover; display:block; user-select:none; pointer-events:none;${imgScaleCss}" />`
+              : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#FFFFFF; font-size:14px; font-weight:700; pointer-events:none; background:${sanitizeCssColor(
+                  flv.accentColor,
+                  accentColor
+                )};">${escapeHtml(flv.name.slice(0, 2).toUpperCase())}</div>`;
+
+            return `${indent}          <div data-smr-slot-v="${itemVirtual}" data-smr-slot-k="${k}" style="position:absolute; left:50%; top:${centerY}px; width:${mainD}px; height:${mainD}px; z-index:${zIndex}; opacity:${opacity.toFixed(
+              4
+            )}; transform:translate3d(-50%, calc(-50% + ${yOffset.toFixed(
+              2
+            )}px), 0) scale(${scale.toFixed(
+              4
+            )}); transition:transform ${transitionMs}ms cubic-bezier(0.22,1,0.36,1), opacity ${transitionMs}ms cubic-bezier(0.22,1,0.36,1), box-shadow ${transitionMs}ms ease; border-radius:9999px; overflow:hidden; background:#F8FAFC; box-shadow:${shadowCss}; will-change:transform, opacity; pointer-events:${
+              absPos <= 1.25 ? 'auto' : 'none'
+            };${k === -1 || k === 1 ? ' cursor:pointer;' : ''}">${inner}</div>`;
+          })
+          .filter(Boolean)
+          .join('\n');
+      };
+
+      const labelsInnerHtml = isSameFlavor
+        ? `<div style="pointer-events:none; position:absolute; left:50%; top:${
+            padY + peekD + gapPx / 2
+          }px; transform:translate(-50%, -50%); padding:4px 12px; border-radius:9999px; text-align:center; max-width:84%; border:1px solid rgba(226,232,240,0.75); box-shadow:0 1px 4px rgba(15,23,42,0.06); background:rgba(255,255,255,0.92); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-sizing:border-box;">
+              <div style="font-size:12.5px; font-weight:800; color:#0F172A; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+                leftFlavor.name
+              )}</div>
+              <div style="font-size:10px; font-weight:500; color:#64748B; line-height:1.2; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+                leftFlavor.subtitle?.trim() || 'Resep asli'
+              )}</div>
+            </div>`
+        : `<div style="pointer-events:none; position:absolute; left:2px; top:${
+            padY + Math.round(peekD * 0.52)
+          }px; transform:translateY(-50%); max-width:${sideLabelMaxW}px; text-align:left;">
+              <div style="font-size:12.5px; font-weight:700; color:#0F172A; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">${escapeHtml(
+                leftFlavor.name
+              )}</div>
+              <div style="font-size:11px; font-weight:600; color:#64748B; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">${escapeHtml(
+                formatSmrRp(parseSmrPrice(leftFlavor.price))
+              )}</div>
+            </div>
+            <div style="pointer-events:none; position:absolute; right:2px; top:${
+              padY + Math.round(peekD * 0.52)
+            }px; transform:translateY(-50%); max-width:${sideLabelMaxW}px; text-align:right;">
+              <div style="font-size:12.5px; font-weight:700; color:#0F172A; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">${escapeHtml(
+                rightFlavor.name
+              )}</div>
+              <div style="font-size:11px; font-weight:600; color:#64748B; margin-top:2px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 4px rgba(255,255,255,0.9);">${escapeHtml(
+                formatSmrRp(parseSmrPrice(rightFlavor.price))
+              )}</div>
+            </div>`;
+
+      const backBtnHtml = showBackButton
+        ? `${indent}      <button type="button" data-smr-back aria-label="${escapeHtml(
+            backLabel || 'Kembali'
+          )}" style="${
+            centerHeader ? 'position:absolute; left:0; top:50%; transform:translateY(-50%); ' : ''
+          }border:0; background:transparent; color:${accentColor}; display:inline-flex; align-items:center; gap:2px; font-size:12.5px; font-weight:700; cursor:pointer; padding:4px 4px 4px 0; flex-shrink:0; font-family:inherit;">
+${indent}        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+${backLabel ? `${indent}        <span>${escapeHtml(backLabel)}</span>\n` : ''}${indent}      </button>\n`
+        : '';
+
+      const descriptionHtml =
+        showDescription && descriptionText
+          ? `${indent}    <p data-smr-description style="margin:0 0 2px; font-size:11.5px; line-height:1.5; color:#64748B; white-space:pre-line; text-align:${
+              centerHeader ? 'center' : 'left'
+            };${centerHeader ? ' padding:0 8px;' : ''}">${escapeHtml(descriptionText)}</p>\n`
+          : '';
+
+      // Dynamic button size, display mode (icon_only vs icon_text), and layout (stack vs row)
+      const isIconOnly = buttonDisplay === 'icon_only';
+      const useRowLayout = isIconOnly || buttonLayout === 'row';
+      const iconPx = isIconOnly
+        ? buttonSize === 'sm'
+          ? 16
+          : buttonSize === 'lg'
+          ? 22
+          : 19
+        : buttonSize === 'sm'
+        ? 14
+        : buttonSize === 'lg'
+        ? 18
+        : 16;
+      const btnBaseStyle = isIconOnly
+        ? buttonSize === 'sm'
+          ? 'width:40px; height:40px; padding:0; border-radius:9999px; flex-shrink:0;'
+          : buttonSize === 'lg'
+          ? 'width:56px; height:56px; padding:0; border-radius:9999px; flex-shrink:0;'
+          : 'width:48px; height:48px; padding:0; border-radius:9999px; flex-shrink:0;'
+        : (useRowLayout ? 'flex:1 1 120px; min-width:120px; ' : 'width:100%; ') +
+          (buttonSize === 'sm'
+            ? 'padding:8px 14px; font-size:12px; border-radius:12px; gap:6px;'
+            : buttonSize === 'lg'
+            ? 'padding:14px 20px; font-size:14.5px; border-radius:16px; gap:10px;'
+            : 'padding:10px 16px; font-size:13px; border-radius:12px; gap:8px;');
+      const actionsContainerStyle = isIconOnly
+        ? 'display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px; margin-top:6px;'
+        : useRowLayout
+        ? 'display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:6px;'
+        : 'display:flex; flex-direction:column; gap:8px; margin-top:6px;';
+
+      const cartSvg = `<svg data-smr-add-cart-icon viewBox="0 0 24 24" width="${iconPx}" height="${iconPx}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>`;
+      const msgSvg = `<svg viewBox="0 0 24 24" width="${iconPx}" height="${iconPx}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`;
+
+      const safeBlockId = block.id.replace(/[^a-zA-Z0-9_-]/g, '');
+      let adminBtnHtml = '';
+      if (adminCtaEnabled) {
+        const adminCommonStyle = `${btnBaseStyle} border:0; background:${adminCtaBg}; color:#FFFFFF; font-weight:700; display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:inherit; box-sizing:border-box; box-shadow:0 6px 14px -6px ${adminCtaBg}66;`;
+        const adminLabelHtml = isIconOnly
+          ? ''
+          : `\n${indent}        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+              adminCtaLabel
+            )}</span>`;
+        if (adminCtaActionType === 'sheet') {
+          adminBtnHtml = `${indent}      <button type="button" data-sheet-open="sheet_act_${safeBlockId}" title="${escapeHtml(
+            adminCtaLabel
+          )}" aria-label="${escapeHtml(adminCtaLabel)}" style="${adminCommonStyle}">
+${indent}        ${msgSvg}${adminLabelHtml}
+${indent}      </button>\n`;
+        } else if (adminCtaActionType === 'page' && c.adminCtaTargetPageId) {
+          adminBtnHtml = `${indent}      <button type="button" data-open-page="${escapeHtml(
+            c.adminCtaTargetPageId
+          )}" title="${escapeHtml(adminCtaLabel)}" aria-label="${escapeHtml(
+            adminCtaLabel
+          )}" style="${adminCommonStyle}">
+${indent}        ${msgSvg}${adminLabelHtml}
+${indent}      </button>\n`;
+        } else {
+          const initialAdminWa = `https://wa.me/${adminCtaWaNumber}?text=${encodeURIComponent(
+            `${adminCtaWaMessage} ${productLabel} (${leftFlavor.name} + ${rightFlavor.name}) - ${formatSmrRp(
+              totalAmount
+            )}`
+          )}`;
+          adminBtnHtml = `${indent}      <a data-smr-admin-wa href="${escapeHtml(
+            initialAdminWa
+          )}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(
+            adminCtaLabel
+          )}" aria-label="${escapeHtml(
+            adminCtaLabel
+          )}" style="${adminCommonStyle} text-decoration:none;">
+${indent}        ${msgSvg}${adminLabelHtml}
+${indent}      </a>\n`;
+        }
+      }
+
+      const actionsHtml =
+        floatingCartEnabled || waEnabled || adminCtaEnabled
+          ? `${indent}    <div style="${actionsContainerStyle}">\n` +
+            (floatingCartEnabled
+              ? `${indent}      <button type="button" data-smr-add-cart title="${escapeHtml(
+                  cartButtonLabel
+                )}" aria-label="${escapeHtml(
+                  cartButtonLabel
+                )}" style="${btnBaseStyle} border:0; background:${cartButtonBg}; color:#FFFFFF; font-weight:800; display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:inherit; box-sizing:border-box; box-shadow:0 8px 18px -6px ${cartButtonBg}88; transition:background-color 0.2s, transform 0.12s;">
+${indent}        ${cartSvg}${
+                  isIconOnly
+                    ? ''
+                    : `\n${indent}        <span data-smr-add-cart-label style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+                        cartButtonLabel
+                      )}</span>`
+                }
+${indent}      </button>\n`
+              : '') +
+            (waEnabled
+              ? `${indent}      <a data-smr-wa-link href="${escapeHtml(
+                  initialWaUrl
+                )}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(
+                  waLabel
+                )}" aria-label="${escapeHtml(
+                  waLabel
+                )}" style="${btnBaseStyle} background:#16A34A; color:#FFFFFF; font-weight:700; display:flex; align-items:center; justify-content:center; text-decoration:none; box-sizing:border-box; box-shadow:0 6px 16px -6px rgba(22,163,74,0.55);">
+${indent}        ${msgSvg}${
+                  isIconOnly
+                    ? ''
+                    : `\n${indent}        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+                        waLabel
+                      )}</span>`
+                }
+${indent}      </a>\n`
+              : '') +
+            adminBtnHtml +
+            `${indent}    </div>\n`
+          : '';
+
+      const diceBottomPx = Math.max(6, padY + Math.round((peekD - 40) / 2));
+      const diceBtnHtml =
+        showDice && total > 1
+          ? `${indent}      <button type="button" data-smr-dice title="Acak Kombinasi Rasa" aria-label="Acak Kombinasi Rasa" style="position:absolute; right:4px; bottom:${diceBottomPx}px; z-index:48; width:40px; height:40px; border-radius:9999px; border:1px solid rgba(226,232,240,0.9); background:#FFFFFF; color:#334155; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 6px 18px rgba(15,23,42,0.14), 0 2px 6px rgba(15,23,42,0.08); transition:transform 0.3s ease;">
+${indent}        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></svg>
+${indent}      </button>\n`
+          : '';
+
+      const smrPayload = JSON.stringify({
+        blockId: block.id,
+        title,
+        productSize,
+        showProductSize,
+        pricePrefix,
+        accentColor,
+        previewSize: rawPreviewSize,
+        peekSize: rawPeekSize,
+        peekOpacity,
+        itemGap,
+        transitionMs,
+        dividerWidth,
+        dividerColor,
+        buttonSize,
+        buttonDisplay,
+        buttonLayout,
+        iconPx,
+        enableLoop,
+        autoSlide,
+        autoSlideMs,
+        cartButtonLabel,
+        cartButtonBg,
+        floatingCartEnabled,
+        waEnabled,
+        waNumber,
+        waIntro,
+        waIncludeDetails,
+        adminCtaWaNumber,
+        adminCtaWaMessage,
+        backActionType: c.slideMixBackActionType || 'back',
+        backTargetPageId: c.slideMixBackTargetPageId || '',
+        backUrl: sanitizeExternalUrl(c.slideMixBackUrl) || '',
+        leftIdx,
+        rightIdx,
+        flavors: flavors.map((f) => ({
+          id: f.id,
+          name: f.name,
+          subtitle: f.subtitle || '',
+          price: f.price,
+          image: f.image || '',
+          imageScale: Math.max(50, Math.min(200, Number(f.imageScale ?? 100))),
+          accentColor: f.accentColor || accentColor,
+        })),
+      }).replace(/<\//g, '<\\/');
+
+      return `${indent}<div data-slide-mix-rasa="${escapeHtml(
+        block.id
+      )}" style="${css}; position:relative; overflow:hidden; background:${cardBg}; border-radius:${radius}px; color:#0F172A; user-select:none;">
+${indent}  <script type="application/json" data-smr-config>${smrPayload}</script>
+${indent}  <div style="padding:14px 14px 16px; display:flex; flex-direction:column; gap:8px;">
+${indent}    <div style="position:relative; display:flex; align-items:center; min-height:34px; ${
+        centerHeader ? 'justify-content:center;' : 'justify-content:flex-start; gap:8px;'
+      }">
+${backBtnHtml}${indent}      <div style="min-width:0; ${
+        centerHeader
+          ? `text-align:center; width:100%; padding:0 ${showBackButton ? '56px' : '8px'}; box-sizing:border-box;`
+          : 'text-align:left; flex:1;'
+      }">
+${indent}        <h3 style="margin:0; font-size:14.5px; font-weight:800; line-height:1.25; letter-spacing:-0.01em; color:#0F172A; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+        headerLine
+      )}</h3>
+${indent}      </div>
+${indent}    </div>
+${descriptionHtml}${indent}    <div data-smr-stage style="position:relative; width:100%; height:${stageH}px; overflow:visible;">
+${indent}      <div data-smr-col="left" role="slider" aria-label="Geser rasa kiri: ${escapeHtml(
+        leftFlavor.name
+      )}" style="position:absolute; inset:0; touch-action:none; clip-path:polygon(-100% -100%, 50% -100%, 50% 200%, -100% 200%); -webkit-clip-path:polygon(-100% -100%, 50% -100%, 50% 200%, -100% 200%); cursor:${
+        total > 1 ? 'grab' : 'default'
+      };">
+${renderWheelSlotsHtml('left', leftIdx)}
+${indent}      </div>
+${indent}      <div data-smr-col="right" role="slider" aria-label="Geser rasa kanan: ${escapeHtml(
+        rightFlavor.name
+      )}" style="position:absolute; inset:0; touch-action:none; clip-path:polygon(50% -100%, 200% -100%, 200% 200%, 50% 200%); -webkit-clip-path:polygon(50% -100%, 200% -100%, 200% 200%, 50% 200%); cursor:${
+        total > 1 ? 'grab' : 'default'
+      };">
+${renderWheelSlotsHtml('right', rightIdx)}
+${indent}      </div>
+${
+  dividerWidth > 0
+    ? `${indent}      <div data-smr-divider aria-hidden="true" style="pointer-events:none; position:absolute; left:50%; transform:translateX(-50%); top:${padY}px; bottom:${padY}px; width:${dividerWidth}px; background:${dividerColor}; z-index:45;"></div>\n`
+    : ''
+}${indent}      <div data-smr-labels style="position:absolute; inset:0; pointer-events:none; z-index:48;">
+${indent}        ${labelsInnerHtml}
+${indent}      </div>
+${diceBtnHtml}${indent}    </div>
+${indent}    <div data-smr-price style="text-align:center; padding-top:2px; font-size:14px; font-weight:800; color:#0F172A; font-variant-numeric:tabular-nums; letter-spacing:-0.01em;">${escapeHtml(
+        `${pricePrefix} ${formatSmrRp(totalAmount)}`
+      )}</div>
 ${actionsHtml}${indent}  </div>
 ${indent}</div>`;
     }
@@ -5196,6 +5668,46 @@ export function collectCatalogData(
           url: '#',
           ctaLabel: blk.content.mixRasaCartButtonLabel || 'Gabungkan Rasa',
           description: '',
+          variants: '',
+          productType: 'physical' as CatalogProductType,
+        })),
+      };
+    } else if (
+      blk.type === 'slide_mix_rasa' &&
+      blk.content.slideMixFloatingCartEnabled !== false
+    ) {
+      out[blk.id] = {
+        productType: 'physical',
+        detailEnabled: false,
+        cartEnabled: true,
+        whatsappNumber:
+          blk.content.slideMixWaNumber ??
+          blk.content.catalogWhatsappNumber ??
+          '6281234567890',
+        storeName: blk.content.catalogStoreName ?? '',
+        whatsappIntro:
+          blk.content.slideMixWaIntro ??
+          blk.content.catalogWhatsappIntro ??
+          'Halo, saya ingin memesan:',
+        askCustomerInfo: blk.content.catalogAskCustomerInfo ?? true,
+        customerFields: resolveCatalogCustomerFields({
+          catalogProductType: 'physical',
+          catalogCustomerFields: blk.content.catalogCustomerFields,
+        }),
+        shippingEnabled: blk.content.catalogShippingEnabled ?? true,
+        shippingOptions: resolveCatalogShippingOptions(blk.content),
+        pickupNote: '',
+        shippingNote: 'Biaya produk tidak termasuk ongkos kirim (kurir).',
+        items: (blk.content.slideMixFlavors ?? []).map((it) => ({
+          id: it.id,
+          title: it.name,
+          subtitle: blk.content.slideMixProductSize || '35 cm',
+          price: it.price,
+          unitSold: 0,
+          image: it.image || '',
+          url: '#',
+          ctaLabel: blk.content.slideMixCartButtonLabel || 'Gabungkan Rasa',
+          description: it.subtitle || '',
           variants: '',
           productType: 'physical' as CatalogProductType,
         })),

@@ -92,6 +92,7 @@ import { FloatingProductStudio } from '../FloatingProductStudio';
 import { InteractiveBoxShowcase } from '../InteractiveBoxShowcase';
 import { ProductBoxReveal } from '../ProductBoxReveal';
 import { MixRasaConfigurator, MixRasaCartPayload } from '../MixRasaConfigurator';
+import { SlideMixRasaBlock } from '../SlideMixRasaBlock';
 import { FnbHeroSlider } from '../FnbHeroSlider';
 import { MapsPlaceCard } from '../MapsPlaceCard';
 import { PhotoCarousel } from '../PhotoCarousel';
@@ -172,6 +173,7 @@ function findFirstCatalogBlock(
         blk.content.boxRevealShowCartButton !== false &&
         blk.content.boxRevealFloatingCartEnabled !== false) ||
       (blk.type === 'mix_rasa' && blk.content.mixRasaFloatingCartEnabled !== false) ||
+      (blk.type === 'slide_mix_rasa' && blk.content.slideMixFloatingCartEnabled !== false) ||
       blk.type === 'cart_button' ||
       (blk.type === 'showcase_card' &&
         (blk.content.cardVariant === 'store_card' ||
@@ -3017,6 +3019,54 @@ export function PreviewModal({
               } else {
                 goBackPage();
               }
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === 'slide_mix_rasa') {
+      return (
+        <div key={block.id} style={style}>
+          <SlideMixRasaBlock
+            blockId={block.id}
+            content={block.content}
+            theme={project.theme}
+            borderRadius={s.borderRadius}
+            onAddMixToCart={(payload: MixRasaCartPayload) => {
+              const catalogLikeItem: CatalogItem = {
+                id: payload.itemId,
+                title: payload.title,
+                subtitle: `${payload.sliceCount} Bagian${payload.productSize ? ` · ${payload.productSize}` : ''}`,
+                description: `Kombinasi Rasa: ${payload.flavors.join(' + ')}`,
+                price: payload.price,
+                ctaLabel: block.content.slideMixCartButtonLabel || 'Gabungkan Rasa',
+                url: '',
+                image: payload.image,
+                unitSold: 0,
+                variants: payload.variant,
+              };
+              addToCart(block.id, catalogLikeItem, payload.variant, 1);
+            }}
+            onBackClick={() => {
+              const backType = block.content.slideMixBackActionType || 'back';
+              if (backType === 'page' && block.content.slideMixBackTargetPageId) {
+                openCustomPage(block.content.slideMixBackTargetPageId);
+              } else if (backType === 'url' && block.content.slideMixBackUrl) {
+                const safe = sanitizeExternalUrl(block.content.slideMixBackUrl, '');
+                if (safe) {
+                  const a = document.createElement('a');
+                  a.href = safe;
+                  a.target = '_blank';
+                  a.rel = 'noopener noreferrer';
+                  a.click();
+                }
+              } else {
+                goBackPage();
+              }
+            }}
+            onAdminCtaClick={(productTitle, productPrice) => {
+              handleAdminCtaClick(block, productTitle, productPrice);
             }}
           />
         </div>

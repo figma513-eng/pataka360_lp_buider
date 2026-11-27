@@ -1011,6 +1011,13 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
       mixRasaAccentColor: c.mixRasaAccentColor
         ? sanitizeOptionalCssColor(c.mixRasaAccentColor) ?? '#EA6314'
         : c.mixRasaAccentColor,
+      mixRasaDividerWidth:
+        typeof c.mixRasaDividerWidth === 'number' && Number.isFinite(c.mixRasaDividerWidth)
+          ? Math.max(0, Math.min(20, Math.round(c.mixRasaDividerWidth)))
+          : c.mixRasaDividerWidth,
+      mixRasaDividerColor: c.mixRasaDividerColor
+        ? sanitizeOptionalCssColor(c.mixRasaDividerColor) ?? '#FFFFFF'
+        : c.mixRasaDividerColor,
       mixRasaFloatingCartEnabled:
         typeof c.mixRasaFloatingCartEnabled === 'boolean'
           ? c.mixRasaFloatingCartEnabled
@@ -1116,19 +1123,27 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
           : c.slideMixAutoSlideMs,
       slideMixPreviewSize:
         typeof c.slideMixPreviewSize === 'number' && Number.isFinite(c.slideMixPreviewSize)
-          ? Math.max(170, Math.min(300, Math.round(c.slideMixPreviewSize)))
+          ? Math.max(150, Math.min(320, Math.round(c.slideMixPreviewSize)))
           : c.slideMixPreviewSize,
       slideMixPeekSize:
         typeof c.slideMixPeekSize === 'number' && Number.isFinite(c.slideMixPeekSize)
-          ? Math.max(60, Math.min(130, Math.round(c.slideMixPeekSize)))
+          ? Math.max(56, Math.min(160, Math.round(c.slideMixPeekSize)))
           : c.slideMixPeekSize,
       slideMixPeekOpacity:
         typeof c.slideMixPeekOpacity === 'number' && Number.isFinite(c.slideMixPeekOpacity)
-          ? Math.max(0, Math.min(90, Math.round(c.slideMixPeekOpacity)))
+          ? Math.max(10, Math.min(100, Math.round(c.slideMixPeekOpacity)))
           : c.slideMixPeekOpacity,
+      slideMixItemGap:
+        typeof c.slideMixItemGap === 'number' && Number.isFinite(c.slideMixItemGap)
+          ? Math.max(0, Math.min(64, Math.round(c.slideMixItemGap)))
+          : c.slideMixItemGap,
+      slideMixTransitionMs:
+        typeof c.slideMixTransitionMs === 'number' && Number.isFinite(c.slideMixTransitionMs)
+          ? Math.max(180, Math.min(900, Math.round(c.slideMixTransitionMs)))
+          : c.slideMixTransitionMs,
       slideMixDividerWidth:
         typeof c.slideMixDividerWidth === 'number' && Number.isFinite(c.slideMixDividerWidth)
-          ? Math.max(0, Math.min(10, Math.round(c.slideMixDividerWidth)))
+          ? Math.max(0, Math.min(20, Math.round(c.slideMixDividerWidth)))
           : c.slideMixDividerWidth,
       slideMixDividerColor: c.slideMixDividerColor
         ? sanitizeOptionalCssColor(c.slideMixDividerColor) ?? '#FFFFFF'
@@ -1143,6 +1158,20 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.slideMixPricePrefix === 'string'
           ? c.slideMixPricePrefix.slice(0, 40)
           : c.slideMixPricePrefix,
+      slideMixButtonSize:
+        c.slideMixButtonSize === 'sm' ||
+        c.slideMixButtonSize === 'md' ||
+        c.slideMixButtonSize === 'lg'
+          ? c.slideMixButtonSize
+          : c.slideMixButtonSize,
+      slideMixButtonDisplay:
+        c.slideMixButtonDisplay === 'icon_text' || c.slideMixButtonDisplay === 'icon_only'
+          ? c.slideMixButtonDisplay
+          : c.slideMixButtonDisplay,
+      slideMixButtonLayout:
+        c.slideMixButtonLayout === 'stack' || c.slideMixButtonLayout === 'row'
+          ? c.slideMixButtonLayout
+          : c.slideMixButtonLayout,
       slideMixFloatingCartEnabled:
         typeof c.slideMixFloatingCartEnabled === 'boolean'
           ? c.slideMixFloatingCartEnabled

@@ -82,6 +82,7 @@ import { FloatingProductStudio } from './FloatingProductStudio';
 import { InteractiveBoxShowcase } from './InteractiveBoxShowcase';
 import { ProductBoxReveal } from './ProductBoxReveal';
 import { MixRasaConfigurator, parseMixRasaPrice } from './MixRasaConfigurator';
+import { SlideMixRasaBlock } from './SlideMixRasaBlock';
 import { FnbHeroSlider } from './FnbHeroSlider';
 import { MapsPlaceCard } from './MapsPlaceCard';
 import { PhotoCarousel } from './PhotoCarousel';
@@ -730,7 +731,8 @@ export function MobileCanvas({
             block.type !== 'floating_product_studio' &&
             block.type !== 'interactive_box_showcase' &&
             block.type !== 'product_box_reveal' &&
-            block.type !== 'mix_rasa'
+            block.type !== 'mix_rasa' &&
+            block.type !== 'slide_mix_rasa'
           }
           onDragStart={(e) => {
             if (
@@ -741,7 +743,8 @@ export function MobileCanvas({
               block.type === 'floating_product_studio' ||
               block.type === 'interactive_box_showcase' ||
               block.type === 'product_box_reveal' ||
-              block.type === 'mix_rasa'
+              block.type === 'mix_rasa' ||
+              block.type === 'slide_mix_rasa'
             ) {
               e.preventDefault();
               return;
@@ -2877,6 +2880,23 @@ export function MobileCanvas({
           />
         )}
 
+        {block.type === 'slide_mix_rasa' && (
+          <SlideMixRasaBlock
+            blockId={block.id}
+            content={block.content}
+            theme={theme}
+            borderRadius={s.borderRadius}
+            isEditor
+            onAddMixToCart={(payload) => {
+              setFnbPreviewQtys((prev) => ({
+                ...prev,
+                [`mr_${block.id}`]: (prev[`mr_${block.id}`] ?? 0) + 1,
+                [`mr_amt_${block.id}`]: (prev[`mr_amt_${block.id}`] ?? 0) + payload.unitPrice,
+              }));
+            }}
+          />
+        )}
+
         {block.type === 'cart_button' && (() => {
           const itemKey = `cb_${block.id}`;
           const qty = fnbPreviewQtys[itemKey] ?? 0;
@@ -3828,7 +3848,8 @@ export function MobileCanvas({
               );
               const mixRasaBlocks = allFlatCanvasBlocks.filter(
                 (b) =>
-                  b.type === 'mix_rasa' && b.content.mixRasaFloatingCartEnabled !== false
+                  (b.type === 'mix_rasa' && b.content.mixRasaFloatingCartEnabled !== false) ||
+                  (b.type === 'slide_mix_rasa' && b.content.slideMixFloatingCartEnabled !== false)
               );
               const cartBtnBlocks = allFlatCanvasBlocks.filter((b) => b.type === 'cart_button');
               const showcaseCartBlocks = allFlatCanvasBlocks.filter(
@@ -3988,6 +4009,12 @@ export function MobileCanvas({
                   ? String(
                       (sourceBlk.content.mixRasaFlavors ?? [])
                         .slice(0, sourceBlk.content.mixRasaSliceCount ?? 2)
+                        .reduce((s, f) => s + parseMixRasaPrice(f.price), 0)
+                    )
+                  : sourceBlk?.type === 'slide_mix_rasa'
+                  ? String(
+                      (sourceBlk.content.slideMixFlavors ?? [])
+                        .slice(0, 2)
                         .reduce((s, f) => s + parseMixRasaPrice(f.price), 0)
                     )
                   : sourceBlk?.type === 'cart_button'
