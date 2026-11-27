@@ -715,6 +715,7 @@ export function PreviewModal({
       c.boxRevealWhatsappNumber?.trim() ||
       c.fnbSliderWhatsappNumber?.trim() ||
       c.culinaryWhatsappNumber?.trim() ||
+      c.studioWhatsappNumber?.trim() ||
       '6281234567890';
     const waUrl = buildAdminCtaWhatsappUrl(
       fallbackWa,
@@ -2959,6 +2960,7 @@ export function PreviewModal({
               updateCartQty(targetKey, -1);
             }}
             onOpenCart={() => setSubPage({ type: 'cart', blockId: block.id })}
+            onAdminCtaClick={(item) => handleAdminCtaClick(block, item.title, item.price)}
           />
         </div>
       );

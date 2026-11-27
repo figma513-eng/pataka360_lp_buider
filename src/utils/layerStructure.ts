@@ -139,6 +139,7 @@ export function isSubLayerHidden(block: BuilderBlock | null | undefined, subId: 
   if (subId === 'css_admin_cta' && !c.adminCtaEnabled) return true;
   if (subId === 'fps_dots' && c.studioShowDots === false) return true;
   if (subId === 'fps_cart' && c.studioShowCartButton === false) return true;
+  if (subId === 'fps_admin_cta' && !c.adminCtaEnabled) return true;
   if (subId === 'carousel_controls' && c.carouselShowDots === false) return true;
   const parsedFnb = parseFnbItemSubLayerId(subId);
   if (parsedFnb?.kind === 'card' && Array.isArray(c.fnbItems)) {
@@ -201,7 +202,13 @@ export function toggleSubLayerVisibility(block: BuilderBlock, subId: string): Bu
     nextContent.boxRevealShowCartButton = !nextHidden;
     nextContent.boxRevealFloatingCartEnabled = !nextHidden;
   }
-  if (subId === 'pbr_admin_cta' || subId === 'ibs_admin_cta' || subId === 'fhs_admin_cta' || subId === 'css_admin_cta') {
+  if (
+    subId === 'pbr_admin_cta' ||
+    subId === 'ibs_admin_cta' ||
+    subId === 'fhs_admin_cta' ||
+    subId === 'css_admin_cta' ||
+    subId === 'fps_admin_cta'
+  ) {
     nextContent.adminCtaEnabled = !nextHidden;
   }
   if (subId === 'fhs_dots') nextContent.fnbSliderShowDots = !nextHidden;
@@ -299,7 +306,13 @@ export function restoreSubLayer(block: BuilderBlock, subId: string): BuilderBloc
     nextContent.boxRevealShowCartButton = true;
     nextContent.boxRevealFloatingCartEnabled = true;
   }
-  if (subId === 'pbr_admin_cta' || subId === 'ibs_admin_cta' || subId === 'fhs_admin_cta' || subId === 'css_admin_cta') {
+  if (
+    subId === 'pbr_admin_cta' ||
+    subId === 'ibs_admin_cta' ||
+    subId === 'fhs_admin_cta' ||
+    subId === 'css_admin_cta' ||
+    subId === 'fps_admin_cta'
+  ) {
     nextContent.adminCtaEnabled = true;
   }
   if (subId === 'fhs_dots') nextContent.fnbSliderShowDots = true;
@@ -467,6 +480,7 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
     subId !== 'fps_stage' &&
     subId !== 'fps_dots' &&
     subId !== 'fps_cart' &&
+    subId !== 'fps_admin_cta' &&
     !subId.startsWith('fps_img_') &&
     !subId.startsWith('fps_info_') &&
     Array.isArray(c.floatingStudioItems)
@@ -716,6 +730,7 @@ export function deleteSubLayerIndependently(block: BuilderBlock, subId: string):
     case 'ibs_admin_cta':
     case 'fhs_admin_cta':
     case 'css_admin_cta':
+    case 'fps_admin_cta':
       nextContent.adminCtaEnabled = false;
       break;
     case 'fhs_dots':
@@ -1664,6 +1679,22 @@ export function extractBlockSubLayers(block: BuilderBlock): ExtractedSubLayer[] 
         icon: 'cart',
         canDelete: false,
         contentSections: ['main', 'actions'],
+        designSections: ['specific'],
+      });
+      pushIfNotDeleted({
+        id: 'fps_admin_cta',
+        label: c.adminCtaLabel?.trim() || 'Tombol Konsultasi WA',
+        typeLabel: c.adminCtaEnabled
+          ? c.adminCtaActionType === 'sheet'
+            ? 'Aktif · Bottom Sheet'
+            : c.adminCtaActionType === 'page'
+              ? 'Aktif · Page Lain'
+              : 'Aktif · Link WA'
+          : 'Nonaktif',
+        kind: 'part',
+        icon: 'link',
+        canDelete: false,
+        contentSections: ['main'],
         designSections: ['specific'],
       });
       items.forEach((item, idx) => {

@@ -232,11 +232,12 @@ function renderAdminCtaButtonHtml(
   firstPrice: string,
   indent: string,
   whatsappCenter?: WhatsappCenterConfig,
-  blockFallbackWa?: string
+  blockFallbackWa?: string,
+  defaultLabel = 'Tanya Admin'
 ): string {
   const c = block.content;
   if (!c.adminCtaEnabled) return '';
-  const labelText = escapeHtml((c.adminCtaLabel ?? '').trim() || 'Tanya Admin');
+  const labelText = escapeHtml((c.adminCtaLabel ?? '').trim() || defaultLabel);
   const bg = sanitizeCssColor(c.adminCtaBgColor, '#16A34A');
   const fg = sanitizeCssColor(c.adminCtaTextColor, '#FFFFFF');
   const actionType = c.adminCtaActionType ?? 'whatsapp';
@@ -313,7 +314,8 @@ export function renderBlockHtml(
         block.type === 'product_box_reveal' ||
         block.type === 'slide_mix_rasa' ||
         block.type === 'fnb_hero_slider' ||
-        block.type === 'culinary_spin_slider')
+        block.type === 'culinary_spin_slider' ||
+        block.type === 'floating_product_studio')
   );
 
   if (!action && !uc && !needsAdminSheet) return html;
@@ -3655,12 +3657,26 @@ ${groundShadow ? `${indent}      <span aria-hidden="true" style="width:${Math.ro
 
       const ssrHeroHtml = `<div style="position:absolute; left:50%; top:46%; width:${productSize}px; height:${productSize + 24}px; transform:translate3d(-50%,-50%,0) scale(${(imageZoom / 100).toFixed(4)}); z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;"><img src="${firstImg}" alt="${escapeHtml(first.title)}" draggable="false" referrerpolicy="no-referrer" style="width:${productSize}px; height:${productSize}px; object-fit:contain; filter:drop-shadow(0 18px 22px rgba(0,0,0,0.22)); pointer-events:none;${levitate ? ' animation:fpsLevitate 3.4s ease-in-out infinite;' : ''}" />${groundShadow ? `<span aria-hidden="true" style="width:${Math.round(productSize * 0.58)}px; height:${Math.max(10, Math.round(productSize * 0.08))}px; border-radius:9999px; margin-top:12px; background:radial-gradient(ellipse at center, rgba(0,0,0,0.48) 0%, rgba(0,0,0,0.18) 54%, rgba(0,0,0,0) 76%); filter:blur(3px);${levitate ? ' animation:fpsShadowPulse 3.4s ease-in-out infinite;' : ''}"></span>` : ''}</div>`;
 
+      const hiddenSubLayers = new Set(c.hiddenSubLayers ?? []);
+      const adminCtaHtml = !hiddenSubLayers.has('fps_admin_cta')
+        ? renderAdminCtaButtonHtml(
+            block,
+            first.title || 'Produk Studio',
+            first.price || '',
+            `${indent}    `,
+            whatsappCenter,
+            c.studioWhatsappNumber,
+            'Konsultasi'
+          )
+        : '';
+
       const hasBottomSection =
         showInfo ||
         showPrice ||
         showSwatches ||
         showDescription ||
         showCartButton ||
+        Boolean(adminCtaHtml) ||
         (showDots && dotsPos === 'below');
 
       return `${indent}<div data-floating-product-studio="${escapeHtml(block.id)}" data-fps-items="${safeItemsJson}" data-fps-size="${productSize}" data-fps-zoom="${imageZoom}" data-fps-corner-size="${cornerSize}" data-fps-text="${textColor}" data-fps-levitate="${levitate ? '1' : '0'}" data-fps-shadow="${groundShadow ? '1' : '0'}" data-fps-show-info="${showInfo ? '1' : '0'}" data-fps-show-price="${showPrice ? '1' : '0'}" data-fps-show-swatches="${showSwatches ? '1' : '0'}" data-fps-show-desc="${showDescription ? '1' : '0'}" data-fps-show-cart="${showCartButton ? '1' : '0'}" data-fps-autoplay="${autoplay ? '1' : '0'}" data-fps-dots="${showDots ? dotsPos : 'none'}" style="${css}; position:relative; overflow:hidden; background:radial-gradient(circle at 50% 42%, ${firstFrom} 0%, ${firstTo} 78%); border-radius:${radius}px; min-height:${minHeight}px; display:flex; flex-direction:column; justify-content:space-between; touch-action:pan-y; user-select:none; padding:0; cursor:${items.length > 1 ? 'grab' : 'default'};">
@@ -3678,7 +3694,7 @@ ${showInfo ? `${indent}        <div data-fps-title-a style="font-size:18px; font
 ${indent}      <div data-fps-label-b aria-hidden="true" style="position:absolute; inset:0; opacity:0; pointer-events:none; will-change:transform, opacity;">
 ${showInfo ? `${indent}        <div data-fps-title-b style="font-size:18px; font-weight:700; line-height:1.25;"></div>\n` : ''}${showPrice ? `${indent}        <div data-fps-price-b style="font-size:15px; font-weight:800; margin-top:2px; opacity:0.94; font-variant-numeric:tabular-nums;"></div>\n` : ''}${indent}      </div>
 ${indent}    </div>\n` : ''}${showDescription ? `${indent}    <p data-fps-desc style="margin:6px auto 8px; max-width:290px; font-size:12px; line-height:1.45; opacity:0.88;">${escapeHtml(first.description || first.subtitle || '')}</p>
-${indent}    <div data-fps-variants style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; margin-bottom:10px;"></div>\n` : ''}${showCartButton ? `${indent}    <div data-fps-cart-actions style="display:flex; align-items:center; justify-content:center; margin-top:10px;"></div>\n` : ''}${showDots && dotsPos === 'below' ? `${indent}    <div data-fps-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>\n` : ''}${indent}</div>`;
+${indent}    <div data-fps-variants style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; margin-bottom:10px;"></div>\n` : ''}${showCartButton ? `${indent}    <div data-fps-cart-actions style="display:flex; align-items:center; justify-content:center; margin-top:10px;"></div>\n` : ''}${adminCtaHtml}${showDots && dotsPos === 'below' ? `${indent}    <div data-fps-dots-below style="display:flex; align-items:center; justify-content:center; gap:6px; padding-top:12px;"></div>\n` : ''}${indent}  </div>\n` : ''}${indent}</div>`;
     }
 
     case 'interactive_box_showcase': {

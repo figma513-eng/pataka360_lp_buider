@@ -448,9 +448,22 @@ export function BlockContentTab({
     return copy;
   };
 
-  const renderAdminCtaControls = (defaultWaFallback?: string) => {
+  const renderAdminCtaControls = (
+    defaultWaFallback?: string,
+    opts?: {
+      heading?: string;
+      defaultLabel?: string;
+      defaultMessage?: string;
+      toggleLabel?: string;
+    }
+  ) => {
     const enabled = Boolean(c.adminCtaEnabled);
     const actionType = c.adminCtaActionType ?? 'whatsapp';
+    const heading = opts?.heading ?? 'Tombol Tanya Admin (Opsional)';
+    const defaultLabel = opts?.defaultLabel ?? 'Tanya Admin';
+    const defaultMessage =
+      opts?.defaultMessage ?? 'Halo Admin, saya ingin bertanya tentang {produk}.';
+    const toggleLabel = opts?.toggleLabel ?? 'Aktifkan Tombol Tanya Admin';
     const sheetPos: MenuIconSheetPosition = c.actionSheetPosition ?? 'bottom';
     const sheetBlocks = c.actionSheetBlocks ?? [];
     const sheetQuickTypes: { type: BlockType; label: string }[] = [
@@ -466,19 +479,20 @@ export function BlockContentTab({
     return (
       <div className="p-2.5 rounded-lg bg-[#F0F5FA] border border-[#DCE5EF] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold text-[#17243D]">
-            Tombol Tanya Admin (Opsional)
-          </span>
+          <span className="text-[11px] font-bold text-[#17243D]">{heading}</span>
           <ToggleSwitch
             checked={enabled}
             onChange={(val) =>
               updateContent({
                 adminCtaEnabled: val,
-                ...(val && !c.adminCtaLabel ? { adminCtaLabel: 'Tanya Admin' } : {}),
+                ...(val && !c.adminCtaLabel ? { adminCtaLabel: defaultLabel } : {}),
                 ...(val && !c.adminCtaActionType ? { adminCtaActionType: 'whatsapp' } : {}),
+                ...(val && !c.adminCtaWhatsappMessage
+                  ? { adminCtaWhatsappMessage: defaultMessage }
+                  : {}),
               })
             }
-            label="Aktifkan Tombol Tanya Admin"
+            label={toggleLabel}
           />
         </div>
 
@@ -490,8 +504,8 @@ export function BlockContentTab({
               </label>
               <input
                 type="text"
-                value={c.adminCtaLabel ?? 'Tanya Admin'}
-                placeholder="Tanya Admin"
+                value={c.adminCtaLabel ?? defaultLabel}
+                placeholder={defaultLabel}
                 onChange={(e) => updateContent({ adminCtaLabel: e.target.value })}
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
               />
@@ -519,7 +533,7 @@ export function BlockContentTab({
                           ? { actionSheetPosition: 'bottom' }
                           : {}),
                         ...(opt.id === 'sheet' && !c.actionSheetTitle
-                          ? { actionSheetTitle: c.adminCtaLabel?.trim() || 'Tanya Admin' }
+                          ? { actionSheetTitle: c.adminCtaLabel?.trim() || defaultLabel }
                           : {}),
                       })
                     }
@@ -555,10 +569,7 @@ export function BlockContentTab({
                   </label>
                   <textarea
                     rows={2}
-                    value={
-                      c.adminCtaWhatsappMessage ??
-                      'Halo Admin, saya ingin bertanya tentang {produk}.'
-                    }
+                    value={c.adminCtaWhatsappMessage ?? defaultMessage}
                     onChange={(e) => updateContent({ adminCtaWhatsappMessage: e.target.value })}
                     placeholder="Gunakan {produk} untuk menyisipkan nama produk aktif"
                     className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#DCE5EF] bg-white outline-none focus:border-[#00C98A]"
@@ -1602,6 +1613,12 @@ export function BlockContentTab({
                 />
               </div>
             </div>
+            {renderAdminCtaControls(c.studioWhatsappNumber, {
+              heading: 'Tombol Konsultasi WA (Opsional)',
+              defaultLabel: 'Konsultasi',
+              defaultMessage: 'Halo Admin, saya ingin konsultasi tentang {produk}.',
+              toggleLabel: 'Aktifkan Tombol Konsultasi WA',
+            })}
           </div>
         );
 

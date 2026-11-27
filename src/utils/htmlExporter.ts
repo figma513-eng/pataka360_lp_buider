@@ -5821,6 +5821,9 @@ ${bodyBlocks}
                 '  <button type="button" data-fnb-inc="' + fnbKey + '" style="width:26px; height:26px; border-radius:9999px; border:0; background:#0F172A; color:#FFFFFF; font-size:15px; font-weight:700; cursor:pointer;">+</button>' +
                 '</div>';
             }
+            if (typeof window.__lynkSyncAdminWa === 'function') {
+              window.__lynkSyncAdminWa(root, active.title, active.price);
+            }
             if (dotsOverlay && dotsMode === 'overlay') {
               dotsOverlay.innerHTML = items.map(function (_, i) {
                 var on = i === idx;

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Minus, Plus, ShoppingBag } from 'lucide-react';
+import { MessageCircle, Minus, Plus, ShoppingBag } from 'lucide-react';
 import { BlockContent, FnbHeroSlideItem, PageTheme } from '../types/builder';
 
 interface FloatingProductStudioProps {
@@ -14,6 +14,7 @@ interface FloatingProductStudioProps {
   onIncCart?: (item: FnbHeroSlideItem, variant: string) => void;
   onDecCart?: (item: FnbHeroSlideItem, variant: string) => void;
   onOpenCart?: () => void;
+  onAdminCtaClick?: (item: FnbHeroSlideItem) => void;
 }
 
 function wrapIndex(index: number, length: number): number {
@@ -96,6 +97,7 @@ export function FloatingProductStudio({
   onIncCart,
   onDecCart,
   onOpenCart,
+  onAdminCtaClick,
 }: FloatingProductStudioProps) {
   const items = content.floatingStudioItems ?? [];
   const total = items.length;
@@ -243,14 +245,19 @@ export function FloatingProductStudio({
   const morphedSpotlight = lerpColor(itemA.gradientFrom, itemB.gradientFrom, frac, [176, 182, 190]);
   const morphedBackdrop = lerpColor(itemA.gradientTo, itemB.gradientTo, frac, [122, 130, 142]);
 
+  const hiddenSet = new Set(content.hiddenSubLayers ?? []);
   const showHeader = Boolean(content.studioShowHeader);
   const showCornerPreview = content.studioShowCornerPreview !== false && total > 1;
   const showInfo = content.studioShowInfo !== false;
   const showPrice = content.studioShowPrice !== false;
   const showSwatches = content.studioShowSwatches !== false && total > 1;
   const showDescription = Boolean(content.studioShowDescription);
-  const showCartButton = content.studioShowCartButton !== false;
-  const showDots = Boolean(content.studioShowDots);
+  const showCartButton = content.studioShowCartButton !== false && !hiddenSet.has('fps_cart');
+  const adminCtaEnabled = Boolean(content.adminCtaEnabled) && !hiddenSet.has('fps_admin_cta');
+  const adminCtaLabel = (content.adminCtaLabel ?? '').trim() || 'Konsultasi';
+  const adminCtaBg = content.adminCtaBgColor || '#16A34A';
+  const adminCtaText = content.adminCtaTextColor || '#FFFFFF';
+  const showDots = Boolean(content.studioShowDots) && !hiddenSet.has('fps_dots');
   const dotsPos = content.studioDotsPosition ?? 'below';
   const levitate = content.studioLevitateEnabled !== false;
   const groundShadow = content.studioGroundShadow !== false;
@@ -643,6 +650,7 @@ export function FloatingProductStudio({
         showSwatches ||
         showDescription ||
         showCartButton ||
+        adminCtaEnabled ||
         (showDots && dotsPos === 'below')) && (
         <div className="relative z-20 px-5 pb-5 pt-2 text-center space-y-2.5">
           {/* Color Studio Variant Swatches */}
@@ -804,6 +812,31 @@ export function FloatingProductStudio({
                   <span>Tambah ke Keranjang</span>
                 </button>
               )}
+            </div>
+          )}
+
+          {adminCtaEnabled && (
+            <div
+              data-canvas-sublayer="fps_admin_cta"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="flex items-center justify-center pt-0.5"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isEditor) onAdminCtaClick?.(activeItem);
+                }}
+                style={{
+                  backgroundColor: adminCtaBg,
+                  color: adminCtaText,
+                }}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full font-bold text-xs shadow-md hover:scale-[1.02] active:scale-[0.98] transition-transform cursor-pointer"
+              >
+                <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{adminCtaLabel}</span>
+              </button>
             </div>
           )}
 
