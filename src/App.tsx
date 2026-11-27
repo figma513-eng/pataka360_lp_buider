@@ -72,6 +72,7 @@ import {
   toggleSubLayerLock,
   toggleSubLayerVisibility,
 } from './utils/layerStructure';
+import { insertFnbBlockKeyNear } from './utils/fnbHelpers';
 import { generateProjectHtml } from './utils/htmlExporter';
 import { sanitizeBuilderProject } from './utils/htmlSanitizer';
 import {
@@ -1961,6 +1962,44 @@ export default function App() {
     setSelectedId(draggedId);
   };
 
+  const handleMoveBlockIntoFnbAt = (
+    draggedBlockId: string,
+    fnbCatalogId: string,
+    targetEntryKey: string,
+    position: 'before' | 'after'
+  ) => {
+    if (!draggedBlockId || draggedBlockId === fnbCatalogId) return;
+    commitProject((prev) => {
+      const moveAndPosition = (list: BuilderBlock[]): BuilderBlock[] => {
+        const moved = reorderBlockInTree(list, draggedBlockId, fnbCatalogId, 'inside');
+        return updateBlockById(moved, fnbCatalogId, (cat) =>
+          insertFnbBlockKeyNear(cat, draggedBlockId, targetEntryKey, position)
+        );
+      };
+      const curNav = prev.bottomNavbar;
+      return {
+        ...prev,
+        blocks: moveAndPosition(prev.blocks),
+        pages: prev.pages
+          ? prev.pages.map((pg) => ({
+              ...pg,
+              blocks: moveAndPosition(pg.blocks),
+            }))
+          : prev.pages,
+        bottomNavbar: curNav
+          ? {
+              ...curNav,
+              items: curNav.items.map((it) => ({
+                ...it,
+                children: moveAndPosition(it.children),
+              })),
+            }
+          : curNav,
+      };
+    });
+    setSelectedId(draggedBlockId);
+  };
+
   const remapBlocksForTheme = (
     blocks: BuilderBlock[],
     prevTheme: PageTheme,
@@ -3298,6 +3337,10 @@ export default function App() {
           onDeleteSubLayer={handleDeleteSubLayer}
           onMoveBlock={handleMoveBlock}
           onReorderBlock={handleReorderBlock}
+          onMoveBlockIntoFnbAt={handleMoveBlockIntoFnbAt}
+          onDropNewBlock={handleAddBlock}
+          onDropSection={handleDropSectionById}
+          onDropItemTemplate={handleDropItemTemplateById}
           onDuplicateBlock={handleDuplicateBlock}
           onDeleteBlock={handleDeleteBlock}
           onUpdateBlock={handleUpdateBlock}

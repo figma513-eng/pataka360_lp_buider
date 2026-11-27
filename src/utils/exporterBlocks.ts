@@ -24,7 +24,10 @@ import {
   normalizeFacebookVideoUrl,
 } from './videoHelpers.ts';
 import { sanitizeExternalUrl } from './urlHelpers.ts';
-import { resolveFnbItemImageGeometry } from './fnbHelpers.ts';
+import {
+  resolveFnbItemImageGeometry,
+  resolveOrderedFnbEntries,
+} from './fnbHelpers.ts';
 import {
   GOSEND_DEFAULT_CHECKLISTS,
   buildTrainingWhatsappUrl,
@@ -3158,32 +3161,78 @@ ${indent}</div>`;
           )}" style="width:100%; border:0; outline:none; background:transparent; color:${searchTextColor}; font-size:12px; font-family:inherit;" /></div>`
         : '';
 
-      const groups: { category: string; items: typeof items }[] = [];
-      if (!groupByCat) {
-        groups.push({ category: '', items });
-      } else {
-        for (const it of items) {
+      const hideDefaultMenu = Boolean(c.fnbHideDefaultMenu);
+      const orderedEntries = resolveOrderedFnbEntries(block);
+
+      type ExportFnbSegment =
+        | { kind: 'menu_run'; heading: string; categoryKey: string; items: typeof items }
+        | { kind: 'block'; block: BuilderBlock };
+
+      const segments: ExportFnbSegment[] = [];
+      let lastHeadingCatLower = '';
+
+      for (const entry of orderedEntries) {
+        if (entry.kind === 'menu') {
+          if (hideDefaultMenu) continue;
+          const it = entry.item;
+          if (it.hidden) continue;
+          if (hiddenSubSet.has(`fnb_${entry.id}`)) continue;
           const cat = (it.category || 'Menu').trim() || 'Menu';
-          let g = groups.find((x) => x.category.toLowerCase() === cat.toLowerCase());
-          if (!g) {
-            g = { category: cat, items: [] };
-            groups.push(g);
+          const catLower = cat.toLowerCase();
+          const prevSeg = segments[segments.length - 1];
+          if (
+            prevSeg &&
+            prevSeg.kind === 'menu_run' &&
+            (!groupByCat || prevSeg.categoryKey === catLower)
+          ) {
+            prevSeg.items.push(it);
+          } else {
+            const shouldShowHeading = groupByCat && catLower !== lastHeadingCatLower;
+            if (shouldShowHeading) {
+              lastHeadingCatLower = catLower;
+            }
+            segments.push({
+              kind: 'menu_run',
+              heading: shouldShowHeading ? cat : '',
+              categoryKey: catLower,
+              items: [it],
+            });
           }
-          g.items.push(it);
+        } else {
+          segments.push({
+            kind: 'block',
+            block: entry.block,
+          });
         }
       }
 
-      const sectionsHtml = groups
-        .map((sec) => {
-          const headingHtml = sec.category
+      const unifiedHtml = segments
+        .map((seg) => {
+          if (seg.kind === 'block') {
+            const innerHtml = renderBlockHtml(
+              seg.block,
+              theme,
+              advance,
+              indent + '      ',
+              nextInheritedTextColor,
+              whatsappCenter
+            );
+            if (!innerHtml) return '';
+            const childHaystack = extractBlockSearchText(seg.block);
+            return `${indent}    <div data-fnb-child-card="1" data-fnb-child-haystack="${escapeHtml(
+              childHaystack
+            )}">\n${innerHtml}\n${indent}    </div>`;
+          }
+
+          const headingHtml = seg.heading
             ? `<h3 data-jump-title="${escapeHtml(
-                sec.category.toLowerCase()
+                seg.heading.toLowerCase()
               )}" style="margin:0; padding-top:4px; font-size:${headingSize}px; font-weight:800; letter-spacing:-0.01em; color:${
                 headingColor
-              };">${escapeHtml(sec.category)}</h3>`
+              };">${escapeHtml(seg.heading)}</h3>`
             : '';
 
-          const cardsHtml = sec.items
+          const cardsHtml = seg.items
             .map((item) => {
               const origIdx = allItems.indexOf(item);
               const itemKey = String(item.id || (origIdx >= 0 ? origIdx : 0));
@@ -3286,36 +3335,12 @@ ${indent}      </div>`;
 ${headingHtml ? `${indent}      ${headingHtml}\n` : ''}${cardsHtml}
 ${indent}    </div>`;
         })
-        .join('\n');
-
-      const fnbChildren = block.children ?? [];
-      const fnbChildrenPos = c.fnbChildrenPosition === 'above' ? 'above' : 'below';
-      const hideDefaultMenu = Boolean(c.fnbHideDefaultMenu);
-      const renderedFnbChildren = fnbChildren
-        .map((ch) => {
-          const innerHtml = renderBlockHtml(
-            ch,
-            theme,
-            advance,
-            indent + '      ',
-            nextInheritedTextColor,
-            whatsappCenter
-          );
-          if (!innerHtml) return '';
-          const childHaystack = extractBlockSearchText(ch);
-          return `${indent}    <div data-fnb-child-card="1" data-fnb-child-haystack="${escapeHtml(
-            childHaystack
-          )}">\n${innerHtml}\n${indent}    </div>`;
-        })
         .filter(Boolean)
         .join('\n');
-      const fnbChildrenSlotHtml = renderedFnbChildren
-        ? `${indent}  <div data-fnb-children-slot style="display:flex; flex-direction:column; gap:12px;">\n${renderedFnbChildren}\n${indent}  </div>\n`
+
+      const unifiedBlockHtml = unifiedHtml
+        ? `${indent}  <div data-fnb-sections data-fnb-unified-list style="display:flex; flex-direction:column; gap:12px;">\n${unifiedHtml}\n${indent}  </div>\n`
         : '';
-      const defaultSectionsBlockHtml =
-        !hideDefaultMenu && sectionsHtml
-          ? `${indent}  <div data-fnb-sections style="display:flex; flex-direction:column; gap:16px;">\n${sectionsHtml}\n${indent}  </div>\n`
-          : '';
 
       return `${indent}<div data-fnb-catalog="${escapeHtml(
         block.id
@@ -3324,9 +3349,7 @@ ${indent}    </div>`;
       )}" style="${css}; display:flex; flex-direction:column; gap:14px; text-align:left;">
 ${catBarHtml ? `${indent}  ${catBarHtml}\n` : ''}${
         searchHtml ? `${indent}  ${searchHtml}\n` : ''
-      }${fnbChildrenPos === 'above' ? fnbChildrenSlotHtml : ''}${defaultSectionsBlockHtml}${
-        fnbChildrenPos === 'below' ? fnbChildrenSlotHtml : ''
-      }${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:${cardRadius}px; border:1px solid ${cardBorderDefault}; background:${cardBgDefault}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
+      }${unifiedBlockHtml}${indent}  <div data-fnb-empty style="display:none; padding:24px; border-radius:${cardRadius}px; border:1px solid ${cardBorderDefault}; background:${cardBgDefault}; text-align:center; font-size:12px; opacity:0.7;">Menu yang dicari tidak ditemukan.</div>
 ${indent}</div>`;
     }
 

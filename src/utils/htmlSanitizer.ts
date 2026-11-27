@@ -1280,6 +1280,12 @@ function sanitizeBlockTree(block: BuilderBlock): BuilderBlock {
         typeof c.fnbHideDefaultMenu === 'boolean'
           ? c.fnbHideDefaultMenu
           : c.fnbHideDefaultMenu,
+      fnbItemOrder: Array.isArray(c.fnbItemOrder)
+        ? c.fnbItemOrder
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .slice(0, 200)
+            .map((k) => k.trim().slice(0, 140))
+        : c.fnbItemOrder,
       rowLayoutMode:
         c.rowLayoutMode === 'horizontal' ||
         c.rowLayoutMode === 'vertical' ||

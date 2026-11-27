@@ -957,6 +957,7 @@ export interface BlockContent {
   fnbFloatingCartLabel?: string;
   fnbChildrenPosition?: 'below' | 'above';
   fnbHideDefaultMenu?: boolean;
+  fnbItemOrder?: string[];
   // Tombol Kategori Lompat Judul
   categoryButtons?: CategoryJumpItem[];
   categoryScrollMode?: CategoryScrollMode;

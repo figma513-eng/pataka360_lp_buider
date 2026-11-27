@@ -138,6 +138,28 @@ interface LeftSidebarProps {
     targetId: string,
     position: 'before' | 'after' | 'inside'
   ) => void;
+  onMoveBlockIntoFnbAt?: (
+    draggedBlockId: string,
+    fnbCatalogId: string,
+    targetEntryKey: string,
+    position: 'before' | 'after'
+  ) => void;
+  onDropNewBlock?: (
+    type: BlockType,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside',
+    toolPreset?: 'png'
+  ) => void;
+  onDropSection?: (
+    sectionId: string,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside'
+  ) => void;
+  onDropItemTemplate?: (
+    templateId: string,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside'
+  ) => void;
   onDuplicateBlock?: (id: string) => void;
   onDeleteBlock: (id: string) => void;
   onUpdateBlock?: (id: string, updater: (block: BuilderBlock) => BuilderBlock) => void;
@@ -441,6 +463,10 @@ export function LeftSidebar({
   onDeleteSubLayer,
   onMoveBlock,
   onReorderBlock,
+  onMoveBlockIntoFnbAt,
+  onDropNewBlock,
+  onDropSection,
+  onDropItemTemplate,
   onDuplicateBlock,
   onDeleteBlock,
   onUpdateBlock,
@@ -1035,6 +1061,10 @@ export function LeftSidebar({
           onDeleteSubLayer={onDeleteSubLayer}
           onMoveBlock={onMoveBlock}
           onReorderBlock={onReorderBlock}
+          onMoveBlockIntoFnbAt={onMoveBlockIntoFnbAt}
+          onDropNewBlock={onDropNewBlock}
+          onDropSection={onDropSection}
+          onDropItemTemplate={onDropItemTemplate}
           onDuplicateBlock={onDuplicateBlock}
           onDeleteBlock={onDeleteBlock}
           onUpdateBlock={onUpdateBlock}

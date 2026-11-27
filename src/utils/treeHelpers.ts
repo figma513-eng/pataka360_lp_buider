@@ -108,7 +108,19 @@ export function deleteBlockById(blocks: BuilderBlock[], id: string): BuilderBloc
     .map((block) => {
       let next = block;
       if (block.children) {
-        next = { ...next, children: deleteBlockById(block.children, id) };
+        const nextChildren = deleteBlockById(block.children, id);
+        const nextOrder =
+          block.type === 'fnb_catalog' && Array.isArray(block.content?.fnbItemOrder)
+            ? block.content.fnbItemOrder.filter((k) => k !== `block:${id}`)
+            : block.content?.fnbItemOrder;
+        next = {
+          ...next,
+          children: nextChildren,
+          content:
+            nextOrder !== block.content?.fnbItemOrder
+              ? { ...next.content, fnbItemOrder: nextOrder }
+              : next.content,
+        };
       }
       if (block.content?.actionSheetBlocks?.length) {
         next = {
@@ -133,6 +145,39 @@ export function deleteBlockById(blocks: BuilderBlock[], id: string): BuilderBloc
 }
 
 export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
+  const fnbMenuIdMap = new Map<string, string>();
+  const clonedFnbItems = block.content.fnbItems?.map((it, idx) => {
+    const nextId = createId('fnb');
+    fnbMenuIdMap.set(String(it.id || idx), nextId);
+    return {
+      ...it,
+      id: nextId,
+    };
+  });
+  const childIdMap = new Map<string, string>();
+  const clonedChildren = block.children
+    ? block.children.map((ch) => {
+        const cloned = cloneBlockDeep(ch);
+        childIdMap.set(ch.id, cloned.id);
+        return cloned;
+      })
+    : undefined;
+  const clonedFnbItemOrder = Array.isArray(block.content.fnbItemOrder)
+    ? block.content.fnbItemOrder.map((key) => {
+        if (key.startsWith('menu:')) {
+          const oldId = key.slice(5);
+          const mapped = fnbMenuIdMap.get(oldId);
+          return mapped ? `menu:${mapped}` : key;
+        }
+        if (key.startsWith('block:')) {
+          const oldId = key.slice(6);
+          const mapped = childIdMap.get(oldId);
+          return mapped ? `block:${mapped}` : key;
+        }
+        return key;
+      })
+    : undefined;
+
   return {
     ...block,
     id: createId(block.type.slice(0, 3)),
@@ -210,10 +255,8 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
           ? [...it.requiredOptionIndexes]
           : undefined,
       })),
-      fnbItems: block.content.fnbItems?.map((it) => ({
-        ...it,
-        id: createId('fnb'),
-      })),
+      fnbItems: clonedFnbItems,
+      fnbItemOrder: clonedFnbItemOrder,
       categoryButtons: block.content.categoryButtons?.map((it) => ({
         ...it,
         id: createId('catbtn'),
@@ -244,7 +287,7 @@ export function cloneBlockDeep(block: BuilderBlock): BuilderBlock {
         ? block.content.cardFooterBlocks.map(cloneBlockDeep)
         : undefined,
     },
-    children: block.children ? block.children.map(cloneBlockDeep) : undefined,
+    children: clonedChildren,
   };
 }
 
@@ -346,9 +389,19 @@ export function insertChildIntoContainer(
 ): BuilderBlock[] {
   return blocks.map((block) => {
     if (block.id === containerId && isContainerBlockType(block.type)) {
+      const nextOrder =
+        block.type === 'fnb_catalog' && Array.isArray(block.content?.fnbItemOrder)
+          ? block.content.fnbItemOrder.includes(`block:${newChild.id}`)
+            ? block.content.fnbItemOrder
+            : [...block.content.fnbItemOrder, `block:${newChild.id}`]
+          : block.content?.fnbItemOrder;
       return {
         ...block,
         children: [...(block.children ?? []), newChild],
+        content:
+          nextOrder !== block.content?.fnbItemOrder
+            ? { ...block.content, fnbItemOrder: nextOrder }
+            : block.content,
       };
     }
     let next = block;
@@ -441,7 +494,18 @@ function extractBlockById(
       const childRes = extractBlockById(block.children, id);
       if (childRes.extracted) {
         extracted = childRes.extracted;
-        next = { ...next, children: childRes.remaining };
+        const nextOrder =
+          block.type === 'fnb_catalog' && Array.isArray(block.content?.fnbItemOrder)
+            ? block.content.fnbItemOrder.filter((k) => k !== `block:${id}`)
+            : block.content?.fnbItemOrder;
+        next = {
+          ...next,
+          children: childRes.remaining,
+          content:
+            nextOrder !== block.content?.fnbItemOrder
+              ? { ...next.content, fnbItemOrder: nextOrder }
+              : next.content,
+        };
       }
     }
     if (!extracted && block.content?.actionSheetBlocks?.length) {
@@ -485,7 +549,23 @@ export function insertBlocksAtTarget(
   if (position === 'inside') {
     return blocks.map((block) => {
       if (block.id === targetId && isContainerBlockType(block.type)) {
-        return { ...block, children: [...(block.children ?? []), ...toInsert] };
+        const nextOrder =
+          block.type === 'fnb_catalog' && Array.isArray(block.content?.fnbItemOrder)
+            ? [
+                ...block.content.fnbItemOrder,
+                ...toInsert
+                  .map((ch) => `block:${ch.id}`)
+                  .filter((k) => !block.content.fnbItemOrder!.includes(k)),
+              ]
+            : block.content?.fnbItemOrder;
+        return {
+          ...block,
+          children: [...(block.children ?? []), ...toInsert],
+          content:
+            nextOrder !== block.content?.fnbItemOrder
+              ? { ...block.content, fnbItemOrder: nextOrder }
+              : block.content,
+        };
       }
       let next = block;
       if (block.children) {

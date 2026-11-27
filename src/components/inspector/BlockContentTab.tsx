@@ -67,7 +67,13 @@ import {
   UniversalActionType,
   WhatsappCenterConfig,
 } from '../../types/builder';
-import { FNB_IMAGE_SHAPE_OPTIONS, resolveFnbItemImageGeometry } from '../../utils/fnbHelpers';
+import {
+  FNB_IMAGE_SHAPE_OPTIONS,
+  makeFnbBlockKey,
+  makeFnbMenuKey,
+  moveFnbCatalogEntry,
+  resolveFnbItemImageGeometry,
+} from '../../utils/fnbHelpers';
 import {
   WHATSAPP_TEMPLATE_TYPE_LABELS,
   resolveWhatsappCenter,
@@ -8857,9 +8863,12 @@ export function BlockContentTab({
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
-                        onClick={() => updateContent({ fnbChildrenPosition: 'below' })}
+                        onClick={() =>
+                          updateContent({ fnbChildrenPosition: 'below', fnbItemOrder: undefined })
+                        }
                         className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer ${
-                          (c.fnbChildrenPosition ?? 'below') === 'below'
+                          (c.fnbChildrenPosition ?? 'below') === 'below' &&
+                          !(Array.isArray(c.fnbItemOrder) && c.fnbItemOrder.length > 0)
                             ? 'bg-[#17243D] text-white border-[#17243D]'
                             : 'bg-white text-[#51637D] border-[#DCE5EF]'
                         }`}
@@ -8868,9 +8877,12 @@ export function BlockContentTab({
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateContent({ fnbChildrenPosition: 'above' })}
+                        onClick={() =>
+                          updateContent({ fnbChildrenPosition: 'above', fnbItemOrder: undefined })
+                        }
                         className={`py-1 px-2 rounded-lg text-[10.5px] font-bold border cursor-pointer ${
-                          c.fnbChildrenPosition === 'above'
+                          c.fnbChildrenPosition === 'above' &&
+                          !(Array.isArray(c.fnbItemOrder) && c.fnbItemOrder.length > 0)
                             ? 'bg-[#17243D] text-white border-[#17243D]'
                             : 'bg-white text-[#51637D] border-[#DCE5EF]'
                         }`}
@@ -8949,10 +8961,18 @@ export function BlockContentTab({
                               next.splice(idx + 1, 0, dup);
                               updateFnbChildren(next);
                             }}
-                            onMoveUp={() => updateFnbChildren(moveArrayItem(fnbChildren, idx, -1))}
-                            onMoveDown={() => updateFnbChildren(moveArrayItem(fnbChildren, idx, 1))}
-                            disableMoveUp={idx === 0}
-                            disableMoveDown={idx === fnbChildren.length - 1}
+                            onMoveUp={() =>
+                              onUpdateBlock(selectedBlock.id, (prev) =>
+                                moveFnbCatalogEntry(prev, makeFnbBlockKey(child.id), 'up')
+                              )
+                            }
+                            onMoveDown={() =>
+                              onUpdateBlock(selectedBlock.id, (prev) =>
+                                moveFnbCatalogEntry(prev, makeFnbBlockKey(child.id), 'down')
+                              )
+                            }
+                            disableMoveUp={false}
+                            disableMoveDown={false}
                             onDelete={() =>
                               updateFnbChildren(
                                 removeSelectedItemByIdOrIndex(fnbChildren, child.id, idx)
@@ -9035,10 +9055,18 @@ export function BlockContentTab({
                         copy.splice(idx + 1, 0, dup);
                         updateContent({ fnbItems: copy });
                       }}
-                      onMoveUp={() => updateContent({ fnbItems: moveArrayItem(items, idx, -1) })}
-                      onMoveDown={() => updateContent({ fnbItems: moveArrayItem(items, idx, 1) })}
-                      disableMoveUp={idx === 0}
-                      disableMoveDown={idx === items.length - 1}
+                      onMoveUp={() =>
+                        onUpdateBlock(selectedBlock.id, (prev) =>
+                          moveFnbCatalogEntry(prev, makeFnbMenuKey(String(item.id || idx)), 'up')
+                        )
+                      }
+                      onMoveDown={() =>
+                        onUpdateBlock(selectedBlock.id, (prev) =>
+                          moveFnbCatalogEntry(prev, makeFnbMenuKey(String(item.id || idx)), 'down')
+                        )
+                      }
+                      disableMoveUp={false}
+                      disableMoveDown={false}
                       onDelete={() => {
                         updateContent({
                           fnbItems: removeSelectedItemByIdOrIndex(items, item.id, idx),

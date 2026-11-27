@@ -11,7 +11,10 @@ import { formatRupiah, parsePriceToNumber } from '../utils/cartHelpers';
 import { resolveCssFontFamily } from '../utils/fontHelpers';
 import { resolveBackgroundInlineProps } from '../utils/gradientHelpers';
 import { shadowToCss } from '../utils/exporterBlocks';
-import { resolveFnbItemImageGeometry } from '../utils/fnbHelpers';
+import {
+  resolveFnbItemImageGeometry,
+  resolveOrderedFnbEntries,
+} from '../utils/fnbHelpers';
 import { isSubLayerHidden } from '../utils/layerStructure';
 import { extractBlockSearchText } from '../utils/categoryMatching';
 
@@ -563,40 +566,6 @@ export function FnbCatalogCard({
 
   const effectiveCat = externalCategoryFilter || localCat;
 
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return visibleItems.filter((it) => {
-      const catMatch =
-        !effectiveCat ||
-        effectiveCat === 'Semua' ||
-        (it.category || 'Menu').trim().toLowerCase() === effectiveCat.toLowerCase();
-      if (!catMatch) return false;
-      if (!q) return true;
-      return (
-        it.title.toLowerCase().includes(q) ||
-        (it.description || '').toLowerCase().includes(q) ||
-        (it.category || '').toLowerCase().includes(q)
-      );
-    });
-  }, [visibleItems, effectiveCat, searchQuery]);
-
-  const groupedSections = useMemo(() => {
-    if (c.fnbGroupByCategory === false) {
-      return [{ category: '', items: filteredItems }];
-    }
-    const groups: { category: string; items: FnbMenuItem[] }[] = [];
-    for (const it of filteredItems) {
-      const cat = (it.category || 'Menu').trim() || 'Menu';
-      let grp = groups.find((g) => g.category.toLowerCase() === cat.toLowerCase());
-      if (!grp) {
-        grp = { category: cat, items: [] };
-        groups.push(grp);
-      }
-      grp.items.push(it);
-    }
-    return groups;
-  }, [filteredItems, c.fnbGroupByCategory]);
-
   const catActiveBg = c.fnbCategoryActiveBg || accent;
   const catActiveText = c.fnbCategoryActiveText || '#FFFFFF';
   const catInactiveBg = c.fnbCategoryInactiveBg || '#F1F5F9';
@@ -609,37 +578,85 @@ export function FnbCatalogCard({
   const searchTextColor = c.fnbSearchTextColor || theme.textColor;
   const searchRadius = Math.max(6, Math.min(32, c.fnbSearchRadius ?? 16));
 
-  const childBlocks = block.children ?? [];
   const hideDefaultMenu = Boolean(c.fnbHideDefaultMenu);
   const childrenPos = c.fnbChildrenPosition ?? 'below';
 
-  const filteredChildBlocks = useMemo(() => {
-    if (childBlocks.length === 0) return [];
+  type UnifiedRenderSegment =
+    | { kind: 'menu_run'; key: string; heading: string; categoryKey: string; items: FnbMenuItem[] }
+    | { kind: 'block'; key: string; block: BuilderBlock };
+
+  const unifiedSegments = useMemo<UnifiedRenderSegment[]>(() => {
+    const entries = resolveOrderedFnbEntries(block);
     const q = searchQuery.trim().toLowerCase();
-    const cat = (effectiveCat || 'Semua').trim().toLowerCase();
-    return childBlocks.filter((ch) => {
-      if (!q && (!cat || cat === 'semua')) return true;
-      const haystack = extractBlockSearchText(ch);
-      const okCat = !cat || cat === 'semua' || haystack.includes(cat);
-      const okSearch = !q || haystack.includes(q);
-      return okCat && okSearch;
-    });
-  }, [childBlocks, effectiveCat, searchQuery]);
+    const catFilter = (effectiveCat || 'Semua').trim().toLowerCase();
+    const segments: UnifiedRenderSegment[] = [];
+    let lastHeadingCatLower = '';
 
-  const renderedChildrenBlock =
-    renderChildNode && filteredChildBlocks.length > 0 ? (
-      <div className="space-y-2.5">
-        {filteredChildBlocks.map((ch) => (
-          <React.Fragment key={ch.id}>{renderChildNode(ch)}</React.Fragment>
-        ))}
-      </div>
-    ) : childrenSlot ? (
-      <div>{childrenSlot}</div>
-    ) : null;
+    for (const entry of entries) {
+      if (entry.kind === 'menu') {
+        if (hideDefaultMenu) continue;
+        const it = entry.item;
+        if (it.hidden) continue;
+        if (isSubLayerHidden(block, `fnb_${entry.id}`)) continue;
+        const itCat = (it.category || 'Menu').trim() || 'Menu';
+        const itCatLower = itCat.toLowerCase();
+        const catMatch = !catFilter || catFilter === 'semua' || itCatLower === catFilter;
+        if (!catMatch) continue;
+        if (q) {
+          const hit =
+            it.title.toLowerCase().includes(q) ||
+            (it.description || '').toLowerCase().includes(q) ||
+            itCatLower.includes(q);
+          if (!hit) continue;
+        }
+        const prevSeg = segments[segments.length - 1];
+        if (
+          prevSeg &&
+          prevSeg.kind === 'menu_run' &&
+          (!showSectionHeadings || prevSeg.categoryKey === itCatLower)
+        ) {
+          prevSeg.items.push(it);
+        } else {
+          const shouldShowHeading =
+            showSectionHeadings && itCatLower !== lastHeadingCatLower;
+          if (shouldShowHeading) {
+            lastHeadingCatLower = itCatLower;
+          }
+          segments.push({
+            kind: 'menu_run',
+            key: `mrun_${segments.length}_${itCatLower}`,
+            heading: shouldShowHeading ? itCat : '',
+            categoryKey: itCatLower,
+            items: [it],
+          });
+        }
+      } else {
+        if (!renderChildNode) continue;
+        const ch = entry.block;
+        if (q || (catFilter && catFilter !== 'semua')) {
+          const haystack = extractBlockSearchText(ch);
+          const okCat = !catFilter || catFilter === 'semua' || haystack.includes(catFilter);
+          const okSearch = !q || haystack.includes(q);
+          if (!okCat || !okSearch) continue;
+        }
+        segments.push({
+          kind: 'block',
+          key: `blk_${ch.id}`,
+          block: ch,
+        });
+      }
+    }
+    return segments;
+  }, [
+    block,
+    effectiveCat,
+    hideDefaultMenu,
+    renderChildNode,
+    searchQuery,
+    showSectionHeadings,
+  ]);
 
-  const hasVisibleMenuItems = !hideDefaultMenu && filteredItems.length > 0;
-  const hasAnyVisibleContent =
-    hasVisibleMenuItems || filteredChildBlocks.length > 0 || Boolean(childrenSlot);
+  const hasAnyVisibleContent = unifiedSegments.length > 0 || Boolean(childrenSlot);
 
   return (
     <div style={{ fontFamily: fontStack }} className="space-y-3.5 text-left">
@@ -695,7 +712,7 @@ export function FnbCatalogCard({
         </div>
       )}
 
-      {childrenPos === 'above' && renderedChildrenBlock}
+      {childrenPos === 'above' && childrenSlot && <div>{childrenSlot}</div>}
 
       {!hasAnyVisibleContent ? (
         <div
@@ -708,25 +725,33 @@ export function FnbCatalogCard({
         >
           Menu yang dicari tidak ditemukan.
         </div>
-      ) : hasVisibleMenuItems ? (
-        <div className="space-y-4">
-          {groupedSections.map((sec, sIdx) => (
-            <div key={`${sec.category}_${sIdx}`} className="space-y-2.5">
-              {sec.category && showSectionHeadings && (
-                <h3
-                  data-canvas-sublayer="fnb_section_heading"
-                  data-jump-title={sec.category.toLowerCase()}
-                  style={{ color: headingColor, fontSize: `${headingSize}px` }}
-                  className="font-extrabold tracking-tight m-0 pt-1"
-                >
-                  {sec.category}
-                </h3>
-              )}
-              <div className="space-y-2.5">
-                {sec.items.map((item) => {
-                  const qty = cartQtyLookup[item.id] ?? 0;
-                  const origIdx = items.indexOf(item);
-                  const itemKey = String(item.id || (origIdx >= 0 ? origIdx : 0));
+      ) : unifiedSegments.length > 0 ? (
+        <div className="space-y-3">
+          {unifiedSegments.map((seg) => {
+            if (seg.kind === 'block') {
+              return (
+                <React.Fragment key={seg.key}>
+                  {renderChildNode?.(seg.block)}
+                </React.Fragment>
+              );
+            }
+            return (
+              <div key={seg.key} className="space-y-2.5">
+                {seg.heading && showSectionHeadings && (
+                  <h3
+                    data-canvas-sublayer="fnb_section_heading"
+                    data-jump-title={seg.heading.toLowerCase()}
+                    style={{ color: headingColor, fontSize: `${headingSize}px` }}
+                    className="font-extrabold tracking-tight m-0 pt-1"
+                  >
+                    {seg.heading}
+                  </h3>
+                )}
+                <div className="space-y-2.5">
+                  {seg.items.map((item) => {
+                    const qty = cartQtyLookup[item.id] ?? 0;
+                    const origIdx = items.indexOf(item);
+                    const itemKey = String(item.id || (origIdx >= 0 ? origIdx : 0));
                   const mono =
                     (item.monogram || item.title || 'MN').trim().slice(0, 2).toUpperCase() || 'MN';
                   const itemAccent = item.accentColor || accent;
@@ -922,14 +947,15 @@ export function FnbCatalogCard({
                       </div>
                     </div>
                   );
-                })}
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
 
-      {childrenPos === 'below' && renderedChildrenBlock}
+      {childrenPos !== 'above' && childrenSlot && <div>{childrenSlot}</div>}
     </div>
   );
 }

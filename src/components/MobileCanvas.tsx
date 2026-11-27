@@ -830,29 +830,9 @@ export function MobileCanvas({
         <div
           data-block-id={block.id}
           data-jump-title={jumpSearchText || undefined}
-          draggable={
-            interactionMode === 'drag' &&
-            !s.locked &&
-            block.type !== 'fnb_hero_slider' &&
-            block.type !== 'culinary_spin_slider' &&
-            block.type !== 'floating_product_studio' &&
-            block.type !== 'interactive_box_showcase' &&
-            block.type !== 'product_box_reveal' &&
-            block.type !== 'mix_rasa' &&
-            block.type !== 'slide_mix_rasa'
-          }
+          draggable={interactionMode === 'drag' && !s.locked}
           onDragStart={(e) => {
-            if (
-              interactionMode !== 'drag' ||
-              s.locked ||
-              block.type === 'fnb_hero_slider' ||
-              block.type === 'culinary_spin_slider' ||
-              block.type === 'floating_product_studio' ||
-              block.type === 'interactive_box_showcase' ||
-              block.type === 'product_box_reveal' ||
-              block.type === 'mix_rasa' ||
-              block.type === 'slide_mix_rasa'
-            ) {
+            if (interactionMode !== 'drag' || s.locked) {
               e.preventDefault();
               return;
             }
@@ -871,15 +851,18 @@ export function MobileCanvas({
             let pos: 'before' | 'after' | 'inside' =
               relY < rect.height / 2 ? 'before' : 'after';
 
-            if (
+            if (block.type === 'fnb_catalog') {
+              if (relY < rect.height * 0.14) pos = 'before';
+              else if (relY > rect.height * 0.86) pos = 'after';
+              else pos = 'inside';
+            } else if (
               block.type === 'container' ||
               block.type === 'row' ||
               block.type === 'toggle_container' ||
               block.type === 'bottom_sheet' ||
               block.type === 'menu_icon' ||
               block.type === 'showcase_card' ||
-              block.type === 'hero_profile' ||
-              block.type === 'fnb_catalog'
+              block.type === 'hero_profile'
             ) {
               if (relY < rect.height * 0.25) pos = 'before';
               else if (relY > rect.height * 0.75) pos = 'after';
@@ -2876,11 +2859,9 @@ export function MobileCanvas({
             cartQtyLookup={fnbPreviewQtys}
             renderChildNode={(ch) => renderBlockContent(ch, depth + 1, nextInheritedTextColor)}
             childrenSlot={
-              (block.children?.length ?? 0) === 0 &&
-              isDropTarget &&
-              dragState.position === 'inside' ? (
-                <div className="rounded-xl border-2 border-dashed border-[#00C98A] bg-[#ECFDF6]/90 px-3 py-4 text-center text-[11px] font-semibold text-[#008F63]">
-                  Lepas card atau blok di sini untuk memasukkannya ke Katalog Menu F&amp;B
+              isDropTarget && dragState.position === 'inside' ? (
+                <div className="rounded-xl border-2 border-dashed border-[#00C98A] bg-[#ECFDF6]/95 px-3 py-3.5 text-center text-[11px] font-bold text-[#008F63] shadow-2xs">
+                  Lepas card atau blok di sini untuk masuk ke Daftar Item Katalog Menu F&amp;B
                 </div>
               ) : undefined
             }

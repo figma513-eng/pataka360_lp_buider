@@ -99,6 +99,11 @@ import {
   SubLayerIconKind,
   extractBlockSubLayers,
 } from '../../utils/layerStructure';
+import {
+  moveFnbCatalogEntry,
+  reorderFnbCatalogEntries,
+  resolveOrderedFnbEntries,
+} from '../../utils/fnbHelpers';
 import { getBlockThemeStatus } from '../../utils/blockThemeHelpers';
 import { ButtonGlyph } from '../ButtonIcon';
 import { IconPicker } from '../IconPicker';
@@ -137,6 +142,28 @@ interface HomePageSettingsProps {
     draggedId: string,
     targetId: string,
     position: 'before' | 'after' | 'inside'
+  ) => void;
+  onMoveBlockIntoFnbAt?: (
+    draggedBlockId: string,
+    fnbCatalogId: string,
+    targetEntryKey: string,
+    position: 'before' | 'after'
+  ) => void;
+  onDropNewBlock?: (
+    type: BlockType,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside',
+    toolPreset?: 'png'
+  ) => void;
+  onDropSection?: (
+    sectionId: string,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside'
+  ) => void;
+  onDropItemTemplate?: (
+    templateId: string,
+    targetId?: string,
+    position?: 'before' | 'after' | 'inside'
   ) => void;
   onDuplicateBlock?: (id: string) => void;
   onDeleteBlock: (id: string) => void;
@@ -405,6 +432,10 @@ export function HomePageSettings({
   onDeleteSubLayer,
   onMoveBlock,
   onReorderBlock,
+  onMoveBlockIntoFnbAt,
+  onDropNewBlock,
+  onDropSection,
+  onDropItemTemplate,
   onDuplicateBlock,
   onDeleteBlock,
   onAddChildToContainer,
@@ -451,6 +482,16 @@ export function HomePageSettings({
   const [dragOverInfo, setDragOverInfo] = useState<{
     id: string;
     pos: 'before' | 'after' | 'inside';
+  } | null>(null);
+  const [dragFnbEntry, setDragFnbEntry] = useState<{
+    catalogId: string;
+    entryKey: string;
+    blockId?: string;
+  } | null>(null);
+  const [dragOverFnbEntry, setDragOverFnbEntry] = useState<{
+    catalogId: string;
+    entryKey: string;
+    pos: 'before' | 'after';
   } | null>(null);
   const [renamingBlockId, setRenamingBlockId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -725,10 +766,52 @@ export function HomePageSettings({
 
   const pageThemeOverrideCount = countLocalThemeOverrides(blocks);
 
+  const hasSidebarDragPayload = (dt: DataTransfer | null): boolean => {
+    if (!dt) return false;
+    const types = Array.from(dt.types ?? []);
+    return (
+      types.includes('application/lynk-block-type') ||
+      types.includes('application/lynk-section-id') ||
+      types.includes('application/lynk-item-template-id')
+    );
+  };
+
+  const handleSidebarDropOnTarget = (
+    e: React.DragEvent,
+    targetId: string,
+    pos: 'before' | 'after' | 'inside'
+  ): boolean => {
+    const newBlockType = e.dataTransfer.getData('application/lynk-block-type') as BlockType;
+    const blockPreset = e.dataTransfer.getData('application/lynk-block-preset') as 'png' | '';
+    const sectionId = e.dataTransfer.getData('application/lynk-section-id');
+    const itemTemplateId = e.dataTransfer.getData('application/lynk-item-template-id');
+    if (newBlockType && onDropNewBlock) {
+      onDropNewBlock(newBlockType, targetId, pos, blockPreset === 'png' ? 'png' : undefined);
+      return true;
+    }
+    if (sectionId && onDropSection) {
+      onDropSection(sectionId, targetId, pos);
+      return true;
+    }
+    if (itemTemplateId && onDropItemTemplate) {
+      onDropItemTemplate(itemTemplateId, targetId, pos);
+      return true;
+    }
+    return false;
+  };
+
+  type FnbUnifiedLayerCtx = {
+    catalogId: string;
+    entryKey: string;
+    unifiedIndex: number;
+    unifiedCount: number;
+  };
+
   const renderSubLayerRow = (
     blk: BuilderBlock,
     sub: ExtractedSubLayer,
-    isNestedChild = false
+    isNestedChild = false,
+    fnbDragCtx?: FnbUnifiedLayerCtx
   ): React.ReactNode => {
     const isSubSelected = blk.id === selectedId && selectedSubLayerId === sub.id;
     const subGroupKey = `${blk.id}::${sub.id}`;
@@ -738,6 +821,16 @@ export function HomePageSettings({
       hasSubChildren &&
       blk.id === selectedId &&
       Boolean(sub.children?.some((ch) => ch.id === selectedSubLayerId));
+    const isFnbOver = Boolean(
+      fnbDragCtx &&
+        dragOverFnbEntry?.catalogId === fnbDragCtx.catalogId &&
+        dragOverFnbEntry.entryKey === fnbDragCtx.entryKey
+    );
+    const isFnbDraggingSelf = Boolean(
+      fnbDragCtx &&
+        dragFnbEntry?.catalogId === fnbDragCtx.catalogId &&
+        dragFnbEntry.entryKey === fnbDragCtx.entryKey
+    );
 
     return (
       <div key={subGroupKey} className="space-y-1">
@@ -745,6 +838,98 @@ export function HomePageSettings({
           data-sublayer-id={subGroupKey}
           data-sublayer-kind={sub.kind}
           data-sublayer-selected={isSubSelected ? 'true' : 'false'}
+          draggable={Boolean(fnbDragCtx && !sub.isLocked)}
+          onDragStart={(e) => {
+            if (!fnbDragCtx || sub.isLocked) return;
+            e.stopPropagation();
+            setDragLayerId(null);
+            setDragOverInfo(null);
+            setDragFnbEntry({
+              catalogId: fnbDragCtx.catalogId,
+              entryKey: fnbDragCtx.entryKey,
+            });
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData(
+              'application/lynk-fnb-entry',
+              JSON.stringify({
+                catalogId: fnbDragCtx.catalogId,
+                entryKey: fnbDragCtx.entryKey,
+              })
+            );
+          }}
+          onDragOver={(e) => {
+            if (!fnbDragCtx) return;
+            const canAcceptSameFnb =
+              dragFnbEntry?.catalogId === fnbDragCtx.catalogId &&
+              dragFnbEntry.entryKey !== fnbDragCtx.entryKey;
+            const canAcceptExternalLayer =
+              Boolean(dragLayerId) && dragLayerId !== fnbDragCtx.catalogId;
+            const canAcceptSidebar = hasSidebarDragPayload(e.dataTransfer);
+            if (!canAcceptSameFnb && !canAcceptExternalLayer && !canAcceptSidebar) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pos: 'before' | 'after' =
+              e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
+            setDragOverInfo(null);
+            setDragOverFnbEntry((prev) =>
+              prev?.catalogId === fnbDragCtx.catalogId &&
+              prev.entryKey === fnbDragCtx.entryKey &&
+              prev.pos === pos
+                ? prev
+                : { catalogId: fnbDragCtx.catalogId, entryKey: fnbDragCtx.entryKey, pos }
+            );
+          }}
+          onDragLeave={() => {
+            if (!fnbDragCtx) return;
+            setDragOverFnbEntry((prev) =>
+              prev?.catalogId === fnbDragCtx.catalogId && prev.entryKey === fnbDragCtx.entryKey
+                ? null
+                : prev
+            );
+          }}
+          onDrop={(e) => {
+            if (!fnbDragCtx) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const pos: 'before' | 'after' =
+              dragOverFnbEntry?.catalogId === fnbDragCtx.catalogId &&
+              dragOverFnbEntry.entryKey === fnbDragCtx.entryKey
+                ? dragOverFnbEntry.pos
+                : 'after';
+            const activeFnbDrag = dragFnbEntry;
+            const activeLayerDrag = dragLayerId;
+            setDragFnbEntry(null);
+            setDragOverFnbEntry(null);
+            setDragLayerId(null);
+            setDragOverInfo(null);
+
+            if (
+              activeFnbDrag &&
+              activeFnbDrag.catalogId === fnbDragCtx.catalogId &&
+              activeFnbDrag.entryKey !== fnbDragCtx.entryKey
+            ) {
+              onUpdateBlock?.(fnbDragCtx.catalogId, (prev) =>
+                reorderFnbCatalogEntries(prev, activeFnbDrag.entryKey, fnbDragCtx.entryKey, pos)
+              );
+              return;
+            }
+            if (handleSidebarDropOnTarget(e, fnbDragCtx.catalogId, 'inside')) {
+              return;
+            }
+            const externalId = activeLayerDrag || e.dataTransfer.getData('text/plain');
+            if (externalId && externalId !== fnbDragCtx.catalogId) {
+              if (onMoveBlockIntoFnbAt) {
+                onMoveBlockIntoFnbAt(externalId, fnbDragCtx.catalogId, fnbDragCtx.entryKey, pos);
+              } else {
+                onReorderBlock(externalId, fnbDragCtx.catalogId, 'inside');
+              }
+            }
+          }}
+          onDragEnd={() => {
+            setDragFnbEntry(null);
+            setDragOverFnbEntry(null);
+          }}
           className={`group/sub w-full flex items-center gap-1 px-1.5 py-1.5 rounded-lg border text-left transition-all ${
             isSubSelected
               ? 'bg-[#ECFDF6] border-[#00C98A] border-l-[3px] text-[#17243D] shadow-2xs'
@@ -755,8 +940,26 @@ export function HomePageSettings({
               : isNestedChild
               ? 'bg-[#F8FBFE] border-[#E6EDF5] text-[#17243D] hover:border-[#00C98A]/60 hover:bg-white'
               : 'bg-white/90 border-[#E6EDF5] text-[#17243D] hover:border-[#00C98A]/60 hover:bg-[#F8FBFE]'
+          } ${isFnbDraggingSelf ? 'opacity-45' : ''} ${
+            isFnbOver && dragOverFnbEntry?.pos === 'before'
+              ? 'border-t-2 border-t-[#00C98A]'
+              : isFnbOver && dragOverFnbEntry?.pos === 'after'
+              ? 'border-b-2 border-b-[#00C98A]'
+              : ''
           }`}
         >
+          {fnbDragCtx && (
+            <span
+              className={`shrink-0 ${
+                sub.isLocked
+                  ? 'text-[#CBD5E1] cursor-not-allowed'
+                  : 'text-[#8FA4BF] cursor-grab active:cursor-grabbing'
+              }`}
+              title="Seret untuk ubah urutan produk di Katalog F&B"
+            >
+              <GripVertical className="w-3 h-3" />
+            </span>
+          )}
           {hasSubChildren && (
             <button
               type="button"
@@ -866,6 +1069,42 @@ export function HomePageSettings({
               isSubSelected ? 'opacity-100' : 'opacity-0 group-hover/sub:opacity-100'
             }`}
           >
+            {fnbDragCtx && onUpdateBlock && (
+              <>
+                <button
+                  type="button"
+                  disabled={fnbDragCtx.unifiedIndex === 0 || Boolean(sub.isLocked)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateBlock(fnbDragCtx.catalogId, (prev) =>
+                      moveFnbCatalogEntry(prev, fnbDragCtx.entryKey, 'up')
+                    );
+                  }}
+                  title="Naikkan urutan item"
+                  aria-label="Naikkan urutan item"
+                  className="p-1 rounded text-[#51637D] hover:bg-[#F0F5FA] hover:text-[#17243D] disabled:opacity-30 cursor-pointer transition-colors"
+                >
+                  <ArrowUp className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    fnbDragCtx.unifiedIndex === fnbDragCtx.unifiedCount - 1 || Boolean(sub.isLocked)
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateBlock(fnbDragCtx.catalogId, (prev) =>
+                      moveFnbCatalogEntry(prev, fnbDragCtx.entryKey, 'down')
+                    );
+                  }}
+                  title="Turunkan urutan item"
+                  aria-label="Turunkan urutan item"
+                  className="p-1 rounded text-[#51637D] hover:bg-[#F0F5FA] hover:text-[#17243D] disabled:opacity-30 cursor-pointer transition-colors"
+                >
+                  <ArrowDown className="w-3 h-3" />
+                </button>
+              </>
+            )}
             {sub.canToggleVisibility && onToggleSubLayerVisibility && (
               <button
                 type="button"
@@ -937,7 +1176,8 @@ export function HomePageSettings({
     blk: BuilderBlock,
     index: number,
     siblingsCount: number,
-    depth: number
+    depth: number,
+    fnbParentCtx?: FnbUnifiedLayerCtx
   ): React.ReactNode => {
     const isSelected = blk.id === selectedId;
     const isParentDirectlySelected = isSelected && !selectedSubLayerId;
@@ -948,7 +1188,8 @@ export function HomePageSettings({
       blk.type === 'bottom_sheet' ||
       blk.type === 'menu_icon' ||
       blk.type === 'showcase_card' ||
-      blk.type === 'hero_profile';
+      blk.type === 'hero_profile' ||
+      blk.type === 'fnb_catalog';
     const hasNestedBlocks = hasBlockNestedChildren(blk);
     const nestedBlockCount = hasNestedBlocks ? countDirectNestedChildren(blk) : 0;
     const subLayers = extractBlockSubLayers(blk);
@@ -956,6 +1197,11 @@ export function HomePageSettings({
     const totalSubCount = nestedBlockCount + subLayers.length;
     const isGroupExpanded = Boolean(expandedLayerGroups[blk.id]);
     const isOver = dragOverInfo?.id === blk.id;
+    const isFnbItemOver = Boolean(
+      fnbParentCtx &&
+        dragOverFnbEntry?.catalogId === fnbParentCtx.catalogId &&
+        dragOverFnbEntry.entryKey === fnbParentCtx.entryKey
+    );
     const isHidden = blk.style?.visibility === 'hidden';
     const isLocked = Boolean(blk.style?.locked);
     const isRenaming = renamingBlockId === blk.id;
@@ -980,6 +1226,18 @@ export function HomePageSettings({
       ? partSubLayers.filter((s) => s.id !== 'hero_cover' && s.id !== 'hero_profile_card')
       : [];
 
+    const effectiveIndex = fnbParentCtx ? fnbParentCtx.unifiedIndex : index;
+    const effectiveSiblingsCount = fnbParentCtx ? fnbParentCtx.unifiedCount : siblingsCount;
+    const handleRowMove = (dir: 'up' | 'down') => {
+      if (fnbParentCtx && onUpdateBlock) {
+        onUpdateBlock(fnbParentCtx.catalogId, (prev) =>
+          moveFnbCatalogEntry(prev, fnbParentCtx.entryKey, dir)
+        );
+      } else {
+        onMoveBlock(blk.id, dir);
+      }
+    };
+
     return (
       <div key={blk.id} className="space-y-1">
         <div
@@ -994,38 +1252,148 @@ export function HomePageSettings({
             if (isRenaming || isLocked) return;
             e.stopPropagation();
             setDragLayerId(blk.id);
+            if (fnbParentCtx) {
+              setDragFnbEntry({
+                catalogId: fnbParentCtx.catalogId,
+                entryKey: fnbParentCtx.entryKey,
+                blockId: blk.id,
+              });
+            } else {
+              setDragFnbEntry(null);
+            }
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', blk.id);
           }}
           onDragOver={(e) => {
+            const isSameFnbMenuDrag = Boolean(
+              fnbParentCtx &&
+                dragFnbEntry &&
+                !dragFnbEntry.blockId &&
+                dragFnbEntry.catalogId === fnbParentCtx.catalogId
+            );
+            const isSameFnbBlockDrag = Boolean(
+              fnbParentCtx &&
+                dragFnbEntry?.blockId &&
+                dragFnbEntry.catalogId === fnbParentCtx.catalogId &&
+                dragFnbEntry.entryKey !== fnbParentCtx.entryKey
+            );
+            const isSidebarDrag = hasSidebarDragPayload(e.dataTransfer);
+            const isRegularBlockDrag = Boolean(dragLayerId && dragLayerId !== blk.id);
+            if (!isSameFnbMenuDrag && !isSameFnbBlockDrag && !isSidebarDrag && !isRegularBlockDrag) {
+              return;
+            }
             e.preventDefault();
             e.stopPropagation();
-            if (!dragLayerId || dragLayerId === blk.id) return;
             const rect = e.currentTarget.getBoundingClientRect();
             const relY = e.clientY - rect.top;
-            let pos: 'before' | 'after' | 'inside' = relY < rect.height / 2 ? 'before' : 'after';
-            if (isContainer && relY > rect.height * 0.28 && relY < rect.height * 0.72) {
-              pos = 'inside';
+
+            if (isSameFnbMenuDrag && fnbParentCtx) {
+              const pos: 'before' | 'after' = relY < rect.height / 2 ? 'before' : 'after';
+              setDragOverInfo(null);
+              setDragOverFnbEntry({
+                catalogId: fnbParentCtx.catalogId,
+                entryKey: fnbParentCtx.entryKey,
+                pos,
+              });
+              return;
             }
-            setDragOverInfo({ id: blk.id, pos });
+
+            let pos: 'before' | 'after' | 'inside' = relY < rect.height / 2 ? 'before' : 'after';
+            if (isContainer) {
+              const insideMin = blk.type === 'fnb_catalog' ? 0.2 : 0.28;
+              const insideMax = blk.type === 'fnb_catalog' ? 0.8 : 0.72;
+              if (relY > rect.height * insideMin && relY < rect.height * insideMax) {
+                pos = 'inside';
+              }
+            }
+
+            if (fnbParentCtx && pos !== 'inside') {
+              setDragOverInfo(null);
+              setDragOverFnbEntry({
+                catalogId: fnbParentCtx.catalogId,
+                entryKey: fnbParentCtx.entryKey,
+                pos,
+              });
+            } else {
+              setDragOverFnbEntry(null);
+              setDragOverInfo({ id: blk.id, pos });
+            }
           }}
           onDragLeave={() => {
             setDragOverInfo((prev) => (prev?.id === blk.id ? null : prev));
+            if (fnbParentCtx) {
+              setDragOverFnbEntry((prev) =>
+                prev?.catalogId === fnbParentCtx.catalogId &&
+                prev.entryKey === fnbParentCtx.entryKey
+                  ? null
+                  : prev
+              );
+            }
           }}
           onDrop={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            const activeFnbDrag = dragFnbEntry;
+            const activeFnbOver = dragOverFnbEntry;
             const sourceId = dragLayerId || e.dataTransfer.getData('text/plain');
-            const pos = dragOverInfo?.id === blk.id ? dragOverInfo.pos : 'after';
+            const layerPos = dragOverInfo?.id === blk.id ? dragOverInfo.pos : 'after';
             setDragLayerId(null);
             setDragOverInfo(null);
+            setDragFnbEntry(null);
+            setDragOverFnbEntry(null);
+
+            // 1. Reorder within the same F&B catalog Daftar Item (menu or sibling card)
+            if (
+              fnbParentCtx &&
+              activeFnbDrag &&
+              activeFnbDrag.catalogId === fnbParentCtx.catalogId &&
+              activeFnbDrag.entryKey !== fnbParentCtx.entryKey &&
+              layerPos !== 'inside'
+            ) {
+              const fnbPos: 'before' | 'after' =
+                activeFnbOver?.catalogId === fnbParentCtx.catalogId &&
+                activeFnbOver.entryKey === fnbParentCtx.entryKey
+                  ? activeFnbOver.pos
+                  : 'after';
+              onUpdateBlock?.(fnbParentCtx.catalogId, (prev) =>
+                reorderFnbCatalogEntries(prev, activeFnbDrag.entryKey, fnbParentCtx.entryKey, fnbPos)
+              );
+              return;
+            }
+
+            // 2. Sidebar tool/section/template dropped onto this layer (or inside Katalog F&B)
+            if (handleSidebarDropOnTarget(e, blk.id, layerPos)) {
+              return;
+            }
+
+            // 3. External block dropped directly before/after a card inside F&B Daftar Item
+            if (
+              fnbParentCtx &&
+              sourceId &&
+              sourceId !== blk.id &&
+              sourceId !== fnbParentCtx.catalogId &&
+              layerPos !== 'inside' &&
+              onMoveBlockIntoFnbAt
+            ) {
+              const fnbPos: 'before' | 'after' =
+                activeFnbOver?.catalogId === fnbParentCtx.catalogId &&
+                activeFnbOver.entryKey === fnbParentCtx.entryKey
+                  ? activeFnbOver.pos
+                  : 'after';
+              onMoveBlockIntoFnbAt(sourceId, fnbParentCtx.catalogId, fnbParentCtx.entryKey, fnbPos);
+              return;
+            }
+
+            // 4. Standard tree reorder (including dropping into fnb_catalog 'inside' or moving out!)
             if (sourceId && sourceId !== blk.id) {
-              onReorderBlock(sourceId, blk.id, pos);
+              onReorderBlock(sourceId, blk.id, layerPos);
             }
           }}
           onDragEnd={() => {
             setDragLayerId(null);
             setDragOverInfo(null);
+            setDragFnbEntry(null);
+            setDragOverFnbEntry(null);
           }}
           className={`group relative flex items-center gap-1 px-1.5 py-1.5 rounded-lg border text-[11px] transition-all ${
             isParentDirectlySelected
@@ -1036,12 +1404,14 @@ export function HomePageSettings({
               ? 'bg-[#F3FBF7] border-[#00C98A]/55 text-[#17243D]'
               : 'bg-white border-[#DCE5EF] text-[#17243D] hover:border-[#8FA4BF]'
           } ${isHidden && !isSelected ? 'opacity-60 border-dashed' : ''} ${
-            isOver && dragOverInfo.pos === 'before'
+            (isOver && dragOverInfo.pos === 'before') ||
+            (isFnbItemOver && dragOverFnbEntry?.pos === 'before')
               ? 'border-t-2 border-t-[#00C98A]'
-              : isOver && dragOverInfo.pos === 'after'
+              : (isOver && dragOverInfo.pos === 'after') ||
+                (isFnbItemOver && dragOverFnbEntry?.pos === 'after')
               ? 'border-b-2 border-b-[#00C98A]'
               : isOver && dragOverInfo.pos === 'inside'
-              ? 'ring-2 ring-[#00C98A]/50'
+              ? 'ring-2 ring-[#00C98A] bg-[#ECFDF6]/80'
               : ''
           }`}
         >
@@ -1214,10 +1584,10 @@ export function HomePageSettings({
               )}
               <button
                 type="button"
-                disabled={index === 0}
+                disabled={effectiveIndex === 0}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onMoveBlock(blk.id, 'up');
+                  handleRowMove('up');
                 }}
                 title="Naikkan"
                 className="p-0.5 rounded disabled:opacity-30 cursor-pointer text-[#51637D] hover:bg-[#F0F5FA]"
@@ -1226,10 +1596,10 @@ export function HomePageSettings({
               </button>
               <button
                 type="button"
-                disabled={index === siblingsCount - 1}
+                disabled={effectiveIndex === effectiveSiblingsCount - 1}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onMoveBlock(blk.id, 'down');
+                  handleRowMove('down');
                 }}
                 title="Turunkan"
                 className="p-0.5 rounded disabled:opacity-30 cursor-pointer text-[#51637D] hover:bg-[#F0F5FA]"
@@ -1338,10 +1708,10 @@ export function HomePageSettings({
                 )}
                 <button
                   type="button"
-                  disabled={index === 0 || isLocked}
+                  disabled={effectiveIndex === 0 || isLocked}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onMoveBlock(blk.id, 'up');
+                    handleRowMove('up');
                   }}
                   title="Naikkan"
                   aria-label="Naikkan Lapisan"
@@ -1351,10 +1721,10 @@ export function HomePageSettings({
                 </button>
                 <button
                   type="button"
-                  disabled={index === siblingsCount - 1 || isLocked}
+                  disabled={effectiveIndex === effectiveSiblingsCount - 1 || isLocked}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onMoveBlock(blk.id, 'down');
+                    handleRowMove('down');
                   }}
                   title="Turunkan"
                   aria-label="Turunkan Lapisan"
@@ -1468,7 +1838,8 @@ export function HomePageSettings({
                 {/* Bagian Struktural Komponen */}
                 {partSubLayers.length > 0 && (
                   <div className="space-y-1">
-                    {itemSubLayers.length > 0 && (
+                    {(itemSubLayers.length > 0 ||
+                      (blk.type === 'fnb_catalog' && (blk.children?.length ?? 0) > 0)) && (
                       <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
                         Bagian Komponen ({partSubLayers.length})
                       </div>
@@ -1477,64 +1848,195 @@ export function HomePageSettings({
                   </div>
                 )}
 
-                {/* Komponen Anak Langsung (Wadah / Row / Kartu Dinamis / Sheet) */}
-                {Array.isArray(blk.children) && blk.children.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
-                      {blk.type === 'showcase_card'
-                        ? `Zona Atas / Isi Kartu (${blk.children.length})`
-                        : `Isi Komponen (${blk.children.length})`}
-                    </div>
-                    {blk.children.map((ch, cIdx) =>
-                      renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
-                    )}
-                  </div>
-                )}
-
-                {/* Daftar Item Data (Slide / Produk / Menu F&B / Program / Kategori / Sosmed / Kolom Form) */}
-                {itemSubLayers.length > 0 && (() => {
-                  const rawQuery = (layerItemSearch[blk.id] ?? '').trim().toLowerCase();
-                  const filteredItemSubs = rawQuery
-                    ? itemSubLayers.filter(
-                        (s) =>
-                          s.label.toLowerCase().includes(rawQuery) ||
-                          s.typeLabel.toLowerCase().includes(rawQuery)
-                      )
-                    : itemSubLayers;
-                  return (
+                {/* Komponen Anak Langsung (Wadah / Row / Kartu Dinamis / Sheet) — Katalog F&B menggabungkan card & blok ke Daftar Item */}
+                {blk.type !== 'fnb_catalog' &&
+                  Array.isArray(blk.children) &&
+                  blk.children.length > 0 && (
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-1 px-1 pt-0.5">
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-[#008F63]">
-                          Daftar Item ({itemSubLayers.length})
-                        </span>
-                        {rawQuery && (
-                          <span className="text-[9px] text-[#64748B] tabular-nums">
-                            {filteredItemSubs.length} cocok
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-[#51637D] px-1">
+                        {blk.type === 'showcase_card'
+                          ? `Zona Atas / Isi Kartu (${blk.children.length})`
+                          : `Isi Komponen (${blk.children.length})`}
+                      </div>
+                      {blk.children.map((ch, cIdx) =>
+                        renderLayerNode(ch, cIdx, blk.children!.length, depth + 1)
+                      )}
+                    </div>
+                  )}
+
+                {/* Daftar Item Gabungan Khusus Katalog Menu F&B (Menu + Card & Blok bisa saling geser/pindah posisi) */}
+                {blk.type === 'fnb_catalog' &&
+                  (() => {
+                    const unifiedEntries = resolveOrderedFnbEntries(blk);
+                    if (unifiedEntries.length === 0 && !dragLayerId) return null;
+                    const itemSubById = new Map<string, ExtractedSubLayer>();
+                    for (const s of itemSubLayers) {
+                      itemSubById.set(s.id, s);
+                    }
+                    const rawQuery = (layerItemSearch[blk.id] ?? '').trim().toLowerCase();
+                    const filteredEntries = rawQuery
+                      ? unifiedEntries.filter((entry) => {
+                          if (entry.kind === 'menu') {
+                            const sub = itemSubById.get(`fnb_${entry.id}`);
+                            return (
+                              entry.item.title.toLowerCase().includes(rawQuery) ||
+                              (entry.item.category || '').toLowerCase().includes(rawQuery) ||
+                              (sub?.typeLabel.toLowerCase().includes(rawQuery) ?? false)
+                            );
+                          }
+                          const blkTitle =
+                            entry.block.label?.trim() ||
+                            label(
+                              `komponen.type.${entry.block.type}`,
+                              BLOCK_TYPE_NAMES[entry.block.type]
+                            );
+                          const blkTypeName = label(
+                            `komponen.type.${entry.block.type}`,
+                            BLOCK_TYPE_NAMES[entry.block.type]
+                          );
+                          return (
+                            blkTitle.toLowerCase().includes(rawQuery) ||
+                            blkTypeName.toLowerCase().includes(rawQuery)
+                          );
+                        })
+                      : unifiedEntries;
+
+                    return (
+                      <div
+                        className="space-y-1"
+                        onDragOver={(e) => {
+                          if (!dragLayerId && !hasSidebarDragPayload(e.dataTransfer)) return;
+                          if (dragLayerId === blk.id) return;
+                          e.preventDefault();
+                        }}
+                        onDrop={(e) => {
+                          if (e.defaultPrevented) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (handleSidebarDropOnTarget(e, blk.id, 'inside')) {
+                            setDragLayerId(null);
+                            setDragOverInfo(null);
+                            return;
+                          }
+                          const sourceId = dragLayerId || e.dataTransfer.getData('text/plain');
+                          setDragLayerId(null);
+                          setDragOverInfo(null);
+                          if (sourceId && sourceId !== blk.id) {
+                            onReorderBlock(sourceId, blk.id, 'inside');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-1 px-1 pt-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-[#008F63]">
+                            Daftar Item ({unifiedEntries.length})
                           </span>
+                          {rawQuery ? (
+                            <span className="text-[9px] text-[#64748B] tabular-nums">
+                              {filteredEntries.length} cocok
+                            </span>
+                          ) : (
+                            <span className="text-[8.5px] text-[#8FA4BF]">
+                              Seret untuk atur posisi
+                            </span>
+                          )}
+                        </div>
+                        {unifiedEntries.length > 8 && (
+                          <input
+                            type="search"
+                            value={layerItemSearch[blk.id] ?? ''}
+                            onChange={(e) =>
+                              setLayerItemSearch((prev) => ({
+                                ...prev,
+                                [blk.id]: e.target.value,
+                              }))
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Cari menu atau card di layer..."
+                            className="w-full px-2 py-1 text-[10.5px] rounded-md border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#94A3B8] outline-none focus:border-[#00C98A]"
+                          />
+                        )}
+                        {filteredEntries.length === 0 ? (
+                          <div className="px-2 py-2 text-[10px] text-[#8FA4BF] text-center">
+                            Item tidak ditemukan
+                          </div>
+                        ) : (
+                          filteredEntries.map((entry) => {
+                            const unifiedIndex = unifiedEntries.findIndex(
+                              (e) => e.key === entry.key
+                            );
+                            const fnbCtx: FnbUnifiedLayerCtx = {
+                              catalogId: blk.id,
+                              entryKey: entry.key,
+                              unifiedIndex: unifiedIndex >= 0 ? unifiedIndex : 0,
+                              unifiedCount: unifiedEntries.length,
+                            };
+                            if (entry.kind === 'block') {
+                              return renderLayerNode(
+                                entry.block,
+                                fnbCtx.unifiedIndex,
+                                unifiedEntries.length,
+                                depth + 1,
+                                fnbCtx
+                              );
+                            }
+                            const sub = itemSubById.get(`fnb_${entry.id}`);
+                            if (!sub) return null;
+                            return renderSubLayerRow(blk, sub, false, fnbCtx);
+                          })
                         )}
                       </div>
-                      {itemSubLayers.length > 8 && (
-                        <input
-                          type="search"
-                          value={layerItemSearch[blk.id] ?? ''}
-                          onChange={(e) =>
-                            setLayerItemSearch((prev) => ({ ...prev, [blk.id]: e.target.value }))
-                          }
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder="Cari item di layer..."
-                          className="w-full px-2 py-1 text-[10.5px] rounded-md border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#94A3B8] outline-none focus:border-[#00C98A]"
-                        />
-                      )}
-                      {filteredItemSubs.length === 0 ? (
-                        <div className="px-2 py-2 text-[10px] text-[#8FA4BF] text-center">
-                          Item tidak ditemukan
+                    );
+                  })()}
+
+                {/* Daftar Item Data (Slide / Produk / Program / Kategori / Sosmed / Kolom Form) */}
+                {blk.type !== 'fnb_catalog' &&
+                  itemSubLayers.length > 0 &&
+                  (() => {
+                    const rawQuery = (layerItemSearch[blk.id] ?? '').trim().toLowerCase();
+                    const filteredItemSubs = rawQuery
+                      ? itemSubLayers.filter(
+                          (s) =>
+                            s.label.toLowerCase().includes(rawQuery) ||
+                            s.typeLabel.toLowerCase().includes(rawQuery)
+                        )
+                      : itemSubLayers;
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1 px-1 pt-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-[#008F63]">
+                            Daftar Item ({itemSubLayers.length})
+                          </span>
+                          {rawQuery && (
+                            <span className="text-[9px] text-[#64748B] tabular-nums">
+                              {filteredItemSubs.length} cocok
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        filteredItemSubs.map((sub) => renderSubLayerRow(blk, sub))
-                      )}
-                    </div>
-                  );
-                })()}
+                        {itemSubLayers.length > 8 && (
+                          <input
+                            type="search"
+                            value={layerItemSearch[blk.id] ?? ''}
+                            onChange={(e) =>
+                              setLayerItemSearch((prev) => ({
+                                ...prev,
+                                [blk.id]: e.target.value,
+                              }))
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Cari item di layer..."
+                            className="w-full px-2 py-1 text-[10.5px] rounded-md border border-[#DCE5EF] bg-white text-[#17243D] placeholder:text-[#94A3B8] outline-none focus:border-[#00C98A]"
+                          />
+                        )}
+                        {filteredItemSubs.length === 0 ? (
+                          <div className="px-2 py-2 text-[10px] text-[#8FA4BF] text-center">
+                            Item tidak ditemukan
+                          </div>
+                        ) : (
+                          filteredItemSubs.map((sub) => renderSubLayerRow(blk, sub))
+                        )}
+                      </div>
+                    );
+                  })()}
               </>
             )}
 
